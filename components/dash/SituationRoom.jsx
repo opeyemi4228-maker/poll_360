@@ -21,6 +21,7 @@ import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
 import CoordinatorWatch from "./CoordinatorWatch";
 import IncidentStream from "./IncidentStream";
+import LiveRefresh from "./LiveRefresh";
 import Sparkline from "./Sparkline";
 import { PARTY_FILL } from "./Charts";
 import { snapshot, parties } from "@/lib/replay";
@@ -378,8 +379,12 @@ export default function SituationRoom({
             : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
       }
       aside={
+        /* Rendered here rather than handed in from the page: both this and
+           LiveRefresh are client components, so passing a ready-made element
+           across the server boundary gained nothing and made these two into an
+           unkeyed array that React could not reconcile. */
         <>
-          {live}
+          <LiveRefresh seconds={15} label="Live" />
           <span className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5 text-[0.8125rem] text-dash-muted">
             <span aria-hidden="true" className="size-2 animate-pulse-live rounded-full bg-red-500" />
             Presidential 2023

@@ -3,7 +3,6 @@ import { AlertTriangle, Gauge, Scale, ShieldAlert, Users } from "lucide-react";
 
 import { PartyBars, CoverageBar } from "@/components/dash/Charts";
 import SituationRoom from "@/components/dash/SituationRoom";
-import LiveRefresh from "@/components/dash/LiveRefresh";
 import { requireUser } from "@/lib/guard";
 import { results, incidents, media } from "@/lib/db";
 import { watch } from "@/lib/watch";
@@ -57,11 +56,6 @@ export default async function RoomPage() {
       watchSummary={watchSummary}
       photos={photoMap}
       incidentCount={feed.length}
-      /* The room's own heartbeat. Without it nothing on this screen ever
-         changes: the page is server-rendered once and then sits there, so a
-         report filed at 21:40 would not appear — and the alarm that watches for
-         one would never have anything to announce. */
-      live={<LiveRefresh seconds={15} label="Live" />}
     />
   );
 }
