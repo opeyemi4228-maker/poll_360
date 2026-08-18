@@ -14,7 +14,8 @@
     "account:create": "node scripts/create-account.mjs",
     "build:map": "node scripts/build-map.mjs",
     "build:icons": "node scripts/build-icons.mjs",
-    "seed:demo": "node scripts/seed-demo.mjs"
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "seed:election": "node scripts/seed-election.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

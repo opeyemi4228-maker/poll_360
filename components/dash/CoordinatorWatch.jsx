@@ -62,6 +62,11 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
     [coordinators, filter]
   );
 
+  /* A row whose unit code names no state we recognise has no coordinates, and
+     is left off the map rather than drawn somewhere plausible. It stays in the
+     list beside it, which is where the person actually is accounted for. */
+  const plotted = useMemo(() => shown.filter((row) => row.x != null && row.y != null), [shown]);
+
   const active = hovered ? coordinators.find((row) => row.id === hovered) : null;
 
   return (
@@ -109,20 +114,51 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
             </defs>
             <rect width={shapes.width} height={shapes.height} fill="url(#watch-grid)" />
 
-            {/* The country, recessive: it is the backdrop here, not the data. */}
+            {/* The country, recessive but not invisible.
+                ── IT USED TO DISAPPEAR ────────────────────────────────────
+                Filled slate and stroked in the board's own colour, the land
+                and the background were within a shade of each other: the map
+                read as one dark rectangle with dots floating on it, and a dot
+                near a border told you nothing about which state it was in.
+                Recessive means quiet, not absent — the backdrop still has to
+                say where Nigeria is and where one state stops.
+
+                So the edges are white. They are the only thing separating the
+                land from the ground behind it, and at this weight they read
+                across a room without competing with the markers, which are
+                the data. */}
             {shapes.states.map((shape) => (
               <path
                 key={shape.code}
                 d={shape.d}
                 fill="var(--color-silent)"
-                stroke="var(--color-board)"
-                strokeWidth="1.2"
+                stroke="rgba(255,255,255,0.55)"
+                strokeWidth="1"
+                strokeLinejoin="round"
               />
             ))}
 
-            {shown.map((row) => (
+            {plotted.map((row) => (
               <g key={row.id} onPointerEnter={() => setHovered(row.id)}>
-                {/* A live fix pulses; a derived placeholder never does. */}
+                {/* A position that has just arrived rings out from where it
+                    landed, so the map shows the count moving rather than a
+                    still photograph of it. Only a real fix does this — a
+                    placeholder has nothing to be fresh about. */}
+                {row.fresh && !row.derived && (
+                  <circle
+                    cx={row.x}
+                    cy={row.y}
+                    r="9"
+                    fill="none"
+                    stroke={TONE[row.band]}
+                    strokeWidth="1.5"
+                    opacity="0.55"
+                  >
+                    <animate attributeName="r" from="5" to="14" dur="2.4s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" from="0.55" to="0" dur="2.4s" repeatCount="indefinite" />
+                  </circle>
+                )}
+
                 {row.band === "far" && (
                   <circle cx={row.x} cy={row.y} r="10" fill="none" stroke={TONE.far} strokeWidth="1.5" opacity="0.5">
                     <animate attributeName="r" from="6" to="16" dur="1.8s" repeatCount="indefinite" />
@@ -158,6 +194,11 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
                       active.accuracy ? ` · ±${Math.round(active.accuracy)}m` : ""
                     }`}
               </p>
+              {/* When, not just where. A coordinate with no time on it is the
+                  one thing this panel must never show: it would read as "now". */}
+              {active.at && (
+                <p className="figure mt-0.5 text-[0.75rem] text-white/45">{ago(active.at)}</p>
+              )}
               <p className="tag mt-1.5 text-white/70">{BANDS[active.band].label}</p>
             </div>
           )}
@@ -240,4 +281,15 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
       </section>
     </div>
   );
+}
+
+/** How long ago a fix came in, in words a room reads at a glance. */
+function ago(value) {
+  const at = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(at.getTime())) return "";
+  const minutes = Math.round((Date.now() - at.getTime()) / 60000);
+  if (minutes < 1) return "Reported just now";
+  if (minutes < 60) return `Reported ${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  return `Reported ${hours} hour${hours === 1 ? "" : "s"} ago`;
 }

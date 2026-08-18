@@ -57,6 +57,11 @@ export default async function RoomPage() {
       watchSummary={watchSummary}
       photos={photoMap}
       incidentCount={feed.length}
+      /* The room's own heartbeat. Without it nothing on this screen ever
+         changes: the page is server-rendered once and then sits there, so a
+         report filed at 21:40 would not appear — and the alarm that watches for
+         one would never have anything to announce. */
+      live={<LiveRefresh seconds={15} label="Live" />}
     />
   );
 }

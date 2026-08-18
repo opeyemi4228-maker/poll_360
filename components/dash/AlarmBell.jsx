@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Bell, Volume2, VolumeX } from "lucide-react";
+import { AlertTriangle, Bell, Repeat, Volume2, VolumeX } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -61,6 +61,9 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
   const [blocked, setBlocked] = useState(false);
   const [unread, setUnread] = useState(0);
   const [flashing, setFlashing] = useState(false);
+  /* Rehearsal: the alarm on a timer, for demonstrating the room to people who
+     are not going to wait for a real report to come in. */
+  const [rehearsing, setRehearsing] = useState(false);
 
   const audioRef = useRef(null);
   /* Which incidents this tab has already announced. Seeded on the first render
@@ -202,6 +205,28 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
     return () => clearTimeout(timer);
   }, [flashing]);
 
+  /**
+   * The rehearsal loop.
+   *
+   * ── WHY THIS IS A MODE AND NOT A SETTING ───────────────────────────────
+   * Sounding a real alarm on a timer would be the worst thing this component
+   * could do. An alarm that goes off when nothing has happened is an alarm a
+   * room learns to ignore within the hour, and then the one that matters at
+   * 02:40 is ignored too. So the loop never touches the unread count, never
+   * flashes the bell, and never claims a report arrived — it plays the tone
+   * and nothing else, while a strip across the panel says out loud that it is
+   * a rehearsal.
+   *
+   * It is deliberately not remembered between sessions either. Somebody
+   * demonstrating the room on Thursday must not leave it armed for Saturday.
+   * ───────────────────────────────────────────────────────────────────────
+   */
+  useEffect(() => {
+    if (!rehearsing || muted) return;
+    const timer = setInterval(() => sound("CRITICAL"), 30000);
+    return () => clearInterval(timer);
+  }, [rehearsing, muted, sound]);
+
   const toggleMute = () => {
     const next = !muted;
     setMuted(next);
@@ -291,14 +316,45 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
 
               <button
                 type="button"
+                onClick={() => {
+                  const next = !rehearsing;
+                  setRehearsing(next);
+                  /* The click is the gesture the autoplay policy wants, so the
+                     first tone can play immediately rather than 30s later. */
+                  if (next && !muted) {
+                    arm();
+                    sound("CRITICAL");
+                  }
+                }}
+                aria-pressed={rehearsing}
+                title="Sound the alarm every 30 seconds, for demonstrating the room"
+                className={cn(
+                  "ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[0.6875rem] font-semibold transition-colors",
+                  rehearsing
+                    ? "border-red-500 bg-red-50 text-red-700"
+                    : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
+                )}
+              >
+                <Repeat size={13} strokeWidth={2.5} />
+                {rehearsing ? "Rehearsing" : "Rehearse"}
+              </button>
+
+              <button
+                type="button"
                 onClick={toggleMute}
                 aria-pressed={muted}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-dash-line px-2.5 py-1.5 text-[0.6875rem] font-semibold text-dash-muted transition-colors hover:border-dash-ink hover:text-dash-ink"
+                className="inline-flex items-center gap-1.5 rounded-full border border-dash-line px-2.5 py-1.5 text-[0.6875rem] font-semibold text-dash-muted transition-colors hover:border-dash-ink hover:text-dash-ink"
               >
                 {muted ? <VolumeX size={13} strokeWidth={2.5} /> : <Volume2 size={13} strokeWidth={2.5} />}
                 {muted ? "Muted" : "Sound on"}
               </button>
             </div>
+
+            {rehearsing && (
+              <p className="border-b border-dash-line bg-red-50 px-4 py-2.5 text-[0.75rem] font-semibold text-red-800">
+                Rehearsal — the alarm sounds every 30 seconds. No report has arrived.
+              </p>
+            )}
 
             {blocked && !muted && (
               <button

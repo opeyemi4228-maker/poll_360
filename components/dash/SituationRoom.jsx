@@ -70,6 +70,7 @@ export default function SituationRoom({
   coordinators = [],
   watchSummary = { total: 0, filed: 0, located: 0, far: 0, silent: 0 },
   photos = {},
+  live = null,
 }) {
   const [layer, setLayer] = useState("results");
   const [path, setPath] = useState([]); // [state, lga, ward]
@@ -377,10 +378,13 @@ export default function SituationRoom({
             : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
       }
       aside={
-        <span className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5 text-[0.8125rem] text-dash-muted">
-          <span aria-hidden="true" className="size-2 animate-pulse-live rounded-full bg-red-500" />
-          Live · presidential 2023
-        </span>
+        <>
+          {live}
+          <span className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5 text-[0.8125rem] text-dash-muted">
+            <span aria-hidden="true" className="size-2 animate-pulse-live rounded-full bg-red-500" />
+            Presidential 2023
+          </span>
+        </>
       }
     >
       {layer === "watch" ? (

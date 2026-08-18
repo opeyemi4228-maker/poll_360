@@ -223,6 +223,12 @@ export default function ScopeMap({
             onClick={() => onOpen?.(shape)}
             className="cursor-pointer"
           >
+            {/* No <svg:title> here on purpose. The map is role="img", which
+                makes its whole subtree presentational — a title inside it is
+                never read out, and all it did was raise a slow native tooltip
+                a second after the hover card had already answered the same
+                question, on top of it. The figures remain in the list beside
+                the map, which is what the map's own label points at. */}
             <path
               d={shape.d}
               fill={fill}
@@ -231,12 +237,7 @@ export default function ScopeMap({
               strokeLinejoin="round"
               style={{ opacity: hovered && !active ? 0.5 : 1 }}
               className="transition-opacity duration-150"
-            >
-              <title>
-                {shape.name}
-                {row ? ` — ${describe(row, layer)}` : ""}
-              </title>
-            </path>
+            />
 
             {/* Inside a state the LGA's own name is drawn, not a party code:
                 at that scale the question is "which place is this", and a name
@@ -383,6 +384,27 @@ function HoverCard({ name, row, layer, level, incident }) {
           .slice(0, 3)
       : [];
 
+  /* ── THE DENOMINATOR HAS TO COME FROM THE SAME PLACE AS THE NUMERATOR ────
+     A row's `total` is scaled to the share of booths that have reported, while
+     its `votes` are the place's full figures. Dividing one by the other gives
+     a party 115% of the vote — which is what this card printed the first time
+     it was pointed at Ekiti.
+
+     A share is a ratio, so it only needs the votes: each party over the sum of
+     all of them. That is scale-independent — it gives the same answer whether
+     the numbers are the whole state's or the fraction counted so far — and it
+     cannot drift from whatever `total` happens to mean. `total` is left to do
+     the one job it is right for, below: saying how many votes are actually in,
+     next to the coverage that qualifies it.
+     ────────────────────────────────────────────────────────────────────── */
+  const voteSum = ranked.length
+    /* The whole array, including the bucket of everyone else on the ballot.
+       Dividing by the four named parties alone would quietly inflate each of
+       them by the small parties' share — 65.4% for APC in Ekiti becomes 66.6%,
+       which is not the figure anyone else is quoting. */
+    ? row.votes.reduce((sum, count) => sum + count, 0)
+    : 0;
+
   return (
     <>
       <p className="flex items-baseline gap-2">
@@ -404,7 +426,7 @@ function HoverCard({ name, row, layer, level, incident }) {
         <>
           <ul className="mt-2.5 space-y-1.5">
             {ranked.map(({ party, votes }) => {
-              const share = total > 0 ? (votes / total) * 100 : 0;
+              const share = voteSum > 0 ? (votes / voteSum) * 100 : 0;
               return (
                 <li key={party.id} className="flex items-center gap-2">
                   <span className="w-9 shrink-0 font-mono text-[0.6875rem] font-bold text-dash-ink">
