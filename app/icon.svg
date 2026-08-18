@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+  <!-- The Poll360 coverage dial. Solid ground rather than a transparent one,
+       so the mark holds against a light tab strip and a dark one alike. -->
+  <rect width="40" height="40" fill="#0A0D14"/>
+  <g stroke="#ffffff" stroke-width="1.8" stroke-linecap="square" opacity="0.4">
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(0 20 20)"/>
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(45 20 20)"/>
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(90 20 20)"/>
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(135 20 20)"/>
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(180 20 20)"/>
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(225 20 20)"/>
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(270 20 20)"/>
+    <line x1="20" y1="6.5" x2="20" y2="2.5" transform="rotate(315 20 20)"/>
+  </g>
+  <!-- 62% of the circumference: the arc is the product's one idea. -->
+  <circle cx="20" cy="20" r="13" fill="none" stroke="#E4003B" stroke-width="4.5"
+          stroke-dasharray="50.6 81.7" transform="rotate(-90 20 20)"/>
+  <circle cx="20" cy="20" r="4.5" fill="#ffffff"/>
+</svg>

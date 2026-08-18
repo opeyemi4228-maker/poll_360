@@ -1,0 +1,592 @@
+@import "tailwindcss";
+
+/* ==================================================================
+   POLL360 DESIGN SYSTEM — "Instrument Editorial"
+
+   Two references, deliberately combined:
+
+   • labour.org.uk gives the *blocks*: full-bleed flat colour, square
+     corners, oversized tight-tracked display type, and a single hot
+     accent that means "act". No gradients, no floating cards, no
+     drop shadows pretending to be depth.
+
+   • fordfoundation.org gives the *structure*: heavy horizontal rules
+     instead of boxes, numbered section kickers, enormous figures set
+     as editorial objects, and generous vertical rhythm that lets a
+     serious claim sit on its own.
+
+   To that Poll360 adds the one thing neither needs: an instrument
+   surface. A results board is read at 3am, across a room, on a video
+   wall, by someone who has been awake for nineteen hours. That
+   surface is near-black, its numerals are monospaced so digits do not
+   dance as they tick, and its colour carries meaning that is always
+   also written in words.
+
+   Brand: Poll360 red (#E4003B) + Poll360 blue (deep royal/navy).
+   Colour is OKLCH throughout so every ramp is perceptually even.
+================================================================== */
+
+@theme {
+  /* ---- Poll360 red ---------------------------------------------
+     Anchored on #E4003B — the Labour red, oklch(58.1% 0.233 20.1).
+     This is the *act* colour: primary buttons, section numbers, the
+     rule under the masthead.
+
+     ONE RULE GOVERNS IT: inside the instrument, colour belongs to
+     the data. Labour Party's own red is a fill on the board, so
+     nothing in the board's chrome — live dot, timeline, tags — is
+     ever brand red. Board chrome is white and neutral; brand red
+     stops at the edge of the board. Two reds meaning two different
+     things in one frame is how a viewer learns to distrust both. */
+  --color-red-50: oklch(97% 0.012 20);
+  --color-red-100: oklch(93.5% 0.032 20);
+  --color-red-200: oklch(87% 0.075 20);
+  --color-red-300: oklch(78% 0.14 20);
+  --color-red-400: oklch(68% 0.2 20);
+  --color-red-500: oklch(58.1% 0.233 20.1); /* #E4003B */
+  --color-red-600: oklch(50% 0.205 20);
+  --color-red-700: oklch(42% 0.17 20);
+  --color-red-800: oklch(34% 0.135 20);
+  --color-red-900: oklch(27% 0.105 20);
+  --color-red-950: oklch(18% 0.07 20);
+
+  /* ---- Poll360 blue --------------------------------------------
+     The institutional half of the pair. Used overwhelmingly as a
+     *surface* — full-bleed blocks at 800/900/950 — rather than as
+     ink. Hue 268 keeps it clear of the party blue at hue 255 that
+     the board uses as a data fill; the two never meet at the same
+     lightness, so a navy block and a leading party are never
+     confusable. */
+  --color-blue-50: oklch(96.5% 0.015 268);
+  --color-blue-100: oklch(93% 0.035 268);
+  --color-blue-200: oklch(86.5% 0.07 268);
+  --color-blue-300: oklch(77% 0.115 268);
+  --color-blue-400: oklch(65% 0.17 268);
+  --color-blue-500: oklch(54% 0.205 268);
+  --color-blue-600: oklch(45.5% 0.203 268); /* the royal, for type on light */
+  --color-blue-700: oklch(38% 0.175 268);
+  --color-blue-800: oklch(30% 0.14 268);
+  --color-blue-900: oklch(23% 0.105 268); /* the block */
+  --color-blue-950: oklch(15.5% 0.07 268);
+
+  /* ---- Ink: near-neutral, faintly cool -------------------------- */
+  --color-ink-50: oklch(97.5% 0.003 265);
+  --color-ink-100: oklch(95% 0.004 265);
+  --color-ink-200: oklch(90.5% 0.006 265);
+  --color-ink-300: oklch(83% 0.008 265);
+  --color-ink-400: oklch(68% 0.01 265);
+  --color-ink-500: oklch(55% 0.011 265);
+  --color-ink-600: oklch(44% 0.012 265);
+  --color-ink-700: oklch(34% 0.012 265);
+  --color-ink-800: oklch(24% 0.012 265);
+  --color-ink-900: oklch(16.5% 0.012 265);
+  --color-ink-950: oklch(11% 0.012 265);
+
+  /* Warm paper against cool ink: the editorial bands read as printed
+     stock rather than as "light mode". */
+  --color-paper: oklch(96.8% 0.006 84.6);
+
+  /* ---- The board -----------------------------------------------
+     The instrument surface. Near-black, very slightly blue, so it
+     sits in the same family as the navy blocks without competing
+     with them, and so party fills at L≈0.62 clear 3:1 against it. */
+  --color-board: oklch(15.9% 0.016 266.6); /* #0A0D14 */
+  --color-board-raised: oklch(19.5% 0.016 266.6);
+  --color-board-line: oklch(27% 0.014 266.6);
+
+  /* ---- Party fills ---------------------------------------------
+     The parties' own hues, re-stepped in lightness for the board.
+
+     APC blue, PDP green, LP red, NNPP green — each hue taken from
+     the party's known colour and moved only in lightness/chroma, so
+     every fill clears 3:1 against the near-black board while the
+     identity survives. A chart that invents a party's colour is a
+     chart nobody in Nigerian politics will trust at a glance.
+
+     Measured (OKLab ΔE ×100, Machado 2009 severity 1.0) all pairs
+     pass except PDP green against LP red: ΔE 3.5 under protanopia.
+     That pair cannot be fixed by any hex — separating it by
+     lightness collapses LP against NNPP, because LP sits between
+     the two greens. It is a property of this party palette.
+
+     So LP also carries a diagonal hatch, every state carries its
+     party code in type, and the table repeats it all colourlessly.
+     See lib/election2023.js for the full measurement. */
+  --color-apc: oklch(62.9% 0.141 243.9); /* from #87BEEB */
+  --color-pdp: oklch(50.1% 0.135 142.7); /* from #006903 */
+  --color-lp: oklch(59.9% 0.19 29); /* from #DA251C */
+  --color-nnpp: oklch(71.9% 0.17 142.5); /* from #049603 */
+  --color-party-other: oklch(58% 0.008 265);
+
+  /* The same four hues re-stepped for a white dashboard surface. Only
+     lightness moves; the hue that identifies each party is untouched.
+
+     PDP and NNPP are both green here too, and are separated by a wide
+     lightness gap rather than by hue — the one thing that can separate
+     them. NNPP sits under 3:1 against white, so every chart that uses
+     it carries a direct label; that is the documented relief for a
+     light mark, and this system never relies on the fill alone. */
+  --color-apc-l: oklch(52% 0.155 243.9);
+  --color-pdp-l: oklch(45% 0.13 142.7);
+  --color-lp-l: oklch(55% 0.2 29);
+  --color-nnpp-l: oklch(68% 0.16 142.5);
+  --color-party-other-l: oklch(62% 0.008 265);
+
+  /* Silence. Not a low number, not a pale party colour — an absence.
+     Drawn just above the board surface so the shape of the country
+     is still legible before a single return has landed. */
+  --color-silent: oklch(24% 0.012 266.6);
+
+  /* ---- Status: reserved, and never reused as a series ----------- */
+  --color-live: oklch(58.1% 0.233 20.1); /* the red, pulsing */
+  --color-verified: oklch(72% 0.11 200); /* checked by a human above */
+  --color-flagged: oklch(70% 0.17 55); /* wants a look */
+
+  /* ---- Type -----------------------------------------------------
+     Three families, one job each, no overlap:
+       display/sans — Inter Tight. Tight enough at 900 to hold a
+                      headline the width of the page.
+       mono         — IBM Plex Mono. Every figure on this site is
+                      monospaced: a total that ticks from 9,999 to
+                      10,000 must not reflow the row it sits in.
+       editorial    — Instrument Serif. Reserved for statements the
+                      product makes in its own voice. Used perhaps
+                      four times on the whole page, which is what
+                      keeps it worth reading. */
+  --font-display: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter-tight), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", monospace;
+  --font-editorial: var(--font-instrument-serif), ui-serif, Georgia, serif;
+
+  /* Fluid scale: tracks the viewport instead of stepping through a
+     text-3xl sm:text-4xl lg:text-7xl ladder at every heading. */
+  --text-fluid-xs: clamp(0.6875rem, 0.66rem + 0.14vw, 0.75rem);
+  --text-fluid-sm: clamp(0.8125rem, 0.79rem + 0.14vw, 0.875rem);
+  --text-fluid-base: clamp(0.9375rem, 0.91rem + 0.16vw, 1rem);
+  --text-fluid-lg: clamp(1.0625rem, 1rem + 0.32vw, 1.25rem);
+  --text-fluid-xl: clamp(1.25rem, 1.13rem + 0.6vw, 1.625rem);
+  --text-fluid-2xl: clamp(1.5rem, 1.28rem + 1.1vw, 2.25rem);
+  --text-fluid-3xl: clamp(1.875rem, 1.5rem + 1.9vw, 3.125rem);
+  --text-fluid-4xl: clamp(2.375rem, 1.75rem + 3.1vw, 4.5rem);
+  --text-fluid-5xl: clamp(2.875rem, 1.9rem + 4.9vw, 6.5rem);
+  /* Re-fitted to 320px: at the old minimum "broadcast." was 287px of type in
+     281px of available measure on the smallest phone still in use, and the
+     hero headline clipped. Unchanged at desktop — still 136px at 1600. */
+  --text-fluid-6xl: clamp(2.75rem, 1.3rem + 7.2vw, 8.5rem);
+  --text-fluid-7xl: clamp(3.5rem, 1.5rem + 10vw, 11.5rem);
+
+  /* ---- Shape ----------------------------------------------------
+     The website is square — that is the Labour/Ford grammar and it
+     stays. The dashboards are a different product used for eleven
+     hours at a stretch, where a softened corner reads as a surface
+     you can rest on rather than a printed rule. So the app tier gets
+     its own radius, used nowhere on the marketing site. */
+  --radius-card: 0px;
+  --radius-panel: 0px;
+  --radius-dash: 12px;
+  --radius-dash-sm: 8px;
+
+  /* ---- Dashboard surfaces: white and black ----------------------
+     A results desk is read in daylight as often as at 2am, and a
+     black-on-white sheet is what every figure in this business has
+     been printed on for a century. The sidebar carries the black so
+     the data can have all of the white. */
+  --color-dash-bg: oklch(97.5% 0.002 265); /* the page behind the cards */
+  --color-dash-card: #ffffff;
+  --color-dash-line: oklch(92.5% 0.004 265);
+  --color-dash-ink: oklch(14% 0.012 265); /* headings, figures */
+  --color-dash-muted: oklch(48% 0.012 265); /* labels, secondary */
+  --color-dash-rail: oklch(13% 0.012 265); /* the black sidebar */
+
+  /* ---- Elevation: structure comes from rules, not shadows ------- */
+  --shadow-e1: none;
+  --shadow-e2: 0 1px 2px oklch(11% 0.012 265 / 0.08);
+  --shadow-e3: 0 10px 30px -14px oklch(11% 0.012 265 / 0.35);
+  --shadow-e4: 0 28px 70px -28px oklch(11% 0.012 265 / 0.5);
+
+  /* ---- Motion ---------------------------------------------------- */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-pulse-live: pulse-live 2s var(--ease-out-quart) infinite;
+  --animate-land: land 0.6s var(--ease-out-quart) both;
+  --animate-alarm-swing: alarm-swing 0.9s var(--ease-out-quart) 3;
+
+  @keyframes marquee {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+  /* The live dot. A returns feed that is running should look like it
+     is running, even in a still photograph of the screen. */
+  @keyframes pulse-live {
+    0% {
+      box-shadow: 0 0 0 0 oklch(58.1% 0.233 20.1 / 0.55);
+    }
+    70% {
+      box-shadow: 0 0 0 0.5rem oklch(58.1% 0.233 20.1 / 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 oklch(58.1% 0.233 20.1 / 0);
+    }
+  }
+  /* The incident alarm. The bell rocks for a few seconds when a report lands,
+     so a room that had the sound muted still catches it out of the corner of an
+     eye. It stops by itself: a bell that rings until acknowledged becomes
+     wallpaper by midnight. */
+  @keyframes alarm-swing {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    15% {
+      transform: rotate(-14deg);
+    }
+    30% {
+      transform: rotate(12deg);
+    }
+    45% {
+      transform: rotate(-8deg);
+    }
+    60% {
+      transform: rotate(6deg);
+    }
+    75% {
+      transform: rotate(-3deg);
+    }
+  }
+  /* A return landing on the board. Brief, and it never moves layout. */
+  @keyframes land {
+    from {
+      opacity: 0;
+      transform: translate3d(0, -0.5rem, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* ------------------------------------------------------------------
+   Semantic layer.
+
+   Every component reads these, never a ramp step directly. A section
+   changes them once (`.on-dark`) and everything inside it — buttons,
+   rules, hairlines, muted type — inverts with no per-component dark
+   variants anywhere in the codebase.
+------------------------------------------------------------------- */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-hairline: var(--hairline);
+  --color-rule: var(--rule-color);
+  --color-content: var(--content);
+  --color-content-muted: var(--content-muted);
+  --color-content-subtle: var(--content-subtle);
+  --color-accent: var(--accent);
+}
+
+:root {
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --hairline: var(--color-ink-200);
+  --rule-color: var(--color-ink-950);
+  --content: var(--color-ink-950);
+  --content-muted: var(--color-ink-600);
+  --content-subtle: var(--color-ink-500);
+  --accent: var(--color-red-500);
+}
+
+/* Any block laid over navy or the board surface. */
+.on-dark {
+  --canvas: var(--color-blue-950);
+  --surface: var(--color-blue-900);
+  --hairline: oklch(100% 0 0 / 0.16);
+  --rule-color: oklch(100% 0 0 / 0.85);
+  --content: #ffffff;
+  --content-muted: oklch(100% 0 0 / 0.72);
+  --content-subtle: oklch(100% 0 0 / 0.55);
+  --accent: var(--color-red-400);
+  color: var(--content);
+}
+
+/* The instrument surface: same inversion, colder, and with the board's
+   own line colour so panel divisions read as rules rather than as
+   translucent haze stacking up over a photograph. */
+.on-board {
+  --canvas: var(--color-board);
+  --surface: var(--color-board-raised);
+  --hairline: var(--color-board-line);
+  --rule-color: oklch(100% 0 0 / 0.9);
+  --content: #ffffff;
+  --content-muted: oklch(100% 0 0 / 0.7);
+  --content-subtle: oklch(100% 0 0 / 0.52);
+  --accent: var(--color-red-400);
+  color: var(--content);
+}
+
+/* ------------------------------------------------------------------
+   Base
+------------------------------------------------------------------- */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 8rem; /* clears the sticky masthead, rule included */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--content);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    /* A full-bleed block must never grow a horizontal scrollbar. */
+    overflow-x: clip;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 0.94;
+    text-wrap: balance;
+  }
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+  p {
+    text-wrap: pretty;
+  }
+
+  /* One focus ring for the entire product, and it is the brand red so
+     it is visible on paper, on navy and on the board alike. */
+  :focus-visible {
+    outline: 3px solid var(--color-red-500);
+    outline-offset: 2px;
+  }
+  .on-dark :focus-visible,
+  .on-board :focus-visible {
+    outline-color: var(--color-red-400);
+  }
+
+  ::selection {
+    background-color: var(--color-red-500);
+    color: #ffffff;
+  }
+
+  @supports (scrollbar-color: auto) {
+    html {
+      scrollbar-color: var(--color-ink-400) transparent;
+      scrollbar-width: thin;
+    }
+  }
+
+  img,
+  svg,
+  video {
+    max-width: 100%;
+  }
+
+  /* Grid and flex children default to min-width:auto and refuse to
+     shrink below their content, which is how one long unbreakable
+     string widens a whole row on a phone. Zero specificity, so any
+     explicit min-w-* still wins. */
+  :where(.grid, .flex) > * {
+    min-width: 0;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Components: the vocabulary every band on the site reuses
+------------------------------------------------------------------- */
+@layer components {
+  /* Page gutter and measure. One definition, used everywhere. */
+  .shell {
+    width: 100%;
+    margin-inline: auto;
+    max-width: 88rem;
+    padding-inline: clamp(1.25rem, 0.4rem + 4vw, 5rem);
+  }
+  .shell-wide {
+    max-width: 112rem;
+  }
+  .shell-text {
+    max-width: 54rem;
+  }
+
+  .section {
+    padding-block: clamp(4.5rem, 2.5rem + 8vw, 10rem);
+  }
+  .section-tight {
+    padding-block: clamp(3rem, 2rem + 4.5vw, 5.5rem);
+  }
+
+  /* The Ford kicker: a numbered, ruled section label. */
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    font-family: var(--font-mono);
+    font-size: var(--text-fluid-xs);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--content);
+  }
+  .eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.25;
+  }
+
+  /* Body copy. Held to a measure, because a 120-character line is
+     where a serious page starts looking like a terms-of-service. */
+  .prose-body {
+    font-size: var(--text-fluid-lg);
+    line-height: 1.6;
+    letter-spacing: -0.006em;
+    max-width: 62ch;
+    color: var(--content-muted);
+  }
+
+  /* A card here is a ruled block, never a floating rounded panel. */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--hairline);
+    transition:
+      background-color 0.4s var(--ease-out-quart),
+      border-color 0.4s var(--ease-out-quart),
+      color 0.4s var(--ease-out-quart);
+  }
+  .card-interactive:hover {
+    border-color: var(--rule-color);
+  }
+
+  /* The structural rules that separate editorial blocks. */
+  .rule {
+    height: 2px;
+    background: var(--rule-color);
+  }
+  .rule-hair {
+    height: 1px;
+    background: var(--hairline);
+  }
+
+  /* Every figure on this site. Monospaced, tight, and lining, so a
+     column of numbers is a column and a ticking total does not
+     shuffle the words beside it. */
+  .figure {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1;
+    letter-spacing: -0.02em;
+  }
+
+  /* A small uppercase mono label — the instrument vernacular. */
+  .tag {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  /* The graph-paper wash on board surfaces. Faint enough to read as
+     texture, aligned to an 8px grid so it never moirés on a wall. */
+  .board-grid {
+    background-image:
+      linear-gradient(to right, var(--color-board-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--color-board-line) 1px, transparent 1px);
+    background-size: 4rem 4rem;
+    opacity: 0.35;
+  }
+
+  .skip-link {
+    position: fixed;
+    top: 0.75rem;
+    left: 0.75rem;
+    z-index: 200;
+    padding: 0.75rem 1.25rem;
+    background: var(--color-red-500);
+    color: #ffffff;
+    font-weight: 700;
+    transform: translateY(-160%);
+    transition: transform 0.25s var(--ease-out-quart);
+  }
+  .skip-link:focus-visible {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Utilities
+------------------------------------------------------------------- */
+
+/* Break out of `.shell` to the full viewport width. */
+@utility bleed {
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+}
+
+/* Fade a marquee at both edges rather than hard-cutting it. */
+@utility edge-fade {
+  mask-image: linear-gradient(to right, transparent, black 3%, black 97%, transparent);
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Honour the OS motion setting. A results board that animates is a
+   preference, not a requirement: with reduced motion the same board
+   simply renders in its final state.
+------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Forced-colors: keep the board legible when the OS overrides colour.
+   The party code in type carries the meaning here, which is exactly
+   why it is drawn in the first place. */
+@media (forced-colors: active) {
+  .card,
+  .rule,
+  .rule-hair {
+    border-color: CanvasText;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

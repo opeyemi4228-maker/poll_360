@@ -1,0 +1,36 @@
+{
+  "name": "poll360",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Poll360 — parallel vote tabulation and results broadcast infrastructure. From the booth to the broadcast.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "account:create": "node scripts/create-account.mjs",
+    "build:map": "node scripts/build-map.mjs",
+    "build:icons": "node scripts/build-icons.mjs",
+    "seed:demo": "node scripts/seed-demo.mjs"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.545.0",
+    "next": "^16.2.12",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tailwind-merge": "^3.6.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
+    "@tailwindcss/postcss": "^4.3.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.12",
+    "postcss": "^8.5.23",
+    "tailwindcss": "^4.3.3"
+  }
+}
