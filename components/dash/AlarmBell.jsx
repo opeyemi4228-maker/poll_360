@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
  * "Turn sound on" arms it for the session.
  * ───────────────────────────────────────────────────────────────────────────
  */
+const REHEARSAL_SECONDS = 20;
 const MUTED = "poll360:alarm-muted";
 
 /* Tones per severity. Frequencies are far enough apart to be told apart across
@@ -105,19 +106,32 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
    * 1am sounds like a fault rather than a warning.
    */
   const sound = useCallback(
-    (severity) => {
+    async (severity) => {
       const ctx = context();
       if (!ctx) return;
 
+      /* ── resume() IS ASYNCHRONOUS ──────────────────────────────────────
+         The first version called resume() and then read ctx.state on the very
+         next line. That state has not changed yet — it is still "suspended" —
+         so the guard below fired every time, set `blocked`, and returned
+         without ever playing a note. The alarm could not sound even once.
+
+         Awaiting it lets the context actually reach "running" before we
+         decide whether the browser is holding us. */
       if (ctx.state === "suspended") {
-        ctx.resume().catch(() => undefined);
-        /* Still not running means the browser is holding it until the reader
-           interacts with the page. Say so rather than failing quietly. */
+        try {
+          await ctx.resume();
+        } catch {
+          /* Rejected outright: no gesture yet. */
+        }
         if (ctx.state !== "running") {
           setBlocked(true);
           return;
         }
       }
+
+      /* We got through, so any previous "blocked" notice is stale. */
+      setBlocked(false);
       setBlocked(false);
 
       const pattern = PATTERN[severity] ?? PATTERN.INFO;
@@ -223,7 +237,13 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
    */
   useEffect(() => {
     if (!rehearsing || muted) return;
-    const timer = setInterval(() => sound("CRITICAL"), 30000);
+
+    /* Sound at once, then every twenty seconds. Waiting a full interval before
+       the first tone is wrong for the thing this mode is for: somebody
+       switches it on in front of a room and needs to hear it now, not after a
+       silence long enough to look broken. */
+    sound("CRITICAL");
+    const timer = setInterval(() => sound("CRITICAL"), REHEARSAL_SECONDS * 1000);
     return () => clearInterval(timer);
   }, [rehearsing, muted, sound]);
 
