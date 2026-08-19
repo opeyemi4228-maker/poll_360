@@ -242,9 +242,16 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
        the first tone is wrong for the thing this mode is for: somebody
        switches it on in front of a room and needs to hear it now, not after a
        silence long enough to look broken. */
-    sound("CRITICAL");
+    /* The first tone is scheduled rather than fired in the effect body:
+       sound() sets state when the browser blocks audio, and doing that
+       synchronously inside an effect cascades a render. One frame later is
+       still instant to a listener. */
+    const first = requestAnimationFrame(() => sound("CRITICAL"));
     const timer = setInterval(() => sound("CRITICAL"), REHEARSAL_SECONDS * 1000);
-    return () => clearInterval(timer);
+    return () => {
+      cancelAnimationFrame(first);
+      clearInterval(timer);
+    };
   }, [rehearsing, muted, sound]);
 
   const toggleMute = () => {
