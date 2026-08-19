@@ -6,7 +6,7 @@ import { currentUser } from "@/lib/session";
  *
  * ── WHY THIS EXISTS RATHER THAN READING THE SESSION IN THE LAYOUT ──────────
  * Putting the session in the root layout makes every page on the site render
- * per request — and, worse for an installed app, makes every cached page carry
+ * per request, and, worse for an installed app, makes every cached page carry
  * whoever was signed in when it was cached. The service worker then serves a
  * signed-out copy to a signed-in reader, React finds markup it did not expect,
  * and hydration fails.

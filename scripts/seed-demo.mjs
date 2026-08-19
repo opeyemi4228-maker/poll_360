@@ -7,8 +7,8 @@
  * well away from their unit, and a stream of incidents of the kinds Nigerian
  * elections actually produce.
  *
- * Everything here is clearly demonstration data — the accounts use example.ng
- * addresses and a shared password — and it is idempotent: run it again and it
+ * Everything here is clearly demonstration data, the accounts use example.ng
+ * addresses and a shared password, and it is idempotent: run it again and it
  * updates the same rows rather than growing a second set.
  *
  *   node scripts/seed-demo.mjs
@@ -93,7 +93,7 @@ for (const [stateCode, stateName, lat, lon] of PLACES) {
 }
 
 /* Most file. Two thirds land at the unit, some nearby, two well away, and a
-   handful never report at all — which is the state the watch exists to show. */
+   handful never report at all, which is the state the watch exists to show. */
 let filed = 0;
 db.prepare("DELETE FROM results WHERE unit_code LIKE '%/%'").run();
 
@@ -116,7 +116,7 @@ for (const [index, agent] of agents.entries()) {
     LP: Math.round(accredited * (0.15 + ((index * 5) % 28) / 100)),
     NNPP: Math.round(accredited * (0.03 + ((index * 3) % 9) / 100)),
   };
-  /* Cast plus rejected must not exceed accredited — the same rule the filing
+  /* Cast plus rejected must not exceed accredited, the same rule the filing
      form enforces. The first version of this seed set cast == accredited and
      then added rejected ballots on top, which made every one of these returns
      arithmetically impossible. The integrity screen caught it, which is a
@@ -133,7 +133,7 @@ for (const [index, agent] of agents.entries()) {
   db.prepare(
     `INSERT INTO results (id, unit_code, state_code, registered, accredited, rejected, votes,
                           status, lat, lon, accuracy, distance_m, submitted_by, submitted_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+     VALUES (??????????????)`
   ).run(
     randomUUID(), agent.scope, agent.stateCode, registered, accredited, 3 + (index % 9),
     JSON.stringify(votes), index % 6 === 0 ? "VERIFIED" : "SUBMITTED",
@@ -150,7 +150,7 @@ for (const [index, [kind, severity, detail]] of INCIDENTS.entries()) {
   const id = randomUUID();
   db.prepare(
     `INSERT INTO incidents (id, unit_code, state_code, kind, severity, detail_sealed, reported_by, created_at)
-     VALUES (?,?,?,?,?,?,?,?)`
+     VALUES (????????)`
   ).run(
     id, agent.scope, agent.stateCode, kind, severity, seal(detail), agent.id,
     new Date(Date.now() - (8 + index * 17) * 60_000).toISOString().replace("T", " ").slice(0, 19)

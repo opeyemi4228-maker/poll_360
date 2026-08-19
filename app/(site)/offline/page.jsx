@@ -12,7 +12,7 @@ export const metadata = {
  *
  * It says what it does not know. An election product's offline screen is a
  * place where it is very tempting to show the last figures you happen to have
- * and let the reader assume they are current — so this one shows no figures at
+ * and let the reader assume they are current, so this one shows no figures at
  * all, and explains why.
  */
 export default function OfflinePage() {
@@ -29,7 +29,7 @@ export default function OfflinePage() {
         </p>
 
         <p className="mt-6 max-w-xl border-l-2 border-red-500 pl-4 text-[0.9375rem] leading-relaxed text-white/75">
-          Pages you have already opened will still load without a signal — but the figures on them
+          Pages you have already opened will still load without a signal, but the figures on them
           are the ones from when you last had one, and they will say so. Nothing here updates until
           you are back online.
         </p>

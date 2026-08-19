@@ -12,8 +12,7 @@ import { ROLES } from "@/lib/roles";
  * The rail, on a phone.
  *
  * The fixed sidebar is hidden below `lg`, which left every dashboard with no
- * navigation at all on the device most of these people are actually holding —
- * a polling unit coordinator is on a phone by definition, and a producer
+ * navigation at all on the device most of these people are actually holding, * a polling unit coordinator is on a phone by definition, and a producer
  * checking coverage from a corridor is on one too.
  *
  * Same links, same order, same permission filter as the rail: one nav, two

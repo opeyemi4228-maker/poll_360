@@ -18,7 +18,7 @@ import { site } from "@/lib/site";
 export const metadata = {
   title: "Log in",
   description:
-    "Log in to Poll360. Field agents file the result from their booth, coordinators check what has come in, and newsrooms take their graphics — all from the same count.",
+    "Log in to Poll360. Field agents file the result from their booth, coordinators check what has come in, and newsrooms take their graphics, all from the same count.",
   alternates: { canonical: "/login" },
 };
 
@@ -88,7 +88,7 @@ export default function LoginPage() {
             <Reveal delay={130}>
               <p className="mt-5 max-w-lg text-fluid-base leading-relaxed text-white/70">
                 Whatever you signed in to do, you are looking at the same figures as everyone else
-                on the night — with the share of booths counted printed beside each one.
+                on the night, with the share of booths counted printed beside each one.
               </p>
             </Reveal>
 
@@ -125,7 +125,7 @@ export default function LoginPage() {
                   aria-hidden="true"
                 />
                 <p className="text-[0.8125rem] leading-relaxed text-white/55">
-                  Nobody from Poll360 will ever ask you for your password — not by phone, not by
+                  Nobody from Poll360 will ever ask you for your password, not by phone, not by
                   SMS, not on WhatsApp. If someone does, they are not us. Tell your coordinator, or
                   write to{" "}
                   <a

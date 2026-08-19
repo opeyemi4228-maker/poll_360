@@ -25,7 +25,7 @@ export const PARTY_FILL = {
 };
 
 /**
- * Ranked horizontal bars — the right form for "who is ahead, and by how much".
+ * Ranked horizontal bars, the right form for "who is ahead, and by how much".
  *
  * Scaled to the leader rather than to 100%, so the shape of the race stays
  * legible while it is still close; the percentage is printed regardless, so

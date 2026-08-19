@@ -4,7 +4,7 @@
  * The mark is geometry, not artwork, so it is drawn here once and rendered at
  * every size an installed app is asked for. Committing the PNGs means the site
  * builds and deploys with no browser and no image library in the dependency
- * tree — the same reason `nation.json` is committed rather than generated at
+ * tree, the same reason `nation.json` is committed rather than generated at
  * build time.
  *
  *   node scripts/build-icons.mjs
@@ -64,7 +64,7 @@ function markSvg(size, inset) {
 </svg>`;
 }
 
-/* name, pixel size, inset — maskable gets the safe-zone padding. */
+/* name, pixel size, inset, maskable gets the safe-zone padding. */
 const TARGETS = [
   ["icon-192.png", 192, 0.1],
   ["icon-512.png", 512, 0.1],

@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  *
  * Built from the same permission table the guard uses, so a link can never
  * appear for a room the account would be redirected out of. Nobody is shown a
- * door they cannot walk through — an empty-handed 403 is a worse experience
+ * door they cannot walk through, an empty-handed 403 is a worse experience
  * than never having offered.
  */
 const ITEMS = [

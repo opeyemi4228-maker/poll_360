@@ -9,7 +9,7 @@ import { cn, formatNumber } from "@/lib/utils";
  * Two things are true at once here and the table exists to show both: this is
  * the results hierarchy, and it is also the organisation chart. The person who
  * files a return holds the seat at the bottom of it. That is why the last row
- * is the loud one — every figure at the five levels above is an aggregate of
+ * is the loud one, every figure at the five levels above is an aggregate of
  * one person doing one job at a booth.
  */
 export default function Levels() {
@@ -19,7 +19,7 @@ export default function Levels() {
         index={7}
         eyebrow="The structure"
         title="Six levels, and one of them does the work"
-        lead="This is how Nigeria's results add up, top to bottom. Every figure at the five levels above is made out of one person, at one booth, filing one result — which is why the bottom row is the loud one."
+        lead="This is how Nigeria's results add up, top to bottom. Every figure at the five levels above is made out of one person, at one booth, filing one result, which is why the bottom row is the loud one."
       />
 
       <Reveal className="mt-14">
@@ -100,7 +100,7 @@ export default function Levels() {
       <Reveal delay={100}>
         <p className="mt-6 text-[0.8125rem] text-content-subtle">
           Includes the 56,737 polling units added in 2021. One agent per booth, one result per
-          booth — and a correction updates that result rather than adding a second one.
+          booth, and a correction updates that result rather than adding a second one.
         </p>
       </Reveal>
     </Section>

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 /**
  * One button, every appearance the product needs.
  *
- * Square, heavy, and it does not lift, scale or glow on hover — each variant
+ * Square, heavy, and it does not lift, scale or glow on hover, each variant
  * flips to its inverse instead. That is the Labour behaviour: decisive rather
  * than decorative, and it survives being projected onto a wall, which a soft
  * shadow does not.
@@ -65,7 +65,7 @@ const Button = React.forwardRef(function Button(
         <a
           ref={ref}
           href={href}
-          /* mailto: and tel: must not open a blank tab — a torn-off empty
+          /* mailto: and tel: must not open a blank tab, a torn-off empty
              window is what every mail link that does this leaves behind. */
           {...(/^https?:/.test(href) ? { target: "_blank", rel: "noopener noreferrer" } : {})}
           className={classes}

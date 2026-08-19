@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils";
  *
  * ── ONE FRAME, FOUR LEVELS, FOUR LAYERS ────────────────────────────────────
  * The top bar never leaves. Clicking a state does not open a panel or navigate
- * anywhere — the country in the frame is replaced by the state, at the same
+ * anywhere, the country in the frame is replaced by the state, at the same
  * size, and the list beside it narrows from 37 states to that state's local
  * governments. Again for wards, again for polling units.
  *
@@ -105,7 +105,7 @@ export default function SituationRoom({
 
   const view = useMemo(() => snapshot(board, cursor), [board, cursor]);
 
-  /* The places a return has just landed in — the last handful of batches.
+  /* The places a return has just landed in, the last handful of batches.
      Drives the expanding rings on the map, which is the only thing on the
      screen that answers "where is it coming from right now". */
   const pulsing = useMemo(() => {
@@ -147,12 +147,12 @@ export default function SituationRoom({
    * the static register, which made three of the four dashboards a printed
    * table. They are all derived from the same moving snapshot now:
    *
-   *   Voters   how much of the register has actually reported — the register
+   *   Voters   how much of the register has actually reported, the register
    *            itself does not change, but its coverage does, all evening.
    *   Turnout  votes counted against the register of the booths that have
    *            reported. It is meaningless against the whole register at 10%
    *            counted, and this is the figure a room actually quotes.
-   *   Clusters votes per reporting unit — where the volume is landing right
+   *   Clusters votes per reporting unit, where the volume is landing right
    *            now, which moves as the cities come in late.
    *
    * A place that has not reported returns null rather than zero, so it stays
@@ -188,7 +188,7 @@ export default function SituationRoom({
             registerIn > 0
               ? (Math.round(row.total * (boothsIn / Math.max(row.booths, 1))) / registerIn) * 100
               : 0,
-          /* Clusters: votes per unit that has reported — the live density of
+          /* Clusters: votes per unit that has reported, the live density of
              where the count is actually coming from. */
           density: boothsIn > 0
             ? Math.round((row.total * (boothsIn / Math.max(row.booths, 1))) / boothsIn)
@@ -241,7 +241,7 @@ export default function SituationRoom({
 
   /* ------------------------------------------------------------- the search
      Every state, always, plus the local governments of whichever state is
-     open — because "go to Jigawa" and "go to Birnin Kudu once I am in Jigawa"
+     open, because "go to Jigawa" and "go to Birnin Kudu once I am in Jigawa"
      are the two questions a room actually asks, and neither is easy to answer
      by hunting for a shape on a map that is also changing colour. Wards and
      units are left out on purpose: they are numbered rather than named, so
@@ -294,7 +294,7 @@ export default function SituationRoom({
   };
 
   /* The shapes for the current level. Wards and units have no boundaries
-     anywhere, so those levels are lists rather than maps — stated, not faked. */
+     anywhere, so those levels are lists rather than maps, stated, not faked. */
   const mapShapes = useMemo(() => {
     if (level === "nation") return shapes;
     if (level === "state" && lgaShapes) {
@@ -426,7 +426,7 @@ export default function SituationRoom({
       <>
       {/* --------------------------------------------------------- metrics
           Each dashboard answers its own question. Voters, Turnout and Clusters
-          describe the register and the geography — none of them reports who is
+          describe the register and the geography, none of them reports who is
           winning, because that is the Results dashboard's job and duplicating
           it here would make three copies of one screen. */}
       <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
@@ -463,7 +463,7 @@ export default function SituationRoom({
             is the only high-contrast object on the page. This is the same
             reason a trading desk is dark and its paperwork is not. */}
         <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:min-h-0">
-          {/* Breadcrumb, inside the frame — you never leave the page, so this
+          {/* Breadcrumb, inside the frame, you never leave the page, so this
               is the only thing that tells you how deep you are. */}
           <nav
             aria-label="Where you are"
@@ -516,7 +516,7 @@ export default function SituationRoom({
                 pulsing={level === "nation" && layer === "results" ? pulsing : null}
               />
             ) : (
-              /* Wards and polling units: no boundaries exist, so a grid — it
+              /* Wards and polling units: no boundaries exist, so a grid, it
                  claims nothing about geography and still answers the level. */
               <div className="grid h-full grid-cols-2 content-start gap-2 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4">
                 {rows.map((row) => (
@@ -551,7 +551,7 @@ export default function SituationRoom({
               A readout along the foot of the instrument: what is on screen,
               how much of it has spoken, how many places are still silent, and
               the clock. All monospaced and all fixed-width, so nothing shifts
-              as the digits roll — the strip should be readable out of the
+              as the digits roll, the strip should be readable out of the
               corner of the eye without ever pulling it. */}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 border-t border-board-line px-4 py-2.5">
             <Readout label="Scope" value={crumbs.at(-1).label} />
@@ -579,7 +579,7 @@ export default function SituationRoom({
         </div>
 
         <div className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
-          {/* The contest, in full, for whatever is selected — every party,
+          {/* The contest, in full, for whatever is selected, every party,
               not just the one that is winning. */}
           <PartyBreakdown
             place={pickedRow?.name ?? crumbs.at(-1).label}
@@ -697,7 +697,7 @@ function metricsFor({ layer, level, scope, rows, view, trend, incidentCount, pla
       { icon: Users, label: "On the register", value: formatNumber(scope.registered), foot: place },
       { icon: Gauge, label: "Polling units", value: formatNumber(scope.booths), foot: `across ${rows.length} ${unitWord(level)}` },
       { icon: Store, label: "Voters per unit", value: formatNumber(scope.density), foot: "Average across this scope" },
-      { icon: TrendingUp, label: "Largest", value: top?.name ?? "—", foot: top ? `${formatNumber(top.registered)} registered` : "", small: true },
+      { icon: TrendingUp, label: "Largest", value: top?.name ?? "n/a", foot: top ? `${formatNumber(top.registered)} registered` : "", small: true },
     ];
   }
 
@@ -707,8 +707,8 @@ function metricsFor({ layer, level, scope, rows, view, trend, incidentCount, pla
     return [
       { icon: Percent, label: "Turnout", value: formatShare(scope.turnout), foot: `${formatNumber(scope.votes)} of ${formatNumber(scope.registered)}` },
       { icon: Users, label: "Did not vote", value: formatNumber(Math.max(0, scope.registered - scope.votes)), foot: "Register minus votes cast" },
-      { icon: TrendingUp, label: "Highest", value: high?.name ?? "—", foot: high ? formatShare(high.turnout) : "", small: true },
-      { icon: TrendingDown, label: "Lowest", value: low?.name ?? "—", foot: low ? formatShare(low.turnout) : "", small: true },
+      { icon: TrendingUp, label: "Highest", value: high?.name ?? "n/a", foot: high ? formatShare(high.turnout) : "", small: true },
+      { icon: TrendingDown, label: "Lowest", value: low?.name ?? "n/a", foot: low ? formatShare(low.turnout) : "", small: true },
     ];
   }
 
@@ -718,16 +718,16 @@ function metricsFor({ layer, level, scope, rows, view, trend, incidentCount, pla
     const inScope = level === "nation" ? COMMERCIAL_CENTRES.length : null;
     return [
       { icon: Store, label: "Voters per unit", value: formatNumber(scope.density), foot: "Average across this scope" },
-      { icon: TrendingUp, label: "Densest", value: dense?.name ?? "—", foot: dense ? `${formatNumber(dense.density)} per unit` : "", small: true },
-      { icon: TrendingDown, label: "Most spread", value: sparse?.name ?? "—", foot: sparse ? `${formatNumber(sparse.density)} per unit` : "", small: true },
-      { icon: MapPin, label: "Commercial centres", value: inScope ? formatNumber(inScope) : "—", foot: inScope ? "Principal markets nationwide" : "Shown at national level" },
+      { icon: TrendingUp, label: "Densest", value: dense?.name ?? "n/a", foot: dense ? `${formatNumber(dense.density)} per unit` : "", small: true },
+      { icon: TrendingDown, label: "Most spread", value: sparse?.name ?? "n/a", foot: sparse ? `${formatNumber(sparse.density)} per unit` : "", small: true },
+      { icon: MapPin, label: "Commercial centres", value: inScope ? formatNumber(inScope) : "n/a", foot: inScope ? "Principal markets nationwide" : "Shown at national level" },
     ];
   }
 
   return [
     { icon: Gauge, label: "Booths counted", value: formatShare(view.coverage), foot: `${formatNumber(view.unitsReported)} of ${formatNumber(view.booths)}`, spark: trend },
     { icon: Vote, label: "Votes counted", value: formatNumber(level === "nation" ? view.total : scope.votes), foot: place },
-    { icon: TrendingUp, label: "Leading", value: view.leader?.id ?? "—", foot: view.standings[1] ? `by ${formatShare(view.standings[0].share - view.standings[1].share)}` : "" },
+    { icon: TrendingUp, label: "Leading", value: view.leader?.id ?? "n/a", foot: view.standings[1] ? `by ${formatShare(view.standings[0].share - view.standings[1].share)}` : "" },
     { icon: AlertTriangle, label: "Incidents", value: formatNumber(incidentCount ?? 0), foot: incidentCount ? "Open now" : "Nothing flagged", tone: incidentCount ? "red" : "ink" },
   ];
 }
@@ -778,7 +778,7 @@ function SidePanel({ layer, level, rows, view, onHover }) {
     );
   }
 
-  /* Voters and Turnout get the distribution of the thing they measure — the
+  /* Voters and Turnout get the distribution of the thing they measure, the
      shape of the spread, which a ranked list alone does not show. */
   const key = layer === "register" ? "registered" : layer === "turnout" ? "turnout" : "density";
   const sorted = [...rows].sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0));
@@ -830,7 +830,7 @@ function Section({ title, foot, children }) {
  *
  * Fixed-width monospaced value with the label above it in small caps: the
  * layout must not move when a figure gains a digit, because a strip that
- * shuffles is a strip nobody can read peripherally — and peripheral is the
+ * shuffles is a strip nobody can read peripherally, and peripheral is the
  * only way anybody reads it during a count.
  */
 function Readout({ label, value, tone = "ink" }) {

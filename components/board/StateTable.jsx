@@ -6,7 +6,7 @@ import { formatNumber, formatShare } from "@/lib/utils";
 /**
  * The same data as the map, with no colour in it at all.
  *
- * Not a fallback and not an accessibility afterthought — it is the encoding
+ * Not a fallback and not an accessibility afterthought, it is the encoding
  * the map is checked against. If a state's leader can only be learned by
  * matching a fill to a legend, the board has failed for roughly one man in
  * twelve, for anyone reading a monochrome print of it, and for anyone whose
@@ -62,13 +62,13 @@ export default function StateTable({ byState, states, className }) {
                   {names.get(row.code)}
                 </th>
                 <td className="figure py-2 pr-3 text-[0.8125rem] font-bold text-white">
-                  {row.reported && row.leader !== null ? parties[row.leader].id : "—"}
+                  {row.reported && row.leader !== null ? parties[row.leader].id : "n/a"}
                 </td>
                 <td className="figure py-2 pr-3 text-right text-[0.8125rem] text-white/70">
-                  {row.reported ? formatShare(row.leaderShare) : "—"}
+                  {row.reported ? formatShare(row.leaderShare) : "n/a"}
                 </td>
                 <td className="figure py-2 pr-3 text-right text-[0.8125rem] text-white/70">
-                  {row.reported ? formatShare(row.coverage) : "—"}
+                  {row.reported ? formatShare(row.coverage) : "n/a"}
                 </td>
                 <td className="py-2 text-right text-[0.75rem] whitespace-nowrap text-white/55">
                   {row.reported ? CALL_LABEL[row.call] : "No returns yet"}

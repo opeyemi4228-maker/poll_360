@@ -12,7 +12,7 @@ import { ROLES } from "@/lib/roles";
  * Issue an account for one of the rooms.
  *
  * The credential appears once, in a block the administrator has to actively
- * dismiss, with a copy button — because the realistic alternative is that they
+ * dismiss, with a copy button, because the realistic alternative is that they
  * photograph the screen, and a credential that is easy to hand over correctly
  * is a credential less likely to be sent over WhatsApp in three parts.
  */
@@ -44,7 +44,7 @@ export default function IssueAccountForm() {
         </dl>
 
         <div className="mt-4 border border-dash-line bg-dash-card p-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase text-dash-muted">Password — shown once</p>
+          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase text-dash-muted">Password, shown once</p>
           <div className="mt-2 flex items-center gap-3">
             <code className="figure flex-1 wrap-break-word text-[1rem] font-bold text-dash-ink">
               {issued.password}

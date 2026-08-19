@@ -10,7 +10,7 @@ import { site } from "@/lib/site";
    900 across a full-width display line, which a normal-width grotesk does not.
 
    IBM Plex Mono carries every figure on the site. This is not a stylistic
-   preference — a total that ticks from 9,999 to 10,000 in a proportional face
+   preference, a total that ticks from 9,999 to 10,000 in a proportional face
    reflows the words beside it, and a column of results in a proportional face
    is not a column. Tabular figures are a functional requirement of a results
    product.
@@ -44,7 +44,7 @@ const instrumentSerif = Instrument_Serif({
 export const metadata = {
   metadataBase: new URL(site.url),
   title: {
-    default: `${site.name} — ${site.tagline}`,
+    default: `${site.name}, ${site.tagline}`,
     template: `%s | ${site.name}`,
   },
   description: site.description,
@@ -60,7 +60,7 @@ export const metadata = {
     "election observation technology",
   ],
   openGraph: {
-    title: `${site.name} — ${site.tagline}`,
+    title: `${site.name}, ${site.tagline}`,
     description: site.description,
     type: "website",
     locale: "en_NG",
@@ -69,7 +69,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: `${site.name} — ${site.tagline}`,
+    title: `${site.name}, ${site.tagline}`,
     description: site.description,
   },
   robots: { index: true, follow: true },
@@ -109,7 +109,7 @@ export const viewport = {
 };
 
 /* Structured data. The subject of this site is a piece of software, and the
-   `about` edge says plainly what it does — a parallel count, which is not an
+   `about` edge says plainly what it does, a parallel count, which is not an
    official result. Search engines are one more surface where that distinction
    has to hold. */
 const schema = {
@@ -147,7 +147,7 @@ const schema = {
  * Reading the session here would make every page render per request and, in an
  * installed app, would let the service worker cache one reader's chrome and
  * hand it to the next. The header's signed-in state is a client island instead
- * — see components/auth/AuthNav.jsx — so these pages stay public, cacheable
+ * see components/auth/AuthNav.jsx, so these pages stay public, cacheable
  * and identical for everybody.
  */
 export default function RootLayout({ children }) {

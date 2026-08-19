@@ -15,7 +15,7 @@ import { homeFor } from "@/lib/roles";
  * ── ONE ERROR MESSAGE ──────────────────────────────────────────────────────
  * Wrong password, no such account, disabled account: all answer "those details
  * do not match an account". Distinguishing them turns the form into a way of
- * asking whether a given phone number belongs to an agent — which, for a
+ * asking whether a given phone number belongs to an agent, which, for a
  * product whose users are named political operatives in a live election, is a
  * question we must not answer.
  *
@@ -54,7 +54,7 @@ export async function signIn(_previous, formData) {
   const identity = normalise(contact);
   const identityKey = identity.email ?? identity.phone ?? contact.toLowerCase();
 
-  /* Two buckets: this machine, and this account. Checked, not spent — only a
+  /* Two buckets: this machine, and this account. Checked, not spent, only a
      failed attempt below costs anything, so getting it right on the third try
      leaves the budget intact and a shared newsroom address is not exhausted by
      six people simply arriving for work.

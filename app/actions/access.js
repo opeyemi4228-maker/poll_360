@@ -6,11 +6,11 @@ import { accessRequests } from "@/lib/db";
 import { rateLimit } from "@/lib/ratelimit";
 
 /**
- * "Request access" — the front door.
+ * "Request access", the front door.
  *
  * Accounts are issued to named people by the room they work for, so this is
  * not a sign-up: it starts a conversation and records the four facts that make
- * the first meeting useful — who you are, what you are covering, when, and how
+ * the first meeting useful, who you are, what you are covering, when, and how
  * many booths you can actually put a named agent in.
  *
  * ── WHY IT ASKS FOR SO LITTLE ──────────────────────────────────────────────

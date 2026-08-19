@@ -11,8 +11,8 @@ import SignOutButton from "./SignOutButton";
  *
  * ── WHY A CLIENT ISLAND AND NOT A SERVER PROP ──────────────────────────────
  * Because the pages around it are public, cacheable and installable. If the
- * layout read the session, every page would render per request and — fatally
- * for an installed app — the service worker would cache one reader's chrome
+ * layout read the session, every page would render per request and, fatally
+ * for an installed app, the service worker would cache one reader's chrome
  * and serve it to the next, which React sees as a hydration mismatch and the
  * reader sees as somebody else's name in the header.
  *

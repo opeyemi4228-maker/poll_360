@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  * 1. It rendered the state into the national canvas. Every LGA file is drawn
  *    in the national projection and carries 1000×812 with it, so Lagos
  *    appeared as a thumbnail in the corner of an empty rectangle. The frame is
- *    now cropped to the state's own extent — same projection, right window.
+ *    now cropped to the state's own extent, same projection, right window.
  * 2. Nothing was labelled. Twenty-three coloured shapes with the names hidden
  *    in a tooltip is a picture of a state, not a map of one. Every LGA that is
  *    big enough now carries its leading party's code, and the list beside the
@@ -48,7 +48,7 @@ export default function StateLevel({ state, shapes, rows, onOpen }) {
   const byName = useMemo(() => new Map(rows.map((row) => [row.name, row])), [rows]);
   const total = rows.reduce((sum, row) => sum + row.total, 0);
 
-  /* Ranked, because "which LGA delivered the most" is the question — and an
+  /* Ranked, because "which LGA delivered the most" is the question, and an
      alphabetical list of 23 names answers nothing. */
   const ranked = useMemo(() => [...rows].sort((a, b) => b.total - a.total), [rows]);
 
@@ -102,7 +102,7 @@ export default function StateLevel({ state, shapes, rows, onOpen }) {
                   }
                   stroke={isHovered ? "var(--color-dash-ink)" : "#ffffff"}
                   /* Stroke width is in user units, and those units differ per
-                     state once the frame is cropped — so it is scaled to the
+                     state once the frame is cropped, so it is scaled to the
                      frame rather than fixed, or a small state gets a cage and
                      a large one gets hairlines. */
                   strokeWidth={(isHovered ? 3 : 1.2) * (frame.width / 1000)}
@@ -182,7 +182,7 @@ export default function StateLevel({ state, shapes, rows, onOpen }) {
                     {row.name}
                   </span>
                   <span className="figure shrink-0 text-[0.6875rem] font-bold text-dash-muted">
-                    {code ?? "—"}
+                    {code ?? "n/a"}
                   </span>
                   <span className="figure w-16 shrink-0 text-right text-[0.8125rem] text-dash-ink tabular-nums">
                     {formatNumber(row.total)}

@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * ── A DOT IS A CLAIM, SO ONLY REAL FIXES GET A SOLID ONE ───────────────────
  * A filled dot means: this person filed, and their device reported this
  * position at that moment. A hollow ring means: we know which booth they hold
- * and nothing else — they are drawn at the centre of their state purely so
+ * and nothing else, they are drawn at the centre of their state purely so
  * they exist on the screen, and both the ring and the list say "not reported".
  *
  * The distinction is the whole panel. A map that drew everybody solid would be
@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
  *
  * Defined here rather than imported from lib/watch.js: that module opens the
  * database, and a client component importing anything from it drags
- * `node:sqlite` into the browser bundle — which Turbopack rightly refuses to
+ * `node:sqlite` into the browser bundle, which Turbopack rightly refuses to
  * build. Labels are presentation and belong with the thing that renders them.
  */
 const BANDS = {
@@ -120,7 +120,7 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
                 and the background were within a shade of each other: the map
                 read as one dark rectangle with dots floating on it, and a dot
                 near a border told you nothing about which state it was in.
-                Recessive means quiet, not absent — the backdrop still has to
+                Recessive means quiet, not absent, the backdrop still has to
                 say where Nigeria is and where one state stops.
 
                 So the edges are white. They are the only thing separating the
@@ -142,7 +142,7 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
               <g key={row.id} onPointerEnter={() => setHovered(row.id)}>
                 {/* A position that has just arrived rings out from where it
                     landed, so the map shows the count moving rather than a
-                    still photograph of it. Only a real fix does this — a
+                    still photograph of it. Only a real fix does this, a
                     placeholder has nothing to be fresh about. */}
                 {row.fresh && !row.derived && (
                   <circle
@@ -176,7 +176,7 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
                   className="cursor-pointer transition-all"
                 >
                   <title>
-                    {row.unitCode} — {BANDS[row.band].label}
+                    {row.unitCode}, {BANDS[row.band].label}
                   </title>
                 </circle>
               </g>

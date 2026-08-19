@@ -1,4 +1,4 @@
-# Poll360 — file structure
+# Poll360, file structure
 
 The shape of the whole product, and what is in the repository today.
 
@@ -10,7 +10,7 @@ not, which is the same rule the product applies to its own results.
 
 ## 1. What is in the repository today
 
-The site scaffold, the design system, and the home page — complete, with a
+The site scaffold, the design system, and the home page, complete, with a
 working demonstration board on it.
 
 ```
@@ -150,11 +150,11 @@ app/
 │   └── card/[state]/page.jsx             full-frame state card
 │
 └── api/
-    ├── results/route.js         [next]  POST — file or amend a return
-    ├── results/[id]/route.js    [next]  PATCH — verify / dispute
-    ├── results/[id]/sheet/route.js [next]  GET — the photograph, scoped
-    ├── units/nearest/route.js   [next]  POST — position -> the agent's unit
-    └── export/[dataset]/route.js [next]  GET — CSV / JSON within scope
+    ├── results/route.js         [next]  POST, file or amend a return
+    ├── results/[id]/route.js    [next]  PATCH, verify / dispute
+    ├── results/[id]/sheet/route.js [next]  GET, the photograph, scoped
+    ├── units/nearest/route.js   [next]  POST, position -> the agent's unit
+    └── export/[dataset]/route.js [next]  GET, CSV / JSON within scope
 ```
 
 ```
@@ -186,7 +186,7 @@ session cookie -> member -> agentPost(memberId) -> the polling unit
 ```
 
 No appointment, no booth, 403. A form field naming the booth would be a form
-field somebody could change, so there is no such field — and no dropdown, which
+field somebody could change, so there is no such field, and no dropdown, which
 is the same hole with a nicer interface.
 
 ### How location is used
@@ -202,7 +202,7 @@ the unit on the appointment:
               -> { distance, accuracy, band }
 4. the form shows the agent the result in words:
      matched     within 250m               "Position matched to your unit"
-     near        250m – 2km                "You appear to be near your unit"
+     near        250m, 2km                "You appear to be near your unit"
      far         beyond 2km                "You are some way from your unit"
      unavailable permission denied / no fix "Position unavailable"
 5. distance, accuracy, band and timestamp are stored on the return
@@ -224,7 +224,7 @@ Four consequences, each deliberate:
 
 ### What else the screen does
 
-- The booth is **printed, not chosen** — confirmed, never selected.
+- The booth is **printed, not chosen**, confirmed, never selected.
 - Numeric keypads on every field; a running total as figures are typed.
 - Arithmetic checked in the browser first (`accredited ≤ registered`,
   `cast + rejected ≤ accredited`, `cast > 0`, nothing negative), then again on
@@ -233,7 +233,7 @@ Four consequences, each deliberate:
   then re-encoded and content-hashed server-side.
 - The draft is held locally as they type, keyed by `(election, unit)`, so a
   dropped connection costs a retry and not the figures.
-- Both affirmations — position confirmed, terms accepted — are stored.
+- Both affirmations, position confirmed, terms accepted, are stored.
 
 ---
 
@@ -251,8 +251,8 @@ Election ──< Candidate >── Party
 
 **`PollingUnitResult`** is unique on `(electionId, pollingUnitId)`. A booth
 reports once; a correction amends that row. It carries `wardId`, `lgaId` and
-`stateId` denormalised — written by the server from the polling unit, never
-accepted from the client — which is what makes a state total one grouped scan
+`stateId` denormalised, written by the server from the polling unit, never
+accepted from the client, which is what makes a state total one grouped scan
 of an indexed column instead of a four-table join across 176,623 rows.
 
 INEC's declared figures live in their own columns (`inecAccredited`,
@@ -276,13 +276,13 @@ distance from the appointed unit, band, and time.
 
 | Rule | Why |
 |---|---|
-| Server components by default; `"use client"` only for state, hover or playback | The map is 90KB of geometry — it belongs in the RSC payload, not the bundle |
+| Server components by default; `"use client"` only for state, hover or playback | The map is 90KB of geometry, it belongs in the RSC payload, not the bundle |
 | Components read semantic tokens (`--content`, `--hairline`), never ramp steps | A band sets `.on-dark` once and everything inside it inverts |
 | Square corners everywhere; structure from rules, never shadows | The Labour/Ford grammar, and it survives projection onto a wall |
 | Every figure in the mono face | A ticking total must not reflow the words beside it |
 | Brand red stops at the edge of the board | LP's red is a fill; two reds meaning two things in one frame teaches distrust |
 | Parties keep their own hues, re-stepped only in lightness | A chart that invents a party's colour is one nobody reads at a glance |
-| The one CVD-failing pair carries a hatch | PDP green vs LP red is ΔE 3.5 — unfixable by any hex |
+| The one CVD-failing pair carries a hatch | PDP green vs LP red is ΔE 3.5, unfixable by any hex |
 | Colour is never the only encoding | Codes in type, names in tooltips, and a colourless table |
 | Coverage printed beside every total | The rule the whole product exists to enforce |
 

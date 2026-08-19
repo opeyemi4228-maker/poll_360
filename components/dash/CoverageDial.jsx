@@ -29,7 +29,7 @@ export default function CoverageDial({ reported, total, verified = 0, label = "B
         viewBox="0 0 200 200"
         className="w-full max-w-[15rem]"
         role="img"
-        aria-label={`${label}: ${formatShare(share * 100)} — ${formatNumber(reported)} of ${formatNumber(total)}.`}
+        aria-label={`${label}: ${formatShare(share * 100)}, ${formatNumber(reported)} of ${formatNumber(total)}.`}
       >
         {/* The dial face: sixty ticks, one per unit of the last percent, so
             the ring reads as an instrument rather than as a donut chart. */}
@@ -66,7 +66,7 @@ export default function CoverageDial({ reported, total, verified = 0, label = "B
           transform="rotate(-90 100 100)"
         />
 
-        {/* Verified, drawn inside filed because it is a subset of it — it can
+        {/* Verified, drawn inside filed because it is a subset of it, it can
             never lead, and showing it trail is the point. */}
         <circle
           cx="100"

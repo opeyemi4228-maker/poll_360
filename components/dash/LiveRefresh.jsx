@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  * that charges for exactly that and drops them anyway.
  *
  * `router.refresh()` re-runs the server component and swaps the rendered
- * output in — so the page updates without losing scroll position, without
+ * output in, so the page updates without losing scroll position, without
  * closing an open panel, and without the reader losing the row they were
  * reading. A socket-driven re-render would have to rebuild all of that by hand.
  *
@@ -38,7 +38,7 @@ export default function LiveRefresh({ seconds = 20, label = "Live" }) {
       if (document.visibilityState !== "visible") return;
       setBusy(true);
       router.refresh();
-      /* The refresh is not awaited — it resolves when the server component
+      /* The refresh is not awaited, it resolves when the server component
          has re-rendered, and the spinner is only there to show the page is
          doing something. Half a second is long enough to be seen and short
          enough not to look stuck. */

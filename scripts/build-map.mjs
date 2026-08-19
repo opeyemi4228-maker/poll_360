@@ -4,14 +4,13 @@
  * Input is the projected boundary set: geoBoundaries ADM1 (37 states), already
  * projected to SVG units and rounded to one decimal place. That file is
  * accurate to about a hundred metres, which is right for a state page that
- * fills the frame with one state — and roughly nine times more precision than
+ * fills the frame with one state, and roughly nine times more precision than
  * a national map 1,000 units wide can physically show.
  *
  * So this pass does three things, in order, and nothing else:
  *
  *   1. Round every coordinate to a whole SVG unit (~1.1km at national scale).
- *   2. Drop points that the rounding made identical to their neighbour —
- *      a coastline sampled every 200m collapses to a great many of these.
+ *   2. Drop points that the rounding made identical to their neighbour, *      a coastline sampled every 200m collapses to a great many of these.
  *   3. Drop the middle point of any run of three that is collinear, which is
  *      what step 1 leaves behind along any straight administrative border.
  *
@@ -30,7 +29,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = join(root, "public/geo/map/states.json");
 const TARGET = join(root, "public/geo/map/nation.json");
 
-/** "M433.7 692.9L433.3 692.7Z" -> [[["M",433.7,692.9], ...]] per subpath. */
+/** "M433.7 692.9L433.3 692.7Z" -> [[["M",433.7,692.9] ...]] per subpath. */
 function parse(d) {
   const subpaths = [];
   let current = null;
@@ -74,7 +73,7 @@ function simplify(points) {
   return kept;
 }
 
-/** The extent of a state in SVG units — decides whether a code fits inside it. */
+/** The extent of a state in SVG units, decides whether a code fits inside it. */
 function bounds(subpaths) {
   let minX = Infinity;
   let minY = Infinity;
@@ -96,7 +95,7 @@ function serialise(subpaths) {
     .map((points) => {
       const simplified = simplify(points);
       /* A ring that survives simplification with fewer than three points has no
-         area — an islet smaller than the rounding grid. Dropping it is the
+         area, an islet smaller than the rounding grid. Dropping it is the
          honest outcome: we cannot draw it at this scale, so we do not pretend
          to. Nothing at state level is ever lost this way. */
       if (simplified.length < 3) return "";
@@ -109,7 +108,7 @@ const source = JSON.parse(await readFile(SOURCE, "utf8"));
 
 const nation = {
   source: source.source,
-  licence: "CC BY 4.0 — geoBoundaries (gbOpen). Attribution is printed under the map.",
+  licence: "CC BY 4.0, geoBoundaries (gbOpen). Attribution is printed under the map.",
   built: new Date().toISOString().slice(0, 10),
   width: source.width,
   height: source.height,
@@ -143,6 +142,6 @@ await writeFile(TARGET, JSON.stringify(nation));
 const before = JSON.stringify(source).length;
 const after = JSON.stringify(nation).length;
 console.log(
-  `nation.json — ${nation.states.length} states, ${(after / 1024).toFixed(1)}KB ` +
+  `nation.json, ${nation.states.length} states, ${(after / 1024).toFixed(1)}KB ` +
     `(from ${(before / 1024).toFixed(1)}KB, ${Math.round((1 - after / before) * 100)}% smaller)`
 );

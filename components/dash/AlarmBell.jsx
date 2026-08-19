@@ -77,9 +77,9 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
     mutedRef.current = muted;
   }, [muted]);
 
-  /* Read the preference after mount — localStorage cannot be read during
+  /* Read the preference after mount, localStorage cannot be read during
      render without the server and the client disagreeing about the first
-     paint — and on the next frame rather than in the effect body, so it lands
+     paint, and on the next frame rather than in the effect body, so it lands
      as one asynchronous update instead of a synchronous second render. */
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -112,8 +112,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
 
       /* ── resume() IS ASYNCHRONOUS ──────────────────────────────────────
          The first version called resume() and then read ctx.state on the very
-         next line. That state has not changed yet — it is still "suspended" —
-         so the guard below fired every time, set `blocked`, and returned
+         next line. That state has not changed yet, it is still "suspended", so the guard below fired every time, set `blocked`, and returned
          without ever playing a note. The alarm could not sound even once.
 
          Awaiting it lets the context actually reach "running" before we
@@ -227,7 +226,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
    * could do. An alarm that goes off when nothing has happened is an alarm a
    * room learns to ignore within the hour, and then the one that matters at
    * 02:40 is ignored too. So the loop never touches the unread count, never
-   * flashes the bell, and never claims a report arrived — it plays the tone
+   * flashes the bell, and never claims a report arrived, it plays the tone
    * and nothing else, while a strip across the panel says out loud that it is
    * a rehearsal.
    *
@@ -259,7 +258,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
     setMuted(next);
     localStorage.setItem(MUTED, next ? "1" : "0");
     /* Unmuting is a gesture, so it is also the moment to arm the context and
-       play one tone — otherwise the reader cannot tell it worked. */
+       play one tone, otherwise the reader cannot tell it worked. */
     if (!next) {
       arm();
       sound("INFO");
@@ -276,7 +275,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
     <div className="relative">
       <button
         type="button"
-        /* Opening the list is what marks them read — not a timer, and not the
+        /* Opening the list is what marks them read, not a timer, and not the
            alarm having sounded. Somebody has to have looked. */
         onClick={() => {
           setOpen((value) => {
@@ -379,7 +378,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
 
             {rehearsing && (
               <p className="border-b border-dash-line bg-red-50 px-4 py-2.5 text-[0.75rem] font-semibold text-red-800">
-                Rehearsal — the alarm sounds every 30 seconds. No report has arrived.
+                Rehearsal, the alarm sounds every 30 seconds. No report has arrived.
               </p>
             )}
 

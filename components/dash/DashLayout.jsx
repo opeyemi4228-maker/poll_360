@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * The dashboard frame: a black rail, a white sheet.
  *
  * ── WHY WHITE, WHEN THE PUBLIC BOARD IS BLACK ──────────────────────────────
- * The public board is a broadcast object — read across a room, over a video
+ * The public board is a broadcast object, read across a room, over a video
  * wall, usually in the dark. A dashboard is a working surface: it is read at a
  * desk, in daylight as often as at 2am, printed, screenshotted into a WhatsApp
  * group, and stared at for eleven hours. Black-on-white is what every figure

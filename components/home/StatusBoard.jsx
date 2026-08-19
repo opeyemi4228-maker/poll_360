@@ -4,7 +4,7 @@ import { status, STATUS_LABEL } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
 /**
- * Built, partial, next — stated on the home page.
+ * Built, partial, next, stated on the home page.
  *
  * An unusual thing to publish, and the cheapest credibility on the site.
  * Everyone evaluating election infrastructure has sat through a demonstration

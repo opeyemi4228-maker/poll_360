@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  *   dialog land on top of the form. Every prompt here is a dismissible strip
  *   at the bottom of the screen, and dismissal is remembered.
  *
- *   Nothing reloads itself. A new version is offered, never applied — a page
+ *   Nothing reloads itself. A new version is offered, never applied, a page
  *   that refreshes under somebody halfway through typing a result has just
  *   destroyed the thing this product exists to collect.
  *
@@ -42,7 +42,7 @@ export default function AppShell() {
     /* ── NOT IN DEVELOPMENT ────────────────────────────────────────────────
        In development the worker is not merely unnecessary, it is destructive.
        It treats everything under `/_next/static/` as immutable, which is true
-       of a production build — those filenames carry a content hash — and false
+       of a production build, those filenames carry a content hash, and false
        under Turbopack, which serves a dev chunk from a stable path whose bytes
        change on every save. The worker then answers with the chunk from before
        the last edit while the HTML expects the one after it, and the page dies
@@ -50,7 +50,7 @@ export default function AppShell() {
 
        Unregistering is not enough on its own: a worker that has already taken
        control keeps the page it is controlling, and a browser that picked one
-       up from a production build on this origin still has it — localhost is one
+       up from a production build on this origin still has it, localhost is one
        origin to a service worker whichever build served it. So the caches go
        too, and the tab reloads once to get a document the dev server actually
        sent.
@@ -86,7 +86,7 @@ export default function AppShell() {
       const installing = registration.installing;
       if (!installing) return;
       installing.addEventListener("statechange", () => {
-        /* `controller` is null on the very first visit — that is an install,
+        /* `controller` is null on the very first visit, that is an install,
            not an update, and telling a first-time visitor their brand new page
            is out of date would be nonsense. */
         if (installing.state === "installed" && navigator.serviceWorker.controller) {
@@ -109,7 +109,7 @@ export default function AppShell() {
   }, []);
 
   /* ---------------------------------------------------- environment read
-     Two browser-only facts — has the offer already been dismissed, and is this
+     Two browser-only facts, has the offer already been dismissed, and is this
      an iPhone that can only be told about the Share sheet. Neither can be read
      during render without the server and the client disagreeing about the
      first paint, and both are scheduled on the next frame rather than set in
@@ -213,8 +213,7 @@ export default function AppShell() {
                 type="button"
                 onClick={() => {
                   waiting.postMessage("skip-waiting");
-                  /* One reload, once the new worker is actually in charge —
-                     reloading before that just loads the old version again. */
+                  /* One reload, once the new worker is actually in charge, reloading before that just loads the old version again. */
                   navigator.serviceWorker.addEventListener(
                     "controllerchange",
                     () => window.location.reload(),

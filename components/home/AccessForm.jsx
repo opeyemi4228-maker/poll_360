@@ -10,7 +10,7 @@ import { requestAccess } from "@/app/actions/access";
 /**
  * The request-access form.
  *
- * Seven fields, four of them required, and it posts to a server action — so it
+ * Seven fields, four of them required, and it posts to a server action, so it
  * works with JavaScript off, and the answer comes back on the page rather than
  * in a mail client the visitor may not have configured.
  *
@@ -39,7 +39,7 @@ export default function AccessForm() {
           {state.name ? `Thank you, ${state.name.split(" ")[0]}.` : "Thank you."}
         </h3>
         <p className="mt-3 text-fluid-base leading-relaxed text-white/70">
-          We have it. A person — not an autoresponder — will come back to you, usually within a
+          We have it. A person, not an autoresponder, will come back to you, usually within a
           working day, with what Poll360 will do for your night and what it will not.
         </p>
       </div>

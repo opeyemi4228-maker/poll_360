@@ -45,7 +45,7 @@ export default function IncidentForm() {
    * A modern phone camera produces eight to twelve megabytes. Over a rural
    * signal at close of poll that is a submission that does not arrive. Drawing
    * it to a canvas at 1280px and re-encoding as JPEG q80 turns it into two to
-   * four hundred kilobytes — indistinguishable on screen, and the difference
+   * four hundred kilobytes, indistinguishable on screen, and the difference
    * between a report that lands and one that times out.
    *
    * The shrunk blob replaces the file on the input via DataTransfer, so the
@@ -75,8 +75,7 @@ export default function IncidentForm() {
         setPreview({ url: URL.createObjectURL(blob), kb: Math.round(blob.size / 1024) });
       }
     } catch {
-      /* No canvas, or a format the browser cannot decode. Send the original —
-         the server checks the bytes and will refuse anything that is not a
+      /* No canvas, or a format the browser cannot decode. Send the original, the server checks the bytes and will refuse anything that is not a
          real photograph. */
       const file = event.target.files?.[0];
       if (file) setPreview({ url: URL.createObjectURL(file), kb: Math.round(file.size / 1024) });

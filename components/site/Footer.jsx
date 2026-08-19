@@ -26,7 +26,7 @@ export default function Footer() {
 
             <p className="mt-8 border-l-2 border-red-500 pl-4 text-[0.8125rem] leading-relaxed text-white/85">
               Poll360 is not an electoral commission and publishes no official result. The figures
-              here are what our agents reported from the booths they were standing in — kept
+              here are what our agents reported from the booths they were standing in, kept
               separate from the official ones, and always shown with the share of booths behind
               them.
             </p>
@@ -63,7 +63,7 @@ export default function Footer() {
             <span className="figure">{formatNumber(register.pollingUnits)}</span> polling units.
           </p>
           <p>
-            Boundaries: geoBoundaries (gbOpen), CC BY 4.0. Register: INEC — {register.states}{" "}
+            Boundaries: geoBoundaries (gbOpen), CC BY 4.0. Register: INEC, {register.states}{" "}
             states, <span className="figure">{formatNumber(register.lgas)}</span> LGAs,{" "}
             <span className="figure">{formatNumber(register.wards)}</span> wards.
           </p>

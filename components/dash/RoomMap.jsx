@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  * a table.
  *
  * ── FOUR ENCODINGS, NOT FOUR MAPS ──────────────────────────────────────────
- * Results is categorical — every party keeps its own hue and its code is
+ * Results is categorical, every party keeps its own hue and its code is
  * printed on the state, because two of these hues are green. Voters, Turnout
  * and Clusters are magnitudes, so they take one hue light-to-dark in five
  * steps: a rainbow would invent categories that are not in the data, and five
@@ -112,7 +112,7 @@ export default function RoomMap({
         .map((row) => ({
           key: row.code,
           name: byCode.get(row.code)?.name ?? row.code,
-          detail: `${parties[row.leader]?.id ?? "—"} · ${formatShare(row.coverage)} in`,
+          detail: `${parties[row.leader]?.id ?? "n/a"} · ${formatShare(row.coverage)} in`,
         }));
     }
     return [...states]
@@ -126,7 +126,7 @@ export default function RoomMap({
 
   return (
     <div className="flex min-h-[34rem] flex-col">
-      {/* Playback only — the four dashboards are tabs in the top bar now, so
+      {/* Playback only, the four dashboards are tabs in the top bar now, so
           this strip carries just the controls for the evening. */}
       {layer === "results" && (
         <div className="flex items-center gap-2 border-b border-dash-line px-4 py-3 lg:px-6">
@@ -233,7 +233,7 @@ export default function RoomMap({
           {/* ------------------------------------------- commercial centres
               Only on Clusters, where the question is where the people and the
               trade actually are. Drawn as graduated circles because the
-              quantity is a rank, not a measurement — and each one is labelled,
+              quantity is a rank, not a measurement, and each one is labelled,
               so the size is never the only thing carrying the meaning. */}
           {layer === "density" &&
             COMMERCIAL_CENTRES.map((city) => (
@@ -361,7 +361,7 @@ export default function RoomMap({
               <p className="flex items-center gap-2 text-[0.75rem] text-dash-muted">
                 <Store size={14} strokeWidth={2.5} className="shrink-0 text-red-500" />
                 Commercial centres, sized by trade weight. Density is voters per polling unit from
-                the register — this dataset carries no census figures, so none are shown.
+                the register, this dataset carries no census figures, so none are shown.
               </p>
             )}
           </div>

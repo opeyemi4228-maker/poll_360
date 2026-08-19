@@ -14,12 +14,12 @@ import { formatNumber } from "@/lib/utils";
  * reason theirs does: nothing on the screen competes with the sentence.
  *
  * The headline runs the full width rather than sitting in a column beside the
- * illustration. At display size it is 1,200px of type — put that in a 55%
+ * illustration. At display size it is 1,200px of type, put that in a 55%
  * column and it wraps to four ragged lines and stops being a headline. Full
  * width it is two lines, and the supporting material hangs underneath it.
  *
  * The illustration is deliberately *one return* rather than the map. The
- * headline is a journey — booth to broadcast — so the hero shows the booth and
+ * headline is a journey, booth to broadcast, so the hero shows the booth and
  * the section immediately below shows the broadcast. Leading with the map
  * would spend the product's best moment before the argument for it is made.
  */
@@ -62,7 +62,7 @@ export default function Hero() {
             <Reveal delay={200}>
               <p className="prose-body text-white/75">
                 One trained agent in every polling unit. A photo of the result sheet behind every
-                number. And the share of booths counted shown beside every total — so you always
+                number. And the share of booths counted shown beside every total, so you always
                 know how much of the country you are actually looking at.
               </p>
             </Reveal>
@@ -87,7 +87,7 @@ export default function Hero() {
             </Reveal>
 
             {/* The register this is sized against. Structural facts, not
-                achievements — which is why they are set as a ruled row and not
+                achievements, which is why they are set as a ruled row and not
                 as four boastful cards. */}
             <Reveal delay={320}>
               <dl className="mt-12 grid grid-cols-2 gap-px border border-white/12 bg-white/12 sm:grid-cols-4">

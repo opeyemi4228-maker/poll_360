@@ -21,7 +21,7 @@ const HOLD = 6000;
  * The board: everything a situation room watches, on one surface.
  *
  * ── WHY IT PLAYS AT ALL ────────────────────────────────────────────────────
- * A screenshot of a finished count proves nothing — anyone can draw a finished
+ * A screenshot of a finished count proves nothing, anyone can draw a finished
  * count. What has to be demonstrated is the *evening*: a map that starts
  * mostly silent, coverage that climbs, a leader that changes hands early and
  * settles late, and figures that never once appear without the share of booths
@@ -31,7 +31,7 @@ const HOLD = 6000;
  * ── AND WHY IT STOPS ───────────────────────────────────────────────────────
  * Playback pauses when the tab is hidden and when the board scrolls out of
  * view, and never runs at all for a visitor who asked their system for reduced
- * motion — they get the finished board immediately, which is the same
+ * motion, they get the finished board immediately, which is the same
  * information without the theatre. A page left open on a phone all evening
  * should not spend the evening animating into a pocket.
  * ───────────────────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ const HOLD = 6000;
  */
 export default function LiveBoard({ board, className }) {
   /* The server and the first client render produce exactly this cursor, so the
-     map is in the HTML — populated, not empty — before any JavaScript runs,
+     map is in the HTML, populated, not empty, before any JavaScript runs,
      and hydration has nothing to disagree about. */
   const [cursor, setCursor] = useState(board.opening);
   const [playing, setPlaying] = useState(true);
@@ -103,7 +103,7 @@ export default function LiveBoard({ board, className }) {
   const view = useMemo(() => snapshot(board, cursor), [board, cursor]);
 
   /* A clock derived from the count's own progress rather than the visitor's
-     device: deterministic, identical on both renders, and honest — it is the
+     device: deterministic, identical on both renders, and honest, it is the
      collation's time, not tonight's. Nigeria declared in the small hours. */
   const clock = useMemo(() => {
     const progress = board.events.length ? cursor / board.events.length : 0;
@@ -162,7 +162,7 @@ export default function LiveBoard({ board, className }) {
       <p className="border-b border-board-line bg-white/5 px-4 py-2 text-[0.75rem] leading-relaxed text-white/75 sm:px-5">
         <span className="tag mr-2 text-white">Replay</span>
         These are the real declared results of the 2023 presidential election. Only the order they
-        arrive in is made up — nobody publishes a booth-by-booth arrival log — so every figure, and
+        arrive in is made up, nobody publishes a booth-by-booth arrival log, so every figure, and
         the finished map, is exactly what happened.
       </p>
 
@@ -232,8 +232,7 @@ export default function LiveBoard({ board, className }) {
           max={board.events.length}
           value={cursor}
           /* Touching the timeline hands control to the reader and stops
-             playback. Doing it in `onChange` covers the keyboard case too —
-             arrow keys move a range input without any pointer event, and a
+             playback. Doing it in `onChange` covers the keyboard case too, arrow keys move a range input without any pointer event, and a
              board that kept advancing under an arrow key would be unusable. */
           onChange={(event) => {
             setCursor(Number(event.target.value));
@@ -278,7 +277,7 @@ export default function LiveBoard({ board, className }) {
             {SOURCE}. Adding up the state rows gives{" "}
             <span className="figure">{DECLARED.rowSum.toLocaleString("en-NG")}</span> valid votes
             against INEC&rsquo;s declared{" "}
-            <span className="figure">{DECLARED.validVotes.toLocaleString("en-NG")}</span> — a
+            <span className="figure">{DECLARED.validVotes.toLocaleString("en-NG")}</span>, a
             0.003% difference in the published source, which we have left as we found it rather
             than tidied away. Booth counts per state are worked out from the register. Boundaries:{" "}
             {board.attribution}, CC BY 4.0.

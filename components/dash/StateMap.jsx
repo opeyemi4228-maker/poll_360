@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * chart. None of them has this. An election product's one irreplaceable object
  * is the country itself: it is how a producer picks a state to talk about, how
  * a situation room spots a region going quiet, and how anybody sees the shape
- * of a night in one look. So it is the control, not the decoration — tapping a
+ * of a night in one look. So it is the control, not the decoration, tapping a
  * state drives every panel beside it.
  *
  * ── THE RULES COME WITH IT ─────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export default function StateMap({ shapes, leaders, selected, onSelect, classNam
               >
                 <title>
                   {state.name}
-                  {leader ? ` — ${leader} leading` : " — no returns yet"}
+                  {leader ? `, ${leader} leading` : ", no returns yet"}
                 </title>
               </path>
 

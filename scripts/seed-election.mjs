@@ -4,8 +4,8 @@
  * ── WHAT THIS IS, AND WHAT IT IS NOT ───────────────────────────────────────
  * Every party figure it writes is a slice of a real, published, declared 2023
  * result: the returns for a state always sum back to what INEC declared there.
- * What is invented is the distribution across booths — which agent filed which
- * unit, and in what order — because no per-booth arrival log is published.
+ * What is invented is the distribution across booths, which agent filed which
+ * unit, and in what order, because no per-booth arrival log is published.
  *
  * That is the same bargain the public board on the home page already makes,
  * and it is the only honest one available: a demonstration of a results system
@@ -33,7 +33,7 @@ import { seal } from "../lib/crypto.js";
    demonstration wants a night that loads instantly and still has enough rows
    for every panel to mean something. */
 const UNITS_PER_STATE = 12;
-const NOTE = "Demonstration data — 2023 declared result, distributed across booths.";
+const NOTE = "Demonstration data, 2023 declared result, distributed across booths.";
 
 const KINDS = [
   ["Queue still forming at close", "SERIOUS"],
@@ -104,7 +104,7 @@ const agent =
 
 if (!agent) {
   console.error(
-    "No accounts in the database. Run `npm run seed:demo` first — a return has to be filed by somebody."
+    "No accounts in the database. Run `npm run seed:demo` first, a return has to be filed by somebody."
   );
   process.exit(1);
 }
@@ -119,7 +119,7 @@ const insert = db.prepare(
   `INSERT INTO results
      (id, unit_code, state_code, registered, accredited, rejected, votes, inec_total, note,
       lat, lon, accuracy, distance_m, submitted_by, submitted_at, status, verified_by, verified_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', ?), ?, ?, ?)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
    ON CONFLICT(unit_code) DO UPDATE SET
      registered = excluded.registered,
      accredited = excluded.accredited,
@@ -171,7 +171,7 @@ try {
       const registered = Math.max(accredited + 40, perRegistered[unit]);
 
       /* Most returns are checked by the time a room looks at them; a few are
-         still in the queue, and one in about twenty is disputed — which is what
+         still in the queue, and one in about twenty is disputed, which is what
          makes the checking screens worth opening. */
       const roll = rng();
       const status = roll < 0.62 ? "VERIFIED" : roll < 0.95 ? "SUBMITTED" : "DISPUTED";
@@ -209,13 +209,13 @@ try {
 /* ------------------------------------------------------------- the reports */
 
 /* Cleared first so a second run replaces this script's reports rather than
-   piling another fourteen on top. `exec` takes no bind parameters — it would
+   piling another fourteen on top. `exec` takes no bind parameters, it would
    have silently left the old rows behind. */
 db.prepare("DELETE FROM incidents WHERE reported_by = ?").run(agent.id);
 
 const incidentInsert = db.prepare(
   `INSERT INTO incidents (id, unit_code, state_code, kind, severity, detail_sealed, status, reported_by, created_at)
-   VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, datetime('now', ?))`
+   VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, datetime('now'))`
 );
 
 let reported = 0;
@@ -247,4 +247,4 @@ try {
 console.log(`Filed ${filed} returns across ${states2023.length} states.`);
 console.log(`Logged ${reported} incident reports.`);
 console.log("\nEvery party figure is a slice of the real declared 2023 result.");
-console.log("The spread across booths is illustrative — no per-booth arrival log is published.");
+console.log("The spread across booths is illustrative, no per-booth arrival log is published.");

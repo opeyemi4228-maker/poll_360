@@ -13,13 +13,13 @@ import { site } from "@/lib/site";
  *
  * Two fields, one button, and nothing else competing with them. The people who
  * use this are signing in one-handed, at night, on a phone, sometimes in a
- * hurry — so the targets are large, the labels are plain words, and every error
+ * hurry, so the targets are large, the labels are plain words, and every error
  * is written as a sentence rather than as a code.
  *
  * It posts to a server action, so it works with JavaScript switched off: the
  * browser submits the form, the action runs, and the page comes back with
  * whatever it has to say. The client-side checks below are a courtesy that
- * saves a round trip on an obvious slip — they are not the gate, and the
+ * saves a round trip on an obvious slip, they are not the gate, and the
  * server repeats every one of them.
  *
  * The server answers a failed attempt with one message whatever went wrong.
@@ -135,7 +135,7 @@ export default function LoginForm() {
       </div>
 
       {/* One place for anything the form has to say back. Announced to screen
-          readers, and never a code — a sentence. */}
+          readers, and never a code, a sentence. */}
       {notice && (
         <div
           role="alert"
@@ -150,7 +150,7 @@ export default function LoginForm() {
 
       <div className="mt-8 border-t border-ink-200 pt-6">
         <p className="text-[0.8125rem] leading-relaxed text-content-muted">
-          No account yet? Poll360 logins are issued to named people by the room they work for — a
+          No account yet? Poll360 logins are issued to named people by the room they work for, a
           situation room, a newsroom or an observer mission. Ask yours, or ask us.
         </p>
         <Button href="/#access" variant="outline" size="md" full className="mt-4">

@@ -8,8 +8,8 @@ import { formatNumber, formatShare } from "@/lib/utils";
  * The choropleth: Nigeria, coloured by who led where.
  *
  * ── COLOUR IS NEVER THE ONLY ENCODING ──────────────────────────────────────
- * The parties keep their own colours — APC blue, PDP green, LP red, NNPP
- * green — because a map that invents a party's colour is a map nobody in
+ * The parties keep their own colours, APC blue, PDP green, LP red, NNPP
+ * green, because a map that invents a party's colour is a map nobody in
  * Nigerian politics will read at a glance. That fidelity costs something: PDP
  * green against LP red is ΔE 3.5 under the commonest colour blindness, which
  * is to say indistinguishable, and no hex fixes it (see lib/election2023.js).
@@ -22,8 +22,8 @@ import { formatNumber, formatShare } from "@/lib/utils";
  *   · the table beside the map is the same data with no colour in it at all.
  *
  * Every state in Nigeria is large enough at this projection to hold three
- * characters — checked at build time, which is why `w` and `h` are in the
- * payload — so no state is ever left as colour alone.
+ * characters, checked at build time, which is why `w` and `h` are in the
+ * payload, so no state is ever left as colour alone.
  * ───────────────────────────────────────────────────────────────────────────
  *
  * ── SILENCE IS NOT ZERO ────────────────────────────────────────────────────

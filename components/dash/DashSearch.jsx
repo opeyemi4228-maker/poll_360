@@ -12,8 +12,8 @@ import { cn } from "@/lib/utils";
  * The map is the right way to ask "where is it thin?" and the wrong way to ask
  * "what is happening in Jigawa?". The second question is the one a room asks
  * out loud when a phone call comes in, and answering it by hunting for a small
- * shape in the north-east — on a screen where the shapes are also changing
- * colour as returns land — is slower than typing five letters.
+ * shape in the north-east, on a screen where the shapes are also changing
+ * colour as returns land, is slower than typing five letters.
  *
  * So this searches the places, not the page: 37 states from anywhere, plus the
  * local governments of whichever state is open. Picking one drills the map
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  * ── IT IS A COMBOBOX, NOT A TEXT FIELD ─────────────────────────────────────
  * Arrow keys move, Enter goes, Escape backs out, and the highlighted row is
  * announced. Anyone who can touch-type a state name never has to find the
- * mouse — which is the entire point of having it at 2am.
+ * mouse, which is the entire point of having it at 2am.
  * ───────────────────────────────────────────────────────────────────────────
  */
 const LIMIT = 8;
@@ -56,7 +56,7 @@ export default function DashSearch({ items = [], onPick, placeholder = "Search a
   }, [items, query]);
 
   /* A new query starts the highlight at the top again. Adjusted during render
-     rather than in an effect — React's documented way to reset state when an
+     rather than in an effect, React's documented way to reset state when an
      input changes, and the only one that cannot paint a stale highlight for a
      frame first. */
   const [lastQuery, setLastQuery] = useState(query);

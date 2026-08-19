@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
  * it says exactly that, and gives them the one useful next step.
  *
  * An empty state that explains itself beats a populated one that does not
- * work — and a viewer bounced here from a room they cannot open needs to
+ * work, and a viewer bounced here from a room they cannot open needs to
  * understand why, not just find themselves somewhere else.
  * ───────────────────────────────────────────────────────────────────────────
  */
@@ -37,7 +37,7 @@ export default async function ConsolePage() {
       <div className="max-w-2xl">
         <Card title="No room assigned yet" subtitle={ROLES[user.role]?.blurb}>
           <p className="text-[0.9375rem] leading-relaxed text-dash-muted">
-            You are signed in, and your account is working — but it has not been attached to a room
+            You are signed in, and your account is working, but it has not been attached to a room
             yet, so there is nothing here to show you. Rooms are assigned by whoever issued your
             account: a situation room, a newsroom, an observer mission, or a ward coordinator if
             you are filing from a booth.
@@ -59,7 +59,7 @@ export default async function ConsolePage() {
 
           <p className="mt-6 border-t border-dash-line pt-5 text-[0.8125rem] leading-relaxed text-dash-muted">
             If you were sent here after trying to open a dashboard, that room is not one this
-            account may enter. That is the guard doing its job rather than a fault — every attempt
+            account may enter. That is the guard doing its job rather than a fault, every attempt
             is recorded, and an administrator can widen your access if it should have been allowed.
           </p>
         </Card>

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ==================================================================
-   POLL360 DESIGN SYSTEM — "Instrument Editorial"
+   POLL360 DESIGN SYSTEM, "Instrument Editorial"
 
    Two references, deliberately combined:
 
@@ -28,13 +28,13 @@
 
 @theme {
   /* ---- Poll360 red ---------------------------------------------
-     Anchored on #E4003B — the Labour red, oklch(58.1% 0.233 20.1).
+     Anchored on #E4003B, the Labour red, oklch(58.1% 0.233 20.1).
      This is the *act* colour: primary buttons, section numbers, the
      rule under the masthead.
 
      ONE RULE GOVERNS IT: inside the instrument, colour belongs to
      the data. Labour Party's own red is a fill on the board, so
-     nothing in the board's chrome — live dot, timeline, tags — is
+     nothing in the board's chrome, live dot, timeline, tags, is
      ever brand red. Board chrome is white and neutral; brand red
      stops at the edge of the board. Two reds meaning two different
      things in one frame is how a viewer learns to distrust both. */
@@ -52,7 +52,7 @@
 
   /* ---- Poll360 blue --------------------------------------------
      The institutional half of the pair. Used overwhelmingly as a
-     *surface* — full-bleed blocks at 800/900/950 — rather than as
+     *surface*, full-bleed blocks at 800/900/950, rather than as
      ink. Hue 268 keeps it clear of the party blue at hue 255 that
      the board uses as a data fill; the two never meet at the same
      lightness, so a navy block and a leading party are never
@@ -97,7 +97,7 @@
   /* ---- Party fills ---------------------------------------------
      The parties' own hues, re-stepped in lightness for the board.
 
-     APC blue, PDP green, LP red, NNPP green — each hue taken from
+     APC blue, PDP green, LP red, NNPP green, each hue taken from
      the party's known colour and moved only in lightness/chroma, so
      every fill clears 3:1 against the near-black board while the
      identity survives. A chart that invents a party's colour is a
@@ -105,7 +105,7 @@
 
      Measured (OKLab ΔE ×100, Machado 2009 severity 1.0) all pairs
      pass except PDP green against LP red: ΔE 3.5 under protanopia.
-     That pair cannot be fixed by any hex — separating it by
+     That pair cannot be fixed by any hex, separating it by
      lightness collapses LP against NNPP, because LP sits between
      the two greens. It is a property of this party palette.
 
@@ -122,7 +122,7 @@
      lightness moves; the hue that identifies each party is untouched.
 
      PDP and NNPP are both green here too, and are separated by a wide
-     lightness gap rather than by hue — the one thing that can separate
+     lightness gap rather than by hue, the one thing that can separate
      them. NNPP sits under 3:1 against white, so every chart that uses
      it carries a direct label; that is the documented relief for a
      light mark, and this system never relies on the fill alone. */
@@ -132,7 +132,7 @@
   --color-nnpp-l: oklch(68% 0.16 142.5);
   --color-party-other-l: oklch(62% 0.008 265);
 
-  /* Silence. Not a low number, not a pale party colour — an absence.
+  /* Silence. Not a low number, not a pale party colour, an absence.
      Drawn just above the board surface so the shape of the country
      is still legible before a single return has landed. */
   --color-silent: oklch(24% 0.012 266.6);
@@ -144,12 +144,12 @@
 
   /* ---- Type -----------------------------------------------------
      Three families, one job each, no overlap:
-       display/sans — Inter Tight. Tight enough at 900 to hold a
+       display/sans, Inter Tight. Tight enough at 900 to hold a
                       headline the width of the page.
-       mono         — IBM Plex Mono. Every figure on this site is
+       mono, IBM Plex Mono. Every figure on this site is
                       monospaced: a total that ticks from 9,999 to
                       10,000 must not reflow the row it sits in.
-       editorial    — Instrument Serif. Reserved for statements the
+       editorial, Instrument Serif. Reserved for statements the
                       product makes in its own voice. Used perhaps
                       four times on the whole page, which is what
                       keeps it worth reading. */
@@ -171,12 +171,12 @@
   --text-fluid-5xl: clamp(2.875rem, 1.9rem + 4.9vw, 6.5rem);
   /* Re-fitted to 320px: at the old minimum "broadcast." was 287px of type in
      281px of available measure on the smallest phone still in use, and the
-     hero headline clipped. Unchanged at desktop — still 136px at 1600. */
+     hero headline clipped. Unchanged at desktop, still 136px at 1600. */
   --text-fluid-6xl: clamp(2.75rem, 1.3rem + 7.2vw, 8.5rem);
   --text-fluid-7xl: clamp(3.5rem, 1.5rem + 10vw, 11.5rem);
 
   /* ---- Shape ----------------------------------------------------
-     The website is square — that is the Labour/Ford grammar and it
+     The website is square, that is the Labour/Ford grammar and it
      stays. The dashboards are a different product used for eleven
      hours at a stretch, where a softened corner reads as a surface
      you can rest on rather than a printed rule. So the app tier gets
@@ -276,8 +276,8 @@
    Semantic layer.
 
    Every component reads these, never a ramp step directly. A section
-   changes them once (`.on-dark`) and everything inside it — buttons,
-   rules, hairlines, muted type — inverts with no per-component dark
+   changes them once (`.on-dark`) and everything inside it, buttons,
+   rules, hairlines, muted type, inverts with no per-component dark
    variants anywhere in the codebase.
 ------------------------------------------------------------------- */
 @theme inline {
@@ -376,7 +376,7 @@
     outline: 3px solid var(--color-red-500);
     outline-offset: 2px;
   }
-  .on-dark :focus-visible,
+  .on-dark :focus-visible
   .on-board :focus-visible {
     outline-color: var(--color-red-400);
   }
@@ -403,7 +403,7 @@
      shrink below their content, which is how one long unbreakable
      string widens a whole row on a phone. Zero specificity, so any
      explicit min-w-* still wins. */
-  :where(.grid, .flex) > * {
+  :where(.grid .flex) > * {
     min-width: 0;
   }
 }
@@ -496,7 +496,7 @@
     letter-spacing: -0.02em;
   }
 
-  /* A small uppercase mono label — the instrument vernacular. */
+  /* A small uppercase mono label, the instrument vernacular. */
   .tag {
     font-family: var(--font-mono);
     font-size: 0.6875rem;
@@ -564,8 +564,7 @@
   html {
     scroll-behavior: auto;
   }
-  *,
-  *::before,
+  * *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -578,8 +577,8 @@
    The party code in type carries the meaning here, which is exactly
    why it is drawn in the first place. */
 @media (forced-colors: active) {
-  .card,
-  .rule,
+  .card
+  .rule
   .rule-hair {
     border-color: CanvasText;
   }

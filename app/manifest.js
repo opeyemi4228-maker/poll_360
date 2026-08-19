@@ -11,7 +11,7 @@ import { site } from "@/lib/site";
  *
  * `start_url` is the home page today because that is what exists. When the
  * field dashboard lands it becomes `/field`, which is where an installed copy
- * should open — nobody installs an app to read its marketing.
+ * should open, nobody installs an app to read its marketing.
  *
  * `theme_color` is the brand red so the status bar continues the rule that
  * runs across the top of the masthead; `background_color` is the board, so the
@@ -19,7 +19,7 @@ import { site } from "@/lib/site";
  */
 export default function manifest() {
   return {
-    name: `${site.name} — ${site.tagline}`,
+    name: `${site.name}, ${site.tagline}`,
     short_name: site.name,
     description: site.description,
     id: "/",

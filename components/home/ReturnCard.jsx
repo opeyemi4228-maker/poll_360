@@ -5,7 +5,7 @@ import { formatNumber } from "@/lib/utils";
  * One filed return, drawn as the agent's dashboard renders it.
  *
  * The hero says "from the booth to the broadcast"; this is the booth. It is
- * deliberately the *atomic* object — one sheet, one unit, one person — because
+ * deliberately the *atomic* object, one sheet, one unit, one person, because
  * everything else on this page is an aggregate of it, and an aggregate is only
  * as good as the thing it aggregates.
  *

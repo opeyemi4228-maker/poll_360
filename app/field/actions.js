@@ -12,7 +12,7 @@ import { validateReturn } from "@/lib/results";
  * Filing from a booth.
  *
  * ── THE BOOTH IS NEVER READ FROM THE REQUEST ───────────────────────────────
- * It comes from `user.scope` — the unit on the agent's own account, resolved
+ * It comes from `user.scope`, the unit on the agent's own account, resolved
  * on the server on every submission. There is no unit field in this form and
  * no dropdown, because a booth you can choose is a booth somebody can choose
  * wrongly, and a form field naming it is a field somebody can change.
@@ -119,7 +119,7 @@ export async function reportIncident(_previous, formData) {
      What arrives is still never trusted: the declared type is checked against
      the actual magic bytes, because a file called photo.jpg is a claim and the
      first four bytes are a fact. Anything that is not a real JPEG or PNG is
-     dropped and the incident is still filed — losing the picture must never
+     dropped and the incident is still filed, losing the picture must never
      lose the report. */
   const photo = formData.get("photo");
   if (photo && typeof photo.arrayBuffer === "function" && photo.size > 0) {
@@ -149,8 +149,7 @@ export async function reportIncident(_previous, formData) {
  *
  * The Content-Type a browser sends is a claim; the leading bytes are a fact.
  * Only two formats are accepted, both of which every phone camera produces,
- * and anything else — including an SVG, which is a script in a trench coat —
- * is refused.
+ * and anything else, including an SVG, which is a script in a trench coat, * is refused.
  */
 function sniff(bytes) {
   if (bytes.length < 12) return null;

@@ -65,7 +65,7 @@ export default function IntegrityPanel({ report, compact = false }) {
       {clean ? (
         <p className="px-4 py-6 text-center text-[0.875rem] leading-relaxed text-dash-muted">
           Nothing failed a check. Every return so far is arithmetically sound and in step with its
-          neighbours — which is the result you want, and the one worth being able to prove.
+          neighbours, which is the result you want, and the one worth being able to prove.
         </p>
       ) : (
         <ul className="max-h-80 divide-y divide-dash-line overflow-y-auto">

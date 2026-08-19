@@ -15,7 +15,7 @@ import { ROLE_KEYS } from "@/lib/roles";
  * ── THE PASSWORD IS SHOWN ONCE ─────────────────────────────────────────────
  * Generated here, hashed immediately, and returned to the administrator's
  * screen exactly once. It is never stored in the clear, never emailed by this
- * action, and cannot be retrieved later — losing it means issuing a new one.
+ * action, and cannot be retrieved later, losing it means issuing a new one.
  *
  * That is deliberately slightly inconvenient. The alternative, a password the
  * system can show you again, is a password the system is keeping, and the
@@ -122,7 +122,7 @@ export async function reviewResult(_previous, formData) {
  * ── WHY THIS IS THE ONLY WAY MONEY ENTERS THE LEDGER ───────────────────────
  * Agents can ask; only this action can pay. It is gated on the same capability
  * that issues accounts, every call is written to the audit log with the actor
- * on it, and the entry itself goes into the hash chain — so "who paid this
+ * on it, and the entry itself goes into the hash chain, so "who paid this
  * agent, when, and has the figure been touched since" has one answer that
  * cannot be edited afterwards, including by whoever runs the database.
  *

@@ -11,7 +11,7 @@ import { payAgent } from "@/app/admin/actions";
  * Paying an agent.
  *
  * The only door money comes through. Deliberately plain: an amount, who it is
- * for, and what it is — because the interesting part is not this form, it is
+ * for, and what it is, because the interesting part is not this form, it is
  * the entry it writes into a chain nobody can edit afterwards.
  *
  * "Settle a withdrawal" is the same form with a different kind, rather than a
@@ -37,7 +37,7 @@ export default function PayAgentForm() {
           Written to the ledger for {state.name}
         </p>
         <p className="figure mt-2 text-[0.8125rem] text-dash-muted">
-          Reference {state.reference} — the agent sees it on their account now.
+          Reference {state.reference}, the agent sees it on their account now.
         </p>
         <Button
           variant="dashOutline"
@@ -60,7 +60,7 @@ export default function PayAgentForm() {
           htmlFor="contact"
           className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
         >
-          Agent — email or phone
+          Agent, email or phone
         </label>
         <input
           id="contact"

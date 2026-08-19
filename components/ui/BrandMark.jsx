@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 /**
  * The Poll360 mark: a coverage dial.
  *
- * Twenty-four ticks around a full circle — the 360 — with a red arc sweeping
+ * Twenty-four ticks around a full circle, the 360, with a red arc sweeping
  * the share that has reported. It is the product's one idea drawn once: a
  * total means nothing without the arc around it.
  *
@@ -22,8 +22,8 @@ const R = 15.5;
  * `Math.sin` and `Math.cos` are not required to agree to the last bit between
  * one JavaScript engine and another, and the server and the browser are not the
  * same engine. A one-ulp difference is invisible on a 40-unit viewBox but it
- * serialises to a different string — "31.43153532995459" against
- * "31.431535329954585" — and React reports that as a hydration mismatch.
+ * serialises to a different string, "31.43153532995459" against
+ * "31.431535329954585", and React reports that as a hydration mismatch.
  *
  * Three decimals is a thousandth of a unit on a mark drawn 36px wide: far below
  * anything a screen can show, and identical on both sides of the wire.

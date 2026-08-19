@@ -7,7 +7,7 @@ import Reveal from "./Reveal";
  *
  * Owns the page's vertical rhythm and gutters so no band re-declares them.
  * The heading follows the Ford convention: a heavy rule, a numbered kicker,
- * then the title set large against it. Structure comes from the rules — there
+ * then the title set large against it. Structure comes from the rules, there
  * is no box around anything on this site.
  */
 export function Section({

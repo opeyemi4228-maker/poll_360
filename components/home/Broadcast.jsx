@@ -7,14 +7,14 @@ import { SectionHeading } from "@/components/ui/Section";
 /**
  * The broadcast section.
  *
- * Most results platforms treat air as an export problem — a CSV a producer
+ * Most results platforms treat air as an export problem, a CSV a producer
  * pastes into a template twenty minutes before a bulletin. Poll360 treats the
  * rendered frame as a first-class output: a URL a vision mixer can point at,
  * that updates itself, and that carries its own coverage and timestamp burnt
  * into the frame so a screenshot cannot outlive its context.
  *
- * The mock below is built from the same tokens as the live board — same red,
- * same mono figures, same rule weights — so what a station sees on air is
+ * The mock below is built from the same tokens as the live board, same red,
+ * same mono figures, same rule weights, so what a station sees on air is
  * recognisably the same instrument as what the situation room is reading.
  */
 /* The declared national shares of the 2023 presidential election, so the
@@ -81,7 +81,7 @@ export default function Broadcast() {
                 />
                 <div aria-hidden="true" className="board-grid absolute inset-0 opacity-30" />
 
-                {/* Coverage badge, top right — the part that must never be
+                {/* Coverage badge, top right, the part that must never be
                     croppable from the shot. */}
                 <div className="absolute top-3 right-3 flex items-center gap-2 bg-ink-950/85 px-2.5 py-1.5 backdrop-blur-sm sm:top-4 sm:right-4">
                   <span aria-hidden="true" className="size-1.5 rounded-full bg-white" />

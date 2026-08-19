@@ -7,7 +7,7 @@ import { formatNumber } from "@/lib/utils";
  * The returns feed: what has just landed, newest first.
  *
  * Fixed-height rows in the mono face, so a batch arriving never reflows the
- * panel beside it — the single most distracting thing a live board can do to
+ * panel beside it, the single most distracting thing a live board can do to
  * a room full of people reading it.
  *
  * The polling-unit code is the first column because it is the identifier a
@@ -34,7 +34,7 @@ export default function Ticker({ rows, className }) {
               +{formatNumber(row.units)}
             </span>
             <span className="figure w-10 shrink-0 text-right text-[0.75rem] font-bold text-white">
-              {allParties[row.leader]?.id ?? "—"}
+              {allParties[row.leader]?.id ?? "n/a"}
             </span>
           </li>
         ))}

@@ -3,7 +3,7 @@
 import { formatNumber, formatShare } from "@/lib/utils";
 
 /**
- * Coverage — the most important number on the board, and the one a results
+ * Coverage, the most important number on the board, and the one a results
  * page most often hides.
  *
  * It is set larger than the party shares beside it on purpose. A total without

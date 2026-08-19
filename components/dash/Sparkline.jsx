@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
  * reason a stock ticker uses bars at glyph size and a full chart uses a line.
  *
  * There is no axis and no label, deliberately. A sparkline answers "which way,
- * and how steadily" — the number beside it answers "how much", and duplicating
+ * and how steadily", the number beside it answers "how much", and duplicating
  * that in an axis would spend space on a question already answered.
  */
 export default function Sparkline({ values, tone = "ink", className }) {

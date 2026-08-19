@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
  *
  * One screen, one task. No navigation into the middle of a job, no list of
  * booths, nothing above the fold but the unit they hold and the form. The
- * booth is printed at the top as a fact — confirmed, never selected — because
+ * booth is printed at the top as a fact, confirmed, never selected, because
  * it comes from their appointment and not from anything on this page.
  */
 export default async function FieldPage() {
@@ -38,7 +38,7 @@ export default async function FieldPage() {
       title={existing ? "Amend your return" : "File your return"}
       lead={
         existing
-          ? "This booth has already reported. Changing it updates that return rather than adding a second one — and sends it back for checking."
+          ? "This booth has already reported. Changing it updates that return rather than adding a second one, and sends it back for checking."
           : "One booth, one return. The figures are checked as you type, and again when they arrive."
       }
     >
@@ -91,7 +91,7 @@ export default async function FieldPage() {
             <Wallet balance={balance} pending={pending} entries={entries} chain={chain} />
           </Card>
 
-          <Card id="incident" title="Report something that is not a number" subtitle="A queue, a delay, an obstruction — encrypted before it is stored">
+          <Card id="incident" title="Report something that is not a number" subtitle="A queue, a delay, an obstruction, encrypted before it is stored">
             <IncidentForm />
           </Card>
         </div>

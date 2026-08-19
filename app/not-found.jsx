@@ -10,7 +10,7 @@ export default function NotFound() {
         <p className="figure text-fluid-6xl leading-none font-bold text-red-500">404</p>
         <h1 className="mt-6 text-fluid-3xl text-white">No returns from this address</h1>
         <p className="prose-body mt-5 text-white/70">
-          The page you asked for is not here. Nothing has been lost — this is simply an address
+          The page you asked for is not here. Nothing has been lost, this is simply an address
           that was never filed.
         </p>
         <div className="mt-10">

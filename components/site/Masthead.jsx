@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 /**
  * The masthead.
  *
- * Thin, square, and sitting on a red rule — the Labour device: one hot line
+ * Thin, square, and sitting on a red rule, the Labour device: one hot line
  * across the top of the page that belongs to the brand and to nothing else.
  * It gains a hairline and a solid ground once the page has scrolled, so it
  * separates from the hero without ever having a shadow under it.
@@ -42,7 +42,7 @@ export default function Masthead() {
   }, [open]);
 
   /* A drawer left open across a navigation would cover the page it opened.
-     Adjusted during render rather than in an effect — React's documented way
+     Adjusted during render rather than in an effect, React's documented way
      to reset state when a prop changes. An effect would render the new page
      once with the drawer still over it, then immediately render again. */
   const [lastPath, setLastPath] = useState(pathname);
@@ -99,7 +99,7 @@ export default function Masthead() {
       </div>
 
       {/* Mobile drawer. Full-bleed flat colour, list of destinations, nothing
-          clever — a nav that animates in three directions is a nav somebody is
+          clever, a nav that animates in three directions is a nav somebody is
           fighting with one-handed on a bus. */}
       {open && (
         <div id="mobile-nav" className="on-dark bg-blue-950 lg:hidden">

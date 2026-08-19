@@ -16,13 +16,13 @@ import { cn } from "@/lib/utils";
  * The left column is what our own agents filed. The right is the commission's
  * declared figure. They are two independently sourced numbers for the same
  * booths, and the whole value of running a parallel count is being able to
- * hold one against the other — so they sit in separate columns and the
+ * hold one against the other, so they sit in separate columns and the
  * difference is computed rather than averaged into a single "result".
  *
  * ── AND IT IS BUILT FOR A FINGER ───────────────────────────────────────────
  * A presenter walks to this screen on air and pushes at it. So every state is
- * a target at least 44px on its shortest side, nothing is behind a hover — a
- * hover does not exist on a touch wall — and the selected state is held until
+ * a target at least 44px on its shortest side, nothing is behind a hover, a
+ * hover does not exist on a touch wall, and the selected state is held until
  * somebody chooses another, rather than following a cursor that is not there.
  * ───────────────────────────────────────────────────────────────────────────
  */
@@ -64,7 +64,7 @@ export default function BroadcastAnalysis({ declared, ours, shapes }) {
   const declaredTotal = Object.values(national).reduce((a, b) => a + b, 0);
 
   /* Who leads each state, by the source currently selected. "Our agents"
-     colours only the states our own people have actually filed from — the
+     colours only the states our own people have actually filed from, the
      rest stay grey, because silence is not a low score. */
   const leaders = useMemo(() => {
     const map = {};
@@ -107,7 +107,7 @@ export default function BroadcastAnalysis({ declared, ours, shapes }) {
         ))}
 
         <p className="ml-auto text-[0.8125rem] text-dash-muted">
-          {selected ? `Showing ${state.name}` : "Showing the federation — tap a state"}
+          {selected ? `Showing ${state.name}` : "Showing the federation, tap a state"}
           {selected && (
             <button
               type="button"
@@ -170,7 +170,7 @@ export default function BroadcastAnalysis({ declared, ours, shapes }) {
                 {selected
                   ? `No returns from our agents in ${state.name} yet.`
                   : "No returns from our agents yet."}{" "}
-                Grey means nobody has reported — never a low score.
+                Grey means nobody has reported, never a low score.
               </p>
             </div>
           )}
@@ -217,7 +217,7 @@ export default function BroadcastAnalysis({ declared, ours, shapes }) {
  * The difference between the two sources.
  *
  * Empty until our agents have filed in the place being looked at, and it says
- * so — an empty comparison panel is honest, a panel that quietly shows the
+ * so, an empty comparison panel is honest, a panel that quietly shows the
  * declared figure alone is not.
  */
 function GapPanel({ declared, ours, rows }) {

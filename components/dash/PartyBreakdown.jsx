@@ -14,10 +14,10 @@ import { cn } from "@/lib/utils";
  * A choropleth can only say one thing per shape: who came first. That is the
  * least interesting fact about most places. Whether Kano was 51/49 or 80/20,
  * whether the party that lost nationally is second or fourth here, whether the
- * fourth party is worth 200 votes or 200,000 — none of it survives a fill
+ * fourth party is worth 200 votes or 200,000, none of it survives a fill
  * colour, and all of it is what a room is actually arguing about.
  *
- * So selecting anywhere — a state, a local government, a ward, a booth — opens
+ * So selecting anywhere, a state, a local government, a ward, a booth, opens
  * the full card: every party, ranked, with its share, its bar and the margin
  * between first and second, plus the turnout arithmetic underneath.
  *
@@ -66,7 +66,7 @@ export default function PartyBreakdown({ place, row, coverage, level, compact = 
           <h3 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">{place}</h3>
         </header>
         <p className="px-4 py-8 text-center text-[0.875rem] leading-relaxed text-dash-muted">
-          No returns from here yet. Grey means nobody has reported — never a low score.
+          No returns from here yet. Grey means nobody has reported, never a low score.
         </p>
       </section>
     );

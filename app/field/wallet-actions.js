@@ -22,7 +22,7 @@ import { rateLimit, consume } from "@/lib/ratelimit";
  * hash chain are already correct.
  * ───────────────────────────────────────────────────────────────────────────
  */
-const MINIMUM = 100_000; // ₦1,000 in kobo — below this the fees eat it
+const MINIMUM = 100_000; // ₦1,000 in kobo, below this the fees eat it
 
 export async function requestWithdrawal(_previous, formData) {
   const user = await currentUser();

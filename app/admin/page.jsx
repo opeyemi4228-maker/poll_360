@@ -56,7 +56,7 @@ export default async function AdminPage() {
     <DashLayout
       user={user}
       title="Overview"
-      lead="Every unit, every room, every key — and the two actions nobody else holds: issuing credentials, and marking a return checked."
+      lead="Every unit, every room, every key, and the two actions nobody else holds: issuing credentials, and marking a return checked."
       actions={
         <>
           <LiveRefresh seconds={20} label="Live" />
@@ -69,7 +69,7 @@ export default async function AdminPage() {
       {/* ------------------------------------------------------------- hero
           The dial is the largest object on the page on purpose: it is the
           product's own mark doing its job, and it makes the central rule
-          physical — you cannot read the count without also reading how much
+          physical, you cannot read the count without also reading how much
           of the country it came from, because they are one object. */}
       <div className="grid gap-6 xl:grid-cols-[20rem_1fr]">
         <Card title="Coverage" subtitle="Filed, and checked, against the whole register">
@@ -110,7 +110,7 @@ export default async function AdminPage() {
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <Card title="Standings" subtitle="From our agents' returns only — never the declared figure">
+        <Card title="Standings" subtitle="From our agents' returns only, never the declared figure">
           {counted === 0 ? (
             <Empty>
               No votes counted yet. The moment a coordinator files from a booth, it appears here.

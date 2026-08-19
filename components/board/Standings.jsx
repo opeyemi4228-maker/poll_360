@@ -6,7 +6,7 @@ import { formatNumber, formatShare } from "@/lib/utils";
  * National standings.
  *
  * A bar per party, sorted leader-first, with the margin over second place
- * printed underneath — because "who is ahead" and "by how much" are two
+ * printed underneath, because "who is ahead" and "by how much" are two
  * different questions and only the second one tells you whether to keep
  * watching.
  *

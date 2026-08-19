@@ -5,8 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Mark plus wordmark. "360" is set in the mono face and in the brand red so
- * the numeral reads as an instrument reading rather than as part of a word —
- * the same trick the board uses on every figure it prints.
+ * the numeral reads as an instrument reading rather than as part of a word, * the same trick the board uses on every figure it prints.
  */
 export default function Wordmark({ href = "/", className, coverage, ...props }) {
   const content = (
@@ -29,7 +28,7 @@ export default function Wordmark({ href = "/", className, coverage, ...props }) 
   }
 
   return (
-    <Link href={href} aria-label="Poll360 — home" className={classes} {...props}>
+    <Link href={href} aria-label="Poll360, home" className={classes} {...props}>
       {content}
     </Link>
   );

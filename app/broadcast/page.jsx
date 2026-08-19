@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
  * from the first pass:
  *
  *   1. THE DECLARED FIGURES ALONGSIDE OURS. A studio is not covering a
- *      parallel count, it is covering an election — so the commission's
+ *      parallel count, it is covering an election, so the commission's
  *      declared result is on this screen next to our agents', in its own
  *      column, with the difference computed. That comparison is the story.
  *
@@ -102,15 +102,15 @@ export default async function BroadcastPage() {
         <Card title="On-air frames" subtitle="A web address your gallery can point straight at">
           <ul className="space-y-3 text-[0.875rem] text-dash-muted">
             <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">Wall board</span> — 1920×1080, map and
+              <span className="font-bold text-dash-ink">Wall board</span>, 1920×1080, map and
               standings, with how much is counted burnt into the corner.
             </li>
             <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">Lower third</span> — see-through
+              <span className="font-bold text-dash-ink">Lower third</span>, see-through
               background for your keyer, redraws itself as results land.
             </li>
             <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">State card</span> — one state full frame,
+              <span className="font-bold text-dash-ink">State card</span>, one state full frame,
               for a presenter standing beside it.
             </li>
           </ul>

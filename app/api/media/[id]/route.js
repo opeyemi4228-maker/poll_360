@@ -15,7 +15,7 @@ import { can } from "@/lib/roles";
  * on.
  *
  * The ETag is the content hash, so a client that already has the image is told
- * so with a 304 and the bytes are not sent twice — the one optimisation that
+ * so with a 304 and the bytes are not sent twice, the one optimisation that
  * costs no privacy, because the hash reveals nothing.
  * ───────────────────────────────────────────────────────────────────────────
  */

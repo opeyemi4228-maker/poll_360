@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  * ── WHERE THE MAP STOPS AND THE GRID STARTS ────────────────────────────────
  * There are real boundaries for states and for all 774 LGAs, so those two
  * levels are drawn as maps. There are none for Nigeria's 8,809 wards or its
- * 176,623 polling units — nobody has published them — so those two levels are
+ * 176,623 polling units, nobody has published them, so those two levels are
  * drawn as ordered grids of tiles instead.
  *
  * That is a deliberate refusal rather than a shortcut. Inventing ward outlines
@@ -40,7 +40,7 @@ export default function DrillMap({ shapes, states, leaders, onClose }) {
   );
 
   /* LGA outlines are a megabyte across all 37 states, so a state's file is
-     fetched only when somebody opens that state — and the browser caches it,
+     fetched only when somebody opens that state, and the browser caches it,
      so going back into the same state a second time costs nothing. */
   useEffect(() => {
     let cancelled = false;
@@ -218,7 +218,7 @@ export default function DrillMap({ shapes, states, leaders, onClose }) {
 
         {/* -------------------------------------------------------- state
             Cropped to the state's own extent, labelled, and paired with a
-            ranked list — see StateLevel for why all three were needed. */}
+            ranked list, see StateLevel for why all three were needed. */}
         {level === "state" && lgaShapes && (
           <StateLevel
             state={state}
@@ -321,7 +321,7 @@ function Summary({ level, state, rows }) {
         Booths <span className="figure font-bold text-dash-ink">{formatNumber(booths)}</span>
       </p>
       <p className="ml-auto text-[0.75rem] text-dash-muted">
-        Apportioned from {state.name}&rsquo;s declared total of {formatNumber(state.total)} — the
+        Apportioned from {state.name}&rsquo;s declared total of {formatNumber(state.total)}, the
         parts always add back to it.
       </p>
     </div>

@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
  * What comes off a polling unit that is not a number is not tabular. It is
  * "the card reader has failed at 08:14", "party agents are being turned away",
  * "the queue is four hundred deep and it closes in an hour". Those are events
- * in time, and the shape people already read events in — newest at the top,
- * timestamped, one to a line, scannable in a glance — is a feed.
+ * in time, and the shape people already read events in, newest at the top,
+ * timestamped, one to a line, scannable in a glance, is a feed.
  *
  * ── AND WHY SEVERITY IS A WORD BEFORE IT IS A COLOUR ───────────────────────
  * A room under pressure at 2am is exactly the audience that cannot afford to
@@ -110,7 +110,7 @@ export default function IncidentStream({ incidents, photos = {} }) {
       {shown.length === 0 ? (
         <p className="px-4 py-10 text-center text-[0.875rem] leading-relaxed text-dash-muted">
           {incidents.length === 0
-            ? "Nothing reported. When a coordinator files something that is not a number — a queue at close, a reader that will not read, an agent turned away — it appears here within seconds, with the unit code attached."
+            ? "Nothing reported. When a coordinator files something that is not a number, a queue at close, a reader that will not read, an agent turned away, it appears here within seconds, with the unit code attached."
             : "Nothing matches this filter."}
         </p>
       ) : (
@@ -125,7 +125,7 @@ export default function IncidentStream({ incidents, photos = {} }) {
                 className={cn(
                   "relative px-4 py-3.5",
                   index > 0 && "border-t border-dash-line",
-                  /* Newest item gets the entrance, and only the newest — a
+                  /* Newest item gets the entrance, and only the newest, a
                      list that animates every row on each refresh becomes a
                      slot machine. */
                   index === 0 && "animate-[land_0.5s_var(--ease-out-quart)_both]"
@@ -201,7 +201,7 @@ export default function IncidentStream({ incidents, photos = {} }) {
   );
 }
 
-/** "4 minutes ago" — the only form of time a feed should show. */
+/** "4 minutes ago", the only form of time a feed should show. */
 function ago(date) {
   const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
   if (seconds < 60) return "just now";

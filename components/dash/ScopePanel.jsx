@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  * wards. One selection drives both halves, so the thing under your finger on
  * the map is the row highlighted in the list and vice versa.
  *
- * Ranked by whatever the current layer measures — not alphabetically. An
+ * Ranked by whatever the current layer measures, not alphabetically. An
  * alphabetical list of 774 local governments answers no question anybody has.
  */
 export default function ScopePanel({ rows, layer, hovered, onHover, onOpen, canOpen, title }) {
@@ -73,7 +73,7 @@ export default function ScopePanel({ rows, layer, hovered, onHover, onOpen, canO
                   {row.name}
                 </span>
 
-                {/* The order of finish, in type — so the row is readable
+                {/* The order of finish, in type, so the row is readable
                     without relying on the colours in the bar below it. */}
                 {layer === "results" && (row.total ?? 0) > 0 && (
                   <span className="figure hidden shrink-0 text-[0.625rem] text-dash-muted sm:inline">
@@ -112,7 +112,7 @@ export default function ScopePanel({ rows, layer, hovered, onHover, onOpen, canO
                   80/20, whether the national runner-up is second here or
                   fourth, whether the fourth party is worth anything at all.
                   One 100%-stacked bar carries the whole contest in the height
-                  of a line of text — and because the segments are ordered the
+                  of a line of text, and because the segments are ordered the
                   same way in every row, the eye can compare two places by the
                   position of a colour rather than by reading numbers.
 

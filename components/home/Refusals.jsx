@@ -8,7 +8,7 @@ import { refusals } from "@/lib/content";
  * The most persuasive section on the page, and the hardest to copy. Anyone can
  * add a feature; a refusal has to be built into the schema and then lived with
  * for the whole life of the product. Each of these is a constraint somebody
- * will eventually ask to have relaxed at 11pm — which is precisely why they
+ * will eventually ask to have relaxed at 11pm, which is precisely why they
  * are written down in public first.
  */
 export default function Refusals() {

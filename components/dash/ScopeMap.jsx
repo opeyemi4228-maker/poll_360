@@ -16,12 +16,12 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
  * hid the top bar and replaced the page. That was wrong twice over: the
  * navigation vanished at exactly the moment somebody needed it, and the state
  * arrived somewhere other than where they were looking. Now the frame stays
- * put and only the contents change — the country is replaced by the state, in
+ * put and only the contents change, the country is replaced by the state, in
  * the same box, at the same size.
  *
  * ── EVERY LAYER DRILLS ON ITS OWN TERMS ────────────────────────────────────
  * Results colours by who leads. Voters, Turnout and Clusters colour by
- * magnitude, on a ramp recomputed for whatever is currently on screen — so
+ * magnitude, on a ramp recomputed for whatever is currently on screen, so
  * drilling into Lagos re-scales the ramp to Lagos's own LGAs rather than
  * leaving them all the same shade because they are all large by national
  * standards. That re-scaling is the difference between a map that keeps
@@ -89,7 +89,7 @@ export default function ScopeMap({
   const list = shapes.paths ?? shapes.states ?? [];
 
   /* ── THE HOVER CARD ──────────────────────────────────────────────────────
-     The browser's own tooltip — an SVG <title> — takes about a second to
+     The browser's own tooltip, an SVG <title>, takes about a second to
      appear, cannot be styled, and shows one line of plain text. On the screen
      whose whole job is "what is happening in this place", that is not good
      enough: the answer has to arrive the instant the pointer does.
@@ -97,7 +97,7 @@ export default function ScopeMap({
      The card follows the pointer by writing `transform` straight onto the
      element rather than by holding the coordinates in state. A map of 37
      shapes re-rendering on every pointermove is a map that stutters, and the
-     position is presentation — React never needs to know it. Only *which*
+     position is presentation, React never needs to know it. Only *which*
      place is under the pointer is state, and that changes a few times a
      second at most.
      ────────────────────────────────────────────────────────────────────── */
@@ -212,8 +212,7 @@ export default function ScopeMap({
               ? ramp(magnitude(row, layer), extent)
               : "var(--color-silent)";
 
-        /* Stroke is in user units, and those differ once a frame is cropped —
-           so it scales with the frame or a small state gets a cage. */
+        /* Stroke is in user units, and those differ once a frame is cropped, so it scales with the frame or a small state gets a cage. */
         const unit = frame.width / 1000;
 
         return (
@@ -224,7 +223,7 @@ export default function ScopeMap({
             className="cursor-pointer"
           >
             {/* No <svg:title> here on purpose. The map is role="img", which
-                makes its whole subtree presentational — a title inside it is
+                makes its whole subtree presentational, a title inside it is
                 never read out, and all it did was raise a slow native tooltip
                 a second after the hover card had already answered the same
                 question, on top of it. The figures remain in the list beside
@@ -295,7 +294,7 @@ export default function ScopeMap({
           there. It is the only animation on the map, and it earns its place:
           in a room the useful question is not only "who leads" but "where is
           it coming from right now", and a static choropleth cannot answer it.
-          Purely decorative to assistive technology — the figures beside the
+          Purely decorative to assistive technology, the figures beside the
           map carry the same fact. */}
       {pulsing &&
         list
@@ -387,12 +386,12 @@ function HoverCard({ name, row, layer, level, incident }) {
   /* ── THE DENOMINATOR HAS TO COME FROM THE SAME PLACE AS THE NUMERATOR ────
      A row's `total` is scaled to the share of booths that have reported, while
      its `votes` are the place's full figures. Dividing one by the other gives
-     a party 115% of the vote — which is what this card printed the first time
+     a party 115% of the vote, which is what this card printed the first time
      it was pointed at Ekiti.
 
      A share is a ratio, so it only needs the votes: each party over the sum of
-     all of them. That is scale-independent — it gives the same answer whether
-     the numbers are the whole state's or the fraction counted so far — and it
+     all of them. That is scale-independent, it gives the same answer whether
+     the numbers are the whole state's or the fraction counted so far, and it
      cannot drift from whatever `total` happens to mean. `total` is left to do
      the one job it is right for, below: saying how many votes are actually in,
      next to the coverage that qualifies it.
@@ -400,7 +399,7 @@ function HoverCard({ name, row, layer, level, incident }) {
   const voteSum = ranked.length
     /* The whole array, including the bucket of everyone else on the ballot.
        Dividing by the four named parties alone would quietly inflate each of
-       them by the small parties' share — 65.4% for APC in Ekiti becomes 66.6%,
+       them by the small parties' share, 65.4% for APC in Ekiti becomes 66.6%,
        which is not the figure anyone else is quoting. */
     ? row.votes.reduce((sum, count) => sum + count, 0)
     : 0;
@@ -420,7 +419,7 @@ function HoverCard({ name, row, layer, level, incident }) {
 
       {!reported ? (
         <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
-          No returns yet. Grey means nobody has reported from here — never a low score.
+          No returns yet. Grey means nobody has reported from here, never a low score.
         </p>
       ) : (
         <>
@@ -446,7 +445,7 @@ function HoverCard({ name, row, layer, level, incident }) {
             })}
           </ul>
 
-          {/* Never a total without its coverage — and where coverage is not
+          {/* Never a total without its coverage, and where coverage is not
               tracked, the booth count rather than a fabricated 0.0%. Places
               below a state are apportioned from it and carry no arrival
               record of their own, so printing a share there would be

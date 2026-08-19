@@ -1,8 +1,8 @@
 /**
  * Create the first account.
  *
- * Poll360 has no public sign-up — accounts are issued to named people by the
- * room they work for — so the first one is made here. The password comes from
+ * Poll360 has no public sign-up, accounts are issued to named people by the
+ * room they work for, so the first one is made here. The password comes from
  * the environment rather than from a default in this file, because a seed
  * script with a password in it is how products end up with `admin/admin` still
  * working in production a year later.
@@ -42,5 +42,5 @@ const user = users.upsert({
   passwordHash: await hashPassword(password),
 });
 
-console.log(`\nAccount ready: ${user.name} <${user.email}> — ${user.role}`);
+console.log(`\nAccount ready: ${user.name} <${user.email}>, ${user.role}`);
 console.log("Sign in at /login\n");

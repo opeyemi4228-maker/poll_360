@@ -18,8 +18,8 @@ import { cn } from "@/lib/utils";
  * A sidebar costs 16rem of width permanently, and this is the one screen in
  * the product whose entire job is a map of a country. On a wall display that
  *16rem is the difference between reading Bayelsa and squinting at it. So the
- * navigation goes up top as a pill group — the same links, a fifth of the
- * footprint — and the map gets the full width beneath it.
+ * navigation goes up top as a pill group, the same links, a fifth of the
+ * footprint, and the map gets the full width beneath it.
  *
  * Every other dashboard keeps its rail: they are list-and-form screens where
  * vertical navigation is genuinely better. Chrome should follow the work, not
@@ -66,7 +66,7 @@ export default function TopShell({
           </Link>
 
           {/* The pill group. One rounded track, the active tab a solid block
-              inside it — so the set reads as one control rather than four
+              inside it, so the set reads as one control rather than four
               buttons that happen to be adjacent. */}
           <nav
             aria-label="Dashboards"
@@ -159,7 +159,7 @@ export default function TopShell({
         </div>
 
         {/* Tabs move under the bar on narrow screens rather than disappearing
-            into a menu — they are the primary control of this screen. */}
+            into a menu, they are the primary control of this screen. */}
         <div className="flex gap-1 overflow-x-auto border-t border-dash-line px-4 py-2 lg:hidden">
           {tabs.map((tab) => (
             <button

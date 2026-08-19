@@ -65,15 +65,14 @@ export default function Wallet({ balance, pending, entries, chain }) {
           most damaging thing this product could show an agent on the day. */}
       <p className="flex gap-2.5 rounded-dash-sm bg-dash-bg px-4 py-3 text-[0.8125rem] leading-relaxed text-dash-muted">
         <Info size={16} strokeWidth={2.25} className="mt-px shrink-0" />
-        Asking here records the request against your account. It does not move money on its own —
-        somebody with authority to pay settles it, and the entry appears below the moment they do.
+        Asking here records the request against your account. It does not move money on its own, somebody with authority to pay settles it, and the entry appears below the moment they do.
       </p>
 
       {state?.ok ? (
         <p className="flex items-center gap-2 rounded-dash-sm border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-[0.875rem] text-dash-ink">
           <Check size={17} strokeWidth={3} className="shrink-0 text-emerald-600" />
           Requested. Your reference is{" "}
-          <span className="figure font-bold">{state.reference}</span> — quote it if you need to ask
+          <span className="figure font-bold">{state.reference}</span>, quote it if you need to ask
           about this payment.
         </p>
       ) : (
@@ -120,7 +119,7 @@ export default function Wallet({ balance, pending, entries, chain }) {
               strokeWidth={2.5}
               className={chain?.ok ? "text-emerald-600" : "text-red-600"}
             />
-            {chain?.ok ? "Chain verified" : "Chain broken — tell an administrator"}
+            {chain?.ok ? "Chain verified" : "Chain broken, tell an administrator"}
           </span>
         </div>
 

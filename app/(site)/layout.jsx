@@ -5,7 +5,7 @@ import Footer from "@/components/site/Footer";
  * The public site's chrome.
  *
  * ── WHY THIS IS A ROUTE GROUP AND NOT THE ROOT LAYOUT ──────────────────────
- * The masthead and footer belong to the *website* — the pages a visitor
+ * The masthead and footer belong to the *website*, the pages a visitor
  * browses. The dashboards are a different product with their own chrome, and
  * when this lived in the root layout every dashboard rendered with two headers
  * stacked on top of each other and a marketing footer underneath the audit
