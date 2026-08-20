@@ -85,13 +85,32 @@ export async function POST(request) {
 
           const mediaId = message[kind]?.id ?? null;
 
-          const outcome = handleInbound({
+          /* A shared location, or a live one. WhatsApp sends the first as a
+             one-off and the second as a stream of updates, and both carry the
+             same coordinates, so both are banked the same way. */
+          const location =
+            kind === "location" && message.location
+              ? {
+                  latitude: Number(message.location.latitude),
+                  longitude: Number(message.location.longitude),
+                  name: message.location.name ?? null,
+                  address: message.location.address ?? null,
+                }
+              : null;
+
+          const outcome = await handleInbound({
             phone,
             name: profiles.get(phone) ?? null,
             waId: message.id,
             text: text ?? "",
-            kind: kind === "image" || kind === "document" ? "image" : "text",
+            kind:
+              kind === "location"
+                ? "location"
+                : kind === "image" || kind === "document"
+                  ? "image"
+                  : "text",
             mediaId,
+            location,
           });
 
           if (outcome.reply) await send(phone, outcome.reply);

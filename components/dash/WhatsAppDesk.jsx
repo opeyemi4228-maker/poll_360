@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import {
+  Camera,
   CheckCheck,
+  ChevronRight,
+  MapPin,
+  Network,
   Image as ImageIcon,
   Lock,
   MessageSquare,
@@ -48,6 +52,15 @@ const TAB_GROUPS = [
     ],
   },
   {
+    id: "count",
+    label: "The count",
+    tabs: [
+      { value: "units", label: "Polling units" },
+      { value: "sheets", label: "Sheets read" },
+      { value: "places", label: "Locations" },
+    ],
+  },
+  {
     id: "people",
     label: "People",
     tabs: [
@@ -59,7 +72,20 @@ const TAB_GROUPS = [
 
 const TABS = TAB_GROUPS.flatMap((group) => group.tabs.map((tab) => ({ ...tab, group: group.id })));
 
-export default function WhatsAppDesk({ user, summary, contacts, messages, open, canClaim }) {
+export default function WhatsAppDesk({
+  user,
+  summary,
+  contacts,
+  messages,
+  open,
+  canClaim,
+  tree = null,
+  unitCount = 0,
+  reportedCount = 0,
+  places = [],
+  reads = [],
+  readSummary = {},
+}) {
   const [tab, setTab] = useState("stream");
   const [thread, setThread] = useState(null);
 
@@ -91,7 +117,13 @@ export default function WhatsAppDesk({ user, summary, contacts, messages, open, 
             ? `${open.length} ${open.length === 1 ? "return" : "returns"} part way through`
             : tab === "contacts"
               ? `${formatNumber(summary.verified ?? 0)} of ${formatNumber(summary.contacts ?? 0)} numbers confirmed`
-              : "How the bot is wired up"
+              : tab === "units"
+                ? `${formatNumber(reportedCount)} of ${formatNumber(unitCount)} registered units have reported`
+                : tab === "sheets"
+                  ? `${formatNumber(readSummary.total ?? 0)} sheets read, ${formatNumber(readSummary.accepted ?? 0)} accepted`
+                  : tab === "places"
+                    ? `${places.length} ${places.length === 1 ? "coordinator" : "coordinators"} sending a position`
+                    : "How the bot is wired up"
       }
       aside={
         <>
@@ -369,10 +401,259 @@ export default function WhatsAppDesk({ user, summary, contacts, messages, open, 
           </section>
         )}
 
+
+        {/* ------------------------------------------------- the hierarchy */}
+        {tab === "units" && (
+          <section className="rounded-dash border border-dash-line bg-dash-card">
+            <header className="flex flex-wrap items-center gap-2 border-b border-dash-line px-4 py-3">
+              <Network size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" />
+              <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
+                Nation, state, local government, ward, unit
+              </h2>
+              <p className="w-full text-[0.75rem] text-dash-muted sm:w-auto sm:flex-1">
+                Units register themselves as their returns arrive
+              </p>
+            </header>
+
+            {tree && tree.units > 0 && (
+              <div className="flex items-center gap-2 border-b border-dash-line px-4 py-1.5 pl-[2.1rem]">
+                <span className="min-w-0 flex-1" />
+                <span className="w-24 shrink-0 text-right text-[0.5625rem] font-bold uppercase tracking-wide text-dash-muted">
+                  Reported
+                </span>
+                <span className="hidden w-24 shrink-0 text-right text-[0.5625rem] font-bold uppercase tracking-wide text-dash-muted md:block">
+                  Accredited
+                </span>
+                <span className="w-24 shrink-0 text-right text-[0.5625rem] font-bold uppercase tracking-wide text-dash-muted">
+                  Votes
+                </span>
+              </div>
+            )}
+
+            {!tree || tree.units === 0 ? (
+              <Empty>
+                No polling unit has reported yet. The first return over WhatsApp registers its
+                unit, and its ward, local government and state fill in behind it.
+              </Empty>
+            ) : (
+              <div className="p-2">
+                <Branch node={tree} depth={0} />
+              </div>
+            )}
+
+            <p className="border-t border-dash-line px-4 py-2.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+              The tree is read off the polling unit code, which already carries the address:
+              state, local government, ward, unit. Nothing is stored twice, so no level can
+              disagree with the one below it.
+            </p>
+          </section>
+        )}
+
+        {/* ------------------------------------------------- sheets read */}
+        {tab === "sheets" && (
+          <section className="rounded-dash border border-dash-line bg-dash-card">
+            <header className="flex flex-wrap items-center gap-2 border-b border-dash-line px-4 py-3">
+              <Camera size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" />
+              <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
+                What the reader made of the sheets
+              </h2>
+              <p className="w-full text-[0.75rem] text-dash-muted sm:w-auto sm:flex-1">
+                Kept beside what the agent confirmed, so the difference is on the record
+              </p>
+            </header>
+
+            {reads.length === 0 ? (
+              <Empty>
+                No sheet has been read yet. Set GOOGLE_VISION_API_KEY and a photographed result
+                sheet is read automatically, with every figure proposed to the agent rather than
+                filed.
+              </Empty>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[46rem] border-collapse text-[0.8125rem]">
+                  <thead>
+                    <tr className="border-b border-dash-line text-left">
+                      <th className="px-4 py-2 font-bold text-dash-muted">Unit</th>
+                      <th className="px-3 py-2 font-bold text-dash-muted">Read</th>
+                      <th className="px-3 py-2 font-bold text-dash-muted">Officer</th>
+                      <th className="px-3 py-2 text-right font-bold text-dash-muted">Confidence</th>
+                      <th className="px-4 py-2 font-bold text-dash-muted">Outcome</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dash-line">
+                    {reads.map((row) => {
+                      const changed =
+                        row.corrected &&
+                        JSON.stringify(row.corrected.votes) !== JSON.stringify(row.parsed?.votes);
+                      return (
+                        <tr key={row.id} className="hover:bg-dash-bg">
+                          <td className="figure px-4 py-2 font-bold text-dash-ink">
+                            {row.unitCode ?? "unknown"}
+                          </td>
+                          <td className="figure px-3 py-2 text-dash-muted">
+                            {row.parsed?.accredited ?? "?"} accredited ·{" "}
+                            {(row.parsed?.votes ?? []).join(", ") || "no figures"}
+                          </td>
+                          <td className="px-3 py-2 text-dash-ink">{row.parsed?.repName ?? "not read"}</td>
+                          <td className="figure px-3 py-2 text-right tabular-nums text-dash-ink">
+                            {row.confidence == null ? "n/a" : `${Math.round(row.confidence * 100)}%`}
+                          </td>
+                          <td className="px-4 py-2">
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
+                                changed
+                                  ? "bg-amber-100 text-amber-900"
+                                  : row.accepted
+                                    ? "bg-emerald-50 text-emerald-800"
+                                    : "bg-dash-bg text-dash-muted"
+                              )}
+                            >
+                              {changed ? "agent corrected it" : row.accepted ? "accepted" : "proposed"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p className="border-t border-dash-line px-4 py-2.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+              Nothing here was filed by the reader. Every figure was proposed to the agent
+              standing in front of the sheet and only counted once they confirmed it, because a
+              reader confuses 3 and 8 on a creased form under a torch, and a count that trusted
+              its own guess would be worse than no reading at all.
+            </p>
+          </section>
+        )}
+
+        {/* ---------------------------------------------------- locations */}
+        {tab === "places" && (
+          <section className="rounded-dash border border-dash-line bg-dash-card">
+            <header className="flex flex-wrap items-center gap-2 border-b border-dash-line px-4 py-3">
+              <MapPin size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" />
+              <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
+                Where coordinators are
+              </h2>
+              <p className="w-full text-[0.75rem] text-dash-muted sm:w-auto sm:flex-1">
+                Newest position from each phone, live as it arrives
+              </p>
+            </header>
+
+            {places.length === 0 ? (
+              <Empty>
+                No coordinator has shared a location yet. In WhatsApp they attach a location and
+                it lands here, and on the coordinator watch, within seconds.
+              </Empty>
+            ) : (
+              <ul className="divide-y divide-dash-line">
+                {places.map((row) => (
+                  <li
+                    key={row.contactId}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3"
+                  >
+                    <span className="text-[0.8125rem] font-bold text-dash-ink">
+                      {row.name ?? "Unknown"}
+                    </span>
+                    <span className="figure text-[0.6875rem] text-dash-muted">ends {row.tail}</span>
+                    {row.unitCode && (
+                      <span className="figure rounded-full bg-dash-bg px-2 py-0.5 text-[0.6875rem] text-dash-muted">
+                        {row.unitCode}
+                      </span>
+                    )}
+                    {row.label && (
+                      <span className="text-[0.75rem] text-dash-muted">{row.label}</span>
+                    )}
+                    <span className="figure text-[0.75rem] text-dash-ink tabular-nums">
+                      {Number(row.lat).toFixed(4)}, {Number(row.lon).toFixed(4)}
+                    </span>
+                    <span className="figure ml-auto text-[0.6875rem] text-dash-muted">{row.at}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="border-t border-dash-line px-4 py-2.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+              A position corroborates a filing and never authorises one. A phone fix drifts, and a
+              booth does genuinely get moved across a compound, so distance is a reason to ring
+              somebody rather than an accusation.
+            </p>
+          </section>
+        )}
+
         {/* --------------------------------------------------- how it works */}
         {tab === "setup" && <Setup />}
       </div>
     </TopShell>
+  );
+}
+
+/**
+ * One level of the tree, and everything under it.
+ *
+ * ── OPEN AT THE TOP, CLOSED FURTHER DOWN ───────────────────────────────────
+ * Nation, state and local government open by default; wards and units do not.
+ * Expanding everything on a full night would render tens of thousands of rows
+ * nobody asked for, and collapsing everything hides the one fact the screen
+ * exists to show, which is how far the count has got.
+ */
+function Branch({ node, depth }) {
+  const [open, setOpen] = useState(depth < 2);
+  const kids = node.children ?? [];
+  const share = node.units ? (node.reported / node.units) * 100 : 0;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => kids.length && setOpen((value) => !value)}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-dash-sm px-2 py-1.5 text-left transition-colors",
+          kids.length ? "hover:bg-dash-bg" : "cursor-default"
+        )}
+        style={{ paddingLeft: `${0.5 + depth * 1.1}rem` }}
+      >
+        <ChevronRight
+          size={13}
+          strokeWidth={2.5}
+          aria-hidden="true"
+          className={cn(
+            "shrink-0 transition-transform",
+            kids.length ? "text-dash-muted" : "opacity-0",
+            open && "rotate-90"
+          )}
+        />
+
+        <span className="min-w-0 flex-1 truncate text-[0.8125rem] font-semibold text-dash-ink">
+          {node.name}
+        </span>
+
+        {/* Coverage as a bar, because the useful question at every level is the
+            same one: how much of this place has actually reported. */}
+        <span className="hidden h-1.5 w-24 shrink-0 overflow-hidden rounded-full bg-dash-bg sm:block">
+          <span
+            className="block h-full rounded-full bg-dash-ink"
+            style={{ width: `${Math.min(100, share)}%` }}
+          />
+        </span>
+
+        <span className="figure w-24 shrink-0 text-right text-[0.75rem] text-dash-muted tabular-nums">
+          {formatNumber(node.reported)} of {formatNumber(node.units)}
+        </span>
+
+        <span className="figure hidden w-24 shrink-0 text-right text-[0.75rem] text-dash-muted tabular-nums md:block">
+          {formatNumber(node.accredited)}
+        </span>
+
+        <span className="figure w-24 shrink-0 text-right text-[0.75rem] font-bold text-dash-ink tabular-nums">
+          {formatNumber(node.total)}
+        </span>
+      </button>
+
+      {open && kids.map((child) => <Branch key={child.key} node={child} depth={depth + 1} />)}
+    </div>
   );
 }
 

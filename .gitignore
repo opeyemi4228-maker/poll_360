@@ -40,3 +40,7 @@ yarn-error.log*
 # local database
 /data
 .env.local
+
+# A scheme is not a path. Guarded in lib/db.js, ignored here as well, because
+# the directory this catches carries a live password in its own name.
+postgresql:/

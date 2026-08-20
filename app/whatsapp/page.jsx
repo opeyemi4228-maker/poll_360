@@ -1,6 +1,8 @@
 import WhatsAppDesk from "@/components/dash/WhatsAppDesk";
 import { requireCapability } from "@/lib/guard";
-import { whatsapp } from "@/lib/db";
+import { positions, sheetReads, units, whatsapp } from "@/lib/db";
+import { groupUnits } from "@/lib/units";
+import { nameUnits } from "@/lib/lga-names";
 import { can } from "@/lib/roles";
 
 export const metadata = { title: "WhatsApp desk", robots: { index: false } };
@@ -37,6 +39,16 @@ export default async function WhatsAppPage() {
       messages={whatsapp.recent(80).map(withTime)}
       open={whatsapp.openSessions().map(withTime)}
       canClaim={can(user.role, "whatsapp:claim")}
+      /* The hierarchy is folded on the server. It is a pure function of rows
+         we have already fetched, and doing it here keeps the tree out of the
+         browser bundle and off the main thread on a desk machine that is also
+         running four other dashboards. */
+      tree={groupUnits(nameUnits(units.all()))}
+      unitCount={units.count()}
+      reportedCount={units.reported()}
+      places={positions.latest().map(withTime)}
+      reads={sheetReads.recent(30).map(withTime)}
+      readSummary={{ ...sheetReads.summary() }}
     />
   );
 }

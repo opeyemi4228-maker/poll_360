@@ -18,10 +18,14 @@
     "seed:election": "node scripts/seed-election.mjs"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.545.0",
     "next": "^16.2.12",
+    "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.6.0"
@@ -32,6 +36,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.12",
     "postcss": "^8.5.23",
+    "prisma": "^7.9.1",
     "tailwindcss": "^4.3.3"
   }
 }
