@@ -21,6 +21,8 @@ import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
 import CoordinatorWatch from "./CoordinatorWatch";
 import IncidentStream from "./IncidentStream";
+import Analytics from "./Analytics";
+import PlanningMap from "./PlanningMap";
 import LiveRefresh from "./LiveRefresh";
 import Sparkline from "./Sparkline";
 import { PARTY_FILL } from "./Charts";
@@ -45,17 +47,55 @@ import { cn } from "@/lib/utils";
  * place keeps your layer.
  * ───────────────────────────────────────────────────────────────────────────
  */
-const TABS = [
-  { value: "results", label: "Results" },
-  { value: "register", label: "Voters" },
-  { value: "turnout", label: "Turnout" },
-  { value: "density", label: "Clusters" },
-  /* Two surfaces that are not layers on the map: one is about people, the
-     other about events. They get their own tabs rather than being squeezed
-     into a choropleth that cannot express either. */
-  { value: "watch", label: "Coordinators" },
-  { value: "stream", label: "Reports" },
+/**
+ * The eight surfaces, in three groups.
+ *
+ * ── WHY GROUPED AND NOT JUST LISTED ────────────────────────────────────────
+ * Eight equal pills in one track is eight decisions every time somebody looks
+ * up, and the tenth tab would have broken it outright. They are not eight
+ * peers: four are layers on the same map, two are what the field is doing
+ * right now, and two are about a day that has not happened yet. Grouping them
+ * turns "which of eight" into "which of three, then which of two or four",
+ * which is the difference between reading a menu and recognising a shape.
+ *
+ * Nothing is hidden behind a "more" control. On a desk where somebody has to
+ * reach a screen inside a live broadcast, a tab that takes two clicks is a tab
+ * that does not get used.
+ */
+const TAB_GROUPS = [
+  {
+    id: "count",
+    label: "The count",
+    tabs: [
+      { value: "results", label: "Results" },
+      { value: "register", label: "Voters" },
+      { value: "turnout", label: "Turnout" },
+      { value: "density", label: "Clusters" },
+    ],
+  },
+  {
+    id: "field",
+    label: "The field",
+    /* Not layers on the map: one is about people, the other about events, and
+       neither fits in a choropleth. */
+    tabs: [
+      { value: "watch", label: "Coordinators" },
+      { value: "stream", label: "Reports" },
+    ],
+  },
+  {
+    id: "ahead",
+    label: "Ahead",
+    /* Everything above answers "what is happening". These two answer "what
+       would happen" and "where will we work". */
+    tabs: [
+      { value: "analytics", label: "Analytics" },
+      { value: "planning", label: "Planning" },
+    ],
+  },
 ];
+
+const TABS = TAB_GROUPS.flatMap((group) => group.tabs.map((tab) => ({ ...tab, group: group.id })));
 
 const MAP_LAYERS = new Set(["results", "register", "turnout", "density"]);
 
@@ -165,6 +205,14 @@ export default function SituationRoom({
         const reported = live?.reported ?? false;
         const boothsIn = live?.units ?? 0;
 
+        /* One factor, applied to everything, so no two figures on this row can
+           describe different amounts of the same count. */
+        const factor = reported ? boothsIn / Math.max(row.booths, 1) : 0;
+        const scaled = reported
+          ? row.votes.map((value) => Math.round(value * factor))
+          : [0, 0, 0, 0, 0];
+        const scaledTotal = scaled.reduce((sum, value) => sum + value, 0);
+
         /* The slice of this state's register that has actually reported. */
         const registerIn = reported
           ? Math.round(row.registered * (boothsIn / Math.max(row.booths, 1)))
@@ -174,8 +222,18 @@ export default function SituationRoom({
           key: row.code,
           name: row.name,
           reported,
-          votes: reported ? row.votes : [0, 0, 0, 0, 0],
-          total: reported ? Math.round(row.total * (boothsIn / Math.max(row.booths, 1))) : 0,
+          /* ── VOTES AND TOTAL MUST BE THE SAME COUNT ──────────────────
+             This used to hand back the full declared votes alongside a total
+             scaled to coverage, so any share computed as votes/total ran over
+             100% mid-count and the stacked bars overflowed their track.
+
+             Every party is now scaled by the same coverage factor and the
+             total is the sum of exactly those scaled figures, so the two can
+             never disagree. Scaling everyone identically also preserves the
+             order of finish, which is what keeps a two-thousand-vote margin
+             like Benue's from flipping as the count comes in. */
+          votes: scaled,
+          total: scaledTotal,
           /* Voters: the register that has reported, not the whole register. */
           registered: registerIn,
           fullRegister: row.registered,
@@ -184,15 +242,10 @@ export default function SituationRoom({
           coverage: live?.coverage ?? 0,
           /* Turnout: against the reporting register, which is the only
              denominator that means anything mid-count. */
-          turnout:
-            registerIn > 0
-              ? (Math.round(row.total * (boothsIn / Math.max(row.booths, 1))) / registerIn) * 100
-              : 0,
+          turnout: registerIn > 0 ? (scaledTotal / registerIn) * 100 : 0,
           /* Clusters: votes per unit that has reported, the live density of
              where the count is actually coming from. */
-          density: boothsIn > 0
-            ? Math.round((row.total * (boothsIn / Math.max(row.booths, 1))) / boothsIn)
-            : 0,
+          density: boothsIn > 0 ? Math.round(scaledTotal / boothsIn) : 0,
         };
       }),
     [states, view.byState]
@@ -363,6 +416,7 @@ export default function SituationRoom({
     <TopShell
       user={user}
       tabs={TABS}
+      tabGroups={TAB_GROUPS}
       active={layer}
       onTab={setLayer}
       greeting={greeting}
@@ -376,7 +430,11 @@ export default function SituationRoom({
           ? `${crumbs.at(-1).label} · ${LABEL[layer]}`
           : layer === "watch"
             ? `${watchSummary.filed} of ${watchSummary.total} coordinators reporting`
-            : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
+            : layer === "analytics"
+              ? "Projection from the 2023 result, under your assumptions"
+              : layer === "planning"
+                ? "Choose the territory you can actually cover"
+                : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
       }
       aside={
         /* Rendered here rather than handed in from the page: both this and
@@ -392,7 +450,11 @@ export default function SituationRoom({
         </>
       }
     >
-      {layer === "watch" ? (
+      {layer === "analytics" ? (
+        <Analytics />
+      ) : layer === "planning" ? (
+        <PlanningMap shapes={shapes} />
+      ) : layer === "watch" ? (
         <CoordinatorWatch shapes={shapes} coordinators={coordinators} summary={watchSummary} />
       ) : layer === "stream" ? (
         <div className="grid gap-3 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[minmax(0,1fr)_21rem]">

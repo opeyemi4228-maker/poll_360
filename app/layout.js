@@ -154,6 +154,11 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en-NG"
+      /* The stylesheet sets scroll-behavior: smooth for in-page anchors. Next
+         warns because it also applies to route changes, where it looks like a
+         hang; this says the smoothness is deliberate and silences the warning
+         without giving up the anchor scrolling. */
+      data-scroll-behavior="smooth"
       className={`${interTight.variable} ${plexMono.variable} ${instrumentSerif.variable}`}
     >
       <body className="antialiased">

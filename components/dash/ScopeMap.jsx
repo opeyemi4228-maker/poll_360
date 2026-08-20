@@ -86,7 +86,10 @@ export default function ScopeMap({
     return map;
   }, [shapes, frame]);
 
-  const list = shapes.paths ?? shapes.states ?? [];
+  /* Memoised because the callout placement depends on it, and a fresh array
+     identity on every render would re-run the placement on every pointer
+     move, which is exactly when labels must not move. */
+  const list = useMemo(() => shapes.paths ?? shapes.states ?? [], [shapes]);
 
   /* ── THE HOVER CARD ──────────────────────────────────────────────────────
      The browser's own tooltip, an SVG <title>, takes about a second to
@@ -126,6 +129,67 @@ export default function ScopeMap({
 
     card.style.transform = `translate3d(${Math.round(left)}px, ${Math.round(top)}px, 0)`;
   };
+
+  /* ── PLACING THE CALLOUTS ──────────────────────────────────────────────
+     Four labels, on the places carrying the layer, kept inside the frame and
+     kept off each other. The rules are deliberately simple and run in one
+     pass: a label sits above its place, is pulled back inside if it would
+     leave the frame, and drops below its own place if it would collide with
+     one already placed. Anything cleverer would move labels around as the
+     figures update, and a label that jumps is worse than a label slightly
+     off. */
+  const calloutUnit = (frame.width ?? shapes.width) / 1000;
+
+  const callouts = useMemo(() => {
+    if (!list.length || !rows.length) return [];
+
+    const width = 132 * calloutUnit;
+    const height = 40 * calloutUnit;
+    const frameLeft = frame.x ?? 0;
+    const frameTop = frame.y ?? 0;
+    const frameWidth = frame.width ?? shapes.width;
+    const frameHeight = frame.height ?? shapes.height;
+
+    const top = [...rows]
+      .filter((row) => row.reported !== false)
+      .sort((a, b) => magnitude(b, layer) - magnitude(a, layer))
+      .slice(0, 4);
+
+    const placed = [];
+
+    for (const row of top) {
+      const key = row.key ?? row.name;
+      const shape = list.find((item) => (item.code ?? item.name) === key);
+      if (!shape?.at) continue;
+
+      let x = Math.min(
+        Math.max(shape.at[0], frameLeft + width / 2 + 4 * calloutUnit),
+        frameLeft + frameWidth - width / 2 - 4 * calloutUnit
+      );
+      let y = shape.at[1] - height - 14 * calloutUnit;
+
+      /* Above the place unless there is no room above, in which case below. */
+      if (y < frameTop + 4 * calloutUnit) y = shape.at[1] + 14 * calloutUnit;
+
+      let guard = 0;
+      while (
+        guard < 6 &&
+        placed.some(
+          (other) =>
+            Math.abs(other.x - x) < width * 0.92 && Math.abs(other.y - y) < height * 1.15
+        )
+      ) {
+        y += height * 1.2;
+        guard += 1;
+      }
+
+      if (y + height > frameTop + frameHeight) y = shape.at[1] - height - 14 * calloutUnit;
+
+      placed.push({ key, name: row.name, value: calloutValue(row, layer), anchor: shape.at, x, y, width, height });
+    }
+
+    return placed;
+  }, [list, rows, layer, frame, shapes.width, shapes.height, calloutUnit]);
 
   const hoveredRow = hovered ? byName.get(hovered) : null;
   const hoveredShape = hovered ? list.find((shape) => (shape.code ?? shape.name) === hovered) : null;
@@ -172,6 +236,44 @@ export default function ScopeMap({
           <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor="#000" floodOpacity="0.55" />
         </filter>
 
+        {/* ── THE DOT TEXTURE ────────────────────────────────────────────
+            One pattern per band of the ramp, the dot growing as the figure
+            does. It is not decoration either: a flat choropleth encodes
+            quantity in colour alone, which is the one channel a red green
+            colour blind reader cannot rely on and the one a projector
+            flattens worst. Encoding the same figure a second time in the size
+            of a mark means the map still reads in greyscale, on a bad screen,
+            and from the back of a room.
+
+            It is used on the layers that measure a quantity, and never on the
+            results layer, where the fill is a party colour and stippling it
+            would make four parties into four textures nobody asked for. */}
+        {STEPS.map((colour, index) => {
+          const radius = 1.55 + index * 0.55;
+          return (
+            <pattern
+              key={index}
+              id={`scope-dots-${index}`}
+              width="9"
+              height="9"
+              patternUnits="userSpaceOnUse"
+            >
+              {/* A ground darker than every band, so the quietest state still
+                  reads as stippled land. Using the first ramp step here made
+                  its own dots invisible against it, and a whole band of the
+                  map went flat, which is precisely the state a reader would
+                  mistake for "nothing reported". */}
+              <rect width="9" height="9" fill="oklch(21% 0.02 255)" />
+              <circle cx="4.5" cy="4.5" r={radius} fill={colour} />
+              {/* Offset dots on the two brightest bands only. Density is the
+                  point at the top of the scale, and adding them lower down
+                  would flatten the very difference the texture exists to show. */}
+              {index >= 3 && <circle cx="0" cy="0" r={radius * 0.55} fill={colour} />}
+              {index >= 3 && <circle cx="9" cy="9" r={radius * 0.55} fill={colour} />}
+            </pattern>
+          );
+        })}
+
         <pattern
           id="scope-hatch-lp"
           width="6"
@@ -209,7 +311,7 @@ export default function ScopeMap({
                 ? "url(#scope-hatch-lp)"
                 : PARTY_FILL[code]
             : row
-              ? ramp(magnitude(row, layer), extent)
+              ? `url(#scope-dots-${stepIndex(magnitude(row, layer), extent)})`
               : "var(--color-silent)";
 
         /* Stroke is in user units, and those differ once a frame is cropped, so it scales with the frame or a small state gets a cage. */
@@ -327,6 +429,72 @@ export default function ScopeMap({
               />
             </circle>
           ))}
+
+      {/* ── THE LEADERBOARD, ON THE MAP ─────────────────────────────────────
+          The handful of places that are carrying the layer, labelled in place
+          with their figure, pinned to the map rather than sitting in a list
+          beside it.
+
+          ── WHY, WHEN THE LIST ALREADY EXISTS ────────────────────────────────
+          Reading the ranked list and then finding those places on the map is
+          two jobs, and in a room where somebody is talking over the screen it
+          is two jobs nobody completes. Putting the top figures where the
+          places are collapses it to one look. It is capped at four because the
+          effect dies the moment the labels start fighting each other, and the
+          fifth one is always the one that overlaps.
+
+          Presentational: every figure here is also in the panel beside the
+          map, which is what the map's own label points at. */}
+      {callouts.map((callout) => (
+        <g key={`callout-${callout.key}`} className="pointer-events-none" aria-hidden="true">
+          <line
+            x1={callout.anchor[0]}
+            y1={callout.anchor[1]}
+            x2={callout.x}
+            y2={callout.y + callout.height}
+            stroke="rgba(255,255,255,0.5)"
+            strokeWidth={0.9 * calloutUnit}
+          />
+          <circle
+            cx={callout.anchor[0]}
+            cy={callout.anchor[1]}
+            r={2.4 * calloutUnit}
+            fill="#ffffff"
+          />
+          <rect
+            x={callout.x - callout.width / 2}
+            y={callout.y}
+            width={callout.width}
+            height={callout.height}
+            rx={5 * calloutUnit}
+            fill="rgba(14,16,22,0.92)"
+            stroke="rgba(255,255,255,0.16)"
+            strokeWidth={0.8 * calloutUnit}
+          />
+          <text
+            x={callout.x}
+            y={callout.y + callout.height * 0.42}
+            textAnchor="middle"
+            fill="rgba(255,255,255,0.62)"
+            fontSize={7.4 * calloutUnit}
+            fontWeight="600"
+            letterSpacing={0.4 * calloutUnit}
+          >
+            {callout.name.toUpperCase()}
+          </text>
+          <text
+            x={callout.x}
+            y={callout.y + callout.height * 0.82}
+            textAnchor="middle"
+            fill="#ffffff"
+            fontSize={10.6 * calloutUnit}
+            fontWeight="800"
+            className="figure"
+          >
+            {callout.value}
+          </text>
+        </g>
+      ))}
     </svg>
 
       {/* Rendered whether or not anything is hovered, so its size can be
@@ -502,6 +670,15 @@ export const LABEL = {
   density: "votes per reporting unit",
 };
 
+/** The figure a callout carries: short enough to read at a glance from across a room. */
+function calloutValue(row, layer) {
+  if (layer === "turnout") return formatShare(row.turnout ?? 0);
+  if (layer === "register") return formatNumber(row.registered ?? 0);
+  if (layer === "density") return formatNumber(row.density ?? 0);
+  const code = partyCode(row);
+  return code ? `${code} ${formatNumber(row.total ?? 0)}` : formatNumber(row.total ?? 0);
+}
+
 export function magnitude(row, layer) {
   if (layer === "register") return row.registered ?? 0;
   if (layer === "turnout") return row.turnout ?? 0;
@@ -526,9 +703,14 @@ export function partyCode(row) {
 }
 
 export function ramp(value, [min, max]) {
-  if (max === min) return STEPS[2];
+  return STEPS[stepIndex(value, [min, max])];
+}
+
+/** Which band of the ramp a value falls in. The dot texture needs the index, not the colour. */
+export function stepIndex(value, [min, max]) {
+  if (max === min) return 2;
   const t = (value - min) / (max - min);
-  return STEPS[Math.min(STEPS.length - 1, Math.floor(t * STEPS.length))];
+  return Math.min(STEPS.length - 1, Math.max(0, Math.floor(t * STEPS.length)));
 }
 
 export { STEPS };

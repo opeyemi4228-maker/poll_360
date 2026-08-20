@@ -9,6 +9,7 @@ import AlarmBell from "./AlarmBell";
 import DashSearch from "./DashSearch";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { ROLES } from "@/lib/roles";
+import Assistant from "./Assistant";
 import { cn } from "@/lib/utils";
 
 /**
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils";
 export default function TopShell({
   user,
   tabs,
+  tabGroups = null,
   active,
   onTab,
   greeting,
@@ -65,34 +67,47 @@ export default function TopShell({
             </span>
           </Link>
 
-          {/* The pill group. One rounded track, the active tab a solid block
-              inside it, so the set reads as one control rather than four
-              buttons that happen to be adjacent. */}
+          {/* One rounded track with the active tab a solid block inside it, so
+              the set reads as a single control. Where groups are supplied they
+              are separated by a hairline rather than by a gap: a gap at this
+              size reads as three controls, a rule reads as one control with
+              structure, which is what it is. */}
           <nav
             aria-label="Dashboards"
-            className="mx-auto hidden items-center gap-1 rounded-full bg-dash-bg p-1 lg:flex"
+            className="mx-auto hidden items-center rounded-full bg-dash-bg p-1 xl:flex"
           >
-            {tabs.map((tab) => (
-              <button
-                key={tab.value}
-                type="button"
-                onClick={() => onTab(tab.value)}
-                aria-pressed={active === tab.value}
-                className={cn(
-                  "rounded-full px-5 py-2.5 text-[0.875rem] font-semibold transition-colors",
-                  active === tab.value
-                    ? "bg-dash-card text-dash-ink shadow-sm"
-                    : "text-dash-muted hover:text-dash-ink"
+            {(tabGroups ?? [{ id: "all", tabs }]).map((group, index) => (
+              <span key={group.id} className="flex items-center">
+                {index > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="mx-1.5 h-5 w-px shrink-0 bg-dash-line"
+                  />
                 )}
-              >
-                {tab.label}
-              </button>
+                {group.tabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    onClick={() => onTab(tab.value)}
+                    aria-pressed={active === tab.value}
+                    title={group.label}
+                    className={cn(
+                      "rounded-full px-3.5 py-2 text-[0.8125rem] font-semibold whitespace-nowrap transition-colors",
+                      active === tab.value
+                        ? "bg-dash-card text-dash-ink shadow-sm"
+                        : "text-dash-muted hover:text-dash-ink"
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </span>
             ))}
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
             {searchItems && (
-              <div className="hidden lg:block">
+              <div className="hidden xl:block">
                 <DashSearch
                   items={searchItems}
                   onPick={onSearchPick}
@@ -196,6 +211,11 @@ export default function TopShell({
       <main id="main" className="px-4 pb-3 lg:px-6 lg:pb-4">
         {children}
       </main>
+
+      {/* Rides with the shell so every dashboard has the same assistant, and it
+          is told which surface is open so "what am I looking at" answers about
+          the screen in front of the person asking. */}
+      <Assistant tab={active} />
     </div>
   );
 }
