@@ -79,8 +79,8 @@ export async function signIn(_previous, formData) {
   }
 
   const found = identity.email
-    ? users.findByEmail(identity.email)
-    : users.findByPhone(identity.phone);
+    ? await users.findByEmail(identity.email)
+    : await users.findByPhone(identity.phone);
   const user = found;
 
   /* Verify even when there is no user, against a throwaway hash, so a missing
@@ -110,7 +110,7 @@ export async function signIn(_previous, formData) {
     userAgent: list.get("user-agent") ?? undefined,
     remember: formData.get("remember") != null,
   });
-  users.markSignedIn(user.id);
+  await users.markSignedIn(user.id);
   await sweepExpiredSessions();
 
   /* Each role has its own room, and signing in should land in it rather than

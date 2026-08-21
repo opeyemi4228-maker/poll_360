@@ -72,9 +72,13 @@ export default function StateMap({ shapes, leaders, selected, onSelect, classNam
                   selected && !active ? "opacity-45" : "opacity-100"
                 )}
               >
+                {/* One string, not two children. The DOM merges adjacent text
+                    nodes inside a <title> into one, so React hydrates against a
+                    single node where it rendered two, and reports a mismatch on
+                    every state on every load. Building the string first makes
+                    the server and the client agree by construction. */}
                 <title>
-                  {state.name}
-                  {leader ? `, ${leader} leading` : ", no returns yet"}
+                  {`${state.name}${leader ? `, ${leader} leading` : ", no returns yet"}`}
                 </title>
               </path>
 

@@ -22,15 +22,15 @@ export const dynamic = "force-dynamic";
  */
 export default async function FieldPage() {
   const user = await requireUser("/field");
-  const existing = user.scope ? results.forUnit(user.scope) : null;
+  const existing = user.scope ? await results.forUnit(user.scope) : null;
 
   /* Everything about the account is derived from the ledger on read: the
      balance is a sum, never a stored figure that could drift from its own
      statement. */
-  const balance = ledger.balanceFor(user.id);
-  const pending = ledger.pendingFor(user.id);
-  const entries = ledger.forUser(user.id, 12);
-  const chain = ledger.verify();
+  const balance = await ledger.balanceFor(user.id);
+  const pending = await ledger.pendingFor(user.id);
+  const entries = await ledger.forUser(user.id, 12);
+  const chain = await ledger.verify();
 
   return (
     <DashLayout

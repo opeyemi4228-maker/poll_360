@@ -175,9 +175,9 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
                   strokeDasharray={row.derived ? "2 2" : undefined}
                   className="cursor-pointer transition-all"
                 >
-                  <title>
-                    {row.unitCode}, {BANDS[row.band].label}
-                  </title>
+                  {/* One string: adjacent text nodes inside a <title> are
+                      merged by the DOM and never match what React rendered. */}
+                  <title>{`${row.unitCode}, ${BANDS[row.band].label}`}</title>
                 </circle>
               </g>
             ))}

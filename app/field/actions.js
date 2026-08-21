@@ -65,7 +65,7 @@ export async function fileResult(_previous, formData) {
       }
     : null;
 
-  const { amended } = results.file({
+  const { amended } = await results.file({
     unitCode: agent.scope,
     stateCode: agent.scope.slice(0, 2),
     registered,
@@ -101,7 +101,7 @@ export async function reportIncident(_previous, formData) {
     return { errors: { severity: "Pick how serious it is." } };
   }
 
-  const incidentId = incidents.create({
+  const incidentId = await incidents.create({
     unitCode: agent.scope ?? "unassigned",
     stateCode: (agent.scope ?? "00").slice(0, 2),
     kind,
@@ -128,7 +128,7 @@ export async function reportIncident(_previous, formData) {
       const bytes = Buffer.from(await photo.arrayBuffer());
       const mime = sniff(bytes);
       if (mime) {
-        media.attach({ incidentId, mime, bytes });
+        await media.attach({ incidentId, mime, bytes });
       }
     } catch {
       /* Deliberately silent: the report is the thing that matters, and an

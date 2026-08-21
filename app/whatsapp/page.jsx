@@ -34,21 +34,21 @@ export default async function WhatsAppPage() {
          prototype, and a null prototype cannot cross into a client component:
          the page renders 500 with "only plain objects can be passed", which
          says nothing about sqlite and takes a while to place. */
-      summary={{ ...whatsapp.summary() }}
-      contacts={whatsapp.contacts(80).map(withTime)}
-      messages={whatsapp.recent(80).map(withTime)}
-      open={whatsapp.openSessions().map(withTime)}
+      summary={{ ...(await whatsapp.summary()) }}
+      contacts={(await whatsapp.contacts(80)).map(withTime)}
+      messages={(await whatsapp.recent(80)).map(withTime)}
+      open={(await whatsapp.openSessions()).map(withTime)}
       canClaim={can(user.role, "whatsapp:claim")}
       /* The hierarchy is folded on the server. It is a pure function of rows
          we have already fetched, and doing it here keeps the tree out of the
          browser bundle and off the main thread on a desk machine that is also
          running four other dashboards. */
-      tree={groupUnits(nameUnits(units.all()))}
-      unitCount={units.count()}
-      reportedCount={units.reported()}
-      places={positions.latest().map(withTime)}
-      reads={sheetReads.recent(30).map(withTime)}
-      readSummary={{ ...sheetReads.summary() }}
+      tree={groupUnits(nameUnits(await units.all()))}
+      unitCount={await units.count()}
+      reportedCount={await units.reported()}
+      places={(await positions.latest()).map(withTime)}
+      reads={(await sheetReads.recent(30)).map(withTime)}
+      readSummary={{ ...(await sheetReads.summary()) }}
     />
   );
 }

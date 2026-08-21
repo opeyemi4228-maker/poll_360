@@ -28,17 +28,17 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const user = await requireUser("/admin");
 
-  const tally = results.tally();
-  const filed = results.recent(200);
-  const feed = incidents.recent(6);
-  const requests = accessRequests.recent(5);
-  const trail = audit.recent(8);
+  const tally = await results.tally();
+  const filed = await results.recent(200);
+  const feed = await incidents.recent(6);
+  const requests = await accessRequests.recent(5);
+  const trail = await audit.recent(8);
 
   /* The chain is walked on every load. It is a few hundred hashes and it is
      the one check worth paying for on every page view: an administrator should
      never be looking at a ledger whose integrity has not just been proved. */
-  const chain = ledger.verify();
-  const payments = ledger.recent(6);
+  const chain = await ledger.verify();
+  const payments = await ledger.recent(6);
 
   const counted = Object.values(tally.totals).reduce((a, b) => a + b, 0);
   const disputed = filed.filter((row) => row.status === "DISPUTED").length;

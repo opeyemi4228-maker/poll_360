@@ -34,16 +34,16 @@ export default async function RoomPage() {
   const user = await requireUser("/room");
 
   const board = buildBoard();
-  const feed = incidents.recent(40).map((item) => ({
+  const feed = (await incidents.recent(40)).map((item) => ({
     ...item,
     /* Decrypted here and nowhere else: the situation room is one of the two
        roles permitted to read an incident narrative. */
     detail: item.detailSealed ? unseal(item.detailSealed) : null,
   }));
 
-  const coordinators = watch.coordinators();
+  const coordinators = await watch.coordinators();
   const watchSummary = watch.summary(coordinators);
-  const photoMap = Object.fromEntries(media.forIncidents(feed.map((item) => item.id)));
+  const photoMap = Object.fromEntries(await media.forIncidents(feed.map((item) => item.id)));
 
   return (
     <SituationRoom

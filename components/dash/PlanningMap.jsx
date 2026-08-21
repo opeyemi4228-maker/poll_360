@@ -589,15 +589,18 @@ export default function PlanningMap({ shapes }) {
                     strokeLinejoin="round"
                     className="transition-[fill] duration-200"
                   >
+                    {/* One string: adjacent text nodes inside a <title> are
+                        merged by the DOM and never match what React rendered. */}
                     <title>
-                      {shape.name}
-                      {carved
-                        ? " (taken out of the plan)"
-                        : chosen
-                          ? " (in the plan)"
-                          : partly
-                            ? " (partly covered)"
-                            : ""}
+                      {`${shape.name}${
+                        carved
+                          ? " (taken out of the plan)"
+                          : chosen
+                            ? " (in the plan)"
+                            : partly
+                              ? " (partly covered)"
+                              : ""
+                      }`}
                     </title>
                   </path>
 

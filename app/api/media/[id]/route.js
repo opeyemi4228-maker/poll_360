@@ -30,7 +30,7 @@ export async function GET(request, { params }) {
   }
 
   const { id } = await params;
-  const row = media.bytes(id);
+  const row = await media.bytes(id);
   if (!row) return new Response("Not found", { status: 404 });
 
   const etag = `"${row.hash}"`;

@@ -34,7 +34,7 @@ if (password.length < 12) {
   process.exit(1);
 }
 
-const user = users.upsert({
+const user = await users.upsert({
   name,
   email,
   phone,

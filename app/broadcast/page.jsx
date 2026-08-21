@@ -33,8 +33,8 @@ export const dynamic = "force-dynamic";
 export default async function BroadcastPage() {
   const user = await requireUser("/broadcast");
 
-  const tally = results.tally();
-  const ourRows = results.counted();
+  const tally = await results.tally();
+  const ourRows = await results.counted();
 
   /* Our agents' returns, folded up by state so the analysis surface can put
      them beside the declared figure for the same place. */

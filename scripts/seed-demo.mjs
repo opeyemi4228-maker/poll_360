@@ -86,7 +86,7 @@ for (const [stateCode, stateName, lat, lon] of PLACES) {
     const name = NAMES[(made + n) % NAMES.length];
     const email = `${stateCode}${n}@example.ng`;
 
-    const user = users.upsert({ name, email, phone: null, passwordHash: hash, role: "PU_AGENT", scope: unit });
+    const user = await users.upsert({ name, email, phone: null, passwordHash: hash, role: "PU_AGENT", scope: unit });
     agents.push({ ...user, stateCode, stateName, lat, lon, n });
     made += 1;
   }

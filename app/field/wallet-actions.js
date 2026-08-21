@@ -41,7 +41,7 @@ export async function requestWithdrawal(_previous, formData) {
   if (!amount) return { error: "Enter how much you want to withdraw." };
   if (amount < MINIMUM) return { error: "The smallest withdrawal is ₦1,000." };
 
-  const available = ledger.balanceFor(user.id) - ledger.pendingFor(user.id);
+  const available = await ledger.balanceFor(user.id) - await ledger.pendingFor(user.id);
   if (amount > available) {
     return {
       error: `That is more than you have available. You can ask for up to ₦${(
@@ -50,7 +50,7 @@ export async function requestWithdrawal(_previous, formData) {
     };
   }
 
-  const entry = ledger.append({
+  const entry = await ledger.append({
     userId: user.id,
     kind: "WITHDRAWAL_REQUESTED",
     amount,
@@ -60,7 +60,7 @@ export async function requestWithdrawal(_previous, formData) {
 
   consume(key, { windowMs: 60 * 60 * 1000 });
 
-  audit.record({
+  await audit.record({
     actorId: user.id,
     action: "wallet:withdrawal-requested",
     subject: entry.reference,

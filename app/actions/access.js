@@ -72,7 +72,7 @@ export async function requestAccess(_previous, formData) {
   if (Object.keys(errors).length) return { errors, values };
 
   try {
-    accessRequests.create(values);
+    await accessRequests.create(values);
   } catch {
     return {
       error:

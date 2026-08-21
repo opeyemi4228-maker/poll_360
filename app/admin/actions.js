@@ -62,16 +62,16 @@ export async function issueAccount(_previous, formData) {
 
   if (Object.keys(errors).length) return { errors };
 
-  if (email && users.findByEmail(email)) {
+  if (email && await users.findByEmail(email)) {
     return { errors: { email: "An account already uses that email." } };
   }
-  if (phone && users.findByPhone(phone)) {
+  if (phone && await users.findByPhone(phone)) {
     return { errors: { phone: "An account already uses that phone number." } };
   }
 
   const password = passphrase();
 
-  const user = users.upsert({
+  const user = await users.upsert({
     name,
     email: email || null,
     phone,
@@ -98,7 +98,7 @@ export async function reviewResult(_previous, formData) {
     return { error: "Unknown status." };
   }
 
-  const row = results.recent(500).find((r) => r.id === id);
+  const row = (await results.recent(500)).find((r) => r.id === id);
   if (!row) return { error: "That return no longer exists." };
 
   /* The one check that must hold however senior the account: nobody marks
@@ -107,7 +107,7 @@ export async function reviewResult(_previous, formData) {
     return { error: "You filed this return. Somebody else has to check it." };
   }
 
-  results.setStatus(id, status, admin.id);
+  await results.setStatus(id, status, admin.id);
   await log(admin, `result:${status.toLowerCase()}`, row.unitCode);
   revalidatePath("/admin");
 
@@ -146,8 +146,8 @@ export async function payAgent(_previous, formData) {
   if (!naira || Number(naira) <= 0) return { errors: { amount: "How much?" } };
 
   const agent = contact.includes("@")
-    ? users.findByEmail(contact)
-    : users.findByPhone(contact.replace(/[^\d]/g, ""));
+    ? await users.findByEmail(contact)
+    : await users.findByPhone(contact.replace(/[^\d]/g, ""));
 
   if (!agent) return { errors: { contact: "No account with that email or phone." } };
 
@@ -155,11 +155,11 @@ export async function payAgent(_previous, formData) {
 
   /* Paying out more than an agent has earned is almost always a typo, and the
      one case where it is not can be done as two entries deliberately. */
-  if (kind === "WITHDRAWAL" && amount > ledger.balanceFor(agent.id)) {
+  if (kind === "WITHDRAWAL" && amount > await ledger.balanceFor(agent.id)) {
     return { error: "That is more than the agent has earned. Credit them first." };
   }
 
-  const entry = ledger.append({
+  const entry = await ledger.append({
     userId: agent.id,
     kind,
     amount,

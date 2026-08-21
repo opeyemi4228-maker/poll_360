@@ -1,0 +1,367 @@
+// Poll360 storage.
+//
+// ── EVERY COLUMN NAME IS PRESERVED ─────────────────────────────────────────
+// The models are camelCase because that is what the application reads; the
+// tables and columns keep the snake_case names they already had, through @map.
+// A migration that also renames things is two migrations pretending to be one,
+// and the second one is the one that loses data.
+//
+// ── WHAT IS SCOPED TO AN ELECTION, AND WHAT IS NOT ─────────────────────────
+// Accounts, sessions, access requests and the audit log outlive any single
+// election: the same coordinator works the presidential and then the
+// governorship, and an audit trail that reset every project would be useless.
+// Everything operational — results, incidents, the payment ledger, discovered
+// units, read sheets, positions — belongs to exactly one election, and carries
+// its id. That is what makes a new project a clean slate without deleting a
+// single row of the last one.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// An election project. Everything operational hangs off one of these.
+model Election {
+  id        String    @id
+  /// Required, and required *before* anything can be filed against it: an
+  /// untitled project is one nobody can identify at 2am three elections later.
+  title     String
+  slug      String    @unique
+  kind      String    @default("PRESIDENTIAL")
+  /// The polling day itself, which is not the day the project was created.
+  votesOn   DateTime? @map("votes_on") @db.Timestamptz(3)
+  status    String    @default("DRAFT")
+  /// True only for the built-in 2023 replay, so the interface can say plainly
+  /// that what is on screen is a demonstration and not somebody's live count.
+  isDemo    Boolean   @default(false) @map("is_demo")
+  note      String?
+  createdBy String?   @map("created_by")
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  closedAt  DateTime? @map("closed_at") @db.Timestamptz(3)
+
+  results      Result[]
+  incidents    Incident[]
+  ledger       LedgerEntry[]
+  pollingUnits PollingUnit[]
+  sheetReads   SheetRead[]
+  positions    WaPosition[]
+
+  @@index([status, createdAt])
+  @@map("elections")
+}
+
+model User {
+  id           String    @id
+  name         String
+  email        String?   @unique
+  phone        String?   @unique
+  passwordHash String    @map("password_hash")
+  role         String    @default("VIEWER")
+  scope        String?
+  disabledAt   DateTime? @map("disabled_at") @db.Timestamptz(3)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  sessions         Session[]
+  resultsFiled     Result[]      @relation("ResultSubmittedBy")
+  resultsVerified  Result[]      @relation("ResultVerifiedBy")
+  incidents        Incident[]
+  ledgerEntries    LedgerEntry[]
+  waContacts       WaContact[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model AccessRequest {
+  id           String   @id
+  organisation String
+  name         String
+  email        String
+  phone        String?
+  kind         String
+  election     String?
+  units        Int?
+  message      String?
+  status       String   @default("NEW")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("access_requests")
+}
+
+/// One row per booth per election. The unique pair is the whole point: a booth
+/// reports once, and a correction updates that row rather than adding a second.
+model Result {
+  id          String    @id
+  electionId  String    @map("election_id")
+  unitCode    String    @map("unit_code")
+  stateCode   String    @map("state_code")
+  registered  Int
+  accredited  Int
+  rejected    Int       @default(0)
+  /// JSON, kept as text exactly as it was stored. Changing the storage engine
+  /// and the column type in one step is how a migration quietly loses a row.
+  votes       String
+  inecTotal   Int?      @map("inec_total")
+  status      String    @default("SUBMITTED")
+  note        String?
+  lat         Float?
+  lon         Float?
+  accuracy    Float?
+  distanceM   Float?    @map("distance_m")
+  source      String    @default("APP")
+  repName     String?   @map("rep_name")
+  submittedBy String    @map("submitted_by")
+  submittedAt DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  verifiedBy  String?   @map("verified_by")
+  verifiedAt  DateTime? @map("verified_at") @db.Timestamptz(3)
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  filedBy  User     @relation("ResultSubmittedBy", fields: [submittedBy], references: [id])
+  checkedBy User?   @relation("ResultVerifiedBy", fields: [verifiedBy], references: [id])
+
+  @@unique([electionId, unitCode])
+  @@index([electionId, stateCode, submittedAt])
+  @@index([electionId, status])
+  @@map("results")
+}
+
+model Incident {
+  id           String   @id
+  electionId   String   @map("election_id")
+  unitCode     String   @map("unit_code")
+  stateCode    String   @map("state_code")
+  kind         String
+  severity     String   @default("INFO")
+  detailSealed String?  @map("detail_sealed")
+  status       String   @default("OPEN")
+  reportedBy   String   @map("reported_by")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  reporter User     @relation(fields: [reportedBy], references: [id])
+  media    Media[]
+
+  @@index([electionId, createdAt])
+  @@index([electionId, stateCode])
+  @@map("incidents")
+}
+
+model Media {
+  id         String   @id
+  incidentId String   @map("incident_id")
+  mime       String
+  bytes      Bytes
+  width      Int?
+  height     Int?
+  hash       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  incident    Incident    @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  waMessages  WaMessage[]
+
+  @@index([incidentId])
+  @@map("media")
+}
+
+model Audit {
+  id        String   @id
+  actorId   String?  @map("actor_id")
+  actorName String?  @map("actor_name")
+  action    String
+  subject   String?
+  meta      String?
+  ip        String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("audit")
+}
+
+/// The agent payment ledger. `seq` is the chain order and must be storage-level
+/// and strictly monotonic: every entry's hash depends on the one before it, so
+/// two rows written in the same millisecond still need an unambiguous
+/// predecessor. There is deliberately no update or delete path to this table.
+model LedgerEntry {
+  seq          Int      @id @default(autoincrement())
+  id           String   @unique
+  electionId   String   @map("election_id")
+  userId       String   @map("user_id")
+  kind         String
+  amount       Int
+  reference    String
+  note         String?
+  createdAt    DateTime @map("created_at") @db.Timestamptz(3)
+  previousHash String   @map("previous_hash")
+  hash         String
+  actorId      String?  @map("actor_id")
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([electionId, userId, seq])
+  @@map("ledger")
+}
+
+model WaContact {
+  id           String   @id
+  phoneSealed  String   @map("phone_sealed")
+  phoneIndex   String   @unique @map("phone_index")
+  phoneTail    String   @map("phone_tail")
+  displayName  String?  @map("display_name")
+  userId       String?  @map("user_id")
+  unitCode     String?  @map("unit_code")
+  stateCode    String?  @map("state_code")
+  status       String   @default("UNVERIFIED")
+  firstSeen    DateTime @default(now()) @map("first_seen") @db.Timestamptz(3)
+  lastSeen     DateTime @default(now()) @map("last_seen") @db.Timestamptz(3)
+  messageCount Int      @default(0) @map("message_count")
+
+  user      User?        @relation(fields: [userId], references: [id])
+  messages  WaMessage[]
+  session   WaSession?
+  positions WaPosition[]
+  reads     SheetRead[]
+
+  @@index([lastSeen])
+  @@map("wa_contacts")
+}
+
+model WaMessage {
+  id         String   @id
+  waId       String?  @unique @map("wa_id")
+  contactId  String   @map("contact_id")
+  direction  String
+  kind       String   @default("text")
+  bodySealed String?  @map("body_sealed")
+  mediaId    String?  @map("media_id")
+  step       String?
+  status     String   @default("RECEIVED")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  contact WaContact @relation(fields: [contactId], references: [id])
+  media   Media?    @relation(fields: [mediaId], references: [id])
+
+  @@index([contactId, createdAt])
+  @@index([createdAt])
+  @@map("wa_messages")
+}
+
+model WaSession {
+  contactId String   @id @map("contact_id")
+  step      String
+  draft     String   @default("{}")
+  startedAt DateTime @default(now()) @map("started_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+  attempts  Int      @default(0)
+
+  contact WaContact @relation(fields: [contactId], references: [id])
+
+  @@map("wa_sessions")
+}
+
+/// Units as they are discovered in the field. Scoped to an election because a
+/// register is revised between them, and last year's booth list is not this
+/// year's.
+model PollingUnit {
+  /// Defaulted to the 2023 project as a bridge. The raw-SQL writers in
+  /// lib/db.js predate elections and do not set this column, so without a
+  /// default every insert would fail the not-null constraint — which is
+  /// exactly what a WhatsApp agent registering a new unit hit. Once every
+  /// writer passes an election explicitly, drop the default so a row can
+  /// never quietly land in the wrong project.
+  electionId String   @default("elec_2023_presidential") @map("election_id")
+  code       String
+  stateCode  String   @map("state_code")
+  lgaCode    String   @map("lga_code")
+  wardCode   String   @map("ward_code")
+  unitNo     String   @map("unit_no")
+  name       String?
+  wardName   String?  @map("ward_name")
+  lgaName    String?  @map("lga_name")
+  stateName  String?  @map("state_name")
+  registered Int?
+  repName    String?  @map("rep_name")
+  lat        Float?
+  lon        Float?
+  source     String   @default("WHATSAPP")
+  firstSeen  DateTime @default(now()) @map("first_seen") @db.Timestamptz(3)
+  lastSeen   DateTime @default(now()) @map("last_seen") @db.Timestamptz(3)
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@id([electionId, code])
+  @@index([electionId, stateCode, lgaCode, wardCode])
+  @@map("polling_units")
+}
+
+model WaPosition {
+  id         String   @id
+  /// Defaulted to the 2023 project as a bridge. The raw-SQL writers in
+  /// lib/db.js predate elections and do not set this column, so without a
+  /// default every insert would fail the not-null constraint — which is
+  /// exactly what a WhatsApp agent registering a new unit hit. Once every
+  /// writer passes an election explicitly, drop the default so a row can
+  /// never quietly land in the wrong project.
+  electionId String   @default("elec_2023_presidential") @map("election_id")
+  contactId  String   @map("contact_id")
+  unitCode   String?  @map("unit_code")
+  lat        Float
+  lon        Float
+  accuracy   Float?
+  label      String?
+  distanceM  Float?   @map("distance_m")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  election Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  contact  WaContact @relation(fields: [contactId], references: [id])
+
+  @@index([contactId, createdAt])
+  @@map("wa_positions")
+}
+
+model SheetRead {
+  id         String   @id
+  /// Defaulted to the 2023 project as a bridge. The raw-SQL writers in
+  /// lib/db.js predate elections and do not set this column, so without a
+  /// default every insert would fail the not-null constraint — which is
+  /// exactly what a WhatsApp agent registering a new unit hit. Once every
+  /// writer passes an election explicitly, drop the default so a row can
+  /// never quietly land in the wrong project.
+  electionId String   @default("elec_2023_presidential") @map("election_id")
+  contactId  String?  @map("contact_id")
+  unitCode   String?  @map("unit_code")
+  mediaId    String?  @map("media_id")
+  rawText    String?  @map("raw_text")
+  parsed     String?
+  confidence Float?
+  /// Kept as an integer rather than promoted to a boolean: the column already
+  /// holds 0 and 1 and the reading code already treats it that way.
+  accepted   Int      @default(0)
+  corrected  String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  election Election   @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  contact  WaContact? @relation(fields: [contactId], references: [id])
+
+  @@index([electionId, createdAt])
+  @@map("sheet_reads")
+}
