@@ -128,14 +128,19 @@ const insert = db.prepare(
      (id, unit_code, state_code, registered, accredited, rejected, votes, inec_total, note,
       lat, lon, accuracy, distance_m, submitted_by, submitted_at, status, verified_by, verified_at)
    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now() + ?::interval, ?, ?, ?)
-   ON CONFLICT(unit_code) DO UPDATE SET
+   ON CONFLICT (election_id, unit_code) DO UPDATE SET
      registered = excluded.registered,
      accredited = excluded.accredited,
      rejected   = excluded.rejected,
      votes      = excluded.votes,
      inec_total = excluded.inec_total,
      note       = excluded.note,
-     status     = excluded.status`
+     status     = excluded.status,
+     /* Re-spread on every run. Without this the conflict branch kept whatever
+        timestamp a row was first written with, so a reseed produced an
+        arrivals chart made of two unrelated nights laid on top of each
+        other. */
+     submitted_at = excluded.submitted_at`
 );
 
 let filed = 0;

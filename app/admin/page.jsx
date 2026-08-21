@@ -10,6 +10,7 @@ import PayAgentForm from "@/components/dash/PayAgentForm";
 import LiveRefresh from "@/components/dash/LiveRefresh";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
+import { currentElection } from "@/lib/election-scope";
 import { results, incidents, audit, accessRequests } from "@/lib/db";
 import { integrityOf } from "@/lib/anomalies";
 import { ledger } from "@/lib/ledger";
@@ -31,9 +32,13 @@ export const dynamic = "force-dynamic";
 export default async function AdminPage() {
   const user = await requireUser("/admin");
 
-  const tally = await results.tally();
-  const filed = await results.recent(200);
-  const feed = await incidents.recent(6);
+  /* Every figure on this page belongs to one project. The id is threaded
+     explicitly rather than defaulted, so a page that forgets fails loudly
+     instead of quietly totalling every election at once. */
+  const project = await currentElection();
+  const tally = await results.tally(project?.id);
+  const filed = await results.recent(200, project?.id);
+  const feed = await incidents.recent(6, project?.id);
   const requests = await accessRequests.recent(5);
   const trail = await audit.recent(8);
 

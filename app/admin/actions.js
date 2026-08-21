@@ -7,6 +7,7 @@ import { users, results } from "@/lib/db";
 import { ledger, CREDIT_KINDS } from "@/lib/ledger";
 import { hashPassword } from "@/lib/password";
 import { requireCapability, log } from "@/lib/guard";
+import { currentElection } from "@/lib/election-scope";
 import { ROLE_KEYS } from "@/lib/roles";
 
 /**
@@ -98,7 +99,8 @@ export async function reviewResult(_previous, formData) {
     return { error: "Unknown status." };
   }
 
-  const row = (await results.recent(500)).find((r) => r.id === id);
+  const project = await currentElection();
+  const row = (await results.recent(500, project?.id)).find((r) => r.id === id);
   if (!row) return { error: "That return no longer exists." };
 
   /* The one check that must hold however senior the account: nobody marks

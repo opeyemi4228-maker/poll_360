@@ -6,6 +6,7 @@ import FileResultForm from "@/components/dash/FileResultForm";
 import IncidentForm from "@/components/dash/IncidentForm";
 import Wallet from "@/components/dash/Wallet";
 import { requireUser } from "@/lib/guard";
+import { currentElection } from "@/lib/election-scope";
 import { results } from "@/lib/db";
 import { ledger } from "@/lib/ledger";
 import { formatNumber } from "@/lib/utils";
@@ -23,7 +24,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function FieldPage() {
   const user = await requireUser("/field");
-  const existing = user.scope ? await results.forUnit(user.scope) : null;
+  const project = await currentElection();
+  const existing = user.scope ? await results.forUnit(user.scope, project?.id) : null;
 
   /* Everything about the account is derived from the ledger on read: the
      balance is a sum, never a stored figure that could drift from its own

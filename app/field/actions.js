@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { results, incidents, media } from "@/lib/db";
 import { seal } from "@/lib/crypto";
 import { requireCapability, log } from "@/lib/guard";
+import { currentElection } from "@/lib/election-scope";
 import { parties } from "@/lib/election2023";
 import { validateReturn } from "@/lib/results";
 
@@ -65,7 +66,12 @@ export async function fileResult(_previous, formData) {
       }
     : null;
 
+  /* Filed against the project the agent is looking at, not "the results". A
+     booth reports once per election, and the unique index is on the pair. */
+  const project = await currentElection();
+
   const { amended } = await results.file({
+    electionId: project?.id,
     unitCode: agent.scope,
     stateCode: agent.scope.slice(0, 2),
     registered,
@@ -101,7 +107,10 @@ export async function reportIncident(_previous, formData) {
     return { errors: { severity: "Pick how serious it is." } };
   }
 
+  const project = await currentElection();
+
   const incidentId = await incidents.create({
+    electionId: project?.id,
     unitCode: agent.scope ?? "unassigned",
     stateCode: (agent.scope ?? "00").slice(0, 2),
     kind,

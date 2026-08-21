@@ -6,6 +6,7 @@ import Sparkline from "@/components/dash/Sparkline";
 import BroadcastAnalysis from "@/components/dash/BroadcastAnalysis";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
+import { currentElection } from "@/lib/election-scope";
 import { results } from "@/lib/db";
 import { states2023, DECLARED } from "@/lib/election2023";
 import nation from "@/public/geo/map/nation.json";
@@ -34,8 +35,9 @@ export const dynamic = "force-dynamic";
 export default async function BroadcastPage() {
   const user = await requireUser("/broadcast");
 
-  const tally = await results.tally();
-  const ourRows = await results.counted();
+  const project = await currentElection();
+  const tally = await results.tally(project?.id);
+  const ourRows = await results.counted(project?.id);
 
   /* Our agents' returns, folded up by state so the analysis surface can put
      them beside the declared figure for the same place. */

@@ -39,7 +39,7 @@ export default async function RoomPage() {
   const [project, allProjects] = await Promise.all([currentElection(), elections.list()]);
 
   const board = buildBoard();
-  const feed = (await incidents.recent(40)).map((item) => ({
+  const feed = (await incidents.recent(40, project?.id)).map((item) => ({
     ...item,
     /* Decrypted here and nowhere else: the situation room is one of the two
        roles permitted to read an incident narrative. */
