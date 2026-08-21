@@ -167,8 +167,7 @@ function marginOf(state) {
 
 export default function PlanningMap({ shapes }) {
   const [openState, setOpenState] = useState(null);
-  const [lgaShapes, setLgaShapes] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
   const [hovered, setHovered] = useState(null);
   const [basisKey, setBasisKey] = useState("registered");
   const [lensKey, setLensKey] = useState("close");
@@ -206,19 +205,23 @@ export default function PlanningMap({ shapes }) {
   const basis = BASES.find((item) => item.key === basisKey) ?? BASES[0];
   const lens = LENSES.find((item) => item.key === lensKey) ?? LENSES[0];
 
+  /* What arrives is stamped with the state it was fetched for, and whether the
+     map is still waiting is read off that stamp rather than kept in a separate
+     flag. A flag has to be switched on and off in the right order, and these
+     files are static enough that a cached one can beat the switch that turns
+     the spinner on — which leaves it running over a map that has already
+     drawn. A stamp cannot disagree with the shapes sitting next to it. */
+  const openCode = openState?.code ?? null;
+
   useEffect(() => {
+    if (!openCode) return;
     let cancelled = false;
-    if (!openState) {
-      const frame = requestAnimationFrame(() => setLgaShapes(null));
-      return () => cancelAnimationFrame(frame);
-    }
-    const started = requestAnimationFrame(() => setLoading(true));
-    fetch(`/geo/lga/${openState.code}.json`)
+    fetch(`/geo/lga/${openCode}.json`)
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
         if (cancelled) return;
-        setLgaShapes(data);
-        const state = byCode.get(openState.code);
+        setBoundaries({ code: openCode, data });
+        const state = byCode.get(openCode);
         if (!data || !state) return;
         const rows = apportion({
           names: data.lgas.map((row) => row.name),
@@ -231,13 +234,16 @@ export default function PlanningMap({ shapes }) {
           current.get(state.code) ? current : new Map(current).set(state.code, rows)
         );
       })
-      .catch(() => !cancelled && setLgaShapes(null))
-      .finally(() => !cancelled && setLoading(false));
+      .catch(() => !cancelled && setBoundaries({ code: openCode, data: null }));
     return () => {
       cancelled = true;
-      cancelAnimationFrame(started);
     };
-  }, [openState, byCode]);
+  }, [openCode, byCode]);
+
+  /* Only ever the boundaries of the state open now: a reply for the state just
+     left stays invisible, and so does one that has not landed yet. */
+  const lgaShapes = boundaries?.code === openCode ? boundaries.data : null;
+  const loading = Boolean(openCode) && boundaries?.code !== openCode;
 
   const lgaRows = useMemo(() => {
     if (!openState || !lgaShapes) return [];

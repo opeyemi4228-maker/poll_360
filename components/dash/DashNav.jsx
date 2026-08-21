@@ -9,8 +9,10 @@ import {
   KeyRound,
   MapPinned,
   Radio,
+  Scale,
   ScrollText,
   ShieldAlert,
+  Upload,
   Users,
 } from "lucide-react";
 
@@ -39,6 +41,12 @@ const ITEMS = [
 
   { href: "/room", label: "Situation room", icon: Users, capability: "gap:read" },
   { href: "/room#incidents", label: "Incident feed", icon: ShieldAlert, capability: "incidents:read" },
+
+  { href: "/gap", label: "Declared figures", icon: Scale, capability: "gap:read" },
+  /* Entering the figures is a narrower grant than reading the comparison —
+     the broadcast desk holds one and not the other — so it earns its own line
+     rather than riding on the room's. */
+  { href: "/gap#enter", label: "Enter what was declared", icon: Upload, capability: "declared:file" },
 ];
 
 export default function DashNav({ role, collapsed = false }) {

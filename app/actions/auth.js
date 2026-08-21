@@ -78,9 +78,31 @@ export async function signIn(_previous, formData) {
     };
   }
 
-  const found = identity.email
-    ? await users.findByEmail(identity.email)
-    : await users.findByPhone(identity.phone);
+  /* ── AN OUTAGE IS NOT A WRONG PASSWORD ────────────────────────────────
+     The database is across a network now, and when it could not be reached
+     this threw, the action returned nothing, and the form re-rendered with no
+     message at all. To the person signing in that is indistinguishable from
+     mistyping, so they try again, and again, and the only place the real
+     cause appears is a server log they cannot see.
+
+     A failure to reach the database is therefore reported as itself. It is
+     also deliberately NOT counted against their rate limit: being unable to
+     reach the database is not a failed attempt, and locking somebody out for
+     an outage they did not cause is the last thing this should do. */
+  let found;
+  try {
+    found = identity.email
+      ? await users.findByEmail(identity.email)
+      : await users.findByPhone(identity.phone);
+  } catch (error) {
+    console.error("sign in could not reach the database:", error);
+    return {
+      error:
+        "We cannot reach the database at the moment, so we could not check your details. " +
+        "Try again in a few seconds. Nothing is wrong with your account.",
+    };
+  }
+
   const user = found;
 
   /* Verify even when there is no user, against a throwaway hash, so a missing

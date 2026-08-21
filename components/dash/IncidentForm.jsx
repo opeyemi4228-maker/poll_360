@@ -6,6 +6,7 @@ import { Camera, Check, Loader2, Send, X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import { reportIncident } from "@/app/field/actions";
+import { shrinkImage, putOnInput } from "@/lib/shrink";
 
 /**
  * The other half of what a booth knows.
@@ -42,43 +43,22 @@ export default function IncidentForm() {
   /**
    * Shrink the photograph on the phone, before it is sent.
    *
-   * A modern phone camera produces eight to twelve megabytes. Over a rural
-   * signal at close of poll that is a submission that does not arrive. Drawing
-   * it to a canvas at 1280px and re-encoding as JPEG q80 turns it into two to
-   * four hundred kilobytes, indistinguishable on screen, and the difference
-   * between a report that lands and one that times out.
-   *
-   * The shrunk blob replaces the file on the input via DataTransfer, so the
-   * form still submits normally and works the same way with the action.
+   * The pipeline itself moved to lib/shrink.js when the result-sheet form
+   * needed the same thing. It was written twice before it was written once,
+   * and two copies of an image pipeline drift — the way you find that out is
+   * one of the two forms quietly sending eight-megabyte originals for a month.
    */
   async function shrink(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const chosen = event.target.files?.[0];
+    if (!chosen) return;
 
     setShrinking(true);
     try {
-      const bitmap = await createImageBitmap(file);
-      const scale = Math.min(1, 1280 / Math.max(bitmap.width, bitmap.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(bitmap.width * scale);
-      canvas.height = Math.round(bitmap.height * scale);
-      canvas.getContext("2d").drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-
-      const blob = await new Promise((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.8)
-      );
-
-      if (blob) {
-        const transfer = new DataTransfer();
-        transfer.items.add(new File([blob], "photo.jpg", { type: "image/jpeg" }));
-        fileRef.current.files = transfer.files;
-        setPreview({ url: URL.createObjectURL(blob), kb: Math.round(blob.size / 1024) });
+      const shrunk = await shrinkImage(chosen);
+      if (shrunk) {
+        putOnInput(fileRef.current, shrunk.file);
+        setPreview({ url: shrunk.url, kb: shrunk.kb });
       }
-    } catch {
-      /* No canvas, or a format the browser cannot decode. Send the original, the server checks the bytes and will refuse anything that is not a
-         real photograph. */
-      const file = event.target.files?.[0];
-      if (file) setPreview({ url: URL.createObjectURL(file), kb: Math.round(file.size / 1024) });
     } finally {
       setShrinking(false);
     }

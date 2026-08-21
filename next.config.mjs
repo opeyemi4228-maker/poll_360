@@ -1,5 +1,27 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /* ── WHY THIS IS RAISED FROM THE DEFAULT MEGABYTE ──────────────────────────
+     Two things now travel to a server action as files: an agent photographs a
+     result sheet so the figures they typed can be checked against it, and the
+     situation room uploads a collation sheet of declared figures.
+
+     The browser downscales a photograph to roughly 1280px before sending, which
+     is a few hundred kilobytes in good light and comfortably over a megabyte
+     from a dark, noisy phone camera pointed at a creased form — which is the
+     condition every one of these pictures is taken in. At the default limit
+     that upload is refused by the framework before any code here runs, so the
+     agent sees a submission that never completes and there is nothing in the
+     log to say why.
+
+     Four megabytes covers the worst realistic photograph. The actions still
+     check the size and the leading bytes themselves: a framework limit is a
+     backstop, never a validation. */
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "4mb",
+    },
+  },
+
   /* Nothing on this site loads an image from a host we do not own. The board
      draws SVG from `public/geo`, and result sheets — once the app tier lands —
      are served by our own authenticated route. An empty allowlist is one fewer
@@ -41,7 +63,7 @@ const nextConfig = {
            administrator's console and the WhatsApp desk cacheable — the four
            that carry the most, and the ones most likely to sit behind a
            corporate proxy in a newsroom. */
-        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp)/:path*",
+        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp|gap)/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
         ],

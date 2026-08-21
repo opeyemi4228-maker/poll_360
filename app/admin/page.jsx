@@ -36,17 +36,26 @@ export default async function AdminPage() {
      explicitly rather than defaulted, so a page that forgets fails loudly
      instead of quietly totalling every election at once. */
   const project = await currentElection();
-  const tally = await results.tally(project?.id);
-  const filed = await results.recent(200, project?.id);
-  const feed = await incidents.recent(6, project?.id);
-  const requests = await accessRequests.recent(5);
-  const trail = await audit.recent(8);
 
-  /* The chain is walked on every load. It is a few hundred hashes and it is
-     the one check worth paying for on every page view: an administrator should
-     never be looking at a ledger whose integrity has not just been proved. */
-  const chain = await ledger.verify();
-  const payments = await ledger.recent(6);
+  /* ── SEVEN QUESTIONS, ASKED AT ONCE ─────────────────────────────────────
+     Only the project has to be known first, because four of these are scoped
+     to it. The rest have nothing to do with each other, and awaited one after
+     another they cost the sum of seven round trips to a database that is no
+     longer on this machine. Asked together they cost the slowest one.
+
+     The chain is walked on every load. It is a few hundred hashes and it is
+     the one check worth paying for on every page view: an administrator
+     should never be looking at a ledger whose integrity has not just been
+     proved. */
+  const [tally, filed, feed, requests, trail, chain, payments] = await Promise.all([
+    results.tally(project?.id),
+    results.recent(200, project?.id),
+    incidents.recent(6, project?.id),
+    accessRequests.recent(5),
+    audit.recent(8),
+    ledger.verify(),
+    ledger.recent(6),
+  ]);
 
   const counted = Object.values(tally.totals).reduce((a, b) => a + b, 0);
   const disputed = filed.filter((row) => row.status === "DISPUTED").length;

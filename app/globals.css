@@ -213,6 +213,15 @@
   --animate-land: land 0.6s var(--ease-out-quart) both;
   --animate-alarm-swing: alarm-swing 0.9s var(--ease-out-quart) 3;
 
+  /* The assistant. Four states that have to be told apart from the
+     far side of a room, so each one is a different motion rather
+     than a different shape. */
+  --animate-orb-turn: orb-turn 3.2s linear infinite;
+  --animate-orb-turn-slow: orb-turn 11s linear infinite;
+  --animate-orb-breathe: orb-breathe 2.2s var(--ease-out-quart) infinite;
+  --animate-ai-sweep: ai-sweep 2.2s linear infinite;
+  --animate-ai-rise: ai-rise 0.42s var(--ease-out-quart) both;
+
   @keyframes marquee {
     from {
       transform: translate3d(0, 0, 0);
@@ -270,6 +279,50 @@
       transform: none;
     }
   }
+
+  /* The assistant is awake. A turn, not a spin: the gradient moving
+     around the sphere reads as something running, where a spinner
+     reads as something stuck. */
+  @keyframes orb-turn {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* It is hearing you, or talking. */
+  @keyframes orb-breathe {
+    0%,
+    100% {
+      scale: 1;
+    }
+    50% {
+      scale: 1.14;
+    }
+  }
+  /* The light along the bottom edge while the microphone is open.
+     The one signal on this screen readable from the back of a room. */
+  @keyframes ai-sweep {
+    from {
+      background-position: -60% 0;
+    }
+    to {
+      background-position: 160% 0;
+    }
+  }
+  /* An answer arriving. It comes up from the caption it belongs to,
+     so the eye follows it rather than finding it. */
+  @keyframes ai-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 0.75rem, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -292,6 +345,16 @@
 }
 
 :root {
+  /* ---- The assistant --------------------------------------------
+     Poll360 AI gets three colours of its own and they are nobody
+     else's. Not a party's, not the alarm red, not the map's blues:
+     nothing about the assistant may ever be mistaken for data, and
+     the surest way to guarantee that is to give it hues that appear
+     nowhere in the data at all. */
+  --ai-1: oklch(62% 0.22 295); /* violet */
+  --ai-2: oklch(72% 0.16 215); /* cyan */
+  --ai-3: oklch(66% 0.24 335); /* magenta */
+
   --canvas: #ffffff;
   --surface: #ffffff;
   --hairline: var(--color-ink-200);
@@ -563,6 +626,18 @@
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+  /* The assistant's orb turns and breathes forever, so it is named
+     here rather than left to the blanket rule below: an indefinite
+     animation is exactly what this setting is asking us not to run.
+     Its state is still legible without motion, the halo and the
+     listening line simply hold still. */
+  .animate-orb-turn,
+  .animate-orb-turn-slow,
+  .animate-orb-breathe,
+  .animate-ai-sweep,
+  .animate-ai-rise {
+    animation: none !important;
   }
   * *::before,
   *::after {

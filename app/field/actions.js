@@ -8,6 +8,8 @@ import { requireCapability, log } from "@/lib/guard";
 import { currentElection } from "@/lib/election-scope";
 import { parties } from "@/lib/election2023";
 import { validateReturn } from "@/lib/results";
+import { parseSheet, readImage, visionAvailable } from "@/lib/sheet-vision";
+import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
 
 /**
  * Filing from a booth.
@@ -23,6 +25,20 @@ import { validateReturn } from "@/lib/results";
  * never blocks a filing: rural fixes drift, buildings block sky, and a booth
  * moved fifty metres up the road is not fraud. It is stored, and it is visible
  * to whoever checks the return.
+ *
+ * ── THE SHEET IS THE ONE THING THAT DOES BLOCK ─────────────────────────────
+ * Position corroborates; the photographed sheet *is* the return. Where the
+ * agent attaches one and it can be read confidently, the figures they typed
+ * are held against it and a disagreement stops the filing, with no override.
+ * A return and its own photograph are two halves of one claim, and half a
+ * claim is not filed.
+ *
+ * The strictness is bounded by what counts as a disagreement, not by mercy
+ * afterwards: lib/sheet-match.js requires the reading to be self-consistent
+ * before it may contradict anybody, and a figure the reader could not make out
+ * is compared to nothing rather than to zero. A sheet nobody could read does
+ * not block anything — it files with no corroboration recorded, which is a
+ * different thing and is stored as a different thing.
  * ───────────────────────────────────────────────────────────────────────────
  */
 
@@ -57,6 +73,23 @@ export async function fileResult(_previous, formData) {
   const check = validateReturn({ registered, accredited, rejected, votes });
   if (!check.ok) return { errors: check.errors };
 
+  /* ── THE SHEET, AND WHAT IT IS ALLOWED TO DO ──────────────────────────────
+     Read before anything is written, because a return that contradicts its own
+     photograph must never reach the results table even briefly. */
+  const sheet = await checkAgainstSheet(formData.get("sheet"), {
+    registered,
+    accredited,
+    rejected,
+    votes,
+  });
+
+  if (sheet.blocked) {
+    return {
+      errors: { sheet: sheet.message },
+      mismatches: sheet.match.mismatches,
+    };
+  }
+
   const position = formData.get("lat")
     ? {
         lat: Number(formData.get("lat")),
@@ -81,17 +114,78 @@ export async function fileResult(_previous, formData) {
     position,
     note: String(formData.get("note") ?? "").trim().slice(0, 500) || null,
     submittedBy: agent.id,
+    /* Null where no sheet was compared. The desk has to be able to tell that
+       apart from a sheet that was compared and agreed, and a column that
+       stored both as nothing would make them identical for ever. */
+    sheetMatch: sheet.record,
   });
 
   await log(agent, amended ? "result:amended" : "result:filed", agent.scope, {
     cast: check.cast,
     positioned: Boolean(position),
+    /* "Agreed with its sheet" and "had no sheet to agree with" are different
+       facts about a return, and an audit trail that recorded both as silence
+       could not answer which afterwards. */
+    sheet: sheet.record ? (sheet.record.agrees ? "agreed" : "not compared") : "none",
   });
 
   revalidatePath("/field");
   revalidatePath("/admin");
+  /* The divergence room reads returns as they arrive, so a new one changes
+     what it is showing. */
+  revalidatePath("/gap");
 
-  return { ok: true, amended, cast: check.cast };
+  return { ok: true, amended, cast: check.cast, sheet: sheet.record };
+}
+
+/**
+ * Read the attached sheet and hold the typed figures against it.
+ *
+ * ── EVERY FAILURE PATH ENDS IN "FILE IT ANYWAY" EXCEPT ONE ─────────────────
+ * No sheet attached, no reader configured, bytes that are not a photograph, a
+ * page the reader could not make sense of: all of these produce a filing with
+ * no comparison recorded. The single path that stops a filing is a confident,
+ * arithmetically coherent reading of a figure that differs from what the agent
+ * typed.
+ *
+ * That asymmetry is the whole design. Blocking on a reader's every objection
+ * would stop honest agents filing under a torch, and a count nobody can file
+ * into is worse than a count with some uncorroborated rows in it.
+ */
+async function checkAgainstSheet(photo, typed) {
+  const none = { blocked: false, record: null, match: null, message: null };
+
+  if (!photo || typeof photo.arrayBuffer !== "function" || photo.size === 0) return none;
+  /* The framework caps the request body as well; this is the check that can
+     say something useful rather than dropping the whole submission. */
+  if (photo.size > 6_000_000) return none;
+  if (!visionAvailable()) return none;
+
+  let bytes;
+  try {
+    bytes = Buffer.from(await photo.arrayBuffer());
+  } catch {
+    return none;
+  }
+
+  /* The declared type is a claim; the leading bytes are a fact. */
+  if (!sniff(bytes)) return none;
+
+  const read = await readImage(bytes);
+  if (!read.ok) return none;
+
+  const match = matchSheet(parseSheet(read.text), typed);
+
+  if (match.comparable && !match.agrees) {
+    return {
+      blocked: true,
+      match,
+      record: matchRecord(match),
+      message: mismatchMessage(match, { channel: "web" }),
+    };
+  }
+
+  return { blocked: false, match, record: matchRecord(match), message: null };
 }
 
 /** Raise something that is not a number: a queue, a delay, an obstruction. */

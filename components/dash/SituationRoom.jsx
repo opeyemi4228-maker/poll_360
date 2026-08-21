@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ChevronRight,
@@ -21,13 +21,18 @@ import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
 import CoordinatorWatch from "./CoordinatorWatch";
 import IncidentStream from "./IncidentStream";
+import DivergencePanel from "./DivergencePanel";
 import Analytics from "./Analytics";
 import ElectionSwitcher from "./ElectionSwitcher";
 import PlanningMap from "./PlanningMap";
+import Whiteboard from "./Whiteboard";
+import { RoomVoiceProvider } from "./RoomVoice";
 import LiveRefresh from "./LiveRefresh";
 import Sparkline from "./Sparkline";
 import { PARTY_FILL } from "./Charts";
 import { snapshot, parties } from "@/lib/replay";
+import { normalise } from "@/lib/assistant";
+import { board as boardStore, buildCard } from "@/lib/whiteboard";
 import { apportion, wardCount, unitCount } from "@/lib/drill";
 import { COMMERCIAL_CENTRES } from "@/lib/geo";
 import { formatNumber, formatShare } from "@/lib/utils";
@@ -72,6 +77,11 @@ const TAB_GROUPS = [
       { value: "register", label: "Voters" },
       { value: "turnout", label: "Turnout" },
       { value: "density", label: "Clusters" },
+      /* Not a fifth layer on the map. It is the same count seen against the
+         commission's, which is the one question this room is given that the
+         broadcast desk's version of the map is not, and it belongs with the
+         count rather than off in "the field". */
+      { value: "declared", label: "Declared" },
     ],
   },
   {
@@ -93,6 +103,17 @@ const TAB_GROUPS = [
       { value: "analytics", label: "Analytics" },
       { value: "planning", label: "Planning" },
     ],
+  },
+  {
+    id: "kept",
+    label: "Kept",
+    /* ── WHY THE BOARD IS ITS OWN GROUP ──────────────────────────────────
+       It is not a ninth view of the night. It is the only surface here that
+       holds several places at once and the only one somebody else fills in
+       for you, so it belongs beside the other eight rather than among them.
+       A group of one is honest about that; folding it into "Ahead" would
+       have implied it was about a day that has not happened yet. */
+    tabs: [{ value: "board", label: "Board" }],
   },
 ];
 
@@ -119,6 +140,10 @@ export default function SituationRoom({
   /* The states this election is actually fought in. Empty means the whole
      federation. */
   scopeStates = [],
+  /* Our count held against what was announced. Built on the server by
+     lib/gap-report.js — the same function /gap uses, so the headline here and
+     the list there can never disagree. */
+  divergence = null,
 }) {
   const [layer, setLayer] = useState("results");
   /**
@@ -146,10 +171,34 @@ export default function SituationRoom({
   ); // [state, lga, ward]
   const [hovered, setHovered] = useState(null);
   const [picked, setPicked] = useState(null); // the jurisdiction whose full card is open
-  const [lgaShapes, setLgaShapes] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
   const [cursor, setCursor] = useState(board.opening);
   const [reduced, setReduced] = useState(false);
+
+  /**
+   * What is on the board.
+   *
+   * ── WHY IT IS SAFE TO READ STORAGE WHILE RENDERING ─────────────────────
+   * The stored board is read once, in the initialiser, which on the server
+   * returns nothing and in the browser returns whatever was left up. Those
+   * two disagree, and that is normally how a hydration mismatch is made.
+   * It cannot make one here, because the room always opens on Results and
+   * nothing below draws a card until somebody asks for the board. Reading it
+   * in an effect instead would re-render the whole room a frame after every
+   * load to no purpose.
+   */
+  const [cards, setCards] = useState(() => boardStore.load());
+
+  /**
+   * A place named out loud that we could hear but could not yet place.
+   *
+   * "Take me to Ikeja in Lagos" arrives before Lagos's local governments do,
+   * and all 774 names are not worth shipping to every browser to cover it.
+   * So the name is held here and spent the moment the boundary file lands.
+   * A ref rather than state: nothing on screen depends on it, and it must not
+   * cause a render of its own.
+   */
+  const pendingDrill = useRef(null);
 
   const [state, lga, ward] = path;
   const level = ["nation", "state", "lga", "ward"][path.length];
@@ -182,24 +231,51 @@ export default function SituationRoom({
     return new Set(recent.map((event) => board.states[event.state]?.code).filter(Boolean));
   }, [board, cursor]);
 
-  /* -------------------------------------------------------- the boundaries */
+  /* -------------------------------------------------------- the boundaries
+     What arrives is stamped with the state it was fetched for, and whether the
+     map is still waiting is then read off that stamp rather than kept in a
+     second flag of its own. A flag has to be switched on and off in the right
+     order; a stamp cannot disagree with the shapes sitting next to it, so the
+     spinner cannot be left running over a map that has already drawn. */
+  const stateCode = state?.code ?? null;
+
   useEffect(() => {
+    if (!stateCode) return;
     let cancelled = false;
-    if (!state) {
-      const frame = requestAnimationFrame(() => setLgaShapes(null));
-      return () => cancelAnimationFrame(frame);
-    }
-    const started = requestAnimationFrame(() => setLoading(true));
-    fetch(`/geo/lga/${state.code}.json`)
+    fetch(`/geo/lga/${stateCode}.json`)
       .then((response) => (response.ok ? response.json() : null))
-      .then((data) => !cancelled && setLgaShapes(data))
-      .catch(() => !cancelled && setLgaShapes(null))
-      .finally(() => !cancelled && setLoading(false));
+      .then((data) => {
+        if (cancelled) return;
+        setBoundaries({ code: stateCode, data });
+
+        /* ── FINISHING A DRILL THAT WAS ASKED FOR OUT LOUD ──────────────
+           Somebody said a local government by name a moment ago and the
+           names have only just arrived. Matched loosely in both directions,
+           because "Ikeja" should find "Ikeja" and "Oshodi Isolo" should find
+           "Oshodi-Isolo", and a spoken name is never punctuated the way a
+           boundary file is. No match means the word was not a place here,
+           and the map stays on the state rather than picking something
+           arbitrary a second after the person stopped talking. */
+        const wanted = pendingDrill.current;
+        pendingDrill.current = null;
+        if (!wanted || !data?.lgas) return;
+
+        const hit = data.lgas.find((row) => {
+          const name = normalise(row.name);
+          return name === wanted || name.includes(wanted) || wanted.includes(name);
+        });
+        if (hit) setPath((previous) => (previous.length === 1 ? [previous[0], { name: hit.name }] : previous));
+      })
+      .catch(() => !cancelled && setBoundaries({ code: stateCode, data: null }));
     return () => {
       cancelled = true;
-      cancelAnimationFrame(started);
     };
-  }, [state]);
+  }, [stateCode]);
+
+  /* Only ever the boundaries of the state being looked at now. A reply for the
+     state just left stays invisible, and so does one that has not landed. */
+  const lgaShapes = boundaries?.code === stateCode ? boundaries.data : null;
+  const loading = Boolean(stateCode) && boundaries?.code !== stateCode;
 
   /* ------------------------------------------------------------- the rows
      Each level's figures come from the level above and always sum back to it. */
@@ -462,10 +538,185 @@ export default function SituationRoom({
   /* Whatever card is showing: the picked child, or the scope itself. */
   const pickedRow = picked ? rows.find((row) => (row.key ?? row.name) === picked) : null;
 
+  /* ════════════════════════════════════════════════════════════════════════
+     WHAT POLL360 AI IS ALLOWED TO DO IN HERE
+
+     The assistant works out what was asked for and hands the intention over.
+     Everything about how this room actually moves stays here, where the map,
+     the levels and the board already live. Each of these hands back either
+     nothing, meaning it did as it was told and the assistant should say what
+     it planned to say, or a sentence, meaning the room knows something the
+     assistant does not and that sentence should be said instead.
+     ════════════════════════════════════════════════════════════════════════ */
+
+  /** Put a board up, and remember it for next time. */
+  const keepCards = useCallback((next) => {
+    setCards(next);
+    boardStore.keep(next);
+  }, []);
+
+  /**
+   * Move the map to a named place.
+   *
+   * A state can always be reached. A local government can be reached at once
+   * if its state is already open and its names have loaded, and otherwise is
+   * held until they do. A ward is reached by number, because wards are
+   * numbered rather than named everywhere in this dataset.
+   */
+  const goTo = useCallback(
+    (place) => {
+      if (!place?.state) return null;
+
+      const target = inScope.find((row) => row.code === place.state.code);
+      if (!target) {
+        return `${place.state.name} is not in this election, so there is nothing to show you there.`;
+      }
+
+      const head = { code: target.code, name: target.name };
+      const openHere = state?.code === target.code;
+
+      /* A local government already resolvable from what is loaded. */
+      if (place.lga) {
+        const match = openHere ? lgaRows.find((row) => row.name === place.lga) : null;
+        if (match) {
+          if (place.ward) {
+            setPath([head, { name: match.name }, { name: `Ward ${String(place.ward).padStart(2, "0")}` }]);
+          } else {
+            setPath([head, { name: match.name }]);
+          }
+          setPicked(null);
+          return null;
+        }
+        pendingDrill.current = normalise(place.lga);
+        setPath([head]);
+        setPicked(null);
+        return null;
+      }
+
+      /* Named but not yet placeable: go to the state and finish the drill
+         when its names arrive. */
+      if (place.pendingLga) pendingDrill.current = normalise(place.pendingLga);
+
+      /* A ward with no local government named means the one already open. */
+      if (place.ward && openHere && lga) {
+        setPath([head, lga, { name: `Ward ${String(place.ward).padStart(2, "0")}` }]);
+        setPicked(null);
+        return null;
+      }
+
+      setPath([head]);
+      setPicked(null);
+      return null;
+    },
+    [inScope, state, lga, lgaRows]
+  );
+
+  const run = useCallback(
+    (act) => {
+      switch (act.do) {
+        /* ------------------------------------------------------- the map */
+        case "place":
+          return goTo(act.place);
+
+        case "up": {
+          if (path.length <= (pinned ? 1 : 0)) {
+            return pinned
+              ? `This election is only fought in ${rootLabel}, so there is nowhere above it to go.`
+              : "You are already looking at the whole country.";
+          }
+          const next = path.slice(0, -1);
+          setPath(next);
+          setPicked(null);
+          return `${next.length ? next.at(-1).name : rootLabel}.`;
+        }
+
+        case "root": {
+          if (pinned) {
+            return `This election is only fought in ${rootLabel}, so that is as far out as it goes.`;
+          }
+          setPath([]);
+          setPicked(null);
+          return null;
+        }
+
+        /* ---------------------------------------------------- the screens */
+        case "tab": {
+          if (act.place) {
+            const objection = goTo(act.place);
+            if (objection) return objection;
+          }
+          setLayer(act.tab);
+          return null;
+        }
+
+        /* ----------------------------------------------------- the board */
+        case "pin": {
+          const card = buildCard(act.card, { path });
+          keepCards([...cards, card]);
+          /* Putting something up and not being shown it is the one thing
+             that would make somebody stop trusting the instruction. */
+          setLayer("board");
+          return null;
+        }
+
+        case "clear": {
+          if (!cards.length) return "The board is already empty.";
+          keepCards([]);
+          return null;
+        }
+
+        case "erase": {
+          if (!cards.length) return "There is nothing on the board to take off.";
+          /* Named kind if one was named, otherwise the most recent thing put
+             up, which is what "take that off" means every time. */
+          const index = act.kind
+            ? cards.map((card) => card.kind).lastIndexOf(act.kind)
+            : cards.length - 1;
+          if (index < 0) return `There is no ${act.kind} on the board.`;
+          keepCards(cards.filter((_, at) => at !== index));
+          return null;
+        }
+
+        case "save": {
+          if (!cards.length) return "There is nothing on the board to save yet.";
+          const title = boardStore.save(act.name, cards);
+          return `Saved as ${title}.`;
+        }
+
+        case "restore": {
+          const entry = boardStore.open(act.name);
+          if (!entry) return `I cannot find a board called ${act.name}.`;
+          keepCards(entry.cards);
+          setLayer("board");
+          return `${entry.name} is up, ${entry.cards.length} card${entry.cards.length === 1 ? "" : "s"}.`;
+        }
+
+        default:
+          return null;
+      }
+    },
+    [goTo, path, pinned, rootLabel, cards, keepCards]
+  );
+
+  const voice = useMemo(
+    () => ({
+      tabs: TABS.map((item) => item.value),
+      path,
+      /* Only the names actually loaded. Claiming to know places we have not
+         fetched is how an assistant ends up silently going nowhere. */
+      lgas: lgaRows.map((row) => row.name),
+      run,
+    }),
+    [path, lgaRows, run]
+  );
+
   const hour = new Date().getHours();
   const greeting = `Good ${hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}, ${user.name.split(" ")[0]}`;
 
   return (
+    /* The assistant rides with the chrome, so it is inside this. Everything it
+       is allowed to do in this room is the object above, and nothing else. */
+    <RoomVoiceProvider value={voice}>
     <TopShell
       user={user}
       tabs={TABS}
@@ -481,6 +732,10 @@ export default function SituationRoom({
       subtitle={
         MAP_LAYERS.has(layer)
           ? `${crumbs.at(-1).label} · ${LABEL[layer]}`
+          : layer === "board"
+            ? cards.length
+              ? `${cards.length} thing${cards.length === 1 ? "" : "s"} Poll360 AI is holding for you`
+              : "Tell Poll360 AI what to keep in front of you"
           : layer === "watch"
             ? `${watchSummary.filed} of ${watchSummary.total} coordinators reporting`
             : layer === "analytics"
@@ -504,7 +759,15 @@ export default function SituationRoom({
         </>
       }
     >
-      {layer === "analytics" ? (
+      {layer === "board" ? (
+        <Whiteboard
+          shapes={shapes}
+          cards={cards}
+          onErase={(id) => keepCards(cards.filter((card) => card.id !== id))}
+          onClear={() => keepCards([])}
+          onRestore={keepCards}
+        />
+      ) : layer === "analytics" ? (
         <Analytics />
       ) : layer === "planning" ? (
         <PlanningMap shapes={shapes} />
@@ -737,6 +1000,7 @@ export default function SituationRoom({
       </>
       )}
     </TopShell>
+    </RoomVoiceProvider>
   );
 }
 

@@ -29,11 +29,17 @@ export default async function FieldPage() {
 
   /* Everything about the account is derived from the ledger on read: the
      balance is a sum, never a stored figure that could drift from its own
-     statement. */
-  const balance = await ledger.balanceFor(user.id);
-  const pending = await ledger.pendingFor(user.id);
-  const entries = await ledger.forUser(user.id, 12);
-  const chain = await ledger.verify();
+     statement.
+
+     Four separate questions of the same table, so they are asked together.
+     In sequence they were four round trips deep on the one page an agent
+     opens at a polling unit, on a phone, on whatever signal there is. */
+  const [balance, pending, entries, chain] = await Promise.all([
+    ledger.balanceFor(user.id),
+    ledger.pendingFor(user.id),
+    ledger.forUser(user.id, 12),
+    ledger.verify(),
+  ]);
 
   return (
     <DashLayout

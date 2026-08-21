@@ -28,8 +28,7 @@ import { cn } from "@/lib/utils";
  */
 export default function DrillMap({ shapes, states, leaders, onClose }) {
   const [path, setPath] = useState([]); // [state, lga, ward]
-  const [lgaShapes, setLgaShapes] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
 
   const [state, lga, ward] = path;
   const level = ["nation", "state", "lga", "ward"][path.length];
@@ -41,37 +40,38 @@ export default function DrillMap({ shapes, states, leaders, onClose }) {
 
   /* LGA outlines are a megabyte across all 37 states, so a state's file is
      fetched only when somebody opens that state, and the browser caches it,
-     so going back into the same state a second time costs nothing. */
+     so going back into the same state a second time costs nothing.
+
+     What arrives is stamped with the state it was fetched for. Whether the map
+     is still waiting is then read off that stamp instead of being kept in a
+     separate flag: a flag has to be switched on and off in the right order,
+     and a cached file can beat the switch that turns it on, which leaves a
+     spinner running over a map that has already drawn. A stamp cannot
+     disagree with the shapes sitting next to it. */
+  const stateCode = state?.code ?? null;
+
   useEffect(() => {
+    if (!stateCode) return;
     let cancelled = false;
 
-    if (!state) {
-      /* Scheduled rather than set in the effect body: this is one asynchronous
-         update clearing the previous state's outlines, not a synchronous
-         cascading re-render. */
-      const frame = requestAnimationFrame(() => setLgaShapes(null));
-      return () => cancelAnimationFrame(frame);
-    }
-
-    const started = requestAnimationFrame(() => setLoading(true));
-
-    fetch(`/geo/lga/${state.code}.json`)
+    fetch(`/geo/lga/${stateCode}.json`)
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (!cancelled) setLgaShapes(data);
+        if (!cancelled) setBoundaries({ code: stateCode, data });
       })
       .catch(() => {
-        if (!cancelled) setLgaShapes(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setBoundaries({ code: stateCode, data: null });
       });
 
     return () => {
       cancelled = true;
-      cancelAnimationFrame(started);
     };
-  }, [state]);
+  }, [stateCode]);
+
+  /* Only ever the boundaries of the state open now: a reply for the state just
+     left stays invisible, and so does one that has not landed yet. */
+  const lgaShapes = boundaries?.code === stateCode ? boundaries.data : null;
+  const loading = Boolean(stateCode) && boundaries?.code !== stateCode;
 
   /* Each level's figures are apportioned from the level above, so a drill can
      never disagree with the total it came from. */

@@ -332,9 +332,40 @@ which is which cannot tell how much to believe. Supply a licensed source for any
 synthetic row and it turns real with nothing else in the product changing: the shape of
 the row is the contract.
 
-**The planning map starts blank on purpose.** Select states, local governments and wards
-to build a deployment and it totals the polling units, the agents and the share of the
-register you would be covering as you go, then exports it.
+### The planning map starts blank on purpose
+
+Every other map in the product answers "what happened". This one answers "where
+are we going to work", and a planning map coloured by the last result quietly
+argues for fighting the previous election again. So it opens empty, and the
+only colour on it is the territory you have chosen.
+
+**You decide what coverage means.** Measured against the register is one
+answer and often the wrong one: two million registered at 17% turnout is not
+the same prize as two million at 40%. So the basis is a control, not a
+constant. Register, accredited voters, votes actually cast, or polling units to
+staff. The same selection, costed four ways. Accredited is labelled *derived*,
+because we hold valid votes per state and not accreditation, so it is carried
+at the 2023 national ratio rather than invented state by state.
+
+**And you decide what "next" means.** A shortlist ranks everywhere not yet
+covered by whichever lens you pick: size, competitiveness, voters who did not
+turn out, crowding at the booth, security pressure, hardship, or rain on the
+day. The lenses disagree with each other on purpose. The argument between them
+is the planning conversation, and the synthetic ones say so in the dropdown
+itself.
+
+**A state is its local governments, not their peer.** Taking Kano means all 44,
+so tapping one inside a state already taken **removes** it and the figures go
+down. Adding it would be adding something you already have. The first version
+counted a whole state and its parts as two independent kinds of pick and added
+both, so taking Kano and then ticking three places inside it counted Kano's
+register once and three forty-fourths of it a second time. Enough of that and
+coverage passed 100%, which is not a rounding error, it is the model being
+wrong. The plan is now folded to one entry per state before anything is costed,
+so no place can be counted twice by construction.
+
+Running totals of booths, agents and reach update as you select, and the whole
+plan exports as CSV, whole states and carve-outs both.
 
 ---
 
@@ -447,7 +478,109 @@ to switch and nothing to remember.
 
 ---
 
-## 12. Live demo script (8 minutes)
+## 12. The platform: built to survive its own deployment
+
+Most of this document is about what the product does. This section is about
+whether it still does it at nine o'clock on election night, which is a
+different question and the one that quietly kills election software.
+
+### Storage that does not evaporate
+
+The product ran on a SQLite file. That is right on one machine and wrong the
+moment it is deployed anywhere serverless, where the filesystem does not
+survive between invocations. The failure mode is the dangerous kind: on a host
+where the disk is writable but temporary, everything appears to work, and every
+result filed since the last deploy is gone with no error anywhere. On Vercel it
+failed honestly instead, and sign in returned a server error.
+
+It is Postgres now, hosted on Neon, reached over HTTP so there is no connection
+pool to hold open and nothing for a serverless platform to close underneath it.
+
+**The queries did not change.** Nothing outside one file has ever written SQL,
+so moving engines was a rewrite of that file against the same function
+signatures rather than a search through the whole application for stray
+queries. That discipline was written down long before it was needed, and it is
+the reason a change of database was a day rather than a rewrite.
+
+### The schema builds itself, and cannot skip a step
+
+Migrations run on the first query in each process, under a Postgres advisory
+lock so parallel build workers cannot race each other.
+
+They are keyed by a **hash of each statement**, not by position in a list. That
+distinction earned itself: keyed by position, adding a migration in the middle
+renumbers everything after it, so statements that have already run look pending
+and statements that have never run inherit an index already recorded as done
+and are skipped **forever**. It happened here. A column moved from a
+`CREATE TABLE` into an `ALTER` inherited a finished index, so it existed in the
+schema everybody read and in no database anybody ran, and the only symptom was
+a query failing against a table that looked perfectly correct in the source.
+
+### Losing the network is not the same as being wrong
+
+The database is across a network now, so two things had to be true that were
+free before.
+
+**Transient failures retry.** A managed Postgres that scales its compute down
+takes a few seconds to answer the first query after a quiet spell, and
+occasionally the connection times out before the query is seen at all. That is
+retried, briefly, with a growing gap. A failure *from* the database is never
+retried: a constraint violation fails identically every time, and repeating it
+turns one honest error into three.
+
+**An outage says so.** When the database could not be reached, sign in threw,
+the action returned nothing, and the form re-rendered with no message. To the
+person signing in that is indistinguishable from mistyping, so they try again,
+and again, and the real cause appears only in a log they cannot see. It now
+says the database is unreachable, and it deliberately does **not** count the
+attempt against their rate limit: being unable to reach the database is not a
+failed password, and locking somebody out for an outage they did not cause is
+the last thing this should do.
+
+### The app sits next to the database
+
+Functions are pinned to London because the database is in London. Every page
+asks several questions; in the same city each costs milliseconds, on different
+continents each costs hundreds of them and the page waits for all of them.
+
+The questions are also asked **together rather than in turn**. The WhatsApp
+desk made ten round trips in a row for ten answers that had nothing to do with
+each other, which was invisible against a file on the same machine and the
+slowest page in the product against a database across a network. Now the page
+costs the slowest single question instead of the sum of all ten.
+
+### Encryption that can actually be turned on
+
+Without a key, the product runs on one derived from a string in the source, and
+says so loudly on every boot. That is the right default: a fresh checkout works
+with no setup. What it also means is that everything sealed before somebody
+sets a real key is sealed with a key anybody can read on GitHub.
+
+Setting the key then does something **worse than nothing**: the old rows do not
+error, they come back as "unreadable, this record failed its integrity check".
+Phone numbers, message bodies, incident narratives. Silently, and only for
+records that already existed, so it reads as corruption rather than as a key
+change.
+
+So the product ships `scripts/rekey.mjs`, which reads with the old key, writes
+with the new one and rebuilds the blind index, which is keyed too and would
+otherwise stop matching the numbers it indexes. It reports what it would do and
+changes nothing until told to commit.
+
+### One number, one person
+
+A Nigerian mobile arrives in at least three shapes. WhatsApp's webhook sends
+`2348031234567`. A person types `+234 803 123 4567`. A spreadsheet exports
+`08031234567`. Contacts are found by a keyed hash of the number, so hashing
+those raw produced **three contacts for one coordinator**: three message
+threads, three halves of one conversation, and a desk with no way of knowing
+they were the same person. Numbers are canonicalised before they are hashed,
+and the duplicates that already existed were merged into the row everything
+else already pointed at.
+
+---
+
+## 13. Live demo script (8 minutes)
 
 Run `npm run dev`. Log in at `/login`.
 
@@ -465,6 +598,8 @@ Run `npm run dev`. Log in at `/login`.
 | 10 | Open **Analytics**, push LP up six and APC down six | "Labour now leads the country. And nobody has won, because the spread test fails in 17 states. That is the number every other tracker hides." |
 | 11 | Press **Hi Poll360 AI** and say "what is a quarter state" | "It answers out loud, from the same data on the screen. Ask it anything on this dashboard." |
 | 12 | Ask it "security in Borno" | "Notice it volunteers that the figure is generated. It will not let you quote a number we did not measure." |
+| 13 | Open **Planning**, take a state, open it, tap one local government | "A state is its local governments. Tapping inside one that is already covered takes that place back out, and the coverage falls. It cannot double count." |
+| 14 | Switch the basis from Register to Votes cast | "Same selection, costed against what people actually did rather than who could have. The ranking underneath changes with it." |
 | 13 | Send `RESULT` to the WhatsApp number from your own phone | "No app, no account, no training. The phone they already own." |
 | 14 | Photograph a result sheet and send it | "It reads every figure off the sheet and asks the agent to confirm. It never files its own guess." |
 | 15 | Attach a location in WhatsApp, then open **Coordinators** | "They are on the map, live, seconds later." |
@@ -486,7 +621,7 @@ Currently seeded: **49 coordinators, 485 returns, 34 incidents.**
 
 ---
 
-## 13. What is built, and what is not
+## 14. What is built, and what is not
 
 Publishing this is the cheapest credibility available. Everyone evaluating election
 software has sat through a demo that turned out to be entirely a demo.
@@ -499,7 +634,8 @@ map with live deployment totals and CSV export · Poll360 AI with voice in and v
 grounded entirely in the product's own data · a WhatsApp bot that files returns, reads
 result sheets by photograph and tracks coordinator locations · a self-building polling unit
 registry from nation down to booth · multiple election projects, each scoped to its own
-states · Postgres on Neon, so nothing is lost between deploys · PWA with offline support ·
+states · Postgres on Neon with self-building, hash-keyed migrations, retried
+connections and honest outage reporting · PWA with offline support ·
 full auth with rate limiting · append-only audit trail ·
 public marketing site with live board.
 
@@ -511,11 +647,12 @@ public marketing site with live board.
 | No census data on the clusters layer | A licensed population source. Density is derived from the register and labelled |
 | Real-time is the 2023 replay | Agents in the field. The plumbing is live |
 | Figures below state level are apportioned | Real returns, which replace them entirely |
-| SQLite will not survive serverless | Postgres. Every query is in one file for exactly this |
+| Sheet reading needs a Google Cloud key | Without one the bot asks its questions instead, so the channel never depends on it |
+| Local pages are slow from a distant machine | Nothing. Production sits beside the database; a laptop in another country does not |
 
 ---
 
-## 14. Numbers for the deck
+## 15. Numbers for the deck
 
 | | |
 |---|---|
@@ -524,14 +661,14 @@ public marketing site with live board.
 | Real LGA boundaries | **774**, across 37 files |
 | 2023 votes replayed | **24,026,730** |
 | Map payload | **30KB** gzipped nationally, 3KB per state |
-| Source files / lines | 58 components, 19 modules, **~14,800 lines** |
-| Runtime dependencies | **7** |
+| Source files / lines | 69 components, 40 modules, 13 routes, **~28,600 lines** |
+| Runtime dependencies | **11**, of which one is the database driver |
 | Integrity false positives | **0** across 461 screened returns |
 | Drill-down accuracy | Sums back **exactly** at every level |
 
 ---
 
-## 15. The closing line
+## 16. The closing line
 
 > Anyone can draw a map. What a parallel count is *for* is catching the returns that
 > cannot be true, in the hour they arrive, not in a tribunal eighteen months later when

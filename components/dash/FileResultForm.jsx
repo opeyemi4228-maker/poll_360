@@ -1,13 +1,14 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Check, Crosshair, Loader2, TriangleAlert } from "lucide-react";
+import { Camera, Check, Crosshair, Loader2, TriangleAlert, X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import { fileResult } from "@/app/field/actions";
 import { validateReturn } from "@/lib/results";
 import { parties } from "@/lib/election2023";
+import { shrinkImage, putOnInput } from "@/lib/shrink";
 import { formatNumber } from "@/lib/utils";
 
 /**
@@ -22,6 +23,10 @@ import { formatNumber } from "@/lib/utils";
  *     while the sheet is still in their hand rather than after a round trip.
  *   · The draft is kept in the browser on every keystroke, so a dropped
  *     connection costs a retry and not the figures.
+ *   · The sheet is photographed here, and the figures are checked against it
+ *     on the server. Where the picture can be read confidently and disagrees,
+ *     the return does not file — see app/field/actions.js. The photograph is
+ *     optional; agreeing with it, once attached, is not.
  */
 const DRAFT = "poll360:draft";
 
@@ -34,6 +39,9 @@ export default function FileResultForm({ unitCode, existing }) {
     ...Object.fromEntries(parties.map((p) => [p.id, existing?.votes?.[p.id] ?? ""])),
   }));
   const [position, setPosition] = useState({ status: "asking" });
+  const [sheet, setSheet] = useState(null);
+  const [shrinking, setShrinking] = useState(false);
+  const sheetRef = useRef(null);
 
   /* Restore a draft left by a submission that never made it. Scheduled on the
      next frame rather than set in the effect body, so it lands as one
@@ -82,6 +90,45 @@ export default function FileResultForm({ unitCode, existing }) {
     );
   }, []);
 
+  /* Object URLs are a handle on a blob the browser will otherwise keep for
+     the life of the document. A form somebody re-photographs four times in bad
+     light would hold four full-size bitmaps. */
+  useEffect(() => {
+    const url = sheet?.url;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [sheet?.url]);
+
+  /**
+   * Take the sheet, shrink it, and put it back on the input.
+   *
+   * Shrinking on the phone is what makes this arrive at all over a rural
+   * signal at close of poll — see lib/shrink.js. Where the browser cannot
+   * write to the input, the original is submitted instead: a large upload
+   * beats a lost one.
+   */
+  async function attachSheet(event) {
+    const chosen = event.target.files?.[0];
+    if (!chosen) return;
+
+    setShrinking(true);
+    try {
+      const shrunk = await shrinkImage(chosen);
+      if (shrunk) {
+        putOnInput(sheetRef.current, shrunk.file);
+        setSheet({ url: shrunk.url, kb: shrunk.kb });
+      }
+    } finally {
+      setShrinking(false);
+    }
+  }
+
+  function dropSheet() {
+    setSheet(null);
+    if (sheetRef.current) sheetRef.current.value = "";
+  }
+
   const numbers = useMemo(() => {
     const toNumber = (v) => (v === "" ? 0 : Number(String(v).replace(/[^\d]/g, "")));
     return {
@@ -106,6 +153,7 @@ export default function FileResultForm({ unitCode, existing }) {
         <p className="mt-2 text-[0.9375rem] leading-relaxed text-dash-muted">
           {formatNumber(state.cast)} votes recorded for {unitCode}. It is on the board now and in
           the queue for a coordinator to check against your sheet.
+          {state.sheet?.agrees && " Your photograph was read and it agrees with these figures."}
           {state.amended && " Because you changed it, it goes back to unchecked."}
         </p>
         <Button
@@ -192,6 +240,82 @@ export default function FileResultForm({ unitCode, existing }) {
         </div>
       </div>
 
+      {/* ------------------------------------------------- the result sheet */}
+      <div className="border border-dash-line bg-dash-bg px-4 py-3">
+        <div className="flex items-start gap-3">
+          <Camera
+            size={16}
+            strokeWidth={2.5}
+            className={sheet ? "mt-0.5 text-emerald-600" : "mt-0.5 text-dash-muted"}
+          />
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.8125rem] font-semibold text-dash-ink">
+              Photograph of the result sheet
+            </p>
+            <p className="mt-1 text-[0.8125rem] leading-relaxed text-dash-muted">
+              {sheet
+                ? "We will read the sheet and check it against the figures above before this is filed."
+                : "Optional, and worth doing. If the picture is clear enough to read, the figures above are checked against it."}
+            </p>
+          </div>
+        </div>
+
+        <input
+          ref={sheetRef}
+          id="sheet"
+          name="sheet"
+          type="file"
+          accept="image/jpeg,image/png"
+          capture="environment"
+          onChange={attachSheet}
+          className="sr-only"
+        />
+
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button
+            type="button"
+            variant="dashOutline"
+            size="md"
+            disabled={shrinking}
+            onClick={() => sheetRef.current?.click()}
+          >
+            {shrinking ? (
+              <>
+                <Loader2 size={15} strokeWidth={3} className="animate-spin" />
+                Preparing
+              </>
+            ) : (
+              <>
+                <Camera size={15} strokeWidth={2.5} />
+                {sheet ? "Take another" : "Take a photograph"}
+              </>
+            )}
+          </Button>
+
+          {sheet && (
+            <>
+              {/* Not next/image: this is an object URL for a blob that exists
+                  only in this tab, and the optimiser has no origin to fetch. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={sheet.url}
+                alt="The result sheet you photographed"
+                className="h-14 w-14 border border-dash-line object-cover"
+              />
+              <span className="figure text-[0.75rem] text-dash-muted">{sheet.kb} KB</span>
+              <button
+                type="button"
+                onClick={dropSheet}
+                className="flex items-center gap-1 text-[0.75rem] font-semibold text-dash-muted underline underline-offset-2"
+              >
+                <X size={13} strokeWidth={2.5} />
+                Remove
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* The running total, and the arithmetic, checked as they type. */}
       <div
         className={[
@@ -230,6 +354,38 @@ export default function FileResultForm({ unitCode, existing }) {
           className="mt-2 w-full resize-y rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 py-2 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
         />
       </div>
+
+      {/* ── WHEN THE PICTURE AND THE FIGURES DISAGREE ──────────────────────
+          Given its own block rather than folded into the line below, for two
+          reasons. It is the only error here that pressing the button again
+          will not clear. And it has something specific to say — which figure,
+          what the sheet shows, what they typed — where a red line reading
+          "does not match" would send somebody back to a creased form in the
+          dark with no idea which of eleven numbers to look at. */}
+      {errors.sheet && (
+        <div className="border-l-2 border-red-500 bg-red-50 px-4 py-3">
+          <p className="flex gap-2 text-[0.875rem] font-semibold text-dash-ink">
+            <TriangleAlert size={16} className="mt-0.5 shrink-0 text-red-600" />
+            This return does not match the sheet you photographed
+          </p>
+
+          {state?.mismatches?.length > 0 && (
+            <ul className="figure mt-2.5 space-y-1 pl-6">
+              {state.mismatches.map((item) => (
+                <li key={item.field} className="text-[0.8125rem] text-dash-ink">
+                  <span className="font-bold">{item.label}</span>: the sheet shows{" "}
+                  {formatNumber(item.read)}, you entered {formatNumber(item.typed)}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <p className="mt-2.5 pl-6 text-[0.8125rem] leading-relaxed text-dash-muted">
+            Check the sheet and correct the figures. If you photographed a different
+            unit&rsquo;s sheet, take the right one and try again.
+          </p>
+        </div>
+      )}
 
       {(state?.error || errors.figures || errors.votes) && (
         <p className="flex gap-2 border-l-2 border-red-500 bg-red-50 px-3 py-2 text-[0.875rem] text-dash-ink">

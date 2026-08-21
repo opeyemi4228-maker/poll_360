@@ -52,6 +52,28 @@ by a key that is in the source code.
 
 ---
 
+## Put the app next to the database
+
+`vercel.json` pins the functions to `lhr1`, London, because the Neon project is
+in `eu-west-2`, also London. This is not a micro-optimisation.
+
+Every page here asks the database several questions. When the two are in the
+same city each question costs a few milliseconds and the page is instant. When
+they are on different continents each one costs a few hundred milliseconds, the
+page waits for all of them, and a dashboard that should take half a second
+takes ten.
+
+**If you move the Neon project, move this too.** They are a pair, and a
+mismatch is the single easiest way to make this product feel slow while every
+individual query looks fine in the logs.
+
+Local development is a different matter: your machine is wherever it is, and
+queries from it to London will be slower than production ever is. A page that
+takes several seconds on your laptop and half a second on Vercel is behaving
+correctly.
+
+---
+
 ## The database
 
 The schema creates itself. Migrations run on the first query in each process,

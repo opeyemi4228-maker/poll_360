@@ -38,14 +38,29 @@ export default async function RoomPage() {
   const [project, allProjects] = await Promise.all([currentElection(), elections.list()]);
 
   const board = buildBoard();
-  const feed = (await incidents.recent(40, project?.id)).map((item) => ({
+
+  /* ── ONE WAIT, NOT THREE ────────────────────────────────────────────────
+     The database is across a network now, and these three ask it different
+     questions that have nothing to do with each other. Awaited in sequence
+     they cost the sum of three round trips; awaited together they cost the
+     slowest one. On a warm connection that is the difference between a page
+     in half a second and a page in two, and on a cold one it was the
+     difference between twelve seconds and sixty.
+
+     Only the photographs have to wait, because they are fetched by the ids
+     of the incidents above and cannot be asked for until those are known. */
+  const [rawFeed, coordinators] = await Promise.all([
+    incidents.recent(40, project?.id),
+    watch.coordinators(),
+  ]);
+
+  const feed = rawFeed.map((item) => ({
     ...item,
     /* Decrypted here and nowhere else: the situation room is one of the two
        roles permitted to read an incident narrative. */
     detail: item.detailSealed ? unseal(item.detailSealed) : null,
   }));
 
-  const coordinators = await watch.coordinators();
   const watchSummary = watch.summary(coordinators);
   const photoMap = Object.fromEntries(await media.forIncidents(feed.map((item) => item.id)));
 
