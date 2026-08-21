@@ -115,9 +115,34 @@ export default function SituationRoom({
      client component and cannot read the cookie that names the current
      project, nor query the list. */
   projects = null,
+  /* The states this election is actually fought in. Empty means the whole
+     federation. */
+  scopeStates = [],
 }) {
   const [layer, setLayer] = useState("results");
-  const [path, setPath] = useState([]); // [state, lga, ward]
+  /**
+   * The states this contest is fought in.
+   *
+   * ── A GOVERNORSHIP IS NOT A FEDERATION ─────────────────────────────────
+   * Every project used to draw all 37 states. On an Ekiti governorship that
+   * meant 36 of them sitting grey — and grey, everywhere else in this product,
+   * means "nobody has reported yet". Nobody is ever going to report from Kano
+   * in an Ekiti election. Not-yet and not-applicable are different facts, and
+   * a board that draws them the same way is quietly wrong all night.
+   */
+  const inScope = useMemo(() => {
+    if (!scopeStates?.length) return states;
+    const wanted = new Set(scopeStates);
+    return states.filter((row) => wanted.has(row.code));
+  }, [states, scopeStates]);
+
+  /* A contest in one state opens on that state. There is no country to zoom
+     out to, so the map starts where the election actually is. */
+  const [path, setPath] = useState(() =>
+    scopeStates?.length === 1
+      ? [{ code: scopeStates[0], name: states.find((r) => r.code === scopeStates[0])?.name ?? scopeStates[0] }]
+      : []
+  ); // [state, lga, ward]
   const [hovered, setHovered] = useState(null);
   const [picked, setPicked] = useState(null); // the jurisdiction whose full card is open
   const [lgaShapes, setLgaShapes] = useState(null);
@@ -203,7 +228,7 @@ export default function SituationRoom({
    */
   const nationRows = useMemo(
     () =>
-      states.map((row) => {
+      inScope.map((row) => {
         const live = view.byState.find((item) => item.code === row.code);
         const reported = live?.reported ?? false;
         const boothsIn = live?.units ?? 0;
@@ -251,7 +276,7 @@ export default function SituationRoom({
           density: boothsIn > 0 ? Math.round(scaledTotal / boothsIn) : 0,
         };
       }),
-    [states, view.byState]
+    [inScope, view.byState]
   );
 
   const lgaRows = useMemo(() => {
@@ -303,7 +328,7 @@ export default function SituationRoom({
      units are left out on purpose: they are numbered rather than named, so
      "Ward 07" would return thirty-seven identical rows. */
   const searchItems = useMemo(() => {
-    const items = states.map((row) => ({
+    const items = inScope.map((row) => ({
       key: `state:${row.code}`,
       label: row.name,
       hint: "State",
@@ -322,7 +347,7 @@ export default function SituationRoom({
     }
 
     return items;
-  }, [states, state, lgaRows]);
+  }, [inScope, state, lgaRows]);
 
   /* Searching from Coordinators or Reports means you want to see the place, so
      the map comes back with you rather than leaving you on a tab that cannot
@@ -381,8 +406,13 @@ export default function SituationRoom({
     return points;
   }, [board, cursor]);
 
+  /* A single-state contest has no country above it. Offering "Nigeria" as a
+     breadcrumb would invite the reader to zoom out to 36 states that are not
+     in this election, and then wonder why they are all empty. */
+  const pinned = scopeStates?.length === 1;
+
   const crumbs = [
-    { label: "Nigeria", go: () => setPath([]) },
+    !pinned && { label: "Nigeria", go: () => setPath([]) },
     state && { label: state.name, go: () => setPath([state]) },
     lga && { label: lga.name, go: () => setPath([state, lga]) },
     ward && { label: ward.name, go: () => setPath([state, lga, ward]) },

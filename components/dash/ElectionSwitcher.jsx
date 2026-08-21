@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { Check, ChevronDown, FlaskConical, Loader2, Plus, Vote } from "lucide-react";
 
 import { createElection, switchElection } from "@/app/actions/elections";
+import { states2023 } from "@/lib/election2023";
 import { cn } from "@/lib/utils";
 
 /**
@@ -36,6 +37,9 @@ const KINDS = [
 export default function ElectionSwitcher({ current, all = [], canCreate = false }) {
   const [open, setOpen] = useState(false);
   const [making, setMaking] = useState(false);
+  /* Presidential covers the federation; everything else is fought somewhere in
+     particular, so the picker appears only when it is needed. */
+  const [kind, setKind] = useState("GOVERNORSHIP");
   const boxRef = useRef(null);
 
   const [state, formAction] = useActionState(createElection, {});
@@ -182,7 +186,8 @@ export default function ElectionSwitcher({ current, all = [], canCreate = false 
                   <select
                     id="election-kind"
                     name="kind"
-                    defaultValue="GOVERNORSHIP"
+                    value={kind}
+                    onChange={(event) => setKind(event.target.value)}
                     className="mt-1.5 h-11 w-full rounded-dash-sm border border-dash-line bg-dash-bg px-2 text-[0.875rem] text-dash-ink focus:border-dash-ink focus:outline-none"
                   >
                     {KINDS.map(([value, text]) => (
@@ -204,6 +209,34 @@ export default function ElectionSwitcher({ current, all = [], canCreate = false 
                   />
                 </span>
               </div>
+
+              {kind !== "PRESIDENTIAL" && (
+                <div className="mt-3">
+                  <label htmlFor="election-state" className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                    State
+                  </label>
+                  <select
+                    id="election-state"
+                    name="scopeStates"
+                    required
+                    defaultValue=""
+                    className="mt-1.5 h-11 w-full rounded-dash-sm border border-dash-line bg-dash-bg px-2 text-[0.875rem] text-dash-ink focus:border-dash-ink focus:outline-none"
+                  >
+                    <option value="" disabled>
+                      Which state is this fought in?
+                    </option>
+                    {states2023.map((row) => (
+                      <option key={row.code} value={row.code}>
+                        {row.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+                    The board will show only this state. The rest of the country is not
+                    unreported, it is not in the contest.
+                  </p>
+                </div>
+              )}
 
               {state?.error && (
                 <p role="alert" className="mt-3 text-[0.8125rem] font-semibold text-red-600">

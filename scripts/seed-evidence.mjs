@@ -94,7 +94,18 @@ function sheet(seed) {
 
 const force = process.argv.includes("--force");
 
-const feed = await incidents.recent(60);
+/* ── SCOPED, BECAUSE READS ARE NOW PER PROJECT ────────────────────────────
+   Every read and write is scoped to an election project. A seeder that asks
+   for "recent incidents" without saying which night is asking a question the
+   schema no longer has a single answer to, and the accessor is right to
+   refuse rather than guess. */
+const current = (await sql`SELECT id FROM elections ORDER BY created_at LIMIT 1`)[0];
+if (!current) {
+  console.log("No election project exists yet. Run the election seed first.");
+  process.exit(0);
+}
+
+const feed = await incidents.recent(60, current.id);
 if (!feed.length) {
   console.log("No incidents to attach anything to. Run the demo seed first.");
   process.exit(0);

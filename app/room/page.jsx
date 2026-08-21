@@ -61,6 +61,7 @@ export default async function RoomPage() {
       watchSummary={watchSummary}
       photos={photoMap}
       incidentCount={feed.length}
+      scopeStates={project?.scopeStates ?? []}
       projects={
         <ElectionSwitcher
           current={project}

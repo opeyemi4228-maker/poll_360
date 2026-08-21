@@ -43,11 +43,24 @@ export async function createElection(_previous, formData) {
      needed. */
   const votesOn = dayText ? new Date(`${dayText}T00:00:00Z`) : null;
 
+  /* A contest fought in one state names it; a national one names nothing. The
+     browser sends whatever the picker held, and a presidential project ignores
+     it — a national contest covering "one state" is not a thing. */
+  const scopeStates =
+    kind === "PRESIDENTIAL"
+      ? []
+      : formData.getAll("scopeStates").map((code) => String(code)).filter(Boolean);
+
+  if (kind !== "PRESIDENTIAL" && scopeStates.length === 0) {
+    return { error: "Choose the state this election is fought in." };
+  }
+
   try {
     const made = await elections.create({
       title,
       kind,
       votesOn,
+      scopeStates,
       note: String(formData.get("note") ?? "").trim() || null,
       createdBy: user.id,
     });
