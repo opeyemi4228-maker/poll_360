@@ -3,7 +3,6 @@ import { AlertTriangle, Gauge, Scale, ShieldAlert, Users } from "lucide-react";
 
 import { PartyBars, CoverageBar } from "@/components/dash/Charts";
 import SituationRoom from "@/components/dash/SituationRoom";
-import ElectionSwitcher from "@/components/dash/ElectionSwitcher";
 import { currentElection } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { requireUser } from "@/lib/guard";
@@ -62,13 +61,19 @@ export default async function RoomPage() {
       photos={photoMap}
       incidentCount={feed.length}
       scopeStates={project?.scopeStates ?? []}
-      projects={
-        <ElectionSwitcher
-          current={project}
-          all={allProjects}
-          canCreate={["SUPER_ADMIN", "SITUATION_ROOM"].includes(user.role)}
-        />
-      }
+      /* ── DATA, NOT A READY-MADE ELEMENT ────────────────────────────────
+         This used to hand the switcher across already rendered. The switcher
+         is a client component, so building it here bought nothing, and the
+         element arrived on the other side as a plain child in an array React
+         could not key, warning on every render of the room. The same mistake
+         was made once before with LiveRefresh and fixed the same way: send
+         the data and let the client component that needs it build the
+         element. */
+      projects={{
+        current: project,
+        all: allProjects,
+        canCreate: ["SUPER_ADMIN", "SITUATION_ROOM"].includes(user.role),
+      }}
     />
   );
 }

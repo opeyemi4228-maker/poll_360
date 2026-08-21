@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * The obvious way to run a second election is a "reset" button, and it is the
  * wrong one: it is irreversible, it destroys the record the product exists to
  * keep, and it makes two nights impossible to compare. A new project is empty
- * because nothing has been filed against it yet — every result from the last
+ * because nothing has been filed against it yet. Every result from the last
  * one is still there, still readable, one switch away.
  *
  * ── THE DEMONSTRATION SAYS SO, ON ITS OWN ROW ──────────────────────────────
@@ -46,7 +46,7 @@ export default function ElectionSwitcher({ current, all = [], canCreate = false 
 
   /* A project that has just been started is the one you are now looking at, so
      the panel has nothing left to say and closes itself. Adjusted during render
-     rather than in an effect — React's documented way to react to a changed
+     rather than in an effect, which is React's documented way to react to a changed
      value, and the only one that cannot paint the open panel for a frame after
      the work is done. */
   const [lastResult, setLastResult] = useState(state);
@@ -85,7 +85,7 @@ export default function ElectionSwitcher({ current, all = [], canCreate = false 
             {current?.title ?? "No project yet"}
           </span>
           <span className="block text-[0.6875rem] leading-tight text-dash-muted">
-            {current?.isDemo ? "Worked example" : (current?.status ?? "").toLowerCase() || "—"}
+            {current?.isDemo ? "Worked example" : (current?.status ?? "").toLowerCase() || "no status"}
           </span>
         </span>
         <ChevronDown size={14} className="shrink-0 text-dash-muted" aria-hidden="true" />
@@ -291,5 +291,8 @@ function label(item) {
     );
   }
   if (item.status && item.status !== "ACTIVE") parts.push(item.status.toLowerCase());
-  return parts.join(" · ") || "—";
+  /* A dash as a stand-in for "nothing to say" is exactly the punctuation this
+     product does not use, and it reads as a missing value rather than as an
+     answer. Say the answer. */
+  return parts.join(" · ") || "Nationwide";
 }
