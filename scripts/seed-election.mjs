@@ -21,7 +21,7 @@
  * every time.
  */
 
-import { DatabaseSync } from "node:sqlite";
+import { db, sql } from "../lib/db.js";
 import { randomUUID } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -94,13 +94,14 @@ function databasePath() {
 
 const path = databasePath();
 mkdirSync(dirname(path), { recursive: true });
-const db = new DatabaseSync(path);
-db.exec("PRAGMA foreign_keys = ON");
-db.exec("PRAGMA busy_timeout = 5000");
+/* The connection comes from lib/db.js now. This script used to open the SQLite
+   file itself, which stopped meaning anything the moment storage moved to
+   Postgres: it would have written a night of results into a file the
+   application no longer reads. */
 
 const agent =
-  db.prepare("SELECT id FROM users WHERE role = 'PU_AGENT' ORDER BY created_at LIMIT 1").get() ??
-  db.prepare("SELECT id FROM users ORDER BY created_at LIMIT 1").get();
+  (await db.prepare("SELECT id FROM users WHERE role = 'PU_AGENT' ORDER BY created_at LIMIT 1").get()) ??
+  (await db.prepare("SELECT id FROM users ORDER BY created_at LIMIT 1").get());
 
 if (!agent) {
   console.error(
@@ -110,16 +111,23 @@ if (!agent) {
 }
 
 const verifier =
-  db.prepare("SELECT id FROM users WHERE role IN ('SITUATION_ROOM','SUPER_ADMIN') LIMIT 1").get() ??
+  (await db.prepare("SELECT id FROM users WHERE role IN ('SITUATION_ROOM','SUPER_ADMIN') LIMIT 1").get()) ??
   agent;
 
 const rng = mulberry32(2023);
 
 const insert = db.prepare(
+  /* ── THE FIFTEENTH ARGUMENT USED TO GO NOWHERE ─────────────────────────
+     The call below has always passed an offset like "-420 minutes" for
+     submitted_at, and this statement hardcoded the current time instead. So
+     every one of 487 returns was stamped with the second the seed ran: a
+     board whose whole point is watching a night fill up, filled in an
+     instant, and an arrivals chart that was a single vertical line. The
+     offset is bound now. */
   `INSERT INTO results
      (id, unit_code, state_code, registered, accredited, rejected, votes, inec_total, note,
       lat, lon, accuracy, distance_m, submitted_by, submitted_at, status, verified_by, verified_at)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, now() + ?::interval, ?, ?, ?)
    ON CONFLICT(unit_code) DO UPDATE SET
      registered = excluded.registered,
      accredited = excluded.accredited,
@@ -132,8 +140,17 @@ const insert = db.prepare(
 
 let filed = 0;
 
-db.exec("BEGIN IMMEDIATE");
-try {
+/* ── NO TRANSACTION, AND WHY THAT IS THE RIGHT ANSWER HERE ─────────────────
+   This ran inside BEGIN IMMEDIATE against SQLite. Postgres over HTTP has no
+   session to hold a transaction across: each statement is its own round trip,
+   so a BEGIN would commit nothing and a ROLLBACK would undo nothing, while
+   reading as though both worked. That is worse than having neither.
+
+   What makes a half-finished run safe is the upsert above: every row is keyed
+   by its polling unit, so running this again finishes the job rather than
+   duplicating it. Correctness comes from the statement being repeatable, not
+   from a transaction that was never really there. */
+{
   for (const [index, state] of states2023.entries()) {
     const prefix = String(index + 1).padStart(2, "0");
 
@@ -176,7 +193,7 @@ try {
       const roll = rng();
       const status = roll < 0.62 ? "VERIFIED" : roll < 0.95 ? "SUBMITTED" : "DISPUTED";
 
-      insert.run(
+      await insert.run(
         randomUUID(),
         `${prefix}/${String(1 + Math.floor(rng() * 20)).padStart(2, "0")}/${String(1 + Math.floor(rng() * 12)).padStart(2, "0")}/${String(unit + 1).padStart(3, "0")}`,
         prefix,
@@ -200,10 +217,6 @@ try {
     }
   }
 
-  db.exec("COMMIT");
-} catch (error) {
-  db.exec("ROLLBACK");
-  throw error;
 }
 
 /* ------------------------------------------------------------- the reports */
@@ -211,22 +224,27 @@ try {
 /* Cleared first so a second run replaces this script's reports rather than
    piling another fourteen on top. `exec` takes no bind parameters, it would
    have silently left the old rows behind. */
-db.prepare("DELETE FROM incidents WHERE reported_by = ?").run(agent.id);
+(await db.prepare("DELETE FROM incidents WHERE reported_by = ?").run(agent.id));
 
 const incidentInsert = db.prepare(
+  /* ── THE EIGHTH ARGUMENT USED TO GO NOWHERE ────────────────────────────
+     The call below has always passed an offset like "-240 minutes", and the
+     statement had seven placeholders and a plain `datetime('now')`. So every
+     report was stamped with the moment the seed ran: fourteen incidents all
+     arriving in the same second, in a feed whose whole purpose is to show a
+     night unfolding. The offset is bound now. */
   `INSERT INTO incidents (id, unit_code, state_code, kind, severity, detail_sealed, status, reported_by, created_at)
-   VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, datetime('now'))`
+   VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, now() + ?::interval)`
 );
 
 let reported = 0;
-db.exec("BEGIN IMMEDIATE");
-try {
+{
   for (let n = 0; n < 14; n += 1) {
     const state = states2023[Math.floor(rng() * states2023.length)];
     const index = states2023.indexOf(state);
     const [kind, severity] = KINDS[Math.floor(rng() * KINDS.length)];
 
-    incidentInsert.run(
+    await incidentInsert.run(
       randomUUID(),
       `${String(index + 1).padStart(2, "0")}/${String(1 + Math.floor(rng() * 20)).padStart(2, "0")}/${String(1 + Math.floor(rng() * 12)).padStart(2, "0")}/${String(1 + Math.floor(rng() * 40)).padStart(3, "0")}`,
       String(index + 1).padStart(2, "0"),
@@ -238,10 +256,6 @@ try {
     );
     reported += 1;
   }
-  db.exec("COMMIT");
-} catch (error) {
-  db.exec("ROLLBACK");
-  throw error;
 }
 
 console.log(`Filed ${filed} returns across ${states2023.length} states.`);

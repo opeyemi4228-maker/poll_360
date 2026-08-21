@@ -3,6 +3,9 @@ import { AlertTriangle, Gauge, Scale, ShieldAlert, Users } from "lucide-react";
 
 import { PartyBars, CoverageBar } from "@/components/dash/Charts";
 import SituationRoom from "@/components/dash/SituationRoom";
+import ElectionSwitcher from "@/components/dash/ElectionSwitcher";
+import { currentElection } from "@/lib/election-scope";
+import { elections } from "@/lib/elections";
 import { requireUser } from "@/lib/guard";
 import { results, incidents, media } from "@/lib/db";
 import { watch } from "@/lib/watch";
@@ -33,6 +36,8 @@ export const dynamic = "force-dynamic";
 export default async function RoomPage() {
   const user = await requireUser("/room");
 
+  const [project, allProjects] = await Promise.all([currentElection(), elections.list()]);
+
   const board = buildBoard();
   const feed = (await incidents.recent(40)).map((item) => ({
     ...item,
@@ -56,6 +61,13 @@ export default async function RoomPage() {
       watchSummary={watchSummary}
       photos={photoMap}
       incidentCount={feed.length}
+      projects={
+        <ElectionSwitcher
+          current={project}
+          all={allProjects}
+          canCreate={["SUPER_ADMIN", "SITUATION_ROOM"].includes(user.role)}
+        />
+      }
     />
   );
 }

@@ -21,6 +21,31 @@ import { db, users, incidents, media } from "../lib/db.js";
 import { hashPassword } from "../lib/password.js";
 import { seal } from "../lib/crypto.js";
 
+/**
+ * ── NOT IN PRODUCTION, EVER ────────────────────────────────────────────────
+ * These accounts have passwords printed in this repository's own .env.example,
+ * which is committed and public. That is fine for a demonstration on a laptop
+ * and catastrophic anywhere reachable: anyone who has read the repo can sign in
+ * as the super administrator.
+ *
+ * A refusal here is worth more than a warning in a README nobody opens. Set
+ * POLL360_ALLOW_DEMO_SEED=1 only if you genuinely mean it and understand that
+ * the credentials are public.
+ */
+const LIVE = process.env.NODE_ENV === "production" || /^(postgres|postgresql):/.test(process.env.DATABASE_URL ?? "");
+
+if (LIVE && process.env.POLL360_ALLOW_DEMO_SEED !== "1") {
+  console.error(
+    "\nRefusing to seed demonstration accounts against a live database.\n" +
+      "Their passwords are published in .env.example, so anyone who has read\n" +
+      "this repository could sign in as the super administrator.\n\n" +
+      "Use `npm run account:create` for a real account, or set\n" +
+      "POLL360_ALLOW_DEMO_SEED=1 if you are certain.\n"
+  );
+  process.exit(1);
+}
+
+
 const PASSWORD = "poll360-field-agent";
 
 /* Real states, real approximate coordinates for their principal town, so the

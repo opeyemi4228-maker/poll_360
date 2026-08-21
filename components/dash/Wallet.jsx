@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { Check, Info, Loader2, ShieldCheck } from "lucide-react";
 
 import Button from "@/components/ui/Button";
-import { Badge } from "./DashLayout";
+import { Badge } from "./DashCard";
 import { requestWithdrawal } from "@/app/field/wallet-actions";
 
 /**

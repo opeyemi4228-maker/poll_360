@@ -1,14 +1,17 @@
 import { AlertTriangle, Banknote, FileText, Inbox, KeyRound, ScrollText, ShieldCheck, Users } from "lucide-react";
 
-import DashLayout, { Card, StatCard, Badge, Empty } from "@/components/dash/DashLayout";
+import DashLayout from "@/components/dash/DashLayout";
+import { Card, StatCard, Badge, Empty } from "@/components/dash/DashCard";
 import { PartyBars, TrendArea } from "@/components/dash/Charts";
 import CoverageDial from "@/components/dash/CoverageDial";
+import IntegrityPanel from "@/components/dash/IntegrityPanel";
 import IssueAccountForm from "@/components/dash/IssueAccountForm";
 import PayAgentForm from "@/components/dash/PayAgentForm";
 import LiveRefresh from "@/components/dash/LiveRefresh";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
 import { results, incidents, audit, accessRequests } from "@/lib/db";
+import { integrityOf } from "@/lib/anomalies";
 import { ledger } from "@/lib/ledger";
 import { unseal } from "@/lib/crypto";
 import { parties, others } from "@/lib/election2023";
@@ -51,6 +54,14 @@ export default async function AdminPage() {
 
   /* Cumulative booths over the evening, from the returns themselves. */
   const trend = buildTrend(filed);
+
+  /* ── SCREENING RUNS ON EVERY LOAD, NOT ON DEMAND ────────────────────────
+     The screening was written, tested and then never put on a screen, which
+     made it worth exactly nothing: a check nobody sees is a check nobody acts
+     on. It runs over every return the administrator is already looking at, so
+     there is no separate page to remember to visit and no moment where the
+     figures are on screen and the doubts about them are not. */
+  const integrity = integrityOf(filed);
 
   return (
     <DashLayout
@@ -284,6 +295,11 @@ export default async function AdminPage() {
 
       {/* ------------------------------------------------------------ lower */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        {/* Placed above the queues on purpose. An administrator opening this
+            page should meet what cannot be true before they meet what is
+            merely waiting. */}
+        <IntegrityPanel report={integrity} />
+
         <Card title="Access requests" action={<Inbox size={16} className="text-dash-muted" />}>
           {requests.length === 0 ? (
             <Empty>Nothing yet.</Empty>

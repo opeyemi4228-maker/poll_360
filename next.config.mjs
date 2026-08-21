@@ -34,8 +34,14 @@ const nextConfig = {
         /* Nothing behind a sign-in belongs in a shared cache. The pattern
            matches the bare path as well as anything under it — one
            coordinator's console served to another from an intermediary cache
-           would be the worst bug this product could have. */
-        source: "/:prefix(console|field|login)/:path*",
+           would be the worst bug this product could have.
+
+           Every signed-in surface is named here. An earlier version listed
+           only three and left the situation room, the broadcast desk, the
+           administrator's console and the WhatsApp desk cacheable — the four
+           that carry the most, and the ones most likely to sit behind a
+           corporate proxy in a newsroom. */
+        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp)/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
         ],

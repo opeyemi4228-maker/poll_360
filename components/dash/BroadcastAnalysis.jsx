@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 import { PartyBars, PARTY_FILL } from "./Charts";
 import StateMap from "./StateMap";
-import { Card, Badge } from "./DashLayout";
+import { Card, Badge } from "./DashCard";
 import { parties, others } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";

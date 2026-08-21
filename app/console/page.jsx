@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { MailQuestion } from "lucide-react";
 
-import DashLayout, { Card } from "@/components/dash/DashLayout";
+import DashLayout from "@/components/dash/DashLayout";
+import { Card } from "@/components/dash/DashCard";
 import Button from "@/components/ui/Button";
 import { currentUser } from "@/lib/session";
 import { homeFor, ROLES } from "@/lib/roles";

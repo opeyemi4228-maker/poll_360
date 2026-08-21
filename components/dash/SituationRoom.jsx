@@ -111,7 +111,10 @@ export default function SituationRoom({
   coordinators = [],
   watchSummary = { total: 0, filed: 0, located: 0, far: 0, silent: 0 },
   photos = {},
-  live = null,
+  /* The election switcher, built on the server and handed down: this is a
+     client component and cannot read the cookie that names the current
+     project, nor query the list. */
+  projects = null,
 }) {
   const [layer, setLayer] = useState("results");
   const [path, setPath] = useState([]); // [state, lga, ward]
@@ -442,6 +445,7 @@ export default function SituationRoom({
            across the server boundary gained nothing and made these two into an
            unkeyed array that React could not reconcile. */
         <>
+          {projects}
           <LiveRefresh seconds={15} label="Live" />
           <span className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5 text-[0.8125rem] text-dash-muted">
             <span aria-hidden="true" className="size-2 animate-pulse-live rounded-full bg-red-500" />

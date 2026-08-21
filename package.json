@@ -15,7 +15,8 @@
     "build:map": "node scripts/build-map.mjs",
     "build:icons": "node scripts/build-icons.mjs",
     "seed:demo": "node scripts/seed-demo.mjs",
-    "seed:election": "node scripts/seed-election.mjs"
+    "seed:election": "node scripts/seed-election.mjs",
+    "demo:retire": "node --env-file=.env.local scripts/retire-demo-accounts.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

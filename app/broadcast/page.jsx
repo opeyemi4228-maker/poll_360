@@ -1,6 +1,7 @@
 import { Download, Gauge, Radio, Tv } from "lucide-react";
 
-import DashLayout, { Card, StatCard } from "@/components/dash/DashLayout";
+import DashLayout from "@/components/dash/DashLayout";
+import { Card, StatCard } from "@/components/dash/DashCard";
 import Sparkline from "@/components/dash/Sparkline";
 import BroadcastAnalysis from "@/components/dash/BroadcastAnalysis";
 import Button from "@/components/ui/Button";

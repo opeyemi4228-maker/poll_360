@@ -1,6 +1,7 @@
 import { MapPin, Wallet as WalletIcon } from "lucide-react";
 
-import DashLayout, { Card, StatCard, Empty } from "@/components/dash/DashLayout";
+import DashLayout from "@/components/dash/DashLayout";
+import { Card, StatCard, Empty } from "@/components/dash/DashCard";
 import FileResultForm from "@/components/dash/FileResultForm";
 import IncidentForm from "@/components/dash/IncidentForm";
 import Wallet from "@/components/dash/Wallet";
