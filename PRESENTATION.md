@@ -98,9 +98,9 @@ evening.
 
 ---
 
-## 3. The four dashboards
+## 3. The five dashboards
 
-One count, four rooms, four completely different jobs. Each is role-gated on the server.
+One count, five rooms, five completely different jobs. Each is role-gated on the server.
 
 | Role | Lands on | What it is for |
 |---|---|---|
@@ -108,6 +108,7 @@ One count, four rooms, four completely different jobs. Each is role-gated on the
 | **Polling unit coordinator** | `/field` | Files one booth's result from a phone, in the dark, on a weak signal |
 | **Broadcast desk** | `/broadcast` | Our count beside INEC's declared figures, driven by touch between bulletins |
 | **Situation room** | `/room` | Coverage, incidents, coordinator positions, the declared-figure gap |
+| **Declared figures** | `/gap` | Our count held against what collation announced, place by place |
 
 ### 3.1 Super administrator
 
@@ -137,6 +138,16 @@ Designed for one hand, standing up, at night, on a connection that may not hold.
   difference between a report that lands and one that times out at close of poll
 - The server sniffs the actual magic bytes, never the filename: *a file called photo.jpg
   is a claim; the first four bytes are a fact*
+- **The figures are checked against the photograph, and a disagreement does not file.**
+  The sheet is read and held against what was typed, field by field. If a figure the
+  reader is confident about differs, the return is refused and the agent is told which
+  figure, what the sheet shows and what they entered. There is no override. *A return and
+  its own photograph are two halves of one claim, and half a claim is not filed*
+- **The block is bounded, not merciful.** A reading only earns the standing to contradict
+  somebody by being self-consistent first, and a figure the reader could not make out is
+  compared to nothing rather than to zero. A sheet nobody could read never blocks a
+  filing — it is recorded as an attempt with no corroboration claimed, which is a
+  different thing from having sent no sheet at all
 - **The agent's own account**: earned, requested, available, with a full statement and
   the short hash of every entry
 
@@ -155,8 +166,8 @@ Designed for one hand, standing up, at night, on a connection that may not hold.
 
 The flagship screen. Top bar only, no sidebar, the map is the page.
 
-- **Six tabs, four of them map layers:** Results · Voters · Turnout · Clusters ·
-  Coordinators · Reports
+- **Seven tabs, four of them map layers:** Results · Voters · Turnout · Clusters ·
+  **Declared** · Coordinators · Reports
 - **Every layer is live**, derived from the same moving count:
   - *Voters*: how much of the register has actually reported
   - *Turnout*: votes against the register **of the booths that have reported**, which is
@@ -171,7 +182,39 @@ The flagship screen. Top bar only, no sidebar, the map is the page.
   means a real fix; a hollow ring means we know their booth and nothing else
 - **Situation stream**: an X-style live feed of what is happening at booths, with photo
   evidence, severity in words before colour, and *"12m ago"* timestamps
-- **Audible alarm** for critical reports, with a 20-second rehearsal mode for demos
+- **Audible alarm** for critical reports, with a 20-second rehearsal mode for demos.
+  Impossible arithmetic and a changed winner ride the *same* bell rather than getting an
+  alarm of their own: a second thing to mute is a second thing to miss
+
+---
+
+### 3.5 Declared figures
+
+The room where a parallel count stops being a second opinion and starts being evidence.
+
+- **Two sources, never merged.** What our agents counted and what the commission
+  announced sit apart and the difference is computed. Averaging them, or letting either
+  correct the other, destroys the only thing worth having
+- **Declared figures are entered, because there is no feed.** IReV publishes scanned
+  sheets and collation centres read totals aloud; neither is something a program can ask
+  a question of. A CSV is uploaded or a block of cells is pasted, at polling unit, ward,
+  local government or state level — *a ward is announced hours before any unit sheet is
+  published, and a ward is where a count is actually altered*
+- **Every entry is attributed.** Whoever types the declared figure decides what our count
+  is held against, so `declared:file` is held by the situation room and the administrator
+  and deliberately not by the broadcast desk, which reads the comparison
+- **The four findings:** *Impossible* (our figure larger than the whole containing it) ·
+  *Winner differs* · *Figures differ* · *Unmatched* (declared, and we have nobody there)
+- **The coverage trap, refused by design.** If our agents hold nine of a ward's twenty
+  booths our total is *supposed* to be lower, and flagging that would turn every ward in
+  the country red on election night — which makes the three that are genuinely wrong
+  invisible. So a place is compared in full only where we hold all of it. Everywhere else
+  exactly one rule survives, because it does not depend on coverage at all: **what we
+  counted cannot exceed what was declared for a place that contains it.** Nine booths
+  cannot produce more votes than the whole ward was announced as producing, ever
+- **It says when it cannot tell.** The count of places too thinly covered to compare is on
+  the panel, not in a footnote. *A dashboard that says "I cannot tell you yet" is worth
+  more than one that guesses, because the second is only wrong once*
 
 ---
 
@@ -647,7 +690,8 @@ public marketing site with live board.
 | No census data on the clusters layer | A licensed population source. Density is derived from the register and labelled |
 | Real-time is the 2023 replay | Agents in the field. The plumbing is live |
 | Figures below state level are apportioned | Real returns, which replace them entirely |
-| Sheet reading needs a Google Cloud key | Without one the bot asks its questions instead, so the channel never depends on it |
+| Sheet reading needs a Google Cloud key | Without one the bot asks its questions instead, and the sheet-against-figures check stands down rather than blocking. The channel never depends on it |
+| Declared figures are entered by hand | Nothing, on our side. INEC publishes no machine-readable feed; an IReV reader would slot in behind the same store |
 | Local pages are slow from a distant machine | Nothing. Production sits beside the database; a laptop in another country does not |
 
 ---

@@ -110,9 +110,17 @@ export default function Whiteboard({ shapes, cards, onErase, onClear, onRestore 
   );
 
   return (
-    <section className="on-board board-grid flex min-h-[calc(100vh-13rem)] flex-col rounded-dash border border-board-line bg-board">
+    <section className="on-board relative flex min-h-[calc(100vh-13rem)] flex-col overflow-hidden rounded-dash border border-board-line bg-board">
+      {/* ── THE GRAPH PAPER GOES BEHIND, NOT OVER ───────────────────────────
+          `.board-grid` carries its own opacity, because everywhere else in
+          the product it is a wash laid behind content. Put on the container
+          instead of a child, it takes the whole board down with it: the
+          surface, the cards, the map and every word on it rendered at a third
+          of their strength over a white page, which is why the board came out
+          grey. It is a sibling of the content now, and nothing inherits it. */}
+      <span aria-hidden="true" className="board-grid pointer-events-none absolute inset-0" />
       {/* ------------------------------------------------------------ chrome */}
-      <header className="flex flex-wrap items-center gap-2 border-b border-board-line px-4 py-2.5">
+      <header className="relative flex flex-wrap items-center gap-2 border-b border-board-line px-4 py-2.5">
         <PenLine size={15} strokeWidth={2.5} className="shrink-0 text-white/55" />
         <h2 className="font-display text-[0.9375rem] font-extrabold text-white">The board</h2>
         <span className="figure text-[0.6875rem] text-white/45">
@@ -218,13 +226,22 @@ export default function Whiteboard({ shapes, cards, onErase, onClear, onRestore 
       {cards.length === 0 ? (
         <Empty />
       ) : (
-        <div className="grid flex-1 auto-rows-min content-start gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+        /* ── EVERY CARD IS ITS OWN HEIGHT ──────────────────────────────────
+           Grid items fill their row by default, so a note of three lines
+           beside a map was drawn three lines tall and eight hundred pixels
+           deep. `items-start` lets each card stop where its content stops,
+           which is the difference between a board and a table of empty
+           boxes. */
+        <div className="relative grid flex-1 auto-rows-min content-start items-start gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
           {cards.map((card) => (
             <Card
               key={card.id}
               card={card}
               shapes={shapes}
-              boundaries={boundaries[card.stateCode] ?? null}
+              /* Raw, not defaulted: `undefined` means the file has not come
+                 back yet and `null` means it came back empty. Collapsing the
+                 two would leave a failed fetch spinning for ever. */
+              boundaries={boundaries[card.stateCode]}
               rowFor={rowFor}
               onErase={() => onErase(card.id)}
             />
@@ -276,7 +293,7 @@ function useBoundaries(cards) {
 
 function Empty() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+    <div className="relative flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
       <PenLine size={26} strokeWidth={2} className="text-white/25" />
       <p className="mt-4 max-w-md font-display text-[1.125rem] font-extrabold text-white">
         Nothing on the board yet
@@ -355,6 +372,21 @@ function Card({ card, shapes, boundaries, rowFor, onErase }) {
       <div className="min-h-0 flex-1 p-3.5">
         <Body card={card} shapes={shapes} boundaries={boundaries} rowFor={rowFor} />
       </div>
+
+      {/* ── WHERE IT CAME FROM, ON THE CARD ────────────────────────────────
+          A board is where figures go to be argued over, often hours after
+          anybody remembers asking for them. The declared result and the live
+          count are different numbers, and a card that does not say which one
+          it is showing is a card somebody will eventually quote wrongly. */}
+      {card.kind !== "answer" && (
+        <p className="border-t border-board-line px-3.5 py-2 text-[0.625rem] tracking-[0.08em] text-white/30 uppercase">
+          {card.kind === "projection" || card.kind === "battlegrounds" || card.kind === "zones"
+            ? "Projection · no assumptions set"
+            : card.scope === "lga" || card.scope === "ward"
+              ? "Declared 2023 · apportioned to this level"
+              : "Declared 2023"}
+        </p>
+      )}
     </article>
   );
 }
@@ -373,7 +405,16 @@ function Body({ card, shapes, boundaries, rowFor }) {
   if (card.kind === "zones") return <Zones />;
 
   const figures = figuresFor(card, { rowFor });
-  if (!figures) return <Waiting scope={card.scope} />;
+  if (!figures) {
+    if (boundaries === undefined) return <Waiting scope={card.scope} />;
+    return (
+      <Missing
+        what={card.scope === "ward" ? card.ward : card.lga}
+        where={card.scope === "ward" ? card.lga : card.place}
+        failed={boundaries === null}
+      />
+    );
+  }
 
   if (card.kind === "turnout") return <Turnout figures={figures} />;
   if (card.kind === "register") return <Register figures={figures} />;
@@ -385,6 +426,26 @@ function Waiting({ scope }) {
     <p className="flex items-center gap-2 py-4 text-[0.8125rem] text-white/45">
       <Loader2 size={14} className="animate-spin" />
       Working out the {scope === "ward" ? "ward" : "local government"}…
+    </p>
+  );
+}
+
+/**
+ * A card for a place that is not there.
+ *
+ * ── WHY THIS IS NOT A SPINNER ──────────────────────────────────────────────
+ * A card asked for "Ward 40" of a local government with eleven wards, or one
+ * whose boundary file will not load, used to sit spinning for ever. A spinner
+ * says "this is coming", and when it is not coming that is a lie told
+ * indefinitely. It says what is wrong, and it can be taken off the board like
+ * anything else.
+ */
+function Missing({ what, where, failed }) {
+  return (
+    <p className="py-3 text-[0.8125rem] leading-relaxed text-white/55">
+      {failed
+        ? `The boundaries for ${where} would not load, so there is nothing to work this out from.`
+        : `There is no ${what} in ${where}. Take this off the board and ask again with the right name.`}
     </p>
   );
 }
@@ -638,6 +699,14 @@ function BoardMap({ card, shapes, boundaries }) {
   }, [state, shapes, boundaries, card.lga]);
 
   if (!inner) {
+    if (boundaries === null) {
+      return (
+        <p className="py-6 text-[0.8125rem] leading-relaxed text-white/55">
+          The boundaries for {state?.name} would not load, so there is no map to draw. Everything
+          else about {state?.name} still works.
+        </p>
+      );
+    }
     return (
       <p className="flex items-center gap-2 py-8 text-[0.8125rem] text-white/45">
         <Loader2 size={14} className="animate-spin" />
@@ -652,7 +721,13 @@ function BoardMap({ card, shapes, boundaries }) {
     <div>
       <svg
         viewBox={inner.viewBox}
-        className="w-full"
+        preserveAspectRatio="xMidYMid meet"
+        /* ── A CARD IS A CARD, NOT A WALL ──────────────────────────────────
+           An SVG given only a width grows to whatever its aspect ratio asks
+           for, and Nigeria's is tall. Two columns of a board then became one
+           card three screens deep. Capped and centred, it fits beside the
+           figures it belongs with, which is the entire point of a board. */
+        className="mx-auto block max-h-[24rem] w-full"
         role="img"
         aria-label={`Map of ${card.subtitle}. The same figures are on the cards beside it.`}
       >
@@ -670,6 +745,27 @@ function BoardMap({ card, shapes, boundaries }) {
           </path>
         ))}
       </svg>
+
+      {/* ── THE KEY COMES WITH THE MAP ────────────────────────────────────
+          A choropleth without a key is a picture. This one is coloured by
+          who led each place, and on a board that may hold four maps at once
+          nobody should have to remember which green is which. LP is drawn
+          with a rule across it here for the same reason it is on the public
+          board: LP's red against PDP's green is invisible to the commonest
+          colour blindness. */}
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-board-line pt-2.5">
+        {["APC", "PDP", "LP", "NNPP"].map((id) => (
+          <li key={id} className="flex items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="size-2.5 rounded-[2px]"
+              style={{ background: PARTY_FILL[id] }}
+            />
+            <span className="figure text-[0.6875rem] font-bold text-white/70">{id}</span>
+          </li>
+        ))}
+        <li className="ml-auto text-[0.6875rem] text-white/35">Coloured by who led</li>
+      </ul>
 
       {card.scope === "ward" && (
         <p className="mt-2 border-t border-board-line pt-2.5 text-[0.6875rem] leading-relaxed text-white/45">

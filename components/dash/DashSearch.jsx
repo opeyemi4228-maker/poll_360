@@ -27,7 +27,14 @@ import { cn } from "@/lib/utils";
  */
 const LIMIT = 8;
 
-export default function DashSearch({ items = [], onPick, placeholder = "Search a state…" }) {
+export default function DashSearch({
+  items = [],
+  onPick,
+  placeholder = "Search a state…",
+  /* The bar it sits in decides how wide the field may be: the situation room
+     has to fit eight tabs beside it, a phone has to fit nothing at all. */
+  className,
+}) {
   const listId = useId();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -142,7 +149,8 @@ export default function DashSearch({ items = [], onPick, placeholder = "Search a
         className={cn(
           "h-11 w-56 rounded-full border border-dash-line bg-dash-bg pr-9 pl-9",
           "text-[0.875rem] text-dash-ink placeholder:text-dash-muted",
-          "focus:border-dash-ink focus:outline-none"
+          "focus:border-dash-ink focus:outline-none",
+          className
         )}
       />
 

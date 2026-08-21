@@ -8,6 +8,8 @@
   },
   "scripts": {
     "dev": "next dev --turbopack",
+    "_comment:dev:secure": "The microphone. Browsers only hand one over on https or on localhost, so opening the dev server at its network address, to reach it from a phone or a second machine, silently loses Poll360 AI's ability to listen. This serves the same app over https with a self-signed certificate: the browser will warn once about the certificate, and after that the microphone works from any device on the network.",
+    "dev:secure": "next dev --turbopack --experimental-https",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

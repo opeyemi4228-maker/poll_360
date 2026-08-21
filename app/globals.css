@@ -639,7 +639,12 @@
   .animate-ai-rise {
     animation: none !important;
   }
-  * *::before,
+  /* Was `* *::before, *::after`, which reached pseudo-elements and
+     nothing else: every animation on a real element in the product
+     ran at full speed for somebody who had asked the operating
+     system for less motion. The leading `*,` is the whole fix. */
+  *,
+  *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

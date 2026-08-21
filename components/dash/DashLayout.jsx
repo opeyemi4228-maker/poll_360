@@ -5,7 +5,7 @@ import SignOutButton from "@/components/auth/SignOutButton";
 import DashRail from "./DashRail";
 import ElectionSwitcher from "./ElectionSwitcher";
 import DashDrawer from "./DashDrawer";
-import { currentElection } from "@/lib/election-scope";
+import { currentElection, listElections } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { ROLES } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -35,7 +35,7 @@ export default async function DashLayout({ user, title, lead, actions, children 
   /* Fetched here rather than passed in by each page: every dashboard needs the
      same control in the same place, and threading it through four call sites
      is four chances to forget one. */
-  const [current, all] = await Promise.all([currentElection(), elections.list()]);
+  const [current, all] = await Promise.all([currentElection(), listElections()]);
 
   return (
     <div className="min-h-screen bg-dash-bg">

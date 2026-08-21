@@ -15,6 +15,7 @@ import {
 
 import { STARTERS, ask } from "@/lib/assistant";
 import { DRIVING_STARTERS, drive } from "@/lib/commands";
+import { bestVoice, sentences } from "@/lib/voice";
 import { useRoomVoice } from "./RoomVoice";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +86,15 @@ export default function Assistant({ tab = "results", projection = null }) {
   const [reply, setReply] = useState(null);
   const [turns, setTurns] = useState([]);
   const [showTurns, setShowTurns] = useState(false);
+  /**
+   * How much of the screen the assistant is entitled to.
+   *
+   * "full" is the greeting: the moment after it is called, when it is the
+   * subject and there is nothing else to look at. "compact" is every moment
+   * after it has answered once, when it has changed the screen and the screen
+   * is the point. It stays fully live in both.
+   */
+  const [stage, setStage] = useState("full");
 
   const recognition = useRef(null);
   const wantsMic = useRef(false);
@@ -97,6 +107,12 @@ export default function Assistant({ tab = "results", projection = null }) {
   /* The last thing said, so "put that on the board" has a "that". */
   const lastAnswer = useRef(null);
   const linger = useRef(null);
+  /* Whether the microphone itself was granted. It is the difference between
+     "you cannot have a microphone" and "you have a microphone, and this
+     browser will not let a page run speech recognition with it", which are
+     different problems with different answers and were being told apart by
+     nobody. */
+  const micGranted = useRef(false);
 
   /* Speech lives on window, so this is read once at mount rather than in an
      effect. Nothing rendered before the overlay opens depends on it, so the
@@ -108,17 +124,24 @@ export default function Assistant({ tab = "results", projection = null }) {
   );
   const [canSpeak] = useState(() => typeof window !== "undefined" && "speechSynthesis" in window);
 
-  /* Nigerian English if the device has it, British if not, because a Nigerian
-     place name read in a General American voice is often unrecognisable. */
-  const pickVoice = useCallback(() => {
-    const voices = window.speechSynthesis.getVoices();
-    return (
-      voices.find((voice) => voice.lang === "en-NG") ??
-      voices.find((voice) => voice.lang?.startsWith("en-GB")) ??
-      voices.find((voice) => voice.lang?.startsWith("en")) ??
-      null
-    );
-  }, []);
+  /* ── THE VOICE ───────────────────────────────────────────────────────────
+     Held in a ref and chosen again whenever the browser says the list has
+     changed. `getVoices()` is usually empty the first time anything asks, so
+     choosing once at start-up is how an app ends up permanently reading in
+     the worst voice on the machine. The ranking itself is in `lib/voice`. */
+  const voice = useRef(null);
+
+  useEffect(() => {
+    if (!canSpeak) return undefined;
+
+    const choose = () => {
+      voice.current = bestVoice(window.speechSynthesis.getVoices());
+    };
+
+    choose();
+    window.speechSynthesis.addEventListener("voiceschanged", choose);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", choose);
+  }, [canSpeak]);
 
   const startListening = useCallback(() => {
     if (!canHear || !wantsMic.current) return;
@@ -138,14 +161,6 @@ export default function Assistant({ tab = "results", projection = null }) {
       }
 
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const voice = pickVoice();
-      if (voice) utterance.voice = voice;
-      utterance.lang = voice?.lang ?? "en-GB";
-      /* Slightly under natural pace. These are numbers being read to a room
-         that may be writing them down. */
-      utterance.rate = 0.98;
-      utterance.pitch = 1;
 
       /* ── WHY THERE IS A DEADLINE ───────────────────────────────────────
          Speech synthesis does not always finish. A device with no voice
@@ -163,15 +178,40 @@ export default function Assistant({ tab = "results", projection = null }) {
       };
 
       /* Roughly speaking pace, plus a second of slack. */
-      const deadline = setTimeout(finish, Math.min(30_000, 1000 + text.length * 65));
+      const deadline = setTimeout(finish, Math.min(45_000, 1500 + text.length * 75));
 
-      utterance.onstart = () => setSpeaking(true);
-      utterance.onend = finish;
-      utterance.onerror = finish;
+      /* ── ONE SENTENCE AT A TIME ────────────────────────────────────────
+         Every engine flattens across a long utterance and several stop
+         partway through one. Queued sentence by sentence, each is planned
+         and read as a sentence, which is both more reliable and noticeably
+         more natural. Only the last one re-opens the microphone. */
+      const lines = sentences(text);
 
-      window.speechSynthesis.speak(utterance);
+      lines.forEach((line, index) => {
+        const utterance = new SpeechSynthesisUtterance(line);
+        if (voice.current) utterance.voice = voice.current;
+        utterance.lang = voice.current?.lang ?? "en-GB";
+        /* Just under natural pace, and a shade below default pitch: these are
+           numbers being read to a room that may be writing them down, and a
+           bright voice reading figures gets tiring within a minute. */
+        utterance.rate = 0.96;
+        utterance.pitch = 0.96;
+        utterance.volume = 1;
+
+        if (index === 0) utterance.onstart = () => setSpeaking(true);
+        if (index === lines.length - 1) {
+          utterance.onend = finish;
+          utterance.onerror = finish;
+        } else {
+          utterance.onerror = finish;
+        }
+
+        window.speechSynthesis.speak(utterance);
+      });
+
+      if (!lines.length) finish();
     },
-    [canSpeak, muted, pickVoice, startListening]
+    [canSpeak, muted, startListening]
   );
 
   /* ── carrying out an instruction ────────────────────────────────────────
@@ -237,8 +277,20 @@ export default function Assistant({ tab = "results", projection = null }) {
       setTurns((previous) => [...previous, { role: "you", text }, { role: "ai", ...answer }]);
       speak(answer.text, { thenListen: spoken });
 
+      /* ── IT GETS OUT OF THE WAY THE MOMENT IT HAS BEEN USEFUL ──────────
+         Saying hello to it, or asking what it can do, is a question about
+         the assistant, so it stays open. Everything else is a question
+         about the election or an instruction to move the room, and the
+         answer to both is behind the overlay. */
+      const aboutItself = answer.kind === "identity" || answer.kind === "help";
+      setStage(aboutItself ? "full" : "compact");
+
       clearTimeout(linger.current);
-      linger.current = setTimeout(() => setReply(null), LINGER);
+      /* The big card clears itself so a room that walked away is not left
+         reading an hour-old sentence in 24-point type. The small one keeps
+         the last answer: it is out of the way, and being able to look back
+         at what was just said is worth more there than tidiness. */
+      if (aboutItself) linger.current = setTimeout(() => setReply(null), LINGER);
     },
     [room, carryOut, tab, projection, speak]
   );
@@ -270,13 +322,61 @@ export default function Assistant({ tab = "results", projection = null }) {
       }
     };
 
+    /* ── THE RECOGNISER'S OWN FAILURES ─────────────────────────────────────
+       Separate from the microphone's, and routinely confused with them. By
+       the time this fires we already know whether the microphone was granted,
+       so each of these can be told apart and answered on its own terms.
+
+       The one that catches people out is the third: recognition in Chrome is
+       not done on the machine, it is sent to a Google service. A Chromium
+       build without a key for that service, or a browser with no connection,
+       refuses in exactly the same breath as a denied microphone, and the
+       microphone is not the problem in either case. */
+    const stop = (message) => {
+      wantsMic.current = false;
+      setCalling(false);
+      setTyping(true);
+      setNotice(message);
+    };
+
     engine.onerror = (event) => {
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        wantsMic.current = false;
-        setCalling(false);
-        setNotice("The microphone is blocked for this site. Allow it in the browser, or type instead.");
-      } else if (event.error === "no-speech") {
-        setNotice(null);
+      switch (event.error) {
+        case "not-allowed":
+          if (micGranted.current) {
+            stop(
+              "The microphone is on, but this browser will not let a page use speech recognition. Chrome or Edge will. Everything here works typed in the meantime."
+            );
+          } else {
+            stop(
+              "The microphone is switched off for this site. Click the padlock at the left of the address bar, set Microphone to Allow, then reload."
+            );
+          }
+          break;
+
+        case "service-not-allowed":
+          stop(
+            "This browser has no speech service to send the audio to. Chrome and Edge do; several Chromium browsers built from the same code do not. Type instead, and nothing else changes."
+          );
+          break;
+
+        case "network":
+          stop(
+            "Speech recognition needs a connection, because the browser sends the audio away to be read. There is none right now, so type instead."
+          );
+          break;
+
+        case "audio-capture":
+          stop("The microphone stopped responding. Check it is still plugged in, then press the microphone again.");
+          break;
+
+        case "no-speech":
+          /* Normal. It simply heard nothing before it timed out, and it will
+             open itself again a moment from now. */
+          setNotice(null);
+          break;
+
+        default:
+          break;
       }
     };
 
@@ -307,21 +407,144 @@ export default function Assistant({ tab = "results", projection = null }) {
     };
   }, [canHear, startListening]);
 
-  const beginCall = () => {
+  /**
+   * Ask for the microphone properly, and say precisely what is wrong if we
+   * cannot have it.
+   *
+   * ── WHY THIS IS NOT LEFT TO THE RECOGNISER ─────────────────────────────
+   * Speech recognition asks for the microphone on your behalf, and when it is
+   * refused it reports "not-allowed" and nothing else. That single word covers
+   * at least four different situations with four different fixes, and telling
+   * somebody "the microphone is blocked" when the real problem is the address
+   * they typed is worse than saying nothing: they will go and hunt through
+   * browser settings that were never the issue.
+   *
+   * Asking for it directly separates them. The commonest by a distance is the
+   * third one below, and nothing in a browser's settings will ever fix it.
+   *
+   *   No microphone      nothing plugged in or built in.
+   *   Refused            the permission was declined, once, and remembered.
+   *   Insecure address   opened over plain http on a network address. Browsers
+   *                      only allow a microphone on https, or on localhost.
+   *                      Same machine, same server, different address: one
+   *                      works and the other cannot.
+   *
+   * The permission is all we want, so the track is stopped the instant it is
+   * granted. Holding it open would leave the browser's recording light on over
+   * a conversation about an unreleased result, which is the one thing this
+   * assistant promises never to do.
+   */
+  const askForMicrophone = useCallback(async () => {
+    if (typeof window === "undefined") return false;
+
+    if (!window.isSecureContext) {
+      setNotice(
+        "This page is open on a plain network address, and no browser will offer a microphone on one. Open it at localhost instead, or run the server with npm run dev:secure and open the https address. Nothing needs changing in your settings."
+      );
+      return false;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      /* Nothing to ask with. The recogniser may still work on its own, so
+         this is not treated as a refusal. */
+      return true;
+    }
+
+    /* ── WHAT THE SITE ITSELF IS ALLOWED ──────────────────────────────────
+       Asked before we try, because it is the one thing that separates "you
+       said no to this website" from "your computer is not letting this
+       browser near a microphone at all". If the site is granted and the
+       request still fails, no amount of clicking the padlock will help, and
+       sending somebody there is what makes an error message useless. */
+    let sitePermission = null;
+    try {
+      sitePermission = (await navigator.permissions.query({ name: "microphone" })).state;
+    } catch {
+      /* Firefox and Safari do not answer for the microphone. We simply do
+         not get the extra clue, and the messages below stay general. */
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      for (const track of stream.getTracks()) track.stop();
+      micGranted.current = true;
+      setNotice(null);
+      return true;
+    } catch (error) {
+      micGranted.current = false;
+      const name = error?.name;
+
+      if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setNotice("There is no microphone on this machine that the browser can see. Type instead.");
+      } else if (name === "NotReadableError" || name === "TrackStartError") {
+        setNotice(
+          "Something else on this machine is already holding the microphone. Close whatever is using it, then try again."
+        );
+      } else if (sitePermission === "granted") {
+        /* The website is allowed and it still failed. That is the operating
+           system, and it is the case people lose the most time to, because
+           every message they will find on the internet is about the padlock. */
+        setNotice(
+          "This site is allowed to use the microphone, so it is your computer blocking it, not this page. On a Mac open System Settings, then Privacy and Security, then Microphone, switch your browser on, and quit and reopen the browser. On Windows it is Settings, Privacy, Microphone."
+        );
+      } else if (name === "NotAllowedError" || name === "SecurityError") {
+        setNotice(
+          "The microphone is switched off for this site. Click the padlock at the left of the address bar, set Microphone to Allow, then reload. If the browser never asked you, it is remembering an earlier no."
+        );
+      } else {
+        setNotice("The microphone could not be opened. Type instead, and everything still works.");
+      }
+      return false;
+    }
+  }, []);
+
+  /**
+   * Take the microphone, having first made sure we are allowed one.
+   *
+   * `listenNow` is false when a greeting is about to be read out: the call is
+   * armed, and the recogniser is opened by whatever finishes speaking. Opening
+   * it here as well would have the assistant listening to itself say hello,
+   * and then answering it.
+   */
+  const takeMicrophone = useCallback(
+    async ({ listenNow = true } = {}) => {
+      const allowed = await askForMicrophone();
+      if (!allowed) {
+        wantsMic.current = false;
+        setCalling(false);
+        setTyping(true);
+        return false;
+      }
+      wantsMic.current = true;
+      setCalling(true);
+      if (listenNow) startListening();
+      return true;
+    },
+    [askForMicrophone, startListening]
+  );
+
+  const beginCall = async () => {
     setOpen(true);
+    setStage("full");
     setNotice(null);
     setReply({ text: GREETING, kind: "greeting" });
     lastAnswer.current = GREETING;
-    speak(GREETING, { thenListen: canHear });
 
-    if (canHear) {
-      wantsMic.current = true;
-      setCalling(true);
-      startListening();
-    } else {
+    if (!canHear) {
+      speak(GREETING);
       setTyping(true);
-      setNotice("This browser cannot listen, so type instead. Chrome and Edge can hear you.");
+      setNotice(
+        "This browser cannot listen, so type instead. Chrome and Edge can hear you, and everything works either way."
+      );
+      return;
     }
+
+    /* The permission is settled before anything is said, so the prompt lands
+       while the person is still looking at the button they just pressed
+       rather than over the top of a greeting. Where it has been granted
+       before, this resolves in a few milliseconds and nobody sees a thing. */
+    const armed = await takeMicrophone({ listenNow: false });
+    speak(GREETING, { thenListen: armed });
   };
 
   const endCall = useCallback(() => {
@@ -379,6 +602,87 @@ export default function Assistant({ tab = "results", projection = null }) {
   }, [reply, room]);
 
   const mode = speaking ? "speaking" : listening ? "listening" : calling ? "thinking" : "idle";
+  /* ── THE STATUS LINE, SHARED BY BOTH SIZES ─────────────────────────────── */
+  const status = speaking
+    ? "Speaking"
+    : listening
+      ? "Listening"
+      : calling
+        ? "One moment"
+        : "Paused";
+
+  const controls = (small) => (
+    <>
+      {!small && (
+        <Control
+          icon={History}
+          label={showTurns ? "Hide what was said" : "Show what was said"}
+          on={showTurns}
+          small={small}
+          onClick={() => setShowTurns((value) => !value)}
+        />
+      )}
+      <Control
+        icon={Keyboard}
+        label={typing ? "Close the keyboard" : "Type instead"}
+        on={typing}
+        small={small}
+        onClick={() => setTyping((value) => !value)}
+      />
+      {canSpeak && (
+        <Control
+          icon={muted ? VolumeX : Volume2}
+          label={muted ? "Turn the voice back on" : "Mute the voice"}
+          on={muted}
+          small={small}
+          onClick={() => {
+            setMuted((value) => !value);
+            if (!muted) window.speechSynthesis.cancel();
+          }}
+        />
+      )}
+      {canHear && (
+        <Control
+          icon={Mic}
+          label={calling ? "Stop listening" : "Start listening"}
+          on={calling}
+          live={calling}
+          small={small}
+          onClick={() => {
+            if (calling) endCall();
+            else takeMicrophone();
+          }}
+        />
+      )}
+      <Control icon={PhoneOff} label="Close Poll360 AI" danger small={small} onClick={hangUp} />
+    </>
+  );
+
+  const keys = (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        respond(typed);
+        setTyped("");
+      }}
+      className="flex items-center gap-2"
+    >
+      <input
+        value={typed}
+        onChange={(event) => setTyped(event.target.value)}
+        placeholder="Ask, or say where to go"
+        aria-label="Ask Poll360 AI"
+        className="min-w-0 flex-1 rounded-full border border-white/15 bg-white/5 px-4 py-2.5 text-[0.875rem] text-white outline-none placeholder:text-white/35 focus:border-white/45"
+      />
+      <button
+        type="submit"
+        disabled={!typed.trim()}
+        className="shrink-0 rounded-full bg-white px-4 py-2.5 text-[0.8125rem] font-bold text-black transition-opacity disabled:opacity-30"
+      >
+        Ask
+      </button>
+    </form>
+  );
 
   /* ------------------------------------------------------------- launcher */
   if (!open) {
@@ -399,29 +703,113 @@ export default function Assistant({ tab = "results", projection = null }) {
     );
   }
 
-  /* ----------------------------------------------------------- the overlay */
+  /* ═══════════════════════════════════════════════════════════ the small one
+     ── WHY IT SHRINKS AFTER THE FIRST ANSWER ────────────────────────────────
+     The full-width version is a greeting. It is the right thing for the two
+     seconds after somebody calls it, when the assistant is the subject and
+     there is nothing else to look at, and it is exactly the wrong thing for
+     every second after that, because by then the assistant has changed the
+     screen and the screen is the point. Standing over a map it has just
+     drawn, explaining what it drew, is the one thing it must never do.
+
+     So it gets out of the way the moment it has been useful, and carries on
+     working from the corner: still listening, still showing what it heard as
+     it hears it, still reading the answer out. Nothing is turned off by the
+     collapse except the amount of the room it is covering. Saying hello to it
+     again opens it back out, and so does pressing the orb.
+     ═══════════════════════════════════════════════════════════════════════ */
+  if (stage === "compact") {
+    return (
+      <section
+        aria-label="Poll360 AI"
+        className="animate-ai-rise fixed right-5 bottom-5 z-50 w-[min(25rem,calc(100vw-2.5rem))] overflow-hidden rounded-dash border border-white/12 bg-black/85 text-white shadow-e4 backdrop-blur-xl"
+      >
+        {listening && (
+          <span
+            aria-hidden="true"
+            className="animate-ai-sweep absolute inset-x-0 top-0 h-[2px] bg-[linear-gradient(90deg,transparent,var(--ai-1),var(--ai-2),var(--ai-3),transparent)] bg-[length:50%_100%] bg-no-repeat"
+          />
+        )}
+
+        <div className="flex items-start gap-3 px-3.5 pt-3.5 pb-3">
+          <button
+            type="button"
+            onClick={() => setStage("full")}
+            aria-label="Open Poll360 AI out"
+            title="Open it out"
+            className="shrink-0 rounded-full transition-transform hover:scale-105"
+          >
+            <Orb mode={mode} size={40} />
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <p className="flex items-center gap-1.5 text-[0.625rem] font-bold tracking-[0.14em] text-white/40 uppercase">
+              {status}
+            </p>
+
+            {/* What is being heard, as it is heard. This is the half of the
+                assistant people check on, so it stays at the top and stays
+                bigger than the answer under it. */}
+            <p className="mt-1 line-clamp-2 text-[0.9375rem] leading-snug font-semibold text-white">
+              {heard ? `“${heard}”` : <span className="text-white/35">Say what you need</span>}
+            </p>
+
+            {reply && (
+              <p className="mt-1.5 line-clamp-4 text-[0.8125rem] leading-relaxed text-white/70">
+                {reply.text}
+              </p>
+            )}
+
+            {reply?.synthetic && (
+              <p className="mt-1.5 text-[0.625rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
+                Generated figure
+              </p>
+            )}
+          </div>
+        </div>
+
+        {notice && (
+          <p className="border-t border-white/10 bg-amber-400/10 px-3.5 py-2 text-[0.75rem] text-amber-100">
+            {notice}
+          </p>
+        )}
+
+        {typing && <div className="border-t border-white/10 px-3 py-2.5">{keys}</div>}
+
+        <div className="flex items-center gap-1 border-t border-white/10 px-2.5 py-2">
+          <button
+            type="button"
+            onClick={() => setStage("full")}
+            className="mr-auto rounded-full px-2 py-1 text-[0.6875rem] font-semibold text-white/45 transition-colors hover:text-white"
+          >
+            Open it out
+          </button>
+          {controls(true)}
+        </div>
+      </section>
+    );
+  }
+
+  /* ═════════════════════════════════════════════════════════════ the big one
+     Only ever the moment after it is called, and only until it has answered
+     once. The room behind stays visible and stays live: the band is a rise to
+     black along the bottom edge rather than a panel, because a hard edge
+     across a live map reads as a broken screen.
+     ═══════════════════════════════════════════════════════════════════════ */
   return (
     <div
       aria-label="Poll360 AI"
       role="region"
-      /* The room behind stays visible and stays live. Only the strip along the
-         bottom takes the pointer, so a producer can still click the map with
-         the assistant up. */
       className="pointer-events-none fixed inset-0 z-50 flex flex-col justify-end"
     >
-      {/* ── THE BAND ────────────────────────────────────────────────────────
-          A soft rise to near-black along the bottom edge rather than a panel
-          with a border. Type this large has to sit on something, and a hard
-          edge across a live map reads as a broken screen. */}
       <div
         aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black/85 via-black/55 to-transparent"
+        className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
       />
 
-      {/* ── THE LISTENING LINE ──────────────────────────────────────────────
-          A light running along the very bottom edge of the display whenever
-          the microphone is open. It is the one signal readable from the far
-          side of a room, and it is off the instant the microphone is. */}
+      {/* The light along the bottom edge of the display whenever the
+          microphone is open. The one signal readable from the far side of a
+          room, and off the instant the microphone is. */}
       {listening && (
         <span
           aria-hidden="true"
@@ -429,19 +817,18 @@ export default function Assistant({ tab = "results", projection = null }) {
         />
       )}
 
-      <div className="pointer-events-auto relative mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 pb-5 lg:px-8 lg:pb-7">
+      <div className="pointer-events-auto relative mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 pb-5 lg:px-8 lg:pb-6">
         {notice && (
           <p className="animate-ai-rise self-start rounded-dash bg-amber-400/15 px-3.5 py-2 text-[0.8125rem] text-amber-100 backdrop-blur">
             {notice}
           </p>
         )}
 
-        {/* -------------------------------------------------------- the log */}
         {showTurns && (
           <div className="animate-ai-rise self-end">
             <div
               ref={log}
-              className="max-h-[45vh] w-[min(30rem,calc(100vw-2rem))] space-y-2.5 overflow-y-auto rounded-dash border border-white/10 bg-black/70 p-4 backdrop-blur-xl"
+              className="max-h-[38vh] w-[min(30rem,calc(100vw-2rem))] space-y-2.5 overflow-y-auto rounded-dash border border-white/10 bg-black/75 p-4 backdrop-blur-xl"
             >
               {turns.length === 0 ? (
                 <p className="text-[0.8125rem] text-white/50">Nothing said yet.</p>
@@ -451,7 +838,7 @@ export default function Assistant({ tab = "results", projection = null }) {
                     key={index}
                     className={cn(
                       "text-[0.8125rem] leading-relaxed",
-                      turn.role === "you" ? "font-semibold text-white/60" : "text-white"
+                      turn.role === "you" ? "font-semibold text-white/55" : "text-white"
                     )}
                   >
                     {turn.role === "you" ? "You · " : "Poll360 AI · "}
@@ -463,13 +850,12 @@ export default function Assistant({ tab = "results", projection = null }) {
           </div>
         )}
 
-        {/* ----------------------------------------------------- the answer */}
         {reply && (
           <div
             key={reply.text}
-            className="animate-ai-rise max-w-3xl rounded-dash border border-white/10 bg-black/55 px-5 py-4 backdrop-blur-xl"
+            className="animate-ai-rise max-w-2xl rounded-dash border border-white/10 bg-black/55 px-5 py-3.5 backdrop-blur-xl"
           >
-            <p className="text-[clamp(1rem,0.9rem+0.5vw,1.375rem)] leading-relaxed font-medium text-white">
+            <p className="text-[clamp(0.9375rem,0.85rem+0.35vw,1.1875rem)] leading-relaxed font-medium text-white">
               {reply.text}
             </p>
             {reply.synthetic && (
@@ -480,7 +866,6 @@ export default function Assistant({ tab = "results", projection = null }) {
           </div>
         )}
 
-        {/* ---------------------------------------------------- suggestions */}
         <ul className="flex flex-wrap gap-2">
           {suggestions.map((line) => (
             <li key={line}>
@@ -495,102 +880,28 @@ export default function Assistant({ tab = "results", projection = null }) {
           ))}
         </ul>
 
-        {/* -------------------------------------------------------- the bar */}
         <div className="flex items-center gap-4">
-          <Orb mode={mode} size={56} />
+          <button
+            type="button"
+            onClick={() => setStage("compact")}
+            aria-label="Put Poll360 AI in the corner"
+            title="Put it in the corner"
+            className="shrink-0 rounded-full transition-transform hover:scale-105"
+          >
+            <Orb mode={mode} size={52} />
+          </button>
 
-          {/* ── THE CAPTION ─────────────────────────────────────────────────
-              What is being heard, at the size a television uses, because the
-              person who asked is usually not at the keyboard. Empty, it says
-              what the assistant is doing instead, so the line is never blank
-              and never jumps in height. */}
-          <p className="min-w-0 flex-1 truncate text-[clamp(1.125rem,0.95rem+0.9vw,1.875rem)] leading-tight font-semibold tracking-[-0.02em] text-white">
-            {heard ? (
-              <span>“{heard}”</span>
-            ) : (
-              <span className="text-white/45">
-                {speaking
-                  ? "Speaking…"
-                  : listening
-                    ? "Listening…"
-                    : calling
-                      ? "One moment…"
-                      : "Press the microphone, or type"}
-              </span>
-            )}
+          {/* The caption, at the size a television uses, because the person
+              who asked is usually not at the keyboard. Never blank, so the
+              line never changes height. */}
+          <p className="min-w-0 flex-1 truncate text-[clamp(1.0625rem,0.9rem+0.7vw,1.625rem)] leading-tight font-semibold tracking-[-0.02em] text-white">
+            {heard ? <span>“{heard}”</span> : <span className="text-white/45">{status}…</span>}
           </p>
 
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Control
-              icon={History}
-              label={showTurns ? "Hide what was said" : "Show what was said"}
-              on={showTurns}
-              onClick={() => setShowTurns((value) => !value)}
-            />
-            <Control
-              icon={Keyboard}
-              label={typing ? "Close the keyboard" : "Type instead"}
-              on={typing}
-              onClick={() => setTyping((value) => !value)}
-            />
-            {canSpeak && (
-              <Control
-                icon={muted ? VolumeX : Volume2}
-                label={muted ? "Turn the voice back on" : "Mute the voice"}
-                on={muted}
-                onClick={() => {
-                  setMuted((value) => !value);
-                  if (!muted) window.speechSynthesis.cancel();
-                }}
-              />
-            )}
-            {canHear && (
-              <Control
-                icon={Mic}
-                label={calling ? "Stop listening" : "Start listening"}
-                on={calling}
-                live={calling}
-                onClick={() => {
-                  if (calling) {
-                    endCall();
-                  } else {
-                    wantsMic.current = true;
-                    setCalling(true);
-                    startListening();
-                  }
-                }}
-              />
-            )}
-            <Control icon={PhoneOff} label="Close Poll360 AI" danger onClick={hangUp} />
-          </div>
+          <div className="flex shrink-0 items-center gap-1.5">{controls(false)}</div>
         </div>
 
-        {/* ------------------------------------------------------- the keys */}
-        {typing && (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              respond(typed);
-              setTyped("");
-            }}
-            className="animate-ai-rise flex items-center gap-2"
-          >
-            <input
-              value={typed}
-              onChange={(event) => setTyped(event.target.value)}
-              placeholder="Ask about any state, party or figure, or say where to go"
-              aria-label="Ask Poll360 AI"
-              className="min-w-0 flex-1 rounded-full border border-white/15 bg-black/50 px-5 py-3 text-[1rem] text-white backdrop-blur outline-none placeholder:text-white/35 focus:border-white/45"
-            />
-            <button
-              type="submit"
-              disabled={!typed.trim()}
-              className="shrink-0 rounded-full bg-white px-5 py-3 text-[0.875rem] font-bold text-black transition-opacity disabled:opacity-30"
-            >
-              Ask
-            </button>
-          </form>
-        )}
+        {typing && <div className="animate-ai-rise">{keys}</div>}
       </div>
     </div>
   );
@@ -598,7 +909,7 @@ export default function Assistant({ tab = "results", projection = null }) {
 
 /* -------------------------------------------------------------------------- */
 
-function Control({ icon: Icon, label, onClick, on, live, danger }) {
+function Control({ icon: Icon, label, onClick, on, live, danger, small }) {
   return (
     <button
       type="button"
@@ -607,7 +918,8 @@ function Control({ icon: Icon, label, onClick, on, live, danger }) {
       title={label}
       aria-pressed={on ? true : undefined}
       className={cn(
-        "relative flex size-11 items-center justify-center rounded-full border backdrop-blur transition-colors",
+        "relative flex items-center justify-center rounded-full border backdrop-blur transition-colors",
+        small ? "size-8" : "size-11",
         danger
           ? "border-white/15 bg-black/40 text-white/70 hover:border-red-400/60 hover:bg-red-500/20 hover:text-white"
           : on
@@ -615,11 +927,14 @@ function Control({ icon: Icon, label, onClick, on, live, danger }) {
             : "border-white/15 bg-black/40 text-white/70 hover:border-white/40 hover:text-white"
       )}
     >
-      <Icon size={17} strokeWidth={2.25} />
+      <Icon size={small ? 14 : 17} strokeWidth={2.25} />
       {live && (
         <span
           aria-hidden="true"
-          className="animate-pulse-live absolute -top-0.5 -right-0.5 size-2.5 rounded-full bg-red-500"
+          className={cn(
+            "animate-pulse-live absolute -top-0.5 -right-0.5 rounded-full bg-red-500",
+            small ? "size-2" : "size-2.5"
+          )}
         />
       )}
     </button>

@@ -58,9 +58,25 @@ export default function TopShell({
   return (
     <div className="min-h-screen bg-dash-bg">
       {/* ------------------------------------------------------------ bar */}
+      {/* ── HOW THE WIDTH IS SPENT ────────────────────────────────────────
+          Three blocks, and only the middle one is elastic: the brand and the
+          controls are sized by their contents and never shrink, and the tab
+          group centres itself in whatever is left between them.
+
+          Everything that could squeeze the row into a second line is nailed
+          down rather than left to chance. The account name is one line or it
+          is not shown at all; the tabs never wrap; the three round controls on
+          the right are all 44px, so the row has one optical baseline instead
+          of three. Below 2xl the name gives its width back to the tabs and
+          lives in the menu, which is where you look to check who you are
+          signed in as anyway.
+          ─────────────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-dash-line bg-dash-card">
-        <div className="flex h-18 items-center gap-4 px-4 lg:px-6">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+        <div className="flex h-18 items-center gap-3 px-4 lg:px-6">
+          <Link
+            href="/"
+            className="flex h-11 shrink-0 items-center gap-2.5 rounded-full transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
+          >
             <BrandMark coverage={0.62} className="size-8 text-dash-ink" />
             <span className="hidden font-display text-[1.25rem] leading-none font-extrabold tracking-[-0.045em] text-dash-ink sm:inline">
               Poll<span className="font-mono font-bold text-red-500">360</span>
@@ -74,7 +90,7 @@ export default function TopShell({
               structure, which is what it is. */}
           <nav
             aria-label="Dashboards"
-            className="mx-auto hidden items-center rounded-full bg-dash-bg p-1 xl:flex"
+            className="mx-auto hidden shrink-0 items-center rounded-full border border-dash-line bg-dash-bg p-1 xl:flex"
           >
             {(tabGroups ?? [{ id: "all", tabs }]).map((group, index) => (
               <span key={group.id} className="flex items-center">
@@ -92,7 +108,8 @@ export default function TopShell({
                     aria-pressed={active === tab.value}
                     title={group.label}
                     className={cn(
-                      "rounded-full px-3.5 py-2 text-[0.8125rem] font-semibold whitespace-nowrap transition-colors",
+                      "inline-flex h-9 items-center rounded-full px-3 text-[0.8125rem] font-semibold whitespace-nowrap transition-colors 2xl:px-3.5",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
                       active === tab.value
                         ? "bg-dash-card text-dash-ink shadow-sm"
                         : "text-dash-muted hover:text-dash-ink"
@@ -105,13 +122,24 @@ export default function TopShell({
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2">
+          {/* `ml-auto` only while the tabs are gone. With both this and the
+              nav's `mx-auto` in the row, the spare width was shared between
+              three automatic margins instead of two, which left the tab group
+              sitting a third of the slack left of where it looked like it was
+              meant to be. Now the slack falls either side of the tabs and the
+              gutters match. */}
+          <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
             {searchItems && (
-              <div className="hidden xl:block">
+              /* Narrower while the tabs are on the same row, full width once
+                 there is room for both. It appears from the smallest screen
+                 that can hold it: typing a state name is the fastest way to
+                 the place you want, and a phone has no map to click. */
+              <div className="hidden sm:block">
                 <DashSearch
                   items={searchItems}
                   onPick={onSearchPick}
                   placeholder={searchPlaceholder}
+                  className="w-44 2xl:w-56"
                 />
               </div>
             )}
@@ -126,16 +154,23 @@ export default function TopShell({
                 type="button"
                 onClick={() => setMenu((value) => !value)}
                 aria-expanded={menu}
-                className="flex items-center gap-2.5 rounded-full border border-dash-line py-1.5 pr-3 pl-1.5 transition-colors hover:border-dash-ink"
+                /* Spoken in full even at the widths where the name is not
+                   drawn, so the button never announces itself as two letters
+                   and a chevron. */
+                aria-label={`Account: ${user.name}, ${role.label}`}
+                className="flex h-11 shrink-0 items-center gap-2.5 rounded-full border border-dash-line pr-2.5 pl-1.5 transition-colors hover:border-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink 2xl:pr-3"
               >
                 <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-dash-ink font-display text-[0.75rem] font-bold text-white">
                   {initials}
                 </span>
-                <span className="hidden text-left sm:block">
-                  <span className="block text-[0.8125rem] leading-tight font-semibold text-dash-ink">
+                {/* One line each, or nothing. A long name allowed to wrap here
+                    is what turns a 72px bar into a ragged one, and this is the
+                    block the row would otherwise choose to break first. */}
+                <span className="hidden max-w-[11rem] min-w-0 text-left 2xl:block">
+                  <span className="block truncate text-[0.8125rem] leading-tight font-semibold text-dash-ink">
                     {user.name}
                   </span>
-                  <span className="block text-[0.6875rem] leading-tight text-dash-muted">
+                  <span className="block truncate text-[0.6875rem] leading-tight text-dash-muted">
                     {role.label}
                   </span>
                 </span>
@@ -150,19 +185,29 @@ export default function TopShell({
                     onClick={() => setMenu(false)}
                     className="fixed inset-0 z-10 cursor-default"
                   />
-                  <div className="absolute right-0 z-20 mt-2 w-56 rounded-dash border border-dash-line bg-dash-card p-2 shadow-lg">
-                    <Link
-                      href="/console"
-                      className="block rounded-dash-sm px-3 py-2.5 text-[0.875rem] text-dash-ink hover:bg-dash-bg"
-                    >
-                      Your account
-                    </Link>
-                    <Link
-                      href="/#board"
-                      className="block rounded-dash-sm px-3 py-2.5 text-[0.875rem] text-dash-ink hover:bg-dash-bg"
-                    >
-                      Public board
-                    </Link>
+                  <div className="absolute right-0 z-20 mt-2 w-60 rounded-dash border border-dash-line bg-dash-card p-2 shadow-lg">
+                    {/* Who you are, said once, somewhere there is always room
+                        for it however narrow the bar has become. */}
+                    <div className="border-b border-dash-line px-3 pt-1 pb-3">
+                      <p className="truncate text-[0.875rem] font-semibold text-dash-ink">
+                        {user.name}
+                      </p>
+                      <p className="truncate text-[0.75rem] text-dash-muted">{role.label}</p>
+                    </div>
+                    <div className="pt-2">
+                      <Link
+                        href="/console"
+                        className="block rounded-dash-sm px-3 py-2.5 text-[0.875rem] text-dash-ink hover:bg-dash-bg"
+                      >
+                        Your account
+                      </Link>
+                      <Link
+                        href="/#board"
+                        className="block rounded-dash-sm px-3 py-2.5 text-[0.875rem] text-dash-ink hover:bg-dash-bg"
+                      >
+                        Public board
+                      </Link>
+                    </div>
                     <div className="mt-2 border-t border-dash-line pt-2">
                       <SignOutButton variant="dashOutline" size="sm" full />
                     </div>
@@ -173,24 +218,36 @@ export default function TopShell({
           </div>
         </div>
 
-        {/* Tabs move under the bar on narrow screens rather than disappearing
-            into a menu, they are the primary control of this screen. */}
-        <div className="flex gap-1 overflow-x-auto border-t border-dash-line px-4 py-2 lg:hidden">
-          {tabs.map((tab) => (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => onTab(tab.value)}
-              aria-pressed={active === tab.value}
-              className={cn(
-                "shrink-0 rounded-full px-4 py-2.5 text-[0.875rem] font-semibold transition-colors",
-                active === tab.value
-                  ? "bg-dash-ink text-white"
-                  : "bg-dash-bg text-dash-muted"
+        {/* Tabs move under the bar rather than disappearing into a menu: they
+            are the primary control of this screen. This row takes over the
+            moment the pill group stops fitting, not one breakpoint later —
+            between the two there used to be a stretch of widths with no tabs
+            on the screen at all. It keeps the grouping, because which group a
+            view sits in is half of what its label means. */}
+        <div className="flex items-center gap-1.5 overflow-x-auto border-t border-dash-line px-4 py-2 lg:px-6 xl:hidden">
+          {(tabGroups ?? [{ id: "all", tabs }]).map((group, index) => (
+            <span key={group.id} className="flex items-center gap-1.5">
+              {index > 0 && (
+                <span aria-hidden="true" className="mx-0.5 h-5 w-px shrink-0 bg-dash-line" />
               )}
-            >
-              {tab.label}
-            </button>
+              {group.tabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  onClick={() => onTab(tab.value)}
+                  aria-pressed={active === tab.value}
+                  className={cn(
+                    "inline-flex h-10 shrink-0 items-center rounded-full px-4 text-[0.875rem] font-semibold whitespace-nowrap transition-colors",
+                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+                    active === tab.value
+                      ? "bg-dash-ink text-white"
+                      : "bg-dash-bg text-dash-muted hover:text-dash-ink"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </span>
           ))}
         </div>
       </header>

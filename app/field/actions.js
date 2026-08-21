@@ -37,8 +37,9 @@ import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
  * afterwards: lib/sheet-match.js requires the reading to be self-consistent
  * before it may contradict anybody, and a figure the reader could not make out
  * is compared to nothing rather than to zero. A sheet nobody could read does
- * not block anything — it files with no corroboration recorded, which is a
- * different thing and is stored as a different thing.
+ * not block anything — it files with the attempt recorded and no corroboration
+ * claimed, which is a different thing from having sent no sheet at all and is
+ * stored as a different thing.
  * ───────────────────────────────────────────────────────────────────────────
  */
 
@@ -114,19 +115,23 @@ export async function fileResult(_previous, formData) {
     position,
     note: String(formData.get("note") ?? "").trim().slice(0, 500) || null,
     submittedBy: agent.id,
-    /* Null where no sheet was compared. The desk has to be able to tell that
-       apart from a sheet that was compared and agreed, and a column that
-       stored both as nothing would make them identical for ever. */
+    /* Null only where no sheet was sent. An unreadable one records the
+       attempt and why, so the desk can tell "nobody photographed it" from
+       "somebody did and we could not read it" — the second is worth a phone
+       call and the first is not. */
     sheetMatch: sheet.record,
   });
 
   await log(agent, amended ? "result:amended" : "result:filed", agent.scope, {
     cast: check.cast,
     positioned: Boolean(position),
-    /* "Agreed with its sheet" and "had no sheet to agree with" are different
-       facts about a return, and an audit trail that recorded both as silence
-       could not answer which afterwards. */
-    sheet: sheet.record ? (sheet.record.agrees ? "agreed" : "not compared") : "none",
+    /* Three different facts about a return, and an audit trail that recorded
+       all of them as silence could not tell them apart afterwards. */
+    sheet: !sheet.record
+      ? "none"
+      : sheet.record.agrees
+        ? "agreed"
+        : `not compared: ${sheet.record.reason ?? "unknown"}`,
   });
 
   revalidatePath("/field");
@@ -153,26 +158,38 @@ export async function fileResult(_previous, formData) {
  * into is worse than a count with some uncorroborated rows in it.
  */
 async function checkAgainstSheet(photo, typed) {
+  /* ── THREE STATES, NOT TWO ───────────────────────────────────────────────
+     No sheet at all is `null`. A sheet that was attached and could not be
+     compared records the attempt and why. A sheet that was compared records
+     what it found. Collapsing the first two would make "nobody sent a
+     photograph" and "somebody sent one and it was unreadable" identical
+     afterwards, and only one of those is worth ringing an agent about. */
   const none = { blocked: false, record: null, match: null, message: null };
+  const uncompared = (reason) => ({
+    blocked: false,
+    match: null,
+    message: null,
+    record: { compared: false, agrees: false, checked: [], mismatched: [], reason },
+  });
 
   if (!photo || typeof photo.arrayBuffer !== "function" || photo.size === 0) return none;
   /* The framework caps the request body as well; this is the check that can
      say something useful rather than dropping the whole submission. */
-  if (photo.size > 6_000_000) return none;
-  if (!visionAvailable()) return none;
+  if (photo.size > 6_000_000) return uncompared("the picture was too large to read");
+  if (!visionAvailable()) return uncompared("no reader configured");
 
   let bytes;
   try {
     bytes = Buffer.from(await photo.arrayBuffer());
   } catch {
-    return none;
+    return uncompared("the picture could not be opened");
   }
 
   /* The declared type is a claim; the leading bytes are a fact. */
-  if (!sniff(bytes)) return none;
+  if (!sniff(bytes)) return uncompared("the file was not a photograph");
 
   const read = await readImage(bytes);
-  if (!read.ok) return none;
+  if (!read.ok) return uncompared(read.reason ?? "the picture could not be read");
 
   const match = matchSheet(parseSheet(read.text), typed);
 

@@ -3,11 +3,12 @@ import { AlertTriangle, Gauge, Scale, ShieldAlert, Users } from "lucide-react";
 
 import { PartyBars, CoverageBar } from "@/components/dash/Charts";
 import SituationRoom from "@/components/dash/SituationRoom";
-import { currentElection } from "@/lib/election-scope";
+import { currentElection, listElections } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { requireUser } from "@/lib/guard";
 import { results, incidents, media } from "@/lib/db";
 import { watch } from "@/lib/watch";
+import { gapReport } from "@/lib/gap-report";
 import { unseal } from "@/lib/crypto";
 import { parties, others, DECLARED, states2023 } from "@/lib/election2023";
 import { buildBoard } from "@/lib/replay";
@@ -35,7 +36,7 @@ export const dynamic = "force-dynamic";
 export default async function RoomPage() {
   const user = await requireUser("/room");
 
-  const [project, allProjects] = await Promise.all([currentElection(), elections.list()]);
+  const [project, allProjects] = await Promise.all([currentElection(), listElections()]);
 
   const board = buildBoard();
 
@@ -49,9 +50,14 @@ export default async function RoomPage() {
 
      Only the photographs have to wait, because they are fetched by the ids
      of the incidents above and cannot be asked for until those are known. */
-  const [rawFeed, coordinators] = await Promise.all([
+  const [rawFeed, coordinators, divergence] = await Promise.all([
     incidents.recent(40, project?.id),
     watch.coordinators(),
+    /* The same function /gap builds its whole screen from. Two assemblers
+       would mean the headline on this wall could disagree with the list on the
+       drill-down, and the first time a room reads "3 impossible" here and
+       finds four there is the last time anybody believes either. */
+    gapReport(project?.id),
   ]);
 
   const feed = rawFeed.map((item) => ({
@@ -76,6 +82,7 @@ export default async function RoomPage() {
       photos={photoMap}
       incidentCount={feed.length}
       scopeStates={project?.scopeStates ?? []}
+      divergence={divergence}
       /* ── DATA, NOT A READY-MADE ELEMENT ────────────────────────────────
          This used to hand the switcher across already rendered. The switcher
          is a client component, so building it here bought nothing, and the

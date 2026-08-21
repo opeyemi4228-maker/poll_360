@@ -575,7 +575,13 @@ export default function SituationRoom({
       const head = { code: target.code, name: target.name };
       const openHere = state?.code === target.code;
 
-      /* A local government already resolvable from what is loaded. */
+      /* ── A DRILL IS ONLY WORTH HOLDING IF SOMETHING IS COMING ────────────
+         The pending name is spent when a boundary file lands, and a boundary
+         file only lands when the state changes. Setting one while already
+         standing in the state therefore parks a name that nothing will ever
+         come to collect, and it would then be spent on the next state
+         visited, sending the map somewhere nobody asked for minutes later.
+         So it is only ever set on the way into a state we are not in. */
       if (place.lga) {
         const match = openHere ? lgaRows.find((row) => row.name === place.lga) : null;
         if (match) {
@@ -587,15 +593,22 @@ export default function SituationRoom({
           setPicked(null);
           return null;
         }
+
+        if (openHere) {
+          return lgaRows.length
+            ? `I cannot find ${place.lga} in ${target.name}.`
+            : `${target.name} is still drawing. Ask me again in a moment.`;
+        }
+
         pendingDrill.current = normalise(place.lga);
         setPath([head]);
         setPicked(null);
         return null;
       }
 
-      /* Named but not yet placeable: go to the state and finish the drill
+      /* Heard but not yet placeable: go to the state, and finish the drill
          when its names arrive. */
-      if (place.pendingLga) pendingDrill.current = normalise(place.pendingLga);
+      if (place.pendingLga && !openHere) pendingDrill.current = normalise(place.pendingLga);
 
       /* A ward with no local government named means the one already open. */
       if (place.ward && openHere && lga) {
@@ -710,6 +723,53 @@ export default function SituationRoom({
     [path, lgaRows, run]
   );
 
+  /**
+   * Everything the alarm should make a noise about.
+   *
+   * ── WHY DIVERGENCE RIDES THE ALARM THAT ALREADY EXISTS ──────────────────
+   * The room has one alarm, and it is the only thing in this product designed
+   * to be heard rather than read — because this screen is on a wall at 1am
+   * while the people in the room are on the phone. A second, separate alert
+   * for declared figures would be a second thing to mute, a second thing to
+   * miss, and two competing sounds in one room. So a finding becomes an alert
+   * of the same shape and goes through the same bell, with the same mute and
+   * the same unread count.
+   *
+   * ── AND WHY NOT EVERY FINDING ───────────────────────────────────────────
+   * Only what lib/divergence.js calls urgent: impossible arithmetic and a
+   * changed winner. The figure-by-figure differences are worth reading and are
+   * not worth interrupting a room for. An alarm that fires for everything is
+   * an alarm somebody unplugs the speakers to escape, and then it is off for
+   * the rest of the night.
+   *
+   * The incident feed itself is left untouched: these are alerts, not reports
+   * from the field, and folding them into `incidents` would put them in the
+   * stream as though a coordinator had filed them.
+   */
+  const gapAlerts = useMemo(
+    () =>
+      (divergence?.urgent ?? []).map((flag) => ({
+        /* Prefixed so it can never collide with an incident id, and stable
+           across refreshes so the bell announces each finding exactly once. */
+        id: `declared:${flag.id}`,
+        severity: "CRITICAL",
+        kind: flag.says,
+        unitCode: flag.key,
+        /* When the declared figure that produced this was entered. The finding
+           itself has no clock of its own: it is a comparison, and it came into
+           existence the moment the second of its two figures did. */
+        createdAt: divergence?.at ?? new Date(),
+      })),
+    [divergence?.urgent, divergence?.at]
+  );
+
+  const alerts = useMemo(() => [...gapAlerts, ...incidents], [gapAlerts, incidents]);
+
+  /* Where the bell should send somebody. A room whose newest alert is a
+     changed winner should not be dropped into the incident stream, which has
+     nothing to do with it. */
+  const lastAlertWasDivergence = gapAlerts.length > 0;
+
   const hour = new Date().getHours();
   const greeting = `Good ${hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}, ${user.name.split(" ")[0]}`;
 
@@ -727,8 +787,8 @@ export default function SituationRoom({
       searchItems={searchItems}
       onSearchPick={searchPick}
       searchPlaceholder={state ? `Search ${state.name}…` : "Search a state…"}
-      alerts={incidents}
-      onOpenAlerts={() => setLayer("stream")}
+      alerts={alerts}
+      onOpenAlerts={() => setLayer(lastAlertWasDivergence ? "declared" : "stream")}
       subtitle={
         MAP_LAYERS.has(layer)
           ? `${crumbs.at(-1).label} · ${LABEL[layer]}`
@@ -742,7 +802,11 @@ export default function SituationRoom({
               ? "Projection from the 2023 result, under your assumptions"
               : layer === "planning"
                 ? "Choose the territory you can actually cover"
-                : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
+                : layer === "declared"
+                  ? divergence?.ready
+                    ? `${formatNumber(divergence.compared)} place${divergence.compared === 1 ? "" : "s"} compared, ${formatNumber(divergence.places)} differing`
+                    : "Nothing declared yet to compare against"
+                  : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
       }
       aside={
         /* Rendered here rather than handed in from the page: both this and
@@ -771,6 +835,43 @@ export default function SituationRoom({
         <Analytics />
       ) : layer === "planning" ? (
         <PlanningMap shapes={shapes} />
+      ) : layer === "declared" ? (
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_21rem]">
+          <DivergencePanel report={divergence ?? { ready: false, flags: [], ourReturns: 0 }} />
+          <div className="flex flex-col gap-3">
+            {/* ── THE ROOM GETS THE SUMMARY, NOT THE WHOLE THING ──────────
+                A wall display is the wrong surface for a filterable list of
+                four thousand findings. What belongs here is the headline and
+                the way through to the screen built for reading them. */}
+            <a
+              href="/gap"
+              className="rounded-dash border border-dash-line bg-dash-card p-4 hover:border-dash-ink"
+            >
+              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                The full comparison
+              </p>
+              <p className="mt-1.5 text-[0.9375rem] font-bold text-dash-ink">
+                Open the declared figures room
+              </p>
+              <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-muted">
+                Every finding, filtered by what it is and where it is, and the place to enter what
+                collation has announced.
+              </p>
+            </a>
+
+            <div className="rounded-dash border border-dash-line bg-dash-card p-4">
+              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                Why the two are never merged
+              </p>
+              <p className="mt-2.5 text-[0.8125rem] leading-relaxed text-dash-muted">
+                A parallel count is not useful because it is faster. It is useful because it is a
+                second, independently sourced number to hold the declared one against. Averaging
+                them destroys the only thing worth having, so they sit apart and the difference is
+                computed rather than smoothed.
+              </p>
+            </div>
+          </div>
+        </div>
       ) : layer === "watch" ? (
         <CoordinatorWatch shapes={shapes} coordinators={coordinators} summary={watchSummary} />
       ) : layer === "stream" ? (
