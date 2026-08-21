@@ -411,9 +411,28 @@ export default function SituationRoom({
      in this election, and then wonder why they are all empty. */
   const pinned = scopeStates?.length === 1;
 
+  /**
+   * ── THE TRAIL ALWAYS HAS A ROOT ──────────────────────────────────────────
+   * A single-state contest has no country above it, so "Nigeria" is dropped:
+   * offering it would invite the reader to zoom out to 36 states that are not
+   * in this election and then wonder why they are empty.
+   *
+   * Dropping it left the trail with nothing in it at all until somebody
+   * selected something, and four places read `crumbs.at(-1).label` on the way
+   * to first paint. Opening a governorship project threw before it rendered a
+   * single pixel. So the root is replaced rather than removed: in a pinned
+   * contest the state itself is the top of the trail, which is also what it
+   * is on the map. The array is never empty by construction.
+   */
+  const rootLabel = pinned
+    ? (inScope[0]?.name ?? states.find((row) => row.code === scopeStates[0])?.name ?? "This election")
+    : "Nigeria";
+
   const crumbs = [
-    !pinned && { label: "Nigeria", go: () => setPath([]) },
-    state && { label: state.name, go: () => setPath([state]) },
+    { label: rootLabel, go: () => setPath([]) },
+    /* In a pinned contest the root already names the state, so adding it
+       again would read "Ekiti / Ekiti". */
+    !pinned && state && { label: state.name, go: () => setPath([state]) },
     lga && { label: lga.name, go: () => setPath([state, lga]) },
     ward && { label: ward.name, go: () => setPath([state, lga, ward]) },
   ].filter(Boolean);
