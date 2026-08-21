@@ -44,6 +44,7 @@ export default async function FieldPage() {
   return (
     <DashLayout
       user={user}
+      screen="field"
       title={existing ? "Amend your return" : "File your return"}
       lead={
         existing

@@ -55,6 +55,7 @@ export default async function BroadcastPage() {
   return (
     <DashLayout
       user={user}
+      screen="broadcast"
       title="Broadcast desk"
       lead="Our agents' count and the commission's declared figures, side by side and never merged. Built to be driven by hand on a touch screen between bulletins."
       actions={

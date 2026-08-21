@@ -49,6 +49,7 @@ export default async function GapPage() {
   return (
     <DashLayout
       user={user}
+      screen="gap"
       title="Declared figures"
       lead="What our agents counted, held against what was announced. Two independently sourced numbers for the same booths, kept apart and compared."
       actions={<LiveRefresh seconds={30} label="Live" />}

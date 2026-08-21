@@ -3,6 +3,7 @@ import Link from "next/link";
 import BrandMark from "@/components/ui/BrandMark";
 import SignOutButton from "@/components/auth/SignOutButton";
 import DashRail from "./DashRail";
+import Assistant from "./Assistant";
 import ElectionSwitcher from "./ElectionSwitcher";
 import DashDrawer from "./DashDrawer";
 import { currentElection, listElections } from "@/lib/election-scope";
@@ -29,7 +30,7 @@ import { cn } from "@/lib/utils";
    again regardless: a hidden button is a courtesy, not a permission. */
 const MAY_CREATE = new Set(["SUPER_ADMIN", "SITUATION_ROOM"]);
 
-export default async function DashLayout({ user, title, lead, actions, children }) {
+export default async function DashLayout({ user, title, lead, actions, screen = null, children }) {
   const role = ROLES[user.role] ?? ROLES.VIEWER;
 
   /* Fetched here rather than passed in by each page: every dashboard needs the
@@ -77,6 +78,16 @@ export default async function DashLayout({ user, title, lead, actions, children 
           {children}
         </main>
       </div>
+
+      {/* ── THE ASSISTANT BELONGS ON EVERY DASHBOARD ──────────────────────
+          It was mounted in the other shell only, so the situation room and
+          the WhatsApp desk had it and the administrator, the broadcast desk,
+          the coordinator and the divergence room did not. The point of an
+          assistant that can explain any figure in the product is that it is
+          there wherever a figure is, and the person most likely to meet a
+          word they do not recognise is the one on their first shift at a
+          desk, not the analyst in the situation room. */}
+      <Assistant tab={screen ?? "results"} />
     </div>
   );
 }

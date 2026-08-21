@@ -80,6 +80,7 @@ export default async function AdminPage() {
   return (
     <DashLayout
       user={user}
+      screen="admin"
       title="Overview"
       lead="Every unit, every room, every key, and the two actions nobody else holds: issuing credentials, and marking a return checked."
       actions={

@@ -65,6 +65,26 @@ import { cn } from "@/lib/utils";
 const GREETING =
   "Poll360 AI here. Ask me anything about the result, or just tell me where to go.";
 
+/**
+ * The language recognition is asked for.
+ *
+ * ── WHY THIS IS NOT en-NG, WHEN THE VOICE IS ───────────────────────────────
+ * Reading out and listening in are served by two different things with two
+ * different language lists, and they were both set to "en-NG" as though they
+ * were one setting. Nigerian English is offered for reading out, and it is
+ * still asked for there, because a Nigerian place name in a General American
+ * voice is often unrecognisable.
+ *
+ * It is not offered for listening in. Chrome's speech input serves en-GB,
+ * en-US, en-AU, en-IN, en-ZA and a handful more, and en-NG is not among them.
+ * Asking for a model that does not exist is one of the documented ways to be
+ * handed a bare "network" error, which says nothing about the real problem and
+ * sends everybody hunting for a connection that was never down. British
+ * English is the closest model actually served, and Nigerian English is
+ * British-descended, so it is also the one that transcribes best here.
+ */
+const HEARD_IN = "en-GB";
+
 /* How long an answer stays up before it clears itself out of the way. Long
    enough to read a paragraph aloud, short enough that a board left alone does
    not sit under a stale caption. Touching the overlay resets it. */
@@ -113,6 +133,13 @@ export default function Assistant({ tab = "results", projection = null }) {
      different problems with different answers and were being told apart by
      nobody. */
   const micGranted = useRef(false);
+  /* True from the moment an answer is decided until it has finished being
+     read out. The recogniser is left open between utterances now, so this is
+     what stops it hearing the assistant and answering its own voice. */
+  const holding = useRef(false);
+  /* Consecutive "network" failures. Chrome throws one on a first attempt
+     often enough that treating it as fatal is simply wrong. */
+  const networkTries = useRef(0);
 
   /* Speech lives on window, so this is read once at mount rather than in an
      effect. Nothing rendered before the overlay opens depends on it, so the
@@ -156,6 +183,7 @@ export default function Assistant({ tab = "results", projection = null }) {
   const speak = useCallback(
     (text, { thenListen = false } = {}) => {
       if (!canSpeak || muted || !text) {
+        holding.current = false;
         if (thenListen) startListening();
         return;
       }
@@ -174,6 +202,10 @@ export default function Assistant({ tab = "results", projection = null }) {
         finished = true;
         clearTimeout(deadline);
         setSpeaking(false);
+        /* Released before the microphone is reopened, never after: the guard
+           in `onend` reads this, and a stale hold would leave the call up
+           with nothing listening. */
+        holding.current = false;
         if (thenListen && wantsMic.current) startListening();
       };
 
@@ -254,9 +286,23 @@ export default function Assistant({ tab = "results", projection = null }) {
   );
 
   const respond = useCallback(
-    (question, { spoken = false } = {}) => {
+    (question) => {
       const text = question.trim();
       if (!text) return;
+
+      /* ── THE MICROPHONE IS SHUT FOR EVERY ANSWER, NOT JUST SPOKEN ONES ──
+         The session is left open between utterances now, so a question typed
+         while the call is up would otherwise leave the microphone listening
+         to the answer being read back, and the assistant would answer itself.
+         Whether the question was typed or said makes no difference to that. */
+      if (wantsMic.current) {
+        holding.current = true;
+        try {
+          recognition.current?.stop();
+        } catch {
+          /* Already stopping. */
+        }
+      }
 
       /* An instruction first, a question second. The command reader is strict
          and returns nothing unless it is confident, so anything it declines
@@ -275,7 +321,8 @@ export default function Assistant({ tab = "results", projection = null }) {
       setHeard("");
       setReply(answer);
       setTurns((previous) => [...previous, { role: "you", text }, { role: "ai", ...answer }]);
-      speak(answer.text, { thenListen: spoken });
+      /* Listening resumes if the call is up, however the question arrived. */
+      speak(answer.text, { thenListen: wantsMic.current });
 
       /* ── IT GETS OUT OF THE WAY THE MOMENT IT HAS BEEN USEFUL ──────────
          Saying hello to it, or asking what it can do, is a question about
@@ -306,19 +353,70 @@ export default function Assistant({ tab = "results", projection = null }) {
 
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const engine = new Recognition();
-    engine.lang = "en-NG";
-    engine.continuous = false;
+    engine.lang = HEARD_IN;
+    /**
+     * ── WHY IT STAYS OPEN NOW ────────────────────────────────────────────
+     * This used to run with `continuous` off, which ends the session at every
+     * pause in speech. The call was then kept alive by reopening it a third of
+     * a second later, every time, which meant a fresh connection to the
+     * browser's speech service several times a minute for as long as somebody
+     * was talking. Chrome answers that churn by refusing, and the refusal it
+     * sends is "network" — an error that reads as though the internet is down
+     * when what actually happened is that we knocked too often.
+     *
+     * Left open, one session covers a whole conversation. It is closed
+     * deliberately in exactly one place, when an answer is about to be read
+     * out, and reopened when the reading finishes.
+     */
+    engine.continuous = true;
     engine.interimResults = true;
     engine.maxAlternatives = 1;
 
-    engine.onstart = () => setListening(true);
+    /**
+     * ── ON THE DEVICE, WHERE THE BROWSER CAN DO IT ───────────────────────
+     * Newer browsers can run recognition locally instead of shipping the
+     * audio to a server. For this product that is not a nicety: the thing
+     * being said out loud is very often an unreleased result, and the whole
+     * assistant is built on nothing leaving the machine. It also removes the
+     * failure above outright, because there is no service left to be refused
+     * by. Where the browser has no such thing, every line of this is skipped
+     * and the remote service is used exactly as before.
+     */
+    const available = Recognition.availableOnDevice;
+    if (typeof available === "function") {
+      Promise.resolve(available.call(Recognition, HEARD_IN))
+        .then((state) => {
+          if (state === true || state === "available") {
+            engine.processLocally = true;
+            return null;
+          }
+          if (state === "downloadable" && typeof Recognition.installOnDevice === "function") {
+            /* Fetched in the background. Nothing waits on it: this call is
+               already working over the network, and the local model simply
+               takes over next time. */
+            return Recognition.installOnDevice(HEARD_IN);
+          }
+          return null;
+        })
+        .catch(() => {
+          /* An older browser, or a model that will not install. The remote
+             service is still there, so there is nothing to report. */
+        });
+    }
+
+    engine.onstart = () => {
+      setListening(true);
+      /* It connected, so whatever went wrong before is over. */
+      networkTries.current = 0;
+    };
+
     engine.onend = () => {
       setListening(false);
-      /* A recogniser stops on its own after a pause. If the call is still up
-         and nothing is being read out, open it again so the room can keep
-         talking without pressing anything. */
-      if (wantsMic.current && !window.speechSynthesis?.speaking) {
-        setTimeout(() => wantsMic.current && startListening(), 350);
+      /* A session can still end on its own, on a long silence or when the
+         service drops. If the call is up and nothing is being read out, open
+         it again so the room can keep talking without pressing anything. */
+      if (wantsMic.current && !holding.current) {
+        setTimeout(() => wantsMic.current && !holding.current && startListening(), 400);
       }
     };
 
@@ -359,11 +457,28 @@ export default function Assistant({ tab = "results", projection = null }) {
           );
           break;
 
-        case "network":
-          stop(
-            "Speech recognition needs a connection, because the browser sends the audio away to be read. There is none right now, so type instead."
-          );
+        case "network": {
+          /* ── TRANSIENT UNTIL PROVEN OTHERWISE ──────────────────────────
+             Chrome throws this on a first attempt often enough that treating
+             it as fatal was simply wrong: the connection is usually fine and
+             the next attempt works. It is only reported after it has failed
+             three times running, backing off in between, and even then it is
+             reported as what it is rather than as a flat statement that the
+             machine is offline. */
+          networkTries.current += 1;
+          if (networkTries.current <= 3 && wantsMic.current) {
+            setNotice(null);
+            const wait = 600 * networkTries.current;
+            setTimeout(() => wantsMic.current && !holding.current && startListening(), wait);
+          } else {
+            stop(
+              navigator.onLine === false
+                ? "This machine is offline, and the browser sends what it hears away to be read. Type instead, and everything still works."
+                : "The browser cannot reach its speech service. That is between your network and the browser, not this page, and it is often a VPN or a company network in the way. Type instead, and nothing else changes."
+            );
+          }
           break;
+        }
 
         case "audio-capture":
           stop("The microphone stopped responding. Check it is still plugged in, then press the microphone again.");
@@ -387,7 +502,19 @@ export default function Assistant({ tab = "results", projection = null }) {
         if (result.isFinal) {
           const said = result[0].transcript.trim();
           setHeard(said);
-          respondRef.current?.(said, { spoken: true });
+          networkTries.current = 0;
+
+          /* The one place the session is closed on purpose. Held shut until
+             the answer has finished being read out, so `onend` does not race
+             the start of speech and reopen the microphone into it. */
+          holding.current = true;
+          try {
+            engine.stop();
+          } catch {
+            /* Already stopping. */
+          }
+
+          respondRef.current?.(said);
           return;
         }
         interim += result[0].transcript;
@@ -549,6 +676,12 @@ export default function Assistant({ tab = "results", projection = null }) {
 
   const endCall = useCallback(() => {
     wantsMic.current = false;
+    /* Both cleared here and nowhere else. A hold left set from an answer that
+       was interrupted would keep the microphone shut through the next call,
+       and a failure count left standing would spend the next call's retries
+       before it had made a single attempt. */
+    holding.current = false;
+    networkTries.current = 0;
     setCalling(false);
     setListening(false);
     setHeard("");

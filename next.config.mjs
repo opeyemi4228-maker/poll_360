@@ -38,8 +38,35 @@ const nextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
+            /* ── WHY THREE OF THESE ARE `self` AND NOT EMPTY ───────────────
+               An empty allowlist is not "ask the user first", it is "this
+               capability does not exist on this page". It overrides the
+               browser's own permission entirely: the request fails before any
+               prompt is shown, and no amount of resetting site permissions,
+               clicking the padlock or changing operating system settings will
+               ever move it. That is exactly what it is for, and exactly why
+               getting it wrong is so hard to diagnose from the outside.
+
+               It was wrong here, and it was silently switching off two
+               features this product is sold on:
+
+                 microphone   Poll360 AI could never listen, on any machine,
+                              in any browser. The assistant reported a blocked
+                              microphone and sent people to their settings to
+                              fix something that was never theirs.
+                 geolocation  The field form stamps a filed result with where
+                              it was filed from. That is the whole basis of
+                              the coordinator watch knowing who is on station,
+                              and it could not read a position at all.
+
+               `self` restores the normal arrangement, which is the one that
+               was wanted all along: this origin may ask, the user decides,
+               and nobody else can ask at all. Camera stays closed, because
+               nothing here opens a camera stream; the photo inputs use the
+               operating system's own camera app, which this does not govern.
+               ───────────────────────────────────────────────────────────── */
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+            value: "camera=(), microphone=(self), geolocation=(self), interest-cohort=()",
           },
         ],
       },
