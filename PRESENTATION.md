@@ -379,7 +379,75 @@ hanging up releases it rather than merely hiding the panel.
 
 ---
 
-## 10. Live demo script (8 minutes)
+## 10. WhatsApp: filing from the phone people already own
+
+Ask a polling unit agent in Ilorin to install an app, create an account and
+learn a form, on a phone with 400MB of storage and a data plan measured in
+naira, and a proportion of them simply will not file. Ask them to send a
+message on WhatsApp and they already know how.
+
+**The whole return, in one photograph.** An agent photographs the EC8A and
+Google Cloud Vision reads it: registered, accredited, rejected, all four
+parties, and the presiding officer's name, which until now had nowhere in the
+system to live. Every figure is read back to the agent and **nothing is filed
+until they confirm it**. A reader confuses 3 and 8 on a creased form under a
+torch, and a count that trusted its own guess would be worse than no
+automation at all. Eleven numbers typed in the dark become one confirmation.
+
+**The check that matters is the arithmetic, not the confidence score.** Vision
+reports how clear the photograph was, which is a different question from
+whether it read the right figures. A sheet whose party votes sum to the valid
+total is almost certainly right whatever the image quality, and one where they
+do not is wrong somewhere however crisp it looks. So the reading is accepted or
+questioned on whether it adds up, and what the machine proposed is kept beside
+what the human confirmed, so the difference between them is auditable.
+
+**The registry builds itself.** A unit registers the moment its first return
+arrives, and the hierarchy comes free: an INEC code carries its own address, so
+`08/03/07/012` is state, local government, ward, unit. Nation, state, local
+government, ward and booth totals agree at every level by construction, because
+nothing is stored twice. Local government names are joined from the boundary
+files already shipped; where a state's file has fewer than the code asks for,
+the number stands rather than a guess at a town.
+
+**Coordinators on the map, live.** A shared location is banked as a trail
+rather than a single current position. One fix answers "are they there"; the
+trail answers "did they arrive, when, and have they moved since", which is the
+question at two in the morning. A location never interrupts a filing: it lands
+whenever it is sent, including mid conversation, and the return carries on
+exactly where it was.
+
+**Every message is sealed at rest, and so is every number.** In a Nigerian
+election a list of who is filing results from where is a list of people to go
+and find. Phone numbers are encrypted with a blind index so a lookup never has
+to decrypt the column, and the last four digits are kept in clear so a desk can
+recognise a caller without unsealing anything.
+
+The desk at `/whatsapp` is password protected and role gated like every other
+screen: the conversation threads, the polling unit tree, what the reader made
+of each sheet beside what the agent accepted, and where every coordinator is.
+
+---
+
+## 11. Election projects: the product survives its own demo
+
+Everything is scoped to an election project. A situation room that can hold
+only one election has to be wiped to run a second, and a governorship the week
+after a presidential race is the ordinary case, not the exotic one.
+
+Create a project, scope it to the states actually contesting, and the whole
+product narrows to it: a single-state contest opens on that state rather than
+on a country where 36 of 37 places will never report. **Not-yet and
+not-applicable are different facts**, and a board that draws them the same way
+is quietly wrong all night.
+
+A room with no stated preference opens on the project with the most recent
+return filed against it, which is the night that is actually happening. Nothing
+to switch and nothing to remember.
+
+---
+
+## 12. Live demo script (8 minutes)
 
 Run `npm run dev`. Log in at `/login`.
 
@@ -397,6 +465,10 @@ Run `npm run dev`. Log in at `/login`.
 | 10 | Open **Analytics**, push LP up six and APC down six | "Labour now leads the country. And nobody has won, because the spread test fails in 17 states. That is the number every other tracker hides." |
 | 11 | Press **Hi Poll360 AI** and say "what is a quarter state" | "It answers out loud, from the same data on the screen. Ask it anything on this dashboard." |
 | 12 | Ask it "security in Borno" | "Notice it volunteers that the figure is generated. It will not let you quote a number we did not measure." |
+| 13 | Send `RESULT` to the WhatsApp number from your own phone | "No app, no account, no training. The phone they already own." |
+| 14 | Photograph a result sheet and send it | "It reads every figure off the sheet and asks the agent to confirm. It never files its own guess." |
+| 15 | Attach a location in WhatsApp, then open **Coordinators** | "They are on the map, live, seconds later." |
+| 16 | Open **/whatsapp**, then **Polling units** | "Nation, state, local government, ward, booth. It built itself as the returns arrived." |
 
 **Accounts** (in `.env.example`):
 
@@ -414,7 +486,7 @@ Currently seeded: **49 coordinators, 485 returns, 34 incidents.**
 
 ---
 
-## 11. What is built, and what is not
+## 13. What is built, and what is not
 
 Publishing this is the cheapest credibility available. Everyone evaluating election
 software has sat through a demo that turned out to be entirely a demo.
@@ -424,8 +496,11 @@ boundaries · integrity screening · tamper-evident ledger · agent wallet · ph
 with authenticated serving · GPS coordinator watch · live incident stream with alarm ·
 projection engine with the Section 134 spread test and run-off detection · blank planning
 map with live deployment totals and CSV export · Poll360 AI with voice in and voice out,
-grounded entirely in the product's own data · PWA with offline support · full auth with
-rate limiting · append-only audit trail ·
+grounded entirely in the product's own data · a WhatsApp bot that files returns, reads
+result sheets by photograph and tracks coordinator locations · a self-building polling unit
+registry from nation down to booth · multiple election projects, each scoped to its own
+states · Postgres on Neon, so nothing is lost between deploys · PWA with offline support ·
+full auth with rate limiting · append-only audit trail ·
 public marketing site with live board.
 
 **Honestly not yet:**
@@ -440,7 +515,7 @@ public marketing site with live board.
 
 ---
 
-## 12. Numbers for the deck
+## 14. Numbers for the deck
 
 | | |
 |---|---|
@@ -456,7 +531,7 @@ public marketing site with live board.
 
 ---
 
-## 13. The closing line
+## 15. The closing line
 
 > Anyone can draw a map. What a parallel count is *for* is catching the returns that
 > cannot be true, in the hour they arrive, not in a tribunal eighteen months later when
