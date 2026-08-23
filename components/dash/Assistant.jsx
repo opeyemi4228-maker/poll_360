@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Ear,
+  EarOff,
+  Globe,
   History,
   Keyboard,
   Loader2,
@@ -13,8 +16,8 @@ import {
   VolumeX,
 } from "lucide-react";
 
-import { STARTERS, ask } from "@/lib/assistant";
-import { DRIVING_STARTERS, drive } from "@/lib/commands";
+import { STARTERS, ask, knowsAbout } from "@/lib/assistant";
+import { DRIVING_STARTERS, WAKE, bestHeard, drive, harvest, topics } from "@/lib/commands";
 import { bestVoice, sentences } from "@/lib/voice";
 import { useRoomVoice } from "./RoomVoice";
 import { cn } from "@/lib/utils";
@@ -85,6 +88,36 @@ const GREETING =
  */
 const HEARD_IN = "en-GB";
 
+/**
+ * The marker that carries a call across a change of dashboard.
+ *
+ * ── WHY A CALL SURVIVES NAVIGATION, WHEN NOTHING ELSE OPENS A MICROPHONE ───
+ * The assistant is mounted by each dashboard's own chrome, so sending
+ * somebody from the situation room to the field desk unmounts it, and with it
+ * goes the call. "Take me to the field desk" therefore worked exactly once,
+ * and then left the person pressing a button again to say the next thing —
+ * which rather defeats being able to drive the product by voice.
+ *
+ * This is the one thing in here that reopens a microphone without somebody
+ * pressing for it, and it is worth being clear about why that is not the
+ * thing this product refuses to do. It does not start a call. It continues
+ * one already running, across a move that was itself asked for out loud, in
+ * the same breath. Nothing sets it but an instruction to change dashboard,
+ * it is read once and cleared immediately, and it does not survive a hang up
+ * or a closed tab.
+ */
+const RESUMING = "poll360:call-in-progress";
+
+/* Whether the room left it listening for its name. Deliberately persistent:
+   a wall display signed in once at six in the evening should not need somebody
+   to walk over and re-arm it after every refresh. */
+const WAKE_KEY = "poll360:wake-word";
+
+/* How much of the conversation the history panel keeps. An eleven-hour shift
+   with the wake word armed is a lot of turns, and nobody scrolls back past a
+   few. Holding all of them costs memory to render a list no one reads. */
+const TURN_LIMIT = 60;
+
 /* How long an answer stays up before it clears itself out of the way. Long
    enough to read a paragraph aloud, short enough that a board left alone does
    not sit under a stale caption. Touching the overlay resets it. */
@@ -102,6 +135,38 @@ export default function Assistant({ tab = "results", projection = null }) {
   const [heard, setHeard] = useState("");
   const [typed, setTyped] = useState("");
   const [typing, setTyping] = useState(false);
+  /* Something is being fetched from outside the product. The only thing in
+     here that can take longer than a moment, so the only thing that needs
+     saying so. */
+  const [busy, setBusy] = useState(false);
+  /**
+   * Whether it is listening for its own name.
+   *
+   * ── THIS IS THE ONE THING IN HERE WORTH ARGUING ABOUT ────────────────────
+   * Everything else about this assistant was built on the position that a
+   * microphone which opens itself is a microphone nobody trusts, and in a
+   * situation room it is a microphone in the corner of a conversation about
+   * an unreleased result. Being able to say its name and have it answer means
+   * something is listening the rest of the time, and no amount of engineering
+   * makes that untrue.
+   *
+   * What it does mean is made as narrow and as visible as it can be:
+   *
+   *   It is off until somebody turns it on, every time it is turned on it
+   *   asks for the microphone by name, and it stays off across a reload
+   *   unless it was deliberately left on.
+   *
+   *   While armed, nothing heard is displayed, kept, answered or sent
+   *   anywhere. The only question asked of the audio is whether the name is
+   *   in it. Everything else falls on the floor unread.
+   *
+   *   Where the browser can recognise speech on the device, it does, so the
+   *   waiting happens on this machine and not on somebody's server.
+   *
+   *   It says so, permanently and in the open, whenever it is armed. A
+   *   listening indicator that can be missed is worse than none.
+   */
+  const [armed, setArmed] = useState(false);
   const [notice, setNotice] = useState(null);
   const [reply, setReply] = useState(null);
   const [turns, setTurns] = useState([]);
@@ -124,6 +189,7 @@ export default function Assistant({ tab = "results", projection = null }) {
      between the two: rebuilding the recogniser to pick up a new closure would
      drop the microphone mid-sentence. */
   const respondRef = useRef(null);
+  const lookUpRef = useRef(null);
   /* The last thing said, so "put that on the board" has a "that". */
   const lastAnswer = useRef(null);
   const linger = useRef(null);
@@ -140,16 +206,69 @@ export default function Assistant({ tab = "results", projection = null }) {
   /* Consecutive "network" failures. Chrome throws one on a first attempt
      often enough that treating it as fatal is simply wrong. */
   const networkTries = useRef(0);
+  /**
+   * Which batch of speech is the current one.
+   *
+   * ── WHY A COUNTER AND NOT A FLAG ─────────────────────────────────────────
+   * Every answer starts by cancelling whatever is still being read out. That
+   * cancellation fires `onerror` on each utterance still queued from the
+   * previous answer — and those handlers were still live, so the answer that
+   * had just been superseded would run its own finish: release the hold and
+   * reopen the microphone, on top of the answer now being read. Two quick
+   * questions in a row was all it took, and the assistant would hear itself
+   * and answer its own voice.
+   *
+   * Each batch takes a number on the way in. A finish belonging to an older
+   * number does nothing at all.
+   */
+  const speechGen = useRef(0);
+  /* "wake" is waiting to be called by name and nothing else. "talk" is a
+     conversation. One recogniser serves both: two would fight over the
+     microphone, and the loser fails in a way that looks like a dead button. */
+  const earMode = useRef("talk");
+  const wokenRef = useRef(null);
+  /* Whether the recogniser is actually open, as a ref rather than only as
+     state: the watchdog below reads it several times a minute and must not
+     re-run an effect to find out. */
+  const listeningRef = useRef(false);
+  /* What has already been fetched this session. Without it, a room that says
+     "Atiku" eight times in a planning meeting fetches him eight times and
+     puts eight identical cards up. */
+  const looked = useRef(new Set());
 
   /* Speech lives on window, so this is read once at mount rather than in an
      effect. Nothing rendered before the overlay opens depends on it, so the
      server and the client still agree on the first paint. */
-  const [canHear] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      Boolean(window.SpeechRecognition || window.webkitSpeechRecognition)
-  );
-  const [canSpeak] = useState(() => typeof window !== "undefined" && "speechSynthesis" in window);
+  /**
+   * What this browser can actually do.
+   *
+   * ── WHY THIS IS NOT READ WHILE RENDERING ─────────────────────────────────
+   * It used to be, in a `useState` initialiser guarded by `typeof window`.
+   * That guard is the bug, not the fix: the initialiser runs on the server,
+   * where it is false, and again on the client during hydration, where it is
+   * true. The two renders disagree, and React throws the markup away and
+   * rebuilds the tree.
+   *
+   * It went unnoticed for as long as nothing on the first paint depended on
+   * it — every control it gated sat inside the overlay, which is closed until
+   * somebody opens it. The moment a button on the launcher was gated the same
+   * way, the mismatch had something to show and the warning arrived. It was
+   * always wrong; it just had nowhere to surface.
+   *
+   * So the first client render matches the server exactly — no microphone, no
+   * voice — and the real answer arrives a tick later, which is far sooner than
+   * anybody can reach for the button.
+   */
+  const [canHear, setCanHear] = useState(false);
+  const [canSpeak, setCanSpeak] = useState(false);
+
+  useEffect(() => {
+    const check = setTimeout(() => {
+      setCanHear(Boolean(window.SpeechRecognition || window.webkitSpeechRecognition));
+      setCanSpeak("speechSynthesis" in window);
+    }, 0);
+    return () => clearTimeout(check);
+  }, []);
 
   /* ── THE VOICE ───────────────────────────────────────────────────────────
      Held in a ref and chosen again whenever the browser says the list has
@@ -188,6 +307,7 @@ export default function Assistant({ tab = "results", projection = null }) {
         return;
       }
 
+      const generation = (speechGen.current += 1);
       window.speechSynthesis.cancel();
 
       /* ── WHY THERE IS A DEADLINE ───────────────────────────────────────
@@ -198,7 +318,7 @@ export default function Assistant({ tab = "results", projection = null }) {
          Whichever lands first wins, and the finish only runs once. */
       let finished = false;
       const finish = () => {
-        if (finished) return;
+        if (finished || speechGen.current !== generation) return;
         finished = true;
         clearTimeout(deadline);
         setSpeaking(false);
@@ -231,12 +351,19 @@ export default function Assistant({ tab = "results", projection = null }) {
         utterance.volume = 1;
 
         if (index === 0) utterance.onstart = () => setSpeaking(true);
-        if (index === lines.length - 1) {
-          utterance.onend = finish;
-          utterance.onerror = finish;
-        } else {
-          utterance.onerror = finish;
-        }
+        if (index === lines.length - 1) utterance.onend = finish;
+
+        /* ── A SENTENCE THAT FAILS TAKES THE REST WITH IT ────────────────
+           An error partway through used to run the finish on its own, which
+           released the hold and reopened the microphone while the sentences
+           behind it were still queued and still about to be read out. The
+           rest of the batch is dropped first, so what the microphone comes
+           back to is silence rather than the tail of an answer. */
+        utterance.onerror = () => {
+          if (finished || speechGen.current !== generation) return;
+          window.speechSynthesis.cancel();
+          finish();
+        };
 
         window.speechSynthesis.speak(utterance);
       });
@@ -255,6 +382,17 @@ export default function Assistant({ tab = "results", projection = null }) {
       const act = order.act;
 
       if (act.do === "route") {
+        /* Only while the microphone is actually open. A typed instruction to
+           change dashboard should land on a quiet one, the same as clicking
+           the link would. */
+        if (wantsMic.current) {
+          try {
+            sessionStorage.setItem(RESUMING, "1");
+          } catch {
+            /* Storage refused. The call simply ends at the navigation, which
+               is what it did before any of this. */
+          }
+        }
         router.push(act.href);
         return { text: order.say ?? "On my way.", kind: "drive" };
       }
@@ -285,6 +423,23 @@ export default function Assistant({ tab = "results", projection = null }) {
     [room, router]
   );
 
+  /**
+   * Shut the microphone because something is about to be read out.
+   *
+   * Both the answering path and the looking-up path need this, and they used
+   * to do it inline. Written twice, it was correct twice and would have
+   * drifted the moment either changed.
+   */
+  const shutMicrophone = useCallback(() => {
+    if (!wantsMic.current) return;
+    holding.current = true;
+    try {
+      recognition.current?.stop();
+    } catch {
+      /* Already stopping. */
+    }
+  }, []);
+
   const respond = useCallback(
     (question) => {
       const text = question.trim();
@@ -295,14 +450,7 @@ export default function Assistant({ tab = "results", projection = null }) {
          while the call is up would otherwise leave the microphone listening
          to the answer being read back, and the assistant would answer itself.
          Whether the question was typed or said makes no difference to that. */
-      if (wantsMic.current) {
-        holding.current = true;
-        try {
-          recognition.current?.stop();
-        } catch {
-          /* Already stopping. */
-        }
-      }
+      shutMicrophone();
 
       /* An instruction first, a question second. The command reader is strict
          and returns nothing unless it is confident, so anything it declines
@@ -311,18 +459,60 @@ export default function Assistant({ tab = "results", projection = null }) {
         tabs: room?.tabs ?? [],
         path: room?.path ?? [],
         lgas: room?.lgas ?? [],
+        /* Which surface is open changes what a bare noun means. On the board,
+           naming a thing is asking for it; anywhere else it is not. */
+        tab,
       });
 
-      const answer = order
-        ? carryOut(order)
-        : ask(text, { tab, projection });
+      /* Off the product entirely, and asked for in so many words. */
+      if (order?.act.do === "lookup") {
+        lookUpRef.current?.(order.act.query, { asked: text });
+        return;
+      }
+
+      const carried = order ? carryOut(order) : null;
+
+      /* ── A NAME WITH NO VERB WANTS BOTH ────────────────────────────────
+         Saying "Ekiti" moves the map and asks a question at the same time.
+         The move is made by the instruction, and the answer read out is the
+         full one rather than the one-line headline a deliberate "take me to"
+         gets, because the question was the point and the move was incidental. */
+      const asked = !order || order.alsoAnswer ? ask(text, { tab, projection }) : null;
+
+      const answer =
+        carried && asked && asked.kind !== "unknown"
+          ? { ...carried, text: asked.text, follow: asked.follow, kind: asked.kind }
+          : (carried ?? asked);
+
+      /* ── DO NOT REFUSE AND THEN ANSWER OVER YOURSELF ────────────────────
+         An unknown question used to be answered "I do not have that one, and
+         I would rather say so than guess", read out in full — and then the
+         web lookup landed and spoke straight over the top of it. The room
+         heard a refusal interrupted by an answer, which is a worse experience
+         than either on its own.
+
+         So when it is about to go and look, it says it is going to look, and
+         the refusal is held back as the thing to say only if nothing comes
+         back. One question, one answer, in one voice. */
+      /* ── ONLY GO OUTSIDE FOR SOMETHING GENUINELY OUTSIDE ────────────────
+         Not understanding a question about the count is not the same as the
+         question being about something else, and conflating them is how a
+         room asking about a Nigerian state ends up being read an encyclopaedia
+         entry about it while the declared figures sit unused. If the sentence
+         mentions anything this product knows — a state, a party, a candidate,
+         a zone, any term in its own vocabulary — an unknown answer means the
+         phrasing missed, and the honest reply is to say so. */
+      const willLook = answer.kind === "unknown" && !knowsAbout(text);
+      const said = willLook ? `Let me look that up.` : answer.text;
 
       lastAnswer.current = answer.text;
       setHeard("");
-      setReply(answer);
-      setTurns((previous) => [...previous, { role: "you", text }, { role: "ai", ...answer }]);
+      setReply(willLook ? { ...answer, text: said } : answer);
+      setTurns((previous) =>
+        [...previous, { role: "you", text }, { role: "ai", ...answer, text: said }].slice(-TURN_LIMIT)
+      );
       /* Listening resumes if the call is up, however the question arrived. */
-      speak(answer.text, { thenListen: wantsMic.current });
+      speak(said, { thenListen: wantsMic.current && !willLook });
 
       /* ── IT GETS OUT OF THE WAY THE MOMENT IT HAS BEEN USEFUL ──────────
          Saying hello to it, or asking what it can do, is a question about
@@ -332,6 +522,42 @@ export default function Assistant({ tab = "results", projection = null }) {
       const aboutItself = answer.kind === "identity" || answer.kind === "help";
       setStage(aboutItself ? "full" : "compact");
 
+      /* ── WHAT THIS PRODUCT DOES NOT KNOW, SOMEBODY ELSE MIGHT ───────────
+         Refusing everything outside the count is honest but it closes the
+         board halfway through most real conversations, and the person
+         reaches for their phone — where what they read never reaches the
+         room at all. So an unknown question goes to the web, and comes back
+         labelled as having come from there. */
+      if (willLook) lookUpRef.current?.(text, { fallback: answer.text });
+
+      /* ── THE BOARD KEEPS UP WITH THE CONVERSATION ───────────────────────
+         This used to require standing on the board for anything to be put
+         up, which got the purpose of the thing backwards: the board is for
+         planning, and a planning conversation ranges across states, people
+         and institutions faster than anybody can ask for each one to be
+         written down. Asking is the part worth removing.
+
+         So while there is a call up, everything named goes on the board, and
+         the board is never brought to the front to show it. Quiet is the
+         whole point — a screen that rearranges itself under a conversation
+         it was not addressed by is worse than one that does nothing. It is
+         there when they look. */
+      if (room?.run) {
+        for (const spec of harvest(text)) room.run({ do: "pin", card: spec, quiet: true });
+      }
+
+      /* ── AND WHAT WE CANNOT COMPUTE, WE GO AND FETCH ────────────────────
+         A face for a name, a line on an institution, a photograph of a
+         place: the things a planning conversation reaches for and this
+         product has no column for. One per utterance, never the same thing
+         twice in a session, and never a word said about it. */
+      for (const topic of topics(text)) {
+        if (looked.current.has(topic.key)) continue;
+        looked.current.add(topic.key);
+        lookUpRef.current?.(topic.look, { silent: true, note: topic.note });
+        break;
+      }
+
       clearTimeout(linger.current);
       /* The big card clears itself so a room that walked away is not left
          reading an hour-old sentence in 24-point type. The small one keeps
@@ -339,11 +565,157 @@ export default function Assistant({ tab = "results", projection = null }) {
          at what was just said is worth more there than tidiness. */
       if (aboutItself) linger.current = setTimeout(() => setReply(null), LINGER);
     },
-    [room, carryOut, tab, projection, speak]
+    [room, carryOut, tab, projection, speak, shutMicrophone]
+  );
+
+  /**
+   * Ask the web, and put what comes back on the board.
+   *
+   * ── IT GOES ON THE BOARD EVEN WHEN THE BOARD IS NOT OPEN ─────────────────
+   * A reference read out and not written down is a reference somebody has to
+   * ask for twice. It is pinned wherever the person happens to be standing,
+   * and they are told it is there, so the board is already right when they
+   * get to it.
+   *
+   * ── AND IT IS NEVER PRESENTED AS OURS ────────────────────────────────────
+   * What is read out names the source in the same breath as the answer, for
+   * the same reason the card is drawn in a different colour: on a desk that
+   * may be reading this on air, "Wikipedia says" and "the result was" are not
+   * interchangeable openings, and the difference cannot be left to whoever is
+   * listening to infer.
+   */
+  const lookUp = useCallback(
+    async (query, { quiet = false, fallback = null, silent = false, note = null } = {}) => {
+      const wanted = String(query ?? "").trim();
+      if (!wanted) return;
+
+      /* ── SILENT IS FOR THINGS NOBODY ASKED FOR OUT LOUD ─────────────────
+         The board fills itself from what the room is discussing, and that
+         must never interrupt the discussion. A silent lookup puts a card up
+         and says nothing at all: no holding line, no reading it out, no
+         change to what is on the overlay. If it finds nothing, nothing
+         happens, which is the correct amount of noise for a question that
+         was never asked. */
+      if (!silent) setBusy(true);
+      if (!quiet && !silent) setReply({ text: `Looking up ${wanted}.`, kind: "drive" });
+
+      let data = null;
+      try {
+        const response = await fetch(`/api/lookup?q=${encodeURIComponent(wanted)}`);
+        data = await response.json().catch(() => null);
+        if (!response.ok) data = { found: false, error: data?.error ?? null };
+      } catch {
+        data = { found: false, unreachable: true };
+      } finally {
+        if (!silent) setBusy(false);
+      }
+
+      if (!data?.found) {
+        if (quiet || silent) return;
+        /* ── THE REFUSAL THAT WAS HELD BACK ─────────────────────────────
+           If this ran because the product did not know the answer, the
+           honest sentence about not knowing was never said — it was held
+           for exactly this moment. Saying it now, once, is the whole point
+           of holding it. */
+        const miss =
+          data?.error ??
+          fallback ??
+          (data?.unreachable
+            ? "I could not reach the reference just now."
+            : `I could not find anything on ${wanted}.`);
+        setReply({ text: miss, kind: "drive" });
+        setTurns((previous) => [...previous, { role: "ai", text: miss, kind: "drive" }].slice(-TURN_LIMIT));
+        shutMicrophone();
+        speak(miss, { thenListen: wantsMic.current });
+        return;
+      }
+
+      const onBoard = Boolean(room?.run);
+      if (onBoard) {
+        room.run({
+          do: "pin",
+          /* A note from our own list beats the encyclopaedia's one-liner:
+             "PDP candidate, 2023 presidential election" is what this room
+             needs to see, and "Nigerian politician" is not. */
+          card: { kind: "web", ...data, description: note ?? data.description },
+          quiet: silent,
+        });
+      }
+
+      /* Put up and said nothing about, because nobody asked. */
+      if (silent) return;
+
+      /* A word with several meanings is read out as a question, not as an
+         answer, because that is what it is. Being told what it could mean
+         and asked which, is right; being read a confident paragraph about
+         one of them is not. */
+      const spoken = data.ambiguous
+        ? [
+            `${data.title} means a few different things.`,
+            data.extract,
+            "Say which one and I will look it up properly.",
+          ].join(" ")
+        : [
+            `${data.source} on ${data.title}.`,
+            data.extract,
+            onBoard ? "It is on the board." : null,
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+      lastAnswer.current = spoken;
+      setReply({ text: spoken, kind: "web", source: data.source, href: data.href });
+      setTurns((previous) =>
+        [...previous, { role: "ai", text: spoken, kind: "web", source: data.source }].slice(-TURN_LIMIT)
+      );
+      setStage("compact");
+
+      shutMicrophone();
+      speak(spoken, { thenListen: wantsMic.current });
+    },
+    [room, speak, shutMicrophone]
+  );
+
+  /**
+   * Called by name.
+   *
+   * Whatever was said after the name is treated as the first thing asked,
+   * because "Hi Poll360 AI, show me Ekiti" is one sentence to the person
+   * saying it. Being greeted back and then having to repeat the instruction
+   * is what makes people stop bothering.
+   */
+  const woken = useCallback(
+    (said) => {
+      const rest = said.replace(WAKE, " ").replace(/\s+/g, " ").trim();
+
+      setOpen(true);
+      setNotice(null);
+      earMode.current = "talk";
+      wantsMic.current = true;
+      setCalling(true);
+
+      if (rest.length > 1) {
+        /* Straight to the point. The overlay opens on the answer rather than
+           on a greeting nobody asked for. */
+        setStage("compact");
+        respondRef.current?.(rest);
+        return;
+      }
+
+      setStage("full");
+      const hello = "Yes?";
+      setReply({ text: hello, kind: "greeting" });
+      lastAnswer.current = hello;
+      shutMicrophone();
+      speak(hello, { thenListen: true });
+    },
+    [speak, shutMicrophone]
   );
 
   useEffect(() => {
     respondRef.current = respond;
+    lookUpRef.current = lookUp;
+    wokenRef.current = woken;
   });
 
   /* One recogniser for the life of the overlay. Rebuilding it per utterance
@@ -370,7 +742,14 @@ export default function Assistant({ tab = "results", projection = null }) {
      */
     engine.continuous = true;
     engine.interimResults = true;
-    engine.maxAlternatives = 1;
+    /* ── ASK FOR THE RUNNERS-UP, NOT JUST THE WINNER ────────────────────
+       A recogniser ranks its guesses on how English they sound, not on
+       whether they mean anything here, so "Kano" loses to "canoe" and
+       "Lagos" to "lagoon" more often than not. Reading only the top guess
+       threw away the right answer while it was sitting in the same event.
+       Five costs nothing and `bestHeard` knows which of them is about an
+       election. */
+    engine.maxAlternatives = 5;
 
     /**
      * ── ON THE DEVICE, WHERE THE BROWSER CAN DO IT ───────────────────────
@@ -405,12 +784,14 @@ export default function Assistant({ tab = "results", projection = null }) {
     }
 
     engine.onstart = () => {
+      listeningRef.current = true;
       setListening(true);
       /* It connected, so whatever went wrong before is over. */
       networkTries.current = 0;
     };
 
     engine.onend = () => {
+      listeningRef.current = false;
       setListening(false);
       /* A session can still end on its own, on a long silence or when the
          service drops. If the call is up and nothing is being read out, open
@@ -435,6 +816,22 @@ export default function Assistant({ tab = "results", projection = null }) {
       setCalling(false);
       setTyping(true);
       setNotice(message);
+
+      /* ── A DEAD EAR MUST NOT STILL SAY "LISTENING" ─────────────────────
+         Waiting for the name happens with the overlay closed, where a notice
+         has nowhere to appear. So a wake listener that gives up would leave
+         the launcher reading "Listening for its name" over a microphone that
+         had stopped — the indicator claiming something untrue, which is the
+         single failure that would make every other promise about it worth
+         nothing. If the ear dies, the arming goes with it, visibly. */
+      if (earMode.current === "wake") {
+        setArmed(false);
+        try {
+          localStorage.setItem(WAKE_KEY, "0");
+        } catch {
+          /* No storage. It is disarmed for this session regardless. */
+        }
+      }
     };
 
     engine.onerror = (event) => {
@@ -499,8 +896,28 @@ export default function Assistant({ tab = "results", projection = null }) {
       let interim = "";
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
+        const guesses = Array.from(result, (alternative) => alternative.transcript);
+
+        /* ── WAITING TO BE CALLED ─────────────────────────────────────────
+           The only question asked of anything heard here is whether the name
+           is in it. Nothing is displayed, nothing is kept, nothing is
+           answered, and the transcript is not looked at again. Checking
+           interim results as well as final ones is what makes it answer on
+           the name rather than a second after the sentence has finished. */
+        if (earMode.current === "wake") {
+          /* Any guess carrying the name is a call. The product's name is not
+             an English word, so it is routinely ranked second or third behind
+             something that is — which is exactly why reading only the top
+             guess meant it so often did not answer to its own name. */
+          if (guesses.some((text) => WAKE.test(text))) {
+            wokenRef.current?.(bestHeard(guesses, { wake: true }));
+            return;
+          }
+          continue;
+        }
+
         if (result.isFinal) {
-          const said = result[0].transcript.trim();
+          const said = bestHeard(guesses).trim();
           setHeard(said);
           networkTries.current = 0;
 
@@ -519,7 +936,7 @@ export default function Assistant({ tab = "results", projection = null }) {
         }
         interim += result[0].transcript;
       }
-      setHeard(interim);
+      if (earMode.current !== "wake") setHeard(interim);
     };
 
     recognition.current = engine;
@@ -654,6 +1071,12 @@ export default function Assistant({ tab = "results", projection = null }) {
     setOpen(true);
     setStage("full");
     setNotice(null);
+    /* ── THE EAR MAY ALREADY BE OPEN ────────────────────────────────────
+       Pressing the button while it is armed means a wake session is already
+       running, and nothing here used to close it — so the greeting was read
+       out into a live microphone and it heard itself say hello. Shutting it
+       first costs nothing when it was not open, and everything when it was. */
+    shutMicrophone();
     setReply({ text: GREETING, kind: "greeting" });
     lastAnswer.current = GREETING;
 
@@ -670,8 +1093,11 @@ export default function Assistant({ tab = "results", projection = null }) {
        while the person is still looking at the button they just pressed
        rather than over the top of a greeting. Where it has been granted
        before, this resolves in a few milliseconds and nobody sees a thing. */
-    const armed = await takeMicrophone({ listenNow: false });
-    speak(GREETING, { thenListen: armed });
+    /* Not named `armed`: that is the wake-word state, and a local of the same
+       name shadowing it inside the one function that also opens a call is a
+       trap for whoever reads this next. */
+    const gotIt = await takeMicrophone({ listenNow: false });
+    speak(GREETING, { thenListen: gotIt });
   };
 
   const endCall = useCallback(() => {
@@ -696,6 +1122,78 @@ export default function Assistant({ tab = "results", projection = null }) {
     setSpeaking(false);
   }, []);
 
+  /**
+   * Turn listening for the name on or off.
+   *
+   * Arming asks for the microphone by name every time, rather than assuming
+   * an earlier grant still stands. If it is refused, nothing is armed and the
+   * refusal explains itself — the state never claims to be listening when it
+   * is not, which is the one failure that would make the indicator a lie.
+   */
+  const arm = useCallback(
+    async (on) => {
+      if (!on) {
+        setArmed(false);
+        try {
+          localStorage.setItem(WAKE_KEY, "0");
+        } catch {
+          /* No storage. It simply will not be remembered. */
+        }
+        if (!open) endCall();
+        return;
+      }
+
+      const allowed = await askForMicrophone();
+      if (!allowed) return;
+
+      setArmed(true);
+      try {
+        localStorage.setItem(WAKE_KEY, "1");
+      } catch {
+        /* No storage. Armed for this session only. */
+      }
+    },
+    [open, askForMicrophone, endCall]
+  );
+
+  /* What the room left switched on. Read after the first paint, never during
+     it: local storage does not exist on the server, and a page that renders
+     "listening" on one side and "not listening" on the other is a page React
+     is entitled to throw away and rebuild. */
+  useEffect(() => {
+    const load = setTimeout(() => {
+      try {
+        if (localStorage.getItem(WAKE_KEY) === "1") setArmed(true);
+      } catch {
+        /* No storage. Starts disarmed, which is the safe direction. */
+      }
+    }, 0);
+    return () => clearTimeout(load);
+  }, []);
+
+  /**
+   * Keep the ear pointed at the right thing.
+   *
+   * Open means a conversation. Closed and armed means waiting for the name.
+   * Closed and disarmed means nothing at all, and the microphone is released
+   * rather than merely ignored.
+   */
+  useEffect(() => {
+    if (!canHear) return undefined;
+
+    if (open) {
+      earMode.current = "talk";
+      return undefined;
+    }
+    if (!armed) return undefined;
+
+    earMode.current = "wake";
+    wantsMic.current = true;
+    holding.current = false;
+    const start = setTimeout(() => startListening(), 0);
+    return () => clearTimeout(start);
+  }, [armed, open, canHear, startListening]);
+
   const hangUp = () => {
     endCall();
     clearTimeout(linger.current);
@@ -709,6 +1207,76 @@ export default function Assistant({ tab = "results", projection = null }) {
     clearTimeout(linger.current);
     endCall();
   }, [endCall]);
+
+  /**
+   * Make sure the ear is actually open when it is supposed to be.
+   *
+   * ── WHY SOMETHING HAS TO CHECK ───────────────────────────────────────────
+   * Every path that reopens the microphone can fail silently. `start()`
+   * throws if the engine is still winding down from the last session, and the
+   * throw is caught and ignored because a double start is a normal race. A
+   * session ends on its own after a long silence and is reopened on a timer,
+   * and that timer can land in exactly that window. A speech engine that
+   * never fires `onend` leaves the reopen waiting for an event that is not
+   * coming.
+   *
+   * Each of those is rare. Together, over an evening, they are why it stops
+   * answering to its name with nothing on screen to say why — the worst kind
+   * of fault, because the indicator still says it is listening and the person
+   * is left talking to something that stopped hours ago.
+   *
+   * Rather than chase each race, this asks a question none of them can lie
+   * about: should it be listening, and is it? If the answer is no and yes, it
+   * opens it again. Every path is allowed to fail, because this catches all
+   * of them.
+   */
+  useEffect(() => {
+    if (!canHear) return undefined;
+
+    const beat = setInterval(() => {
+      if (!wantsMic.current || holding.current || listeningRef.current) return;
+      if (typeof window !== "undefined" && window.speechSynthesis?.speaking) return;
+      startListening();
+    }, 3000);
+
+    return () => clearInterval(beat);
+  }, [canHear, startListening]);
+
+  /**
+   * Pick the call back up on the other side of a change of dashboard.
+   *
+   * The marker is read once and cleared before anything else happens, so a
+   * failure here cannot leave a page that reopens the microphone every time
+   * it is loaded. Nothing is said on arrival: the person asked to be moved,
+   * they can see they have been moved, and being told so is one sentence in
+   * the way of the next thing they wanted to say.
+   */
+  useEffect(() => {
+    let taken = false;
+    try {
+      taken = sessionStorage.getItem(RESUMING) === "1";
+      if (taken) sessionStorage.removeItem(RESUMING);
+    } catch {
+      /* No storage. Nothing to resume. */
+    }
+    if (!taken || !canHear) return undefined;
+
+    /* Off the effect body deliberately: this opens the overlay and takes the
+       microphone, and doing that synchronously inside an effect is a
+       cascading render the moment the page has finished its first. */
+    let live = true;
+    const start = setTimeout(() => {
+      if (!live) return;
+      setOpen(true);
+      setStage("compact");
+      takeMicrophone();
+    }, 0);
+
+    return () => {
+      live = false;
+      clearTimeout(start);
+    };
+  }, [canHear, takeMicrophone]);
 
   /* Newest turn in view without yanking the panel around it. */
   useEffect(() => {
@@ -734,15 +1302,23 @@ export default function Assistant({ tab = "results", projection = null }) {
       : STARTERS.slice(0, 4);
   }, [reply, room]);
 
-  const mode = speaking ? "speaking" : listening ? "listening" : calling ? "thinking" : "idle";
+  const mode = speaking
+    ? "speaking"
+    : listening
+      ? "listening"
+      : busy || calling
+        ? "thinking"
+        : "idle";
   /* ── THE STATUS LINE, SHARED BY BOTH SIZES ─────────────────────────────── */
   const status = speaking
     ? "Speaking"
     : listening
       ? "Listening"
-      : calling
-        ? "One moment"
-        : "Paused";
+      : busy
+        ? "Looking it up"
+        : calling
+          ? "One moment"
+          : "Paused";
 
   const controls = (small) => (
     <>
@@ -787,6 +1363,19 @@ export default function Assistant({ tab = "results", projection = null }) {
           }}
         />
       )}
+      {canHear && (
+        /* Armed or not, reachable from inside the call as well as outside it.
+           Somebody who has just finished with it is exactly who wants to
+           decide whether it keeps listening, and making them hang up first to
+           find the switch is how it ends up left on by accident. */
+        <Control
+          icon={armed ? Ear : EarOff}
+          label={armed ? "Stop answering to its name" : "Answer to “Hi Poll360 AI”"}
+          on={armed}
+          small={small}
+          onClick={() => arm(!armed)}
+        />
+      )}
       <Control icon={PhoneOff} label="Close Poll360 AI" danger small={small} onClick={hangUp} />
     </>
   );
@@ -820,19 +1409,57 @@ export default function Assistant({ tab = "results", projection = null }) {
   /* ------------------------------------------------------------- launcher */
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={beginCall}
-        className="group fixed right-5 bottom-5 z-40 flex items-center gap-3 rounded-full border border-white/10 bg-dash-ink/95 py-2.5 pr-5 pl-2.5 text-white shadow-e4 backdrop-blur transition-transform hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red"
-      >
-        <Orb mode="idle" size={34} />
-        <span className="text-left">
-          <span className="block text-[0.8125rem] leading-tight font-extrabold">Hi Poll360 AI</span>
-          <span className="block text-[0.625rem] leading-tight text-white/60">
-            Ask it, or tell it where to go
+      <div className="fixed right-5 bottom-5 z-40 flex items-center gap-1.5 rounded-full border border-white/10 bg-dash-ink/95 p-1.5 pr-2 text-white shadow-e4 backdrop-blur">
+        <button
+          type="button"
+          onClick={beginCall}
+          className="group flex items-center gap-3 rounded-full pr-3 pl-1 transition-transform hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red"
+        >
+          <Orb mode={armed ? "listening" : "idle"} size={34} />
+          <span className="text-left">
+            <span className="block text-[0.8125rem] leading-tight font-extrabold">Hi Poll360 AI</span>
+            <span className="block text-[0.625rem] leading-tight text-white/60">
+              {/* ── THE INDICATOR IS NOT DECORATION ────────────────────────
+                  While it is armed there is a live microphone in the room,
+                  and the only honest thing to do is say so where nobody has
+                  to look for it. This line is the difference between a
+                  feature somebody switched on and a feature somebody has
+                  forgotten about. */}
+              {armed ? "Listening for its name" : "Ask it, or tell it where to go"}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+
+        {canHear && (
+          <button
+            type="button"
+            onClick={() => arm(!armed)}
+            aria-pressed={armed}
+            aria-label={
+              armed ? "Stop listening for the wake word" : "Listen for “Hi Poll360 AI”"
+            }
+            title={
+              armed
+                ? "Listening for its name. Nothing is kept or answered until it hears it."
+                : "Let it answer to “Hi Poll360 AI” without being pressed"
+            }
+            className={cn(
+              "relative flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
+              armed
+                ? "bg-brand-red text-white"
+                : "border border-white/15 text-white/60 hover:border-white/40 hover:text-white"
+            )}
+          >
+            {armed ? <Ear size={14} strokeWidth={2.25} /> : <EarOff size={14} strokeWidth={2.25} />}
+            {armed && (
+              <span
+                aria-hidden="true"
+                className="animate-pulse-live absolute -top-0.5 -right-0.5 size-2 rounded-full bg-white"
+              />
+            )}
+          </button>
+        )}
+      </div>
     );
   }
 
@@ -896,6 +1523,16 @@ export default function Assistant({ tab = "results", projection = null }) {
             {reply?.synthetic && (
               <p className="mt-1.5 text-[0.625rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
                 Generated figure
+              </p>
+            )}
+
+            {/* Read off somebody else's page, and said so in the same glance
+                as the words themselves. On a desk that may be reading this
+                out, where it came from is not a footnote. */}
+            {reply?.kind === "web" && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-[0.625rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
+                <Globe size={10} strokeWidth={2.5} />
+                {reply.source ?? "From the web"} · not our data
               </p>
             )}
           </div>
@@ -994,6 +1631,22 @@ export default function Assistant({ tab = "results", projection = null }) {
             {reply.synthetic && (
               <p className="mt-2 text-[0.6875rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
                 Generated figure, not a measured one
+              </p>
+            )}
+            {reply.kind === "web" && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
+                <Globe size={11} strokeWidth={2.5} />
+                {reply.source ?? "From the web"} · not this product&rsquo;s data
+                {reply.href && (
+                  <a
+                    href={reply.href}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="underline underline-offset-2 hover:text-amber-100"
+                  >
+                    Open it
+                  </a>
+                )}
               </p>
             )}
           </div>

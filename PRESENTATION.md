@@ -460,16 +460,16 @@ learn a form, on a phone with 400MB of storage and a data plan measured in
 naira, and a proportion of them simply will not file. Ask them to send a
 message on WhatsApp and they already know how.
 
-**The whole return, in one photograph.** An agent photographs the EC8A and
-Google Cloud Vision reads it: registered, accredited, rejected, all four
-parties, and the presiding officer's name, which until now had nowhere in the
-system to live. Every figure is read back to the agent and **nothing is filed
+**The whole return, in one photograph.** An agent photographs the EC8A and the
+sheet reader reads it: registered, accredited, rejected, all four parties, and
+the presiding officer's name, which until now had nowhere in the system to
+live. Every figure is read back to the agent and **nothing is filed
 until they confirm it**. A reader confuses 3 and 8 on a creased form under a
 torch, and a count that trusted its own guess would be worse than no
 automation at all. Eleven numbers typed in the dark become one confirmation.
 
-**The check that matters is the arithmetic, not the confidence score.** Vision
-reports how clear the photograph was, which is a different question from
+**The check that matters is the arithmetic, not the confidence score.** The
+reader reports how clear the photograph was, which is a different question from
 whether it read the right figures. A sheet whose party votes sum to the valid
 total is almost certainly right whatever the image quality, and one where they
 do not is wrong somewhere however crisp it looks. So the reading is accepted or

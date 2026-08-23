@@ -28,7 +28,9 @@ Production, Preview and Development.
 | `WHATSAPP_APP_SECRET` | for WhatsApp | From the Meta app. Every delivery is signature checked against it. |
 | `WHATSAPP_TOKEN` | for WhatsApp | Meta access token, used to send replies and download photographs. |
 | `WHATSAPP_PHONE_ID` | for WhatsApp | The number's id in the Meta console. |
-| `GOOGLE_VISION_API_KEY` | optional | Turns on reading result sheets from photographs. Without it the bot asks its questions instead. |
+| `GOOGLE_VISION_API_KEY` | optional | Upgrades the sheet reader. Without it a reader that runs on the server is used, which is free and needs no account, and is weaker on handwriting. |
+| `SHEET_READER` | optional | `google`, `local`, or `off`. Overrides the choice above. `off` puts the bot back to asking its questions. |
+| `SHEET_READER_CACHE` | optional | Where the local reader keeps its language file. Defaults to the system temporary directory, which is right almost everywhere. |
 
 ### Two things worth being deliberate about
 

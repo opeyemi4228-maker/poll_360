@@ -49,6 +49,7 @@ model Election {
   pollingUnits PollingUnit[]
   sheetReads   SheetRead[]
   positions    WaPosition[]
+  declared     Declared[]
 
   @@index([status, createdAt])
   @@map("elections")
@@ -120,7 +121,15 @@ model Result {
   /// JSON, kept as text exactly as it was stored. Changing the storage engine
   /// and the column type in one step is how a migration quietly loses a row.
   votes       String
+  /// Predates the `declared` table and is left exactly where it is: the seeder
+  /// still writes it, and dropping a column is how a migration loses data
+  /// somebody was still reading. Per-party and per-ward declared figures live
+  /// in Declared below, which a single integer could never express.
   inecTotal   Int?      @map("inec_total")
+  /// Whether the photographed sheet was compared to these figures, and what
+  /// the comparison found. Null means no comparison happened, which is not the
+  /// same as one that agreed and must never be stored as though it were.
+  sheetMatch  String?   @map("sheet_match")
   status      String    @default("SUBMITTED")
   note        String?
   lat         Float?
@@ -364,4 +373,64 @@ model SheetRead {
 
   @@index([electionId, createdAt])
   @@map("sheet_reads")
+}
+
+/// What the commission announced, one row per place per election.
+///
+/// ── WHY THIS IS NOT A COLUMN ON Result ────────────────────────────────────
+/// Two reasons, and the second is the one that matters. A single integer can
+/// only say that some total moved, never which party's figure moved — and the
+/// question worth asking is never "is the total different" but "did the
+/// difference change who won". And a result row is a polling unit, while
+/// collation announces wards and local governments hours before any unit sheet
+/// is published. A ward figure has nowhere to live on a table keyed by booth,
+/// and a ward is where a count is actually altered.
+///
+/// ── AND WHY IT IS NEVER MERGED INTO THE COUNT ─────────────────────────────
+/// Nothing here is written into a Result and no Result is written into here. A
+/// second, independently sourced figure for the same booths is the entire
+/// point of running a parallel count; a schema that let either side correct
+/// the other would destroy that quietly, and the only symptom would be a
+/// comparison that always agrees.
+model Declared {
+  id          String   @id
+  electionId  String   @map("election_id")
+  /// UNIT, WARD, LGA or STATE — the level it was announced at, read off the
+  /// shape of the code itself in lib/declared.js rather than chosen by hand.
+  level       String
+  /// The place's code at that level: 01/01/04/006, 01/01/04, 01/01, or 01. A
+  /// truncation of the unit code, so both sides of the comparison derive their
+  /// join key from the same string by the same function.
+  placeKey    String   @map("place_key")
+  stateCode   String?  @map("state_code")
+  /// How many polling units this place contains, where the collation sheet
+  /// said so. Null means nobody told us — and the comparison then stays
+  /// partial rather than assuming complete coverage. It cannot be derived from
+  /// polling_units, which records what has reported rather than what exists,
+  /// and counting that would mark every place complete the moment it is
+  /// covered at all.
+  units       Int?
+  registered  Int?
+  accredited  Int?
+  rejected    Int?
+  /// JSON keyed by party, matching how Result stores votes.
+  votes       String
+  /// The total as the sheet stated it, kept beside the parties rather than
+  /// replacing them: a row whose parties contradict its own stated total is
+  /// itself a finding, and one this product has already met in the 2023 source.
+  statedTotal Int?     @map("stated_total")
+  total       Int
+  source      String   @default("UPLOAD")
+  note        String?
+  enteredBy   String?  @map("entered_by")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  /// A place is declared once. Collation correcting itself replaces the row
+  /// rather than adding one — two rows for a ward is a total counted twice,
+  /// and nobody spots that in an aggregate.
+  @@unique([electionId, level, placeKey])
+  @@index([electionId, stateCode])
+  @@map("declared")
 }

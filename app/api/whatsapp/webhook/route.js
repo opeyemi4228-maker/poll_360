@@ -24,6 +24,15 @@ import { whatsapp } from "@/lib/db";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/* ── WHY THIS ROUTE IS ALLOWED A LONG MINUTE ───────────────────────────────
+   Reading a photographed sheet on the server takes seconds rather than
+   milliseconds, and more of them on a cold instance, which has to fetch its
+   language file before it can read anything at all. The host's default
+   ceiling is around ten seconds — under it, and the read is killed halfway
+   with nothing to show for the work. This is a ceiling, not a reservation:
+   a message with no photograph in it still answers as fast as it ever did. */
+export const maxDuration = 60;
+
 /** Meta's one-time subscription handshake. */
 export async function GET(request) {
   const params = request.nextUrl.searchParams;

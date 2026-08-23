@@ -14,6 +14,16 @@ import { formatNumber } from "@/lib/utils";
 export const metadata = { title: "File a result", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
+/* ── WHY THIS PAGE IS ALLOWED A LONG MINUTE ────────────────────────────────
+   Set here rather than in the action because the host reads the ceiling from
+   the page a server action was called from. Filing a result may carry a
+   photograph to be checked against the typed figures, and reading it on the
+   server takes seconds — more on a cold instance, which fetches its language
+   file first. Under the host's default ceiling the check is killed halfway
+   and the agent sees a submission that never completes. A filing with no
+   photograph is unaffected: this is a ceiling, not a reservation. */
+export const maxDuration = 60;
+
 /**
  * The agent's dashboard.
  *

@@ -16,6 +16,14 @@ const nextConfig = {
      Four megabytes covers the worst realistic photograph. The actions still
      check the size and the leading bytes themselves: a framework limit is a
      backstop, never a validation. */
+  /* ── WHY THE SHEET READER IS NOT BUNDLED ───────────────────────────────────
+     The local sheet reader is a WebAssembly engine that spawns a worker and
+     loads its language data from disk at runtime. Bundlers rewrite the paths
+     it uses to find both, and it then fails at the first photograph rather
+     than at build time, which is the worst moment to discover it. Left
+     external it is resolved by Node the ordinary way and simply works. */
+  serverExternalPackages: ["tesseract.js"],
+
   experimental: {
     serverActions: {
       bodySizeLimit: "4mb",

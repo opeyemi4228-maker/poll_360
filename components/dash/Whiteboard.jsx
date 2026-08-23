@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Download, Eraser, Loader2, PenLine, Save, Trash2, X } from "lucide-react";
+import { Check, Download, Eraser, ExternalLink, Loader2, PenLine, Save, Trash2, X } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
 import { boundsOf } from "@/lib/bbox";
 import { apportion, leaderOf, wardCount } from "@/lib/drill";
 import { states2023 } from "@/lib/election2023";
-import { cn, formatNumber, formatShare } from "@/lib/utils";
+import { cn, formatClock, formatNumber, formatShare } from "@/lib/utils";
 import {
   board as store,
   closestStates,
@@ -379,12 +379,28 @@ function Card({ card, shapes, boundaries, rowFor, onErase }) {
           count are different numbers, and a card that does not say which one
           it is showing is a card somebody will eventually quote wrongly. */}
       {card.kind !== "answer" && (
-        <p className="border-t border-board-line px-3.5 py-2 text-[0.625rem] tracking-[0.08em] text-white/30 uppercase">
-          {card.kind === "projection" || card.kind === "battlegrounds" || card.kind === "zones"
-            ? "Projection · no assumptions set"
-            : card.scope === "lga" || card.scope === "ward"
-              ? "Declared 2023 · apportioned to this level"
-              : "Declared 2023"}
+        <p
+          className={cn(
+            "border-t px-3.5 py-2 text-[0.625rem] tracking-[0.08em] uppercase",
+            /* ── AN OUTSIDE SOURCE IS MARKED, NOT MENTIONED ──────────────
+               Every other card on this board is computed from the data the
+               screens are drawn from. This one was read off somebody else's
+               website. On a board a broadcast may be reading from, that is
+               the single most important thing about it, so it is not a
+               quieter grey line like the others — it is its own colour, and
+               it names the source and the minute it was read. */
+            card.kind === "web"
+              ? "border-amber-400/25 bg-amber-400/10 text-amber-200/80"
+              : "border-board-line text-white/30"
+          )}
+        >
+          {card.kind === "web"
+            ? `${card.source} · read at ${formatClock(new Date(card.readAt))} · not our data`
+            : card.kind === "projection" || card.kind === "battlegrounds" || card.kind === "zones"
+              ? "Projection · no assumptions set"
+              : card.scope === "lga" || card.scope === "ward"
+                ? "Declared 2023 · apportioned to this level"
+                : "Declared 2023"}
         </p>
       )}
     </article>
@@ -395,6 +411,8 @@ function Body({ card, shapes, boundaries, rowFor }) {
   if (card.kind === "answer") {
     return <p className="text-[0.8125rem] leading-relaxed text-white/80">{card.text}</p>;
   }
+
+  if (card.kind === "web") return <FromTheWeb card={card} />;
 
   if (card.kind === "map") {
     return <BoardMap card={card} shapes={shapes} boundaries={boundaries} />;
@@ -419,6 +437,58 @@ function Body({ card, shapes, boundaries, rowFor }) {
   if (card.kind === "turnout") return <Turnout figures={figures} />;
   if (card.kind === "register") return <Register figures={figures} />;
   return <Result figures={figures} bars={card.kind === "parties"} />;
+}
+
+/**
+ * Something read off the web, drawn so it can never be mistaken for a figure.
+ *
+ * No large numeral, no bar, no party colour — the whole visual grammar the
+ * rest of the board uses for things this product computed is deliberately
+ * absent here. It looks like a page someone brought into the room, because
+ * that is exactly what it is.
+ */
+function FromTheWeb({ card }) {
+  return (
+    <div>
+      {card.image && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={card.image}
+          alt=""
+          /* Decorative: everything it conveys is in the text beside it, and a
+             caption invented for somebody else's photograph would be a claim
+             we cannot stand behind. */
+          className="mb-3 max-h-40 w-full rounded-dash-sm object-cover"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
+      )}
+
+      {card.note && (
+        <p className="mb-1.5 text-[0.6875rem] tracking-[0.08em] text-white/40 uppercase">{card.note}</p>
+      )}
+
+      {card.ambiguous && (
+        <p className="mb-2 rounded-dash-sm border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[0.75rem] leading-relaxed text-amber-100">
+          Several things go by this name. Say which one and it will be looked up properly.
+        </p>
+      )}
+
+      <p className="text-[0.8125rem] leading-relaxed text-white/80">{card.text}</p>
+
+      {card.href && (
+        <a
+          href={card.href}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="mt-3 inline-flex items-center gap-1.5 text-[0.75rem] font-semibold text-amber-200/90 underline underline-offset-2 hover:text-amber-100"
+        >
+          Read the rest
+          <ExternalLink size={11} strokeWidth={2.5} />
+        </a>
+      )}
+    </div>
+  );
 }
 
 function Waiting({ scope }) {

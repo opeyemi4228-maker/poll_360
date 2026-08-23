@@ -116,6 +116,20 @@ export default function TopShell({
                     )}
                   >
                     {tab.label}
+                    {/* A surface that fills itself while somebody is looking
+                        at a different one has to say so where they already
+                        are, or the feature is invisible until they happen to
+                        wander over. */}
+                    {tab.badge ? (
+                      <span
+                        className={cn(
+                          "ml-1.5 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] font-bold tabular-nums",
+                          active === tab.value ? "bg-dash-ink text-white" : "bg-brand-red text-white"
+                        )}
+                      >
+                        {tab.badge}
+                      </span>
+                    ) : null}
                   </button>
                 ))}
               </span>

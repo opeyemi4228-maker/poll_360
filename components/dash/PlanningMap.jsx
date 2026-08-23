@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ChevronRight, Download, Layers, Loader2, RotateCcw, Target } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronRight, Download, Layers, Loader2, MapPin, RotateCcw, Target, Users } from "lucide-react";
 
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { apportion, wardCount } from "@/lib/drill";
 import { FACTOR_ROWS } from "@/lib/forecast";
-import { states2023 } from "@/lib/election2023";
+import { parties, states2023 } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -165,12 +165,83 @@ function marginOf(state) {
   return ((order[0] - order[1]) / Math.max(state.total, 1)) * 100;
 }
 
+/* The four named parties, in the order every vote array in this product uses.
+   Index 4 is everybody else and is deliberately never a "winner": a place is
+   not carried by the aggregate of fourteen other candidates. */
+const PARTY_ID = parties.map((party) => party.id);
+
+/** Who carried a place in 2023, and by how much. */
+function winnerOf(votes) {
+  let best = 0;
+  for (let index = 1; index < PARTY_ID.length; index += 1) {
+    if ((votes[index] ?? 0) > (votes[best] ?? 0)) best = index;
+  }
+  const ranked = votes.slice(0, PARTY_ID.length).sort((a, b) => b - a);
+  const total = votes.reduce((sum, value) => sum + (value ?? 0), 0);
+  return {
+    id: PARTY_ID[best],
+    votes: votes[best] ?? 0,
+    margin: total ? ((ranked[0] - ranked[1]) / total) * 100 : 0,
+  };
+}
+
+/**
+ * How long three taps have to arrive in to count as one gesture.
+ *
+ * ── WHY THIS IS GENEROUS ───────────────────────────────────────────────────
+ * The usual double-click window is around 250ms, which is tuned for a mouse on
+ * a desk. This map is driven with a finger on a touch wall between bulletins,
+ * and a third deliberate tap is slower than a third reflexive one. Too short
+ * and the gesture is unreachable for the people it was asked for; too long and
+ * two unrelated taps on the same state start being read as one intention. 600ms
+ * is long enough to be repeatable standing up and short enough that a pause to
+ * look at the figures ends the sequence.
+ */
+const TRIPLE_MS = 600;
+
+/**
+ * How far the taps may wander and still be one gesture.
+ *
+ * ── WITHOUT THIS, TOGGLING TWO PLACES DROPS THE STATE ─────────────────────
+ * Time alone cannot tell a triple-tap from somebody quickly ticking three
+ * local governments inside an open state: both are three taps inside the
+ * window. What separates them is that a triple-tap does not move. Requiring
+ * every tap of a sequence to land within a few pixels of the first makes
+ * deliberate taps on different places reset the count, which is what they
+ * mean. Fourteen pixels is wide enough for a finger that shifts slightly
+ * between taps and far narrower than any two adjacent shapes on this map.
+ */
+const TAP_SLOP = 14;
+
 export default function PlanningMap({ shapes }) {
   const [openState, setOpenState] = useState(null);
   const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
   const [hovered, setHovered] = useState(null);
   const [basisKey, setBasisKey] = useState("registered");
   const [lensKey, setLensKey] = useState("close");
+
+  /* Where the pointer is inside the map frame, so the readout can sit beside
+     whatever it is describing. Measured against the map's own box rather than
+     the page, so it stays correct when the room scrolls. */
+  const [pointer, setPointer] = useState(null);
+
+  /**
+   * The tap sequence in progress.
+   *
+   * ── WHY A REF AND NOT STATE ───────────────────────────────────────────────
+   * Three taps can land inside one React batch, and state read inside a handler
+   * is the value from the last render rather than the value the previous tap
+   * just set. Counting taps in state gives a counter that reads 1, 1, 1. A ref
+   * is the value at the moment it is read, which is the only thing that can
+   * count a gesture.
+   *
+   * `snapshot` is the plan as it stood *before* the first tap. The third tap
+   * restores it and then drops the state, so the add from tap one and whatever
+   * tap two did inside the state both leave no residue. Undoing a gesture has
+   * to undo all of it, or "remove" quietly means "remove, but keep whatever I
+   * touched on the way past".
+   */
+  const sequence = useRef({ code: null, count: 0, at: 0, x: null, y: null, snapshot: null });
 
   /**
    * ── HOW A SELECTION IS KEYED, AND WHY IT HAS THREE FORMS ─────────────────
@@ -434,6 +505,161 @@ export default function PlanningMap({ shapes }) {
       ? [...picked].some((key) => key.startsWith(`${code}!`))
       : [...picked].some((key) => key.startsWith(`${code}:`));
 
+  /* ------------------------------------------------------- the third tap */
+
+  /**
+   * Drop a state and undo everything the taps before it did.
+   *
+   * The map also comes back out to the country, because a state that is no
+   * longer in the plan is not a state anybody is still working inside, and
+   * leaving the frame zoomed into it would say otherwise.
+   */
+  const dropState = useCallback((code) => {
+    const held = sequence.current.snapshot;
+    setPicked(() => {
+      const next = new Set(held ?? []);
+      for (const key of [...next]) {
+        if (key === code || key.startsWith(`${code}:`) || key.startsWith(`${code}!`)) {
+          next.delete(key);
+        }
+      }
+      return next;
+    });
+    setOpenState((current) => (current?.code === code ? null : current));
+    sequence.current = { code: null, count: 0, at: 0, x: null, y: null, snapshot: null };
+  }, []);
+
+  /**
+   * Count this tap, and say which tap of the gesture it is.
+   *
+   * A tap on a different state, or one that arrives after the window has
+   * closed, starts a fresh sequence rather than continuing the old one — so
+   * pausing to read the figures always resets, which is what somebody who has
+   * stopped to look actually means.
+   *
+   * ── THE CLOCK COMES FROM THE EVENT ────────────────────────────────────────
+   * `at` is the click's own timeStamp rather than a clock read inside here.
+   * Two reasons, and the second is why it is not merely tidier: reading a clock
+   * in a component body is impure and the compiler refuses it, and the event's
+   * stamp is when the tap actually happened rather than whenever this code got
+   * around to running — which is the difference between a gesture and a
+   * measurement of how busy the main thread was.
+   */
+  const countTap = (code, event) => {
+    const run = sequence.current;
+
+    const settled =
+      run.x !== null &&
+      Math.abs(event.clientX - run.x) <= TAP_SLOP &&
+      Math.abs(event.clientY - run.y) <= TAP_SLOP;
+
+    if (run.code === code && event.timeStamp - run.at < TRIPLE_MS && settled) {
+      run.count += 1;
+    } else {
+      run.code = code;
+      run.count = 1;
+      /* Captured before the first tap changes anything, which is what makes
+         the third tap able to put the plan back exactly as it was. */
+      run.snapshot = new Set(picked);
+    }
+
+    run.at = event.timeStamp;
+    run.x = event.clientX;
+    run.y = event.clientY;
+    return run.count;
+  };
+
+  /* ------------------------------------------------------ what is under it */
+
+  /**
+   * Everything worth reading about one place.
+   *
+   * ── STATE FIGURES ARE DECLARED; EVERYTHING BELOW ONE IS NOT ──────────────
+   * A state's register, votes and booth count are the published 2023 record. A
+   * local government's are apportioned from its state and always add back to
+   * it, which makes the shape right and the individual number an estimate. The
+   * readout carries `estimate` so every screen that shows these has to say
+   * which it is holding, rather than leaving a planner to assume a figure was
+   * measured when it was divided.
+   */
+  const describe = useCallback(
+    (key) => {
+      if (!key) return null;
+
+      if (key.includes(":")) {
+        const [code, name] = key.split(":");
+        const state = byCode.get(code);
+        const row = (lgaCache.get(code) ?? []).find((item) => item.name === name);
+        if (!state || !row) return null;
+
+        return {
+          key,
+          kind: "lga",
+          name,
+          parent: state.name,
+          code,
+          registered: row.registered,
+          cast: row.total,
+          booths: row.booths,
+          turnout: row.turnout,
+          perBooth: row.density,
+          wards: wardCount(name),
+          winner: winnerOf(row.votes),
+          estimate: true,
+        };
+      }
+
+      const state = byCode.get(key);
+      if (!state) return null;
+
+      return {
+        key,
+        kind: "state",
+        name: state.name,
+        parent: null,
+        code: key,
+        registered: state.registered,
+        cast: state.total,
+        booths: state.booths,
+        turnout: state.turnout,
+        perBooth: state.booths ? Math.round(state.registered / state.booths) : 0,
+        wards: null,
+        winner: winnerOf(state.votes),
+        estimate: false,
+      };
+    },
+    [byCode, lgaCache]
+  );
+
+  /** Where this place stands in the plan, in one word the readout can print. */
+  const statusOf = (key) => {
+    if (!key) return "none";
+    if (key.includes(":")) {
+      const [code, name] = key.split(":");
+      if (picked.has(code)) return picked.has(`${code}!${name}`) ? "carved" : "covered";
+      return picked.has(key) ? "chosen" : "none";
+    }
+    if (picked.has(key)) return statePartly(key) ? "partly" : "chosen";
+    return statePartly(key) ? "partly" : "none";
+  };
+
+  /**
+   * What the side panel is describing right now.
+   *
+   * ── THE BOARD IS NEVER BLANK ──────────────────────────────────────────────
+   * Hovered first, because that is what the reader is asking about. Then the
+   * state they have opened, because that is what they are working inside. Then
+   * the country, because a planning board with nothing on it teaches the reader
+   * that the panel is decoration. There is always a true answer to "what am I
+   * looking at", so there is never a reason to show nothing.
+   */
+  const hoverDetail = useMemo(() => describe(hovered), [describe, hovered]);
+
+  const focus = useMemo(
+    () => hoverDetail ?? describe(openState?.code ?? null),
+    [hoverDetail, describe, openState]
+  );
+
   /**
    * The plan as a file, written from the same fold the totals use, so the
    * export and the screen can never disagree about what is covered.
@@ -501,11 +727,43 @@ export default function PlanningMap({ shapes }) {
               ? picked.has(openState.code)
                 ? "This state is covered. Tap a local government to take it back out"
                 : "Tap a local government to add it"
-              : "Tap a state to add it, twice to open it"}
+              : "Tap to add, twice to open, three times to take it back out"}
           </span>
         </nav>
 
-        <div className="relative min-h-0 flex-1 p-1.5">
+        <div
+          className="relative min-h-0 flex-1 p-1.5"
+          /* Tracked on the frame rather than on each shape: a shape only knows
+             it is being pointed at, not where, and a readout that appears in
+             the middle of Kano regardless of where the finger is is a readout
+             that covers the thing it is describing. */
+          onPointerMove={(event) => {
+            const box = event.currentTarget.getBoundingClientRect();
+            setPointer({
+              x: event.clientX - box.left,
+              y: event.clientY - box.top,
+              width: box.width,
+              height: box.height,
+            });
+          }}
+          onPointerLeave={() => setPointer(null)}
+          /* ── THE TAP THAT LANDS ON NOTHING ──────────────────────────────
+             The second tap opens a state, and its boundaries are fetched. For
+             the few hundred milliseconds that takes there are no shapes drawn
+             and the loading notice is over the frame, so a genuinely fast
+             third tap hits neither — no shape handler runs, and the gesture
+             silently does nothing. That is not an edge case: it is what a real
+             triple-tap on a state does every time, because a person tapping
+             quickly is always faster than a network fetch.
+
+             So the frame carries the sequence as well. Shapes stop their
+             clicks from bubbling, which leaves this handler seeing exactly the
+             taps that missed. */
+          onClick={(event) => {
+            if (!openState) return;
+            if (countTap(openState.code, event) >= 3) dropState(openState.code);
+          }}
+        >
           {loading && (
             <p className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-board/80 text-[0.875rem] text-white/60">
               <Loader2 size={16} className="animate-spin" />
@@ -564,7 +822,36 @@ export default function PlanningMap({ shapes }) {
                 <g
                   key={key}
                   onPointerEnter={() => setHovered(key)}
-                  onClick={() => {
+                  /* Focus drives the readout too, so the figures are not
+                     something only a pointing device can reach. */
+                  onFocus={() => setHovered(key)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.currentTarget.click();
+                  }}
+                  onClick={(event) => {
+                    /* Counted here or on the frame, never both. */
+                    event.stopPropagation();
+
+                    /* ── THE THIRD TAP, WHEREVER IT LANDS ──────────────────
+                       The second tap opens the state, so the third arrives on
+                       a local government inside it rather than on the state it
+                       was aimed at — and for a state that was already in the
+                       plan the *first* tap opens it, so taps two and three are
+                       both inside. Keying the sequence on the state rather
+                       than on the shape under the finger is what lets one
+                       gesture start on a country map and finish on a local
+                       government without the taps in between leaving anything
+                       behind. */
+                    const code = inState ? openState.code : shape.code;
+                    const tap = countTap(code, event);
+
+                    if (tap >= 3) {
+                      dropState(code);
+                      return;
+                    }
+
                     if (inState) {
                       toggleLga(openState.code, shape.name);
                       return;
@@ -577,7 +864,18 @@ export default function PlanningMap({ shapes }) {
                     }
                     toggleState(shape.code);
                   }}
-                  className="cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${shape.name}${
+                    carved
+                      ? ", taken out of the plan"
+                      : chosen
+                        ? ", in the plan"
+                        : partly
+                          ? ", partly covered"
+                          : ""
+                  }`}
+                  className="group cursor-pointer focus:outline-none"
                 >
                   <path
                     d={shape.d}
@@ -593,22 +891,15 @@ export default function PlanningMap({ shapes }) {
                     stroke={active || chosen ? "#ffffff" : "var(--color-board)"}
                     strokeWidth={(active ? 2.4 : 1.1) * unit}
                     strokeLinejoin="round"
-                    className="transition-[fill] duration-200"
-                  >
-                    {/* One string: adjacent text nodes inside a <title> are
-                        merged by the DOM and never match what React rendered. */}
-                    <title>
-                      {`${shape.name}${
-                        carved
-                          ? " (taken out of the plan)"
-                          : chosen
-                            ? " (in the plan)"
-                            : partly
-                              ? " (partly covered)"
-                              : ""
-                      }`}
-                    </title>
-                  </path>
+                    className="transition-[fill] duration-200 group-focus-visible:stroke-white"
+                  />
+                  {/* ── NO <title> ANY MORE, ON PURPOSE ────────────────────
+                      It used to carry the place's name, which the browser drew
+                      as its own tooltip about a second after the pointer
+                      settled — directly on top of the readout below, saying
+                      less. The name it carried has moved to aria-label on the
+                      group, so a screen reader still gets it and only one
+                      tooltip is ever drawn. */}
 
                   {fits.get(shape.name) && (
                     <text
@@ -634,6 +925,14 @@ export default function PlanningMap({ shapes }) {
               );
             })}
           </svg>
+
+          {/* ── THE READOUT ────────────────────────────────────────────────
+              Beside the pointer, never under it, and flipped to the other side
+              once it would run off the frame. A card that leaves the box is a
+              card clipped in half, and half a figure is worse than none. */}
+          {hoverDetail && pointer && (
+            <HoverCard detail={hoverDetail} status={statusOf(hovered)} pointer={pointer} />
+          )}
         </div>
 
         {/* The running cost of the plan, along the foot. */}
@@ -658,7 +957,23 @@ export default function PlanningMap({ shapes }) {
       </div>
 
       {/* ------------------------------------------------------------ plan */}
-      <div className="flex min-h-0 flex-col gap-3">
+      {/* ── ONE SCROLL, NOT THREE ────────────────────────────────────────
+          This column used to be exactly the height of the map with "In the
+          plan" absorbing the slack and scrolling inside itself. A fourth panel
+          does not fit that: on a 1080p screen the three fixed sections leave
+          the plan list about thirty pixels, which is a list you cannot read.
+          So the column itself scrolls and the sections inside it are their own
+          natural height. A panel that scrolls inside a panel that scrolls is
+          two scrollbars competing for the same wheel, and the reader loses. */}
+      <div className="flex flex-col gap-3 xl:min-h-0 xl:overflow-y-auto">
+        {/* ------------------------------------------------- what is under it */}
+        <PlaceDetail
+          detail={focus}
+          status={statusOf(focus?.key ?? null)}
+          national={NATIONAL}
+          basis={basis}
+        />
+
         {/* ------------------------------------------------------ the basis */}
         <section className="rounded-dash border border-dash-line bg-dash-card p-4">
           <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
@@ -782,7 +1097,7 @@ export default function PlanningMap({ shapes }) {
         </section>
 
         {/* ---------------------------------------------------- in the plan */}
-        <section className="flex min-h-0 flex-1 flex-col rounded-dash border border-dash-line bg-dash-card">
+        <section className="flex flex-col rounded-dash border border-dash-line bg-dash-card">
           <header className="flex items-center gap-2 border-b border-dash-line px-4 py-3">
             <Layers size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" />
             <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
@@ -799,7 +1114,7 @@ export default function PlanningMap({ shapes }) {
               only the local governments you want.
             </p>
           ) : (
-            <ul className="min-h-0 flex-1 divide-y divide-dash-line overflow-y-auto">
+            <ul className="divide-y divide-dash-line">
               {[...plan.cover.entries()]
                 .sort()
                 .filter(([, scope]) => scope.whole || scope.include.size)
@@ -864,5 +1179,229 @@ export default function PlanningMap({ shapes }) {
         </section>
       </div>
     </div>
+  );
+}
+
+/* ── the readout ─────────────────────────────────────────────────────────── */
+
+/**
+ * How a place stands in the plan, in one word.
+ *
+ * Colour never carries this on its own: the word is printed. The map already
+ * says the same thing in fill, and a planner reading a projection of this
+ * screen in a lit room may not be able to tell the two reds apart.
+ */
+const STATUS = {
+  chosen: { label: "In the plan", tone: "bg-red-500 text-white" },
+  partly: { label: "Partly covered", tone: "bg-red-900 text-white" },
+  covered: { label: "Covered by its state", tone: "bg-red-500 text-white" },
+  carved: { label: "Taken out", tone: "bg-white/15 text-white" },
+  none: { label: "Not in the plan", tone: "bg-white/10 text-white/60" },
+};
+
+/**
+ * The card that follows the pointer.
+ *
+ * ── IT IS PLACED, NOT CENTRED ─────────────────────────────────────────────
+ * Offset from the pointer rather than centred on it, because a card under the
+ * finger hides the shape it describes — and on a touch wall the finger is
+ * already covering some of it. Once the card would cross the right or bottom
+ * edge it flips to the other side of the pointer instead of being clamped:
+ * clamping slides it over the shape, which is the thing it must never do.
+ */
+function HoverCard({ detail, status, pointer }) {
+  /* ── MEASURED, NOT ESTIMATED ──────────────────────────────────────────
+     A constant is honest here only because the card's content is fixed: the
+     same six rows and a one-line header, both truncated, whatever place is
+     under the pointer. These are its real dimensions at the rendered type
+     scale — the first guess was 232 and the card is 283, which left it
+     hanging fifty pixels past where the flip believed it ended, so it clipped
+     against the bottom of the frame instead of flipping above the pointer.
+     If a row is ever added here, this has to move with it. */
+  const WIDTH = 224;
+  const HEIGHT = 283;
+  const GAP = 18;
+
+  const flipX = pointer.x + GAP + WIDTH > pointer.width;
+  const flipY = pointer.y + GAP + HEIGHT > pointer.height;
+
+  const mark = STATUS[status] ?? STATUS.none;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none absolute z-20 w-56 overflow-hidden rounded-dash border border-white/15 bg-board/95 shadow-e3 backdrop-blur-sm"
+      style={{
+        left: flipX ? pointer.x - GAP - WIDTH : pointer.x + GAP,
+        top: flipY ? Math.max(0, pointer.y - GAP - HEIGHT) : pointer.y + GAP,
+      }}
+    >
+      <header className="border-b border-white/10 px-3 py-2">
+        <p className="truncate font-display text-[0.875rem] font-extrabold text-white">
+          {detail.name}
+        </p>
+        <p className="mt-0.5 truncate text-[0.6875rem] text-white/45">
+          {detail.kind === "lga" ? `Local government · ${detail.parent}` : "State"}
+        </p>
+      </header>
+
+      <dl className="divide-y divide-white/10">
+        <Line
+          label="Registered voters"
+          value={formatNumber(detail.registered)}
+          lead
+        />
+        <Line label="Votes cast 2023" value={formatNumber(detail.cast)} />
+        <Line label="Turnout" value={formatShare(detail.turnout)} />
+        <Line label="Polling units" value={formatNumber(detail.booths)} />
+        <Line label="Voters per unit" value={formatNumber(detail.perBooth)} />
+        <Line
+          label="Carried 2023"
+          value={`${detail.winner.id} by ${detail.winner.margin.toFixed(1)}%`}
+        />
+      </dl>
+
+      <footer className="flex items-center gap-1.5 border-t border-white/10 px-3 py-2">
+        <span
+          className={cn(
+            "rounded-dash-sm px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-[0.08em] uppercase",
+            mark.tone
+          )}
+        >
+          {mark.label}
+        </span>
+        {detail.estimate && (
+          <span className="ml-auto text-[0.5625rem] font-bold tracking-[0.08em] text-amber-300/80 uppercase">
+            Estimate
+          </span>
+        )}
+        {!detail.estimate && (
+          <span className="ml-auto text-[0.5625rem] text-white/30">Declared 2023</span>
+        )}
+      </footer>
+    </div>
+  );
+}
+
+function Line({ label, value, lead = false }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 px-3 py-1.5">
+      <dt className={cn("text-[0.6875rem]", lead ? "text-white/70" : "text-white/45")}>{label}</dt>
+      <dd
+        className={cn(
+          "figure shrink-0 font-bold text-white tabular-nums",
+          lead ? "text-[0.9375rem]" : "text-[0.75rem]"
+        )}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * The panel that keeps the board from being blank.
+ *
+ * ── WHY IT FALLS BACK RATHER THAN EMPTYING ────────────────────────────────
+ * It describes whatever is under the pointer; when nothing is, it describes
+ * the state being worked inside; when there is none, the country. A planner
+ * always has a place in front of them, so the panel always has something true
+ * to say, and it never teaches the reader that this corner of the screen goes
+ * blank and can be ignored.
+ */
+function PlaceDetail({ detail, status, national, basis }) {
+  const mark = detail ? (STATUS[status] ?? STATUS.none) : null;
+
+  const rows = detail
+    ? [
+        ["Registered voters", formatNumber(detail.registered)],
+        ["Votes cast 2023", formatNumber(detail.cast)],
+        ["Turnout", formatShare(detail.turnout)],
+        /* Not also "agents at one each": one agent per booth is the product's
+           own rule, so that row is this row again under a second name, and a
+           table that prints the same figure twice teaches the reader to stop
+           reading it. The plan's own agent count is in the panel below. */
+        ["Polling units to staff", formatNumber(detail.booths)],
+        ["Voters per unit", formatNumber(detail.perBooth)],
+        ["Carried 2023", `${detail.winner.id} by ${detail.winner.margin.toFixed(1)}%`],
+      ]
+    : [
+        ["Registered voters", formatNumber(national.registered)],
+        ["Votes cast 2023", formatNumber(national.cast)],
+        ["Polling units to staff", formatNumber(national.booths)],
+        [
+          "Voters per unit",
+          formatNumber(Math.round(national.registered / Math.max(national.booths, 1))),
+        ],
+        ["States", formatNumber(states2023.length)],
+      ];
+
+  return (
+    <section className="rounded-dash border border-dash-line bg-dash-card">
+      <header className="flex items-start gap-2 border-b border-dash-line px-4 py-3">
+        {detail?.kind === "lga" ? (
+          <MapPin size={15} strokeWidth={2.25} className="mt-0.5 shrink-0 text-dash-muted" />
+        ) : (
+          <Users size={15} strokeWidth={2.25} className="mt-0.5 shrink-0 text-dash-muted" />
+        )}
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-display text-[0.875rem] font-extrabold text-dash-ink">
+            {detail ? detail.name : "Nigeria"}
+          </h3>
+          <p className="mt-0.5 truncate text-[0.6875rem] text-dash-muted">
+            {detail
+              ? detail.kind === "lga"
+                ? `Local government · ${detail.parent}`
+                : "State · declared 2023"
+              : "Nothing under the pointer. The whole country, for scale"}
+          </p>
+        </div>
+        {detail?.estimate && (
+          <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-amber-900 uppercase">
+            Estimate
+          </span>
+        )}
+      </header>
+
+      <dl className="divide-y divide-dash-line">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-baseline justify-between gap-3 px-4 py-2">
+            <dt className="text-[0.75rem] text-dash-muted">{label}</dt>
+            <dd className="figure shrink-0 text-[0.8125rem] font-bold text-dash-ink tabular-nums">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <footer className="border-t border-dash-line px-4 py-2.5">
+        {mark ? (
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                "rounded-dash-sm px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-[0.08em] uppercase",
+                status === "none" ? "bg-dash-bg text-dash-muted" : "bg-dash-ink text-white"
+              )}
+            >
+              {mark.label}
+            </span>
+            <span className="text-[0.6875rem] text-dash-muted">
+              {basis.short} is what the plan is costed on
+            </span>
+          </div>
+        ) : (
+          <p className="text-[0.6875rem] leading-relaxed text-dash-muted">
+            Hover any state or local government to read its figures here.
+          </p>
+        )}
+
+        {detail?.estimate && (
+          <p className="mt-2 text-[0.6875rem] leading-relaxed text-dash-muted">
+            Apportioned from {detail.parent}&rsquo;s declared total. The parts always add back to
+            the state, so the shape is right and each single figure is an estimate.
+          </p>
+        )}
+      </footer>
+    </section>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import TopShell from "./TopShell";
+import { useGreeting } from "./useGreeting";
 import ScopeMap, { LABEL, describe, magnitude } from "./ScopeMap";
 import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
@@ -121,6 +122,23 @@ const TABS = TAB_GROUPS.flatMap((group) => group.tabs.map((tab) => ({ ...tab, gr
 
 const MAP_LAYERS = new Set(["results", "register", "turnout", "density"]);
 
+/* How much the board will hold before the oldest starts falling off. */
+const BOARD_LIMIT = 24;
+
+/**
+ * Whether two cards say the same thing.
+ *
+ * Identity is what a card is *about*, not when it was made: a reference is
+ * the page it quotes, and everything else is a kind and a place. Two cards
+ * that would draw identically are the same card however they got there.
+ */
+function sameCard(a, b) {
+  if (a.kind !== b.kind) return false;
+  if (a.kind === "web") return a.subtitle === b.subtitle;
+  if (a.kind === "answer") return a.text === b.text;
+  return a.stateCode === b.stateCode && a.lga === b.lga && a.ward === b.ward;
+}
+
 const TICK = 220;
 
 export default function SituationRoom({
@@ -187,7 +205,30 @@ export default function SituationRoom({
    * in an effect instead would re-render the whole room a frame after every
    * load to no purpose.
    */
-  const [cards, setCards] = useState(() => boardStore.load());
+  /**
+   * The board, as it stands.
+   *
+   * ── WHY IT STARTS EMPTY AND FILLS A MOMENT LATER ─────────────────────────
+   * It used to read what was on the board while rendering. Local storage does
+   * not exist on the server, so the page was built saying "nothing on the
+   * board yet" and then hydrated on a machine that had four cards on it. The
+   * two disagree, and React is entitled to throw away the markup and start
+   * again when they do.
+   *
+   * So the first paint matches what the server sent, always, and what was on
+   * the board is put back immediately afterwards. The functional update is
+   * not decoration: if somebody managed to pin something in that gap, the
+   * thing they just asked for wins over the thing they left there yesterday.
+   */
+  const [cards, setCards] = useState([]);
+
+  useEffect(() => {
+    const restore = setTimeout(() => {
+      const kept = boardStore.load();
+      if (kept?.length) setCards((current) => (current.length ? current : kept));
+    }, 0);
+    return () => clearTimeout(restore);
+  }, []);
 
   /**
    * A place named out loud that we could hear but could not yet place.
@@ -665,10 +706,29 @@ export default function SituationRoom({
         /* ----------------------------------------------------- the board */
         case "pin": {
           const card = buildCard(act.card, { path });
-          keepCards([...cards, card]);
+
+          /* ── THE SAME THING DOES NOT GO UP TWICE ─────────────────────────
+             The board now fills itself from what the room is saying, and a
+             room says "Kano" more than once. Without this, a five-minute
+             argument about two states leaves forty identical cards and the
+             board becomes the least useful surface in the product. Saying it
+             again is not a request for a second copy of it. */
+          if (cards.some((existing) => sameCard(existing, card))) return null;
+
+          /* ── AND THE BOARD HAS A CEILING ─────────────────────────────────
+             Anything that fills itself needs a limit, or a long night ends
+             with a scroll nobody reads. The oldest goes when the newest
+             arrives, which is the right end to lose: what was just named is
+             what the room is talking about. */
+          const next = [...cards, card].slice(-BOARD_LIMIT);
+          keepCards(next);
+
           /* Putting something up and not being shown it is the one thing
-             that would make somebody stop trusting the instruction. */
-          setLayer("board");
+             that would make somebody stop trusting the instruction. But a
+             card that went up because the room happened to mention a place
+             is not an instruction, and hijacking the screen for it would be
+             the assistant interrupting a conversation it was not part of. */
+          if (!act.quiet) setLayer("board");
           return null;
         }
 
@@ -770,8 +830,20 @@ export default function SituationRoom({
      nothing to do with it. */
   const lastAlertWasDivergence = gapAlerts.length > 0;
 
-  const hour = new Date().getHours();
-  const greeting = `Good ${hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}, ${user.name.split(" ")[0]}`;
+  const greeting = useGreeting(user.name);
+
+  /* The board's count, carried on its own pill. Everything else is static, so
+     only the group holding the board is rebuilt. */
+  const tabGroups = useMemo(
+    () =>
+      TAB_GROUPS.map((group) => ({
+        ...group,
+        tabs: group.tabs.map((tab) =>
+          tab.value === "board" && cards.length ? { ...tab, badge: cards.length } : tab
+        ),
+      })),
+    [cards.length]
+  );
 
   return (
     /* The assistant rides with the chrome, so it is inside this. Everything it
@@ -780,7 +852,7 @@ export default function SituationRoom({
     <TopShell
       user={user}
       tabs={TABS}
-      tabGroups={TAB_GROUPS}
+      tabGroups={tabGroups}
       active={layer}
       onTab={setLayer}
       greeting={greeting}

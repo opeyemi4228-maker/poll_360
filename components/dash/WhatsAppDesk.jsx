@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import TopShell from "./TopShell";
+import { useGreeting } from "./useGreeting";
 import LiveRefresh from "./LiveRefresh";
 import { STEP_LABEL } from "@/lib/whatsapp-steps";
 import { formatNumber } from "@/lib/utils";
@@ -96,8 +97,7 @@ export default function WhatsAppDesk({
     [messages, thread]
   );
 
-  const hour = new Date().getHours();
-  const greeting = `Good ${hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening"}, ${user.name.split(" ")[0]}`;
+  const greeting = useGreeting(user.name);
 
   return (
     <TopShell
@@ -464,9 +464,8 @@ export default function WhatsAppDesk({
 
             {reads.length === 0 ? (
               <Empty>
-                No sheet has been read yet. Set GOOGLE_VISION_API_KEY and a photographed result
-                sheet is read automatically, with every figure proposed to the agent rather than
-                filed.
+                No sheet has been read yet. A photographed result sheet is read automatically,
+                with every figure proposed to the agent rather than filed.
               </Empty>
             ) : (
               <div className="overflow-x-auto">
