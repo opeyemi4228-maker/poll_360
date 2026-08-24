@@ -67,6 +67,7 @@ export default async function DashLayout({ user, title, lead, actions, screen = 
                 current={current}
                 all={all}
                 canCreate={MAY_CREATE.has(user.role)}
+                canDelete={user.role === "SUPER_ADMIN"}
               />
               {actions}
             </div>

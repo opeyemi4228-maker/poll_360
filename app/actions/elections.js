@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { chooseElection } from "@/lib/election-scope";
+import { chooseElection, chooseRace } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { requireUser, log } from "@/lib/guard";
 
@@ -89,4 +89,90 @@ export async function switchElection(formData) {
 
   await chooseElection(found.id);
   revalidatePath("/", "layout");
+}
+
+/**
+ * Which position on the ballot you are looking at.
+ *
+ * ── OPEN TO ANYBODY SIGNED IN, LIKE SWITCHING PROJECT ──────────────────────
+ * It changes what is drawn and nothing else. Nothing is written, nothing is
+ * counted differently, and the five contests are equally readable by whoever
+ * may read the room at all — so this is gated on being signed in and on the
+ * position existing, which `chooseRace` checks before it writes the cookie.
+ *
+ * Every dashboard is revalidated rather than only the one that called: the
+ * position is a property of the browser, so the desk, the broadcast frames and
+ * the divergence room are all now showing a different contest too, and a stale
+ * one left rendered is a screen quietly disagreeing with the room next door.
+ */
+export async function switchRace(formData) {
+  await requireUser();
+  await chooseRace(String(formData.get("race") ?? ""));
+  revalidatePath("/", "layout");
+}
+
+/**
+ * Removing a project.
+ *
+ * ── NARROWER THAN CREATING ONE ─────────────────────────────────────────────
+ * A situation room may start a project, because starting one costs nothing
+ * and getting it wrong is fixed by starting another. Only an administrator may
+ * remove one, because removal is the single action in this product that
+ * destroys a record rather than adding one, and the returns inside a project
+ * may be the only independent copy of what a booth reported.
+ *
+ * ── AND IT ASKS FOR THE NAME ───────────────────────────────────────────────
+ * Confirming by typing the title is not theatre. The failure this guards
+ * against is not somebody who wants to delete the wrong project, it is
+ * somebody who means to delete "Ekiti rehearsal" at two in the morning and has
+ * the live presidential night selected. A yes/no dialog does not catch that.
+ * Typing the name does, because you cannot type it without reading it.
+ */
+export async function deleteElection(_previous, formData) {
+  const user = await requireUser();
+
+  if (user.role !== "SUPER_ADMIN") {
+    return { error: "Only an administrator can remove an election project." };
+  }
+
+  const id = String(formData.get("electionId") ?? "");
+  const project = await elections.get(id);
+  if (!project) return { error: "That project no longer exists." };
+
+  const typed = String(formData.get("confirm") ?? "").trim();
+  if (typed !== project.title) {
+    return { error: `Type the title exactly to confirm: ${project.title}` };
+  }
+
+  const held = await elections.weight(id);
+  const withContents = String(formData.get("withContents") ?? "") === "yes";
+
+  if (!held.empty && !withContents) {
+    return {
+      error:
+        `${project.title} holds ${held.results} returns, ${held.incidents} incidents and ` +
+        `${held.declared} declared figures. Tick the box to remove them with it.`,
+      held,
+    };
+  }
+
+  /* Written before the deletion, not after: an audit entry describing rows
+     that no longer exist is still the only record that they did. */
+  await log(user, "election.delete", project.title, {
+    id: project.id,
+    results: held.results,
+    incidents: held.incidents,
+    declared: held.declared,
+  });
+
+  const gone = await elections.remove(id, { withContents: true });
+  if (!gone.ok) return { error: "That project could not be removed." };
+
+  /* The cookie may still name it. Left alone it would leave every dashboard
+     querying a dead id, so the next read falls through to whatever remains. */
+  const rest = await elections.list();
+  if (rest[0]) await chooseElection(rest[0].id);
+
+  revalidatePath("/", "layout");
+  return { ok: true, title: project.title };
 }

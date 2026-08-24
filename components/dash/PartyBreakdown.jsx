@@ -29,14 +29,28 @@ import { cn } from "@/lib/utils";
  * printed regardless, so nothing depends on reading a bar.
  * ───────────────────────────────────────────────────────────────────────────
  */
-export default function PartyBreakdown({ place, row, coverage, level, compact = false }) {
+export default function PartyBreakdown({
+  place,
+  row,
+  coverage,
+  level,
+  compact = false,
+  /* ── WHOSE NAME GOES UNDER THE PARTY ──────────────────────────────────
+     The candidate names in lib/election2023 are the 2023 presidential ones.
+     Printed under a governorship they are simply wrong: a room looking at the
+     Edo result was told Bola Tinubu, who was not on that ballot and did not
+     stand in that election. A party is a party in every contest; a candidate
+     belongs to one. So the name appears only where it is the right name, and
+     everywhere else the party stands on its own. */
+  candidates = true,
+}) {
   const all = [...parties, others];
 
   const ranked = all
     .map((party, index) => ({
       id: party.id,
       name: party.name,
-      candidate: party.candidate,
+      candidate: candidates ? party.candidate : null,
       votes: row?.votes?.[index] ?? 0,
     }))
     .sort((a, b) => (a.id === "OTH" ? 1 : b.id === "OTH" ? -1 : b.votes - a.votes));

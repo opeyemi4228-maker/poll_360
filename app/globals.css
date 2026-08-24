@@ -118,6 +118,25 @@
   --color-nnpp: oklch(71.9% 0.17 142.5); /* from #049603 */
   --color-party-other: oklch(58% 0.008 265);
 
+  /* ── PARTIES THAT ONLY APPEAR OFF CYCLE ────────────────────────────────
+     APGA holds Anambra and SDP came second in Kogi, so neither can be left
+     to fall into "other" on a map of governorship results, where they are
+     the story rather than a rounding line.
+
+     APGA's own colour is a yellow-green that lands close to PDP under a
+     projector, so it is pushed toward yellow and, like every other pair
+     this palette cannot fully separate, is never the only signal: the map
+     labels the party code in type and the table repeats it colourlessly. */
+  --color-apga: oklch(76% 0.16 108);
+  --color-sdp: oklch(64% 0.13 196);
+  /* ADC orange, Accord yellow, APM brown. Named by the room that uses them,
+     and spaced far enough apart in hue that the three do not collapse into
+     one another the way a naive orange-yellow pair would. APM is the only
+     dark one, which is what keeps it apart from ADC under a projector. */
+  --color-adc: oklch(70% 0.17 55);
+  --color-accord: oklch(84% 0.16 95);
+  --color-apm: oklch(48% 0.09 60);
+
   /* The same four hues re-stepped for a white dashboard surface. Only
      lightness moves; the hue that identifies each party is untouched.
 
@@ -131,6 +150,13 @@
   --color-lp-l: oklch(55% 0.2 29);
   --color-nnpp-l: oklch(68% 0.16 142.5);
   --color-party-other-l: oklch(62% 0.008 265);
+  --color-apga-l: oklch(68% 0.15 108);
+  --color-sdp-l: oklch(55% 0.12 196);
+  --color-adc-l: oklch(62% 0.17 55);
+  /* Accord's yellow is under 3:1 on white at its own lightness, so the
+     dashboard step is darkened until it is not. The hue is untouched. */
+  --color-accord-l: oklch(70% 0.15 95);
+  --color-apm-l: oklch(42% 0.09 60);
 
   /* Silence. Not a low number, not a pale party colour, an absence.
      Drawn just above the board surface so the shape of the country

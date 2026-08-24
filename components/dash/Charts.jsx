@@ -22,6 +22,14 @@ export const PARTY_FILL = {
   LP: "var(--color-lp-l)",
   NNPP: "var(--color-nnpp-l)",
   OTH: "var(--color-party-other-l)",
+  /* Off-cycle parties. Without these APGA holding Anambra would be drawn
+     as "other", which on a governorship map is the one thing that must not
+     be grey. */
+  APGA: "var(--color-apga-l)",
+  SDP: "var(--color-sdp-l)",
+  ADC: "var(--color-adc-l)",
+  ACCORD: "var(--color-accord-l)",
+  APM: "var(--color-apm-l)",
 };
 
 /**

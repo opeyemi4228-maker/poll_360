@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, ChevronDown, FlaskConical, Loader2, Plus, Vote } from "lucide-react";
 
-import { createElection, switchElection } from "@/app/actions/elections";
+import { createElection, deleteElection, switchElection } from "@/app/actions/elections";
 import { states2023 } from "@/lib/election2023";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +34,18 @@ const KINDS = [
   ["OTHER", "Something else"],
 ];
 
-export default function ElectionSwitcher({ current, all = [], canCreate = false }) {
+export default function ElectionSwitcher({
+  current,
+  all = [],
+  canCreate = false,
+  /* Narrower than creating, and passed separately for that reason: a room may
+     start a project, only an administrator may destroy one. */
+  canDelete = false,
+}) {
+  /* Which project the remove panel is open for, if any. One at a time: two
+     open confirmations is two chances to type into the wrong one. */
+  const [removing, setRemoving] = useState(null);
+  const [removeState, remove] = useActionState(deleteElection, null);
   const [open, setOpen] = useState(false);
   const [making, setMaking] = useState(false);
   /* Presidential covers the federation; everything else is fought somewhere in
@@ -141,6 +152,69 @@ export default function ElectionSwitcher({ current, all = [], canCreate = false 
                         )}
                       </button>
                     </form>
+
+                    {/* ── REMOVING A PROJECT ──────────────────────────────
+                        Tucked under the row rather than given a button of its
+                        own beside "switch", because the two are a click apart
+                        and only one of them is reversible. Opening it is
+                        deliberate, and it asks for the title in full: the
+                        mistake this guards against is not choosing the wrong
+                        project on purpose, it is meaning to delete a rehearsal
+                        at two in the morning with the live night selected. A
+                        yes/no dialog does not catch that. Typing the name
+                        does, because you cannot type it without reading it. */}
+                    {canDelete && (
+                      <div className="px-4 pb-2">
+                        {removing === item.id ? (
+                          <form action={remove} className="rounded-dash-sm border border-dash-line bg-dash-bg p-3">
+                            <input type="hidden" name="electionId" value={item.id} />
+                            <p className="text-[0.75rem] leading-relaxed text-dash-muted">
+                              This cannot be undone. Type <strong className="text-dash-ink">{item.title}</strong> to confirm.
+                            </p>
+                            <input
+                              name="confirm"
+                              autoComplete="off"
+                              aria-label={`Type ${item.title} to confirm removal`}
+                              className="mt-2 w-full rounded-dash-sm border border-dash-line bg-dash-card px-2.5 py-1.5 text-[0.8125rem] text-dash-ink outline-none focus:border-dash-ink"
+                            />
+                            <label className="mt-2 flex items-start gap-2 text-[0.75rem] leading-relaxed text-dash-muted">
+                              <input type="checkbox" name="withContents" value="yes" className="mt-0.5 shrink-0" />
+                              <span>Remove everything filed against it as well</span>
+                            </label>
+
+                            {removeState?.error && (
+                              <p className="mt-2 text-[0.75rem] leading-relaxed text-red-700">
+                                {removeState.error}
+                              </p>
+                            )}
+
+                            <div className="mt-2.5 flex gap-2">
+                              <button
+                                type="submit"
+                                className="rounded-dash-sm bg-red-600 px-3 py-1.5 text-[0.75rem] font-bold text-white transition-colors hover:bg-red-700"
+                              >
+                                Remove it
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setRemoving(null)}
+                                className="rounded-dash-sm border border-dash-line px-3 py-1.5 text-[0.75rem] font-bold text-dash-ink"
+                              >
+                                Keep it
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setRemoving(item.id)}
+                            className="text-[0.6875rem] font-semibold text-dash-muted transition-colors hover:text-red-700"
+                          >
+                            Remove this project
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>

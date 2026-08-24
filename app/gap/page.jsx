@@ -7,6 +7,7 @@ import DivergencePanel from "@/components/dash/DivergencePanel";
 import GapBoard from "@/components/dash/GapBoard";
 import LiveRefresh from "@/components/dash/LiveRefresh";
 import { requireCapability } from "@/lib/guard";
+import { defaultRace } from "@/lib/races";
 import { can } from "@/lib/roles";
 import { currentElection } from "@/lib/election-scope";
 import { gapReport } from "@/lib/gap-report";
@@ -42,7 +43,7 @@ export default async function GapPage() {
   const user = await requireCapability("gap:read", "/gap");
 
   const project = await currentElection();
-  const report = await gapReport(project?.id);
+  const report = await gapReport(project?.id, defaultRace(project));
 
   const mayEnter = can(user.role, "declared:file");
 
