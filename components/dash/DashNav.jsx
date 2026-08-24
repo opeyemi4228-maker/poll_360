@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Landmark,
   BarChart3,
   FileText,
   Gauge,
@@ -47,6 +48,11 @@ const ITEMS = [
      the broadcast desk holds one and not the other — so it earns its own line
      rather than riding on the room's. */
   { href: "/gap#enter", label: "Enter what was declared", icon: Upload, capability: "declared:file" },
+
+  /* No capability: who governs each state is public record and carries no
+     count, no agent and no incident. A line with no capability is readable by
+     every signed-in role, which is the point. */
+  { href: "/governors", label: "Who governs", icon: Landmark },
 ];
 
 export default function DashNav({ role, collapsed = false }) {
