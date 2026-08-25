@@ -1,15 +1,16 @@
-import { MapPin, Wallet as WalletIcon } from "lucide-react";
+import { Wallet as WalletIcon } from "lucide-react";
 
 import DashLayout from "@/components/dash/DashLayout";
-import { Card, StatCard, Empty } from "@/components/dash/DashCard";
-import FileResultForm from "@/components/dash/FileResultForm";
+import { Card } from "@/components/dash/DashCard";
+import FileReturns from "@/components/dash/FileReturns";
 import IncidentForm from "@/components/dash/IncidentForm";
 import Wallet from "@/components/dash/Wallet";
 import { requireUser } from "@/lib/guard";
 import { currentElection } from "@/lib/election-scope";
 import { results } from "@/lib/db";
 import { ledger } from "@/lib/ledger";
-import { formatNumber } from "@/lib/utils";
+import { can } from "@/lib/roles";
+import { RACES } from "@/lib/races";
 
 export const metadata = { title: "File a result", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -35,7 +36,40 @@ export const maxDuration = 60;
 export default async function FieldPage() {
   const user = await requireUser("/field");
   const project = await currentElection();
-  const existing = user.scope ? await results.forUnit(user.scope, project?.id) : null;
+
+  /* ── EVERY BALLOT THIS BOOTH HAS SENT, IN ONE QUESTION ───────────────────
+     Five positions, one query. The screen needs to know which of them are in
+     so it can tick them, open on the next one still to do, and put the figures
+     back in the boxes if somebody is correcting one. */
+  const filedRows = user.scope && project
+    ? await results.forUnitAcrossRaces(user.scope, project.id)
+    : {};
+
+  const filed = Object.fromEntries(
+    RACES.filter((race) => filedRows[race.id]).map((race) => {
+      const row = filedRows[race.id];
+      return [
+        race.id,
+        {
+          total: Object.values(row.votes ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0),
+          status: row.status,
+          /* The figures themselves, so a correction opens on what is already
+             on file rather than on an empty form somebody has to retype from a
+             sheet they may no longer be holding. */
+          row: {
+            registered: row.registered,
+            accredited: row.accredited,
+            rejected: row.rejected,
+            votes: row.votes,
+          },
+        },
+      ];
+    })
+  );
+
+  /* A desk or an administrator has no booth of its own and may name one. An
+     agent may not, and the server enforces that regardless of what this says. */
+  const canNameUnit = !user.scope && can(user.role, "results:upload");
 
   /* Everything about the account is derived from the ledger on read: the
      balance is a sum, never a stored figure that could drift from its own
@@ -55,14 +89,14 @@ export default async function FieldPage() {
     <DashLayout
       user={user}
       screen="field"
-      title={existing ? "Amend your return" : "File your return"}
+      title="File your returns"
       lead={
-        existing
-          ? "This booth has already reported. Changing it updates that return rather than adding a second one, and sends it back for checking."
-          : "One booth, one return. The figures are checked as you type, and again when they arrive."
+        project
+          ? `${project.title}. One return per ballot paper: the figures are checked as you type, and again when they arrive.`
+          : "One return per ballot paper. The figures are checked as you type, and again when they arrive."
       }
     >
-      {!user.scope ? (
+      {!user.scope && !canNameUnit ? (
         <Card title="No booth assigned">
           <p className="text-[0.9375rem] leading-relaxed text-dash-muted">
             This account is not tied to a polling unit yet, so there is nothing for it to file. Your
@@ -72,35 +106,11 @@ export default async function FieldPage() {
         </Card>
       ) : (
         <div className="space-y-6">
-          {/* The booth, printed. Not a field, not a dropdown. */}
-          <div className="rounded-dash border-2 border-dash-ink bg-dash-card px-5 py-5">
-            <p className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-              <MapPin size={13} strokeWidth={2.5} />
-              Your polling unit
-            </p>
-            <p className="figure mt-2.5 text-[2rem] leading-none font-bold tracking-[-0.02em] text-dash-ink">
-              {user.scope}
-            </p>
-            <p className="mt-2.5 text-[0.8125rem] text-dash-muted">
-              State {user.scope.slice(0, 2)} · LGA {user.scope.slice(3, 5)} · Ward{" "}
-              {user.scope.slice(6, 8)} · Unit {user.scope.slice(9)}
-            </p>
-          </div>
-
-          {existing && (
-            <div className="rounded-dash border border-dash-line bg-dash-card px-5 py-4">
-              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">Already filed</p>
-              <p className="figure mt-2 text-[0.9375rem] text-dash-ink">
-                {formatNumber(Object.values(existing.votes).reduce((a, b) => a + b, 0))} votes ·{" "}
-                {existing.status.toLowerCase()} ·{" "}
-                {existing.submittedAt.toISOString().slice(11, 16)}
-              </p>
-            </div>
-          )}
-
-          <Card title={existing ? "Amend the figures" : "The figures"} subtitle="Checked as you type, and again when they arrive">
-            <FileResultForm unitCode={user.scope} existing={existing} />
-          </Card>
+          {/* The booth, the five ballot papers, and the form for whichever one
+              is open. All of it in one client component because which position
+              is selected, and which have been sent, are the same piece of
+              state. */}
+          <FileReturns unitCode={user.scope} filed={filed} canNameUnit={canNameUnit} />
 
           <Card
             id="wallet"

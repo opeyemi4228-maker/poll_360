@@ -5,6 +5,7 @@ import { ChevronRight } from "lucide-react";
 import { PARTY_FILL } from "./Charts";
 import { parties, others } from "@/lib/election2023";
 import { describe, magnitude, partyCode, ramp, STEPS } from "./ScopeMap";
+import { allParties } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,19 @@ import { cn } from "@/lib/utils";
  * Ranked by whatever the current layer measures, not alphabetically. An
  * alphabetical list of 774 local governments answers no question anybody has.
  */
-export default function ScopePanel({ rows, layer, hovered, onHover, onOpen, canOpen, title }) {
+export default function ScopePanel({
+  rows,
+  layer,
+  hovered,
+  onHover,
+  onOpen,
+  canOpen,
+  title,
+  /* What this panel's vote arrays mean, position by position. See
+     ScopeMap.partyCode: the list beside the map must name the same winner the
+     map draws, and it cannot do that from the presidential four alone. */
+  slots = allParties,
+}) {
   const values = rows.map((row) => magnitude(row, layer));
   const extent = [Math.min(...values, 0), Math.max(...values, 1)];
   const total = rows.reduce((sum, row) => sum + (row.total ?? 0), 0);
@@ -38,7 +51,7 @@ export default function ScopePanel({ rows, layer, hovered, onHover, onOpen, canO
       <ul className="min-h-0 flex-1 divide-y divide-dash-line overflow-y-auto">
         {ranked.map((row) => {
           const key = row.key ?? row.name;
-          const code = partyCode(row);
+          const code = partyCode(row, slots);
           const active = hovered === key;
 
           return (

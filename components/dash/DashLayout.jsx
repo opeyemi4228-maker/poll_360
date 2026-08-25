@@ -1,15 +1,9 @@
-import Link from "next/link";
-
-import BrandMark from "@/components/ui/BrandMark";
-import SignOutButton from "@/components/auth/SignOutButton";
 import DashRail from "./DashRail";
 import Assistant from "./Assistant";
 import ElectionSwitcher from "./ElectionSwitcher";
 import DashDrawer from "./DashDrawer";
 import { currentElection, listElections } from "@/lib/election-scope";
-import { elections } from "@/lib/elections";
 import { ROLES } from "@/lib/roles";
-import { cn } from "@/lib/utils";
 
 /**
  * The dashboard frame: a black rail, a white sheet.
@@ -30,6 +24,17 @@ import { cn } from "@/lib/utils";
    again regardless: a hidden button is a courtesy, not a permission. */
 const MAY_CREATE = new Set(["SUPER_ADMIN", "SITUATION_ROOM"]);
 
+/**
+ * The rail's remembered width, applied before anything is drawn.
+ *
+ * Small enough to be inline, and deliberately not a module: it has to run
+ * during parse, ahead of the first paint, or the page appears with the rail
+ * open and then shuts it, which is the flicker this replaces. It only ever
+ * writes one attribute, and it swallows its own errors because a browser with
+ * storage switched off should still get a dashboard.
+ */
+const RAIL_SCRIPT = `try{if(localStorage.getItem('poll360:rail-collapsed')==='1')document.documentElement.dataset.rail='collapsed'}catch(e){}`;
+
 export default async function DashLayout({ user, title, lead, actions, screen = null, children }) {
   const role = ROLES[user.role] ?? ROLES.VIEWER;
 
@@ -40,20 +45,35 @@ export default async function DashLayout({ user, title, lead, actions, screen = 
 
   return (
     <div className="min-h-screen bg-dash-bg">
+      {/* Authored in this file, no user input reaches it. */}
+      <script dangerouslySetInnerHTML={{ __html: RAIL_SCRIPT }} />
+
       <DashRail user={user} />
 
       {/* ---------------------------------------------------------- sheet */}
-      {/* The sheet follows the rail. The width is driven by a data attribute
-          on <html> rather than by prop-drilling, so a collapse costs one class
-          change and no re-render of the page's contents. */}
-      <div className="transition-[padding] duration-300 lg:pl-64 lg:data-[rail=collapsed]:pl-18">
-        <header className="sticky top-0 z-30 border-b border-dash-line bg-dash-card/90 backdrop-blur">
-          <div className="flex h-18 items-center gap-4 px-5 lg:px-8">
+      {/* Inset by the same `--rail` the sidebar is sized from, so the two can
+          no longer disagree. They used to: the flag was a data attribute on
+          <html>, and a data variant matches the element that carries the
+          attribute, not its descendants — so collapsing the rail left 11.5rem
+          of empty white beside it and never moved the page. */}
+      <div className="transition-[padding] duration-300 lg:pl-(--rail)">
+        {/* ── HOW THE TOPBAR SPENDS ITS WIDTH ──────────────────────────────
+            Two blocks. The title is elastic and truncates; the controls are
+            sized by their contents and never shrink. Below `lg` the controls
+            take a row of their own rather than squeezing the title, because
+            the project switcher alone is 15rem and a phone is 20 — the two
+            were previously asked to share, and the heading lost.
+
+            Solid, not translucent: this bar sits over dense tables all night,
+            and type sliding about behind a blur is the one thing a results
+            desk should never have to read through. */}
+        <header className="sticky top-0 z-30 border-b border-dash-line bg-dash-card">
+          <div className="mx-auto flex min-h-18 flex-wrap items-center gap-x-4 gap-y-3 px-5 py-3 lg:flex-nowrap lg:px-8 lg:py-0">
             {/* Below lg the rail is gone, so the same navigation arrives as a
                 drawer rather than leaving a phone with no way out of the page. */}
             <DashDrawer user={user} />
 
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-[0.6875rem] font-semibold tracking-[0.14em] text-dash-muted uppercase">
                 {role.label}
               </p>
@@ -62,7 +82,7 @@ export default async function DashLayout({ user, title, lead, actions, screen = 
               </h1>
             </div>
 
-            <div className="ml-auto flex items-center gap-2.5">
+            <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2.5 lg:w-auto">
               <ElectionSwitcher
                 current={current}
                 all={all}
@@ -92,7 +112,3 @@ export default async function DashLayout({ user, title, lead, actions, screen = 
     </div>
   );
 }
-
-/* ------------------------------------------------------------ primitives */
-
-/** The white card everything on a dashboard sits in. */

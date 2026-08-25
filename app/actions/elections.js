@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { chooseElection, chooseRace } from "@/lib/election-scope";
+import { chooseElection, chooseRace, forgetRace } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { requireUser, log } from "@/lib/guard";
 
@@ -88,6 +88,21 @@ export async function switchElection(formData) {
   if (!found) return;
 
   await chooseElection(found.id);
+
+  /* ── A POSITION BELONGS TO THE PROJECT IT WAS CHOSEN IN ──────────────────
+     The position is remembered in its own cookie, so without this it follows
+     you from one project into the next. Somebody reading the governorship on
+     an off-cycle project, switching to a presidential night, would land on a
+     contest that project does not hold and see a correctly rendered, entirely
+     empty map — the one screen state this product must never produce by
+     accident, because "nothing has been filed" and "you are looking at the
+     wrong contest" are indistinguishable on it.
+
+     Cleared rather than translated: each project then opens on its own
+     headline contest, and the position picker is one click away for anybody
+     who wants a different one. */
+  await forgetRace();
+
   revalidatePath("/", "layout");
 }
 

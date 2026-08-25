@@ -136,8 +136,10 @@ export async function signIn(_previous, formData) {
   await sweepExpiredSessions();
 
   /* Each role has its own room, and signing in should land in it rather than
-     in a lobby with links to it. */
-  redirect(homeFor(user.role));
+     in a lobby with links to it. An account still waiting to be approved has
+     no room yet, and is told so rather than being dropped into one it cannot
+     use. */
+  redirect(user.status === "PENDING" ? "/pending" : homeFor(user.role));
 }
 
 export async function signOut() {

@@ -6,6 +6,7 @@ import { Check, ChevronDown, FlaskConical, Loader2, Plus, Vote } from "lucide-re
 
 import { createElection, deleteElection, switchElection } from "@/app/actions/elections";
 import { states2023 } from "@/lib/election2023";
+import { RACES } from "@/lib/races";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,15 +25,22 @@ import { cn } from "@/lib/utils";
  * worked example as tonight's count.
  * ───────────────────────────────────────────────────────────────────────────
  */
-const KINDS = [
-  ["PRESIDENTIAL", "Presidential"],
-  ["GOVERNORSHIP", "Governorship"],
-  ["SENATE", "Senate"],
-  ["HOUSE", "House of Representatives"],
-  ["ASSEMBLY", "State Assembly"],
-  ["LOCAL", "Local government"],
-  ["OTHER", "Something else"],
-];
+/**
+ * A project's headline contest, and it must be one the count understands.
+ *
+ * ── WHY THIS IS NOT ITS OWN LIST ANY MORE ──────────────────────────────────
+ * It was, and the two lists had drifted into contradiction. This one offered
+ * HOUSE and LOCAL where lib/races.js calls the same two contests
+ * REPRESENTATIVES and LGA — the same ballot paper under two names, so a
+ * project created here could be filed into by a screen that had never heard of
+ * its kind. It also offered ASSEMBLY and OTHER, which nothing can count: every
+ * return carries a position, every position must be in lib/races.js, and a
+ * project whose kind is "OTHER" has no position for a reader to open on.
+ *
+ * The positions are now read from the one module that defines them, so the
+ * list somebody picks from and the list the count accepts cannot disagree.
+ */
+const KINDS = RACES.map((race) => [race.id, race.label]);
 
 export default function ElectionSwitcher({
   current,

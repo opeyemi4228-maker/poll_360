@@ -6,9 +6,11 @@ import Sparkline from "@/components/dash/Sparkline";
 import BroadcastAnalysis from "@/components/dash/BroadcastAnalysis";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
-import { currentElection } from "@/lib/election-scope";
+import { currentElection, currentRace } from "@/lib/election-scope";
+import { raceLabel } from "@/lib/races";
 import { results } from "@/lib/db";
 import { states2023, DECLARED } from "@/lib/election2023";
+import { parseUnitCode } from "@/lib/units";
 import nation from "@/public/geo/map/nation.json";
 import { register } from "@/lib/site";
 import { formatNumber, formatShare } from "@/lib/utils";
@@ -36,14 +38,17 @@ export default async function BroadcastPage() {
   const user = await requireUser("/broadcast");
 
   const project = await currentElection();
-  const tally = await results.tally(project?.id);
-  const ourRows = await results.counted(project?.id);
+  /* The contest being covered. A studio switching between the presidential and
+     the governorship is switching between two counts, not filtering one. */
+  const race = await currentRace(project);
+  const tally = await results.tally(project?.id, race);
+  const ourRows = await results.counted(project?.id, race);
 
   /* Our agents' returns, folded up by state so the analysis surface can put
      them beside the declared figure for the same place. */
   const ours = {};
   for (const row of ourRows) {
-    const code = stateCodeFor(row.stateCode);
+    const code = stateCodeFor(row.unitCode);
     if (!code) continue;
     ours[code] ??= { votes: {}, units: 0 };
     ours[code].units += 1;
@@ -76,7 +81,7 @@ export default async function BroadcastPage() {
           icon={Gauge}
           label="Our booths in"
           value={formatShare((tally.units / register.pollingUnits) * 100)}
-          context={`${formatNumber(tally.units)} filed by our agents`}
+          context={`${formatNumber(tally.units)} ${raceLabel(race).toLowerCase()} returns from our agents`}
         />
         <StatCard
           icon={Radio}
@@ -98,7 +103,10 @@ export default async function BroadcastPage() {
         />
       </div>
 
-      <div className="mt-6">
+      {/* Named, because the rail links straight here. It was not, so
+          "Analysis" in the sidebar landed at the top of the page and left
+          somebody to find it by scrolling. */}
+      <div id="analysis" className="mt-6 scroll-mt-24">
         <BroadcastAnalysis declared={states2023} ours={ours} shapes={nation} />
       </div>
 
@@ -154,7 +162,20 @@ export default async function BroadcastPage() {
  * table is keyed by INEC's three-letter code. One lookup, kept here rather
  * than in the client component so the mapping never ships to the browser.
  */
-function stateCodeFor(prefix) {
-  const index = Number(prefix) - 1;
-  return states2023[index]?.code ?? null;
+/**
+ * The state a return came from, from the code printed on its sheet.
+ *
+ * ── WHY THIS IS NOT `states2023[n - 1]` ────────────────────────────────────
+ * It was, and that is wrong for twenty-two of the thirty-seven. INEC numbers
+ * the states alphabetically with the Federal Capital Territory last at 37;
+ * `states2023` sorts alphabetically with the FCT under F, at 15. From there the
+ * two lists are off by one for the rest of the alphabet, so a return from Gombe
+ * was filed on this screen as the FCT, Imo as Gombe, and so on to Zamfara.
+ *
+ * lib/units.js already holds INEC's ordering and derives the state from the
+ * unit code, which is the fact printed on the sheet in the agent's hand. There
+ * is now one definition of "which state is this" and this screen uses it.
+ */
+function stateCodeFor(unitCode) {
+  return parseUnitCode(unitCode)?.stateCode ?? null;
 }

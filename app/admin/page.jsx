@@ -1,6 +1,9 @@
-import { AlertTriangle, Banknote, FileText, Inbox, KeyRound, ScrollText, ShieldCheck, Users } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, Banknote, FileText, Inbox, KeyRound, ScanLine, ScrollText, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 
 import DashLayout from "@/components/dash/DashLayout";
+import ReadinessBanner from "@/components/dash/ReadinessBanner";
+import { readiness } from "@/lib/readiness";
 import { Card, StatCard, Badge, Empty } from "@/components/dash/DashCard";
 import { PartyBars, TrendArea } from "@/components/dash/Charts";
 import CoverageDial from "@/components/dash/CoverageDial";
@@ -10,14 +13,25 @@ import PayAgentForm from "@/components/dash/PayAgentForm";
 import LiveRefresh from "@/components/dash/LiveRefresh";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
-import { currentElection } from "@/lib/election-scope";
-import { results, incidents, audit, accessRequests } from "@/lib/db";
+import { currentElection, currentRace } from "@/lib/election-scope";
+import { raceLabel } from "@/lib/races";
+import { results, incidents, audit, accessRequests, users, sheetReads } from "@/lib/db";
 import { integrityOf } from "@/lib/anomalies";
+import { coordinators } from "@/lib/coordinators";
 import { ledger } from "@/lib/ledger";
 import { unseal } from "@/lib/crypto";
 import { parties, others } from "@/lib/election2023";
 import { register } from "@/lib/site";
 import { formatNumber, formatShare } from "@/lib/utils";
+
+/* What a reader is, said in terms of what its readings are worth to somebody
+   deciding whether to trust them. See components/dash/WhatsAppDesk.jsx, which
+   names them the same way for the same reason. */
+const READER_LABEL = {
+  claude: "Handwriting",
+  google: "Hosted",
+  local: "On server",
+};
 
 export const metadata = { title: "Overview", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -37,6 +51,11 @@ export default async function AdminPage() {
      instead of quietly totalling every election at once. */
   const project = await currentElection();
 
+  /* Which of the day's contests this screen is reading. A project holds
+     several and they are never summed, so the position is as much a part of
+     "which figures are these" as the project is. */
+  const race = await currentRace(project);
+
   /* ── SEVEN QUESTIONS, ASKED AT ONCE ─────────────────────────────────────
      Only the project has to be known first, because four of these are scoped
      to it. The rest have nothing to do with each other, and awaited one after
@@ -47,14 +66,33 @@ export default async function AdminPage() {
      the one check worth paying for on every page view: an administrator
      should never be looking at a ledger whose integrity has not just been
      proved. */
-  const [tally, filed, feed, requests, trail, chain, payments] = await Promise.all([
-    results.tally(project?.id),
-    results.recent(200, project?.id),
+  const [tally, filed, feed, requests, trail, chain, payments, waiting, ready, reads, readScore] = await Promise.all([
+    results.tally(project?.id, race),
+    results.recent(200, project?.id, race),
     incidents.recent(6, project?.id),
     accessRequests.recent(5),
     audit.recent(8),
     ledger.verify(),
     ledger.recent(6),
+    /* Coordinators who have signed themselves up and are waiting to be let
+       in. Asked for on every load of this page because it is the one screen
+       that can act on them, and a queue nobody is shown is a queue nobody
+       works. */
+    /* Only the count here. The queue itself has its own page now — see the
+       banner below — and fetching forty rows to render a number was work done
+       on every load of the busiest screen in the product for nothing. */
+    coordinators.waitingCount(),
+    /* Whether this deployment is fit to hold a real election. Asked with the
+       rest rather than after them: it is a couple of counts, and it is the
+       one answer on this page that nothing else on the page can reveal. */
+    readiness(),
+    /* What the sheet readers have made of the photographs, and how they are
+       scoring. Kept on this screen rather than only on the WhatsApp desk
+       because it is now fed from the filing form as well, and because the
+       question it answers — is the machine reading these sheets correctly —
+       is an administrator's question, not a channel operator's. */
+    project ? sheetReads.recent(project.id, 12) : [],
+    project ? sheetReads.summary(project.id) : {},
   ]);
 
   const counted = Object.values(tally.totals).reduce((a, b) => a + b, 0);
@@ -92,6 +130,45 @@ export default async function AdminPage() {
         </>
       }
     >
+      {/* ── COORDINATORS WAITING TO BE LET IN ─────────────────────────────
+          A banner, not the queue. The queue used to live inline here and
+          vanish entirely when it was empty, which meant an administrator who
+          had never had a pending sign-up had never seen it and did not know
+          where to look when the first one arrived. It has its own page now,
+          always reachable from the rail; this is the thing that shouts when
+          somebody is actually waiting, because an approval queue nobody works
+          is an agent standing at a booth on polling morning unable to file. */}
+      {/* ── THE FIRST THING ON THE PAGE, DELIBERATELY ─────────────────────
+          Everything else on this dashboard is about running the election.
+          This is about whether the deployment is fit to be trusted with one,
+          and it is the only question here whose wrong answer is silent: an
+          account with a published password looks exactly like a real one from
+          every screen in the product. It sits above the approval queue because
+          an unlocked door outranks a queue. */}
+      <ReadinessBanner state={ready} />
+
+      {waiting > 0 && (
+        <div className="mb-6">
+          <Link
+            href="/admin/coordinators"
+            className="flex flex-wrap items-center gap-3 rounded-dash border-2 border-dash-ink bg-dash-card px-5 py-4 transition-colors hover:bg-dash-bg"
+          >
+            <UserRoundCheck size={18} strokeWidth={2.25} className="shrink-0 text-dash-ink" />
+            <span className="min-w-0">
+              <span className="block font-display text-[0.9375rem] font-extrabold text-dash-ink">
+                {waiting} coordinator{waiting === 1 ? "" : "s"} waiting to be approved
+              </span>
+              <span className="block text-[0.8125rem] text-dash-muted">
+                Signed up themselves. They can file nothing until you approve them.
+              </span>
+            </span>
+            <span className="ml-auto shrink-0 text-[0.8125rem] font-bold text-dash-ink">
+              Open the queue →
+            </span>
+          </Link>
+        </div>
+      )}
+
       {/* ------------------------------------------------------------- hero
           The dial is the largest object on the page on purpose: it is the
           product's own mark doing its job, and it makes the central rule
@@ -252,6 +329,116 @@ export default async function AdminPage() {
           )}
         </Card>
 
+        {/* ── WHAT THE MACHINE MADE OF THE PHOTOGRAPHS ────────────────────
+            Every reading, from the filing form and from WhatsApp alike, kept
+            beside what the human confirmed. This is evidence about the
+            reader rather than about the count: nothing here has been filed,
+            and the figures that were filed are in the returns table above.
+
+            It is on this screen because the decision it informs is an
+            administrator's — whether the reader in use is good enough for the
+            forms this election actually produces, and whether paying for a
+            better one is buying anything. */}
+        <Card
+          id="readings"
+          title="What the reader made of the sheets"
+          subtitle="Proposed to an agent, never filed — and what they did with it"
+          action={<ScanLine size={16} className="shrink-0 text-dash-muted" />}
+          padded={false}
+        >
+          {reads.length === 0 ? (
+            <div className="p-5">
+              <Empty>
+                No sheet has been read yet. When an agent photographs a result sheet, the figures
+                are read off it and offered for them to check — never filed on their behalf.
+              </Empty>
+            </div>
+          ) : (
+            <>
+              <div className="border-b border-dash-line px-5 py-3">
+                <p className="text-[0.8125rem] text-dash-muted">
+                  {formatNumber(readScore.total ?? 0)} read · {formatNumber(readScore.accepted ?? 0)}{" "}
+                  went on to be filed
+                  {readScore.confidence != null &&
+                    ` · ${formatShare((readScore.confidence ?? 0) * 100)} average legibility`}
+                </p>
+                {(readScore.byReader ?? []).length > 0 && (
+                  <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[0.75rem] text-dash-muted">
+                    {readScore.byReader.map((entry) => (
+                      <span key={entry.reader} className="figure">
+                        {READER_LABEL[entry.reader] ?? entry.reader}{" "}
+                        <span className="font-bold text-dash-ink">{formatNumber(entry.total)}</span>
+                        {entry.total > 0 && (
+                          <> · {formatShare((entry.accepted / entry.total) * 100)} accepted</>
+                        )}
+                      </span>
+                    ))}
+                  </p>
+                )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[42rem] text-left text-[0.8125rem]">
+                  <thead>
+                    <tr className="border-b border-dash-line">
+                      {["Unit", "Registered", "Accredited", "Rejected", "Votes read", "Reader", "Outcome"].map(
+                        (head) => (
+                          <th
+                            key={head}
+                            className="px-4 py-2 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase"
+                          >
+                            {head}
+                          </th>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-dash-line">
+                    {reads.map((row) => (
+                      <tr key={row.id} className="hover:bg-dash-bg">
+                        <td className="figure px-4 py-2 font-bold text-dash-ink">
+                          {row.unitCode ?? "unknown"}
+                        </td>
+                        {/* A dash, never a zero. The reader not finding a
+                            figure and the figure being zero are different
+                            facts and only one of them is a measurement. */}
+                        <td className="figure px-4 py-2 tabular-nums text-dash-ink">
+                          {row.parsed?.registered == null ? "—" : formatNumber(row.parsed.registered)}
+                        </td>
+                        <td className="figure px-4 py-2 tabular-nums text-dash-ink">
+                          {row.parsed?.accredited == null ? "—" : formatNumber(row.parsed.accredited)}
+                        </td>
+                        <td className="figure px-4 py-2 tabular-nums text-dash-muted">
+                          {row.parsed?.rejected == null ? "—" : formatNumber(row.parsed.rejected)}
+                        </td>
+                        <td className="figure px-4 py-2 tabular-nums text-dash-muted">
+                          {(row.parsed?.votes ?? []).join(", ") || "none"}
+                          {row.parsed?.others ? ` (+${formatNumber(row.parsed.others)} other)` : ""}
+                        </td>
+                        <td className="px-4 py-2 text-dash-muted">
+                          {READER_LABEL[row.reader] ?? "—"}
+                          <span className="block text-[0.6875rem]">
+                            {row.source === "APP" ? "filing form" : "WhatsApp"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <Badge tone={row.accepted ? "good" : row.parsed?.usable ? "neutral" : "warn"}>
+                            {row.accepted
+                              ? "Confirmed and filed"
+                              : row.parsed?.usable
+                                ? "Waiting on the agent"
+                                : "Did not add up"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </Card>
+
         <Card
           id="payments"
           title="Pay an agent"
@@ -363,6 +550,7 @@ export default async function AdminPage() {
  * second version of the truth, and the moment it disagreed with the table
  * nobody would know which to believe.
  */
+
 function buildTrend(rows) {
   if (rows.length < 2) return [];
 

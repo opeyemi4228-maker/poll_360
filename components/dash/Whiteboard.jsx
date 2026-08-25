@@ -6,7 +6,7 @@ import { Check, Download, Eraser, ExternalLink, Loader2, PenLine, Save, Trash2, 
 import { PARTY_FILL } from "./Charts";
 import { boundsOf } from "@/lib/bbox";
 import { apportion, leaderOf, wardCount } from "@/lib/drill";
-import { states2023 } from "@/lib/election2023";
+import { states2023, allParties } from "@/lib/election2023";
 import { cn, formatClock, formatNumber, formatShare } from "@/lib/utils";
 import {
   board as store,
@@ -717,6 +717,11 @@ function Foot({ items }) {
  *            in any published dataset. A shape invented for a ward would be a
  *            lie drawn at 400 pixels wide.
  */
+/** The colour of the slot `leaderOf` picked, or the neutral if it has none. */
+function partyFill(index) {
+  return PARTY_FILL[allParties[index]?.id] ?? "var(--color-board-raised)";
+}
+
 function BoardMap({ card, shapes, boundaries }) {
   const state = card.stateCode ? states2023.find((row) => row.code === card.stateCode) : null;
 
@@ -732,7 +737,13 @@ function BoardMap({ card, shapes, boundaries }) {
             key: shape.code,
             d: shape.d,
             name: shape.name,
-            fill: lead === null ? "var(--color-board-raised)" : PARTY_FILL[["APC", "PDP", "LP", "NNPP"][lead]],
+            /* `allParties`, not a fourth inline copy of the party order.
+               `leaderOf` returns an index into the vote array minus its
+               "other" bucket, so the list it is read back through has to be
+               the same list the array was built from — a hand-written
+               ["APC","PDP","LP","NNPP"] silently returns undefined the moment
+               a board carries a fifth party, and undefined is not a colour. */
+            fill: lead === null ? "var(--color-board-raised)" : partyFill(lead),
             picked: false,
           };
         }),
@@ -759,7 +770,7 @@ function BoardMap({ card, shapes, boundaries }) {
           key: shape.name,
           d: shape.d,
           name: shape.name,
-          fill: lead === null ? "var(--color-board-raised)" : PARTY_FILL[["APC", "PDP", "LP", "NNPP"][lead]],
+          fill: lead === null ? "var(--color-board-raised)" : partyFill(lead),
           /* Highlighted rather than isolated: the point of the card is where
              the place sits, which needs its neighbours in frame. */
           picked: Boolean(card.lga) && shape.name === card.lga,

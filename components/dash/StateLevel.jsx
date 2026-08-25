@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { PARTY_FILL } from "./Charts";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { leaderOf } from "@/lib/drill";
-import { parties } from "@/lib/election2023";
+import { allParties } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +52,13 @@ export default function StateLevel({ state, shapes, rows, onOpen }) {
      alphabetical list of 23 names answers nothing. */
   const ranked = useMemo(() => [...rows].sort((a, b) => b.total - a.total), [rows]);
 
-  const label = (row) => (row && leaderOf(row.votes) !== null ? parties[leaderOf(row.votes)].id : null);
+  /* One call, not three, and a miss returns null instead of throwing. The
+     index is into the vote array minus its "other" bucket, so it is read back
+     through `allParties` rather than the four contenders. */
+  const label = (row) => {
+    const lead = row ? leaderOf(row.votes) : null;
+    return lead === null ? null : (allParties[lead]?.id ?? null);
+  };
 
   return (
     <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">

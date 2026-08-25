@@ -2,13 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 
-import { results, incidents, media } from "@/lib/db";
+import { results, incidents, media, units, sheetReads } from "@/lib/db";
 import { seal } from "@/lib/crypto";
-import { requireCapability, log } from "@/lib/guard";
+import { requireCapability, requireUser, log } from "@/lib/guard";
+import { currentUser } from "@/lib/session";
 import { currentElection } from "@/lib/election-scope";
-import { parties } from "@/lib/election2023";
+import { ballotFor, isRace, raceLabel } from "@/lib/races";
+import { can } from "@/lib/roles";
+import { isUnitCode, parseUnitCode } from "@/lib/units";
 import { validateReturn } from "@/lib/results";
-import { parseSheet, readImage, visionAvailable } from "@/lib/sheet-vision";
+import { figuresForBallot, readSheet, trustworthy, visionAvailable } from "@/lib/sheet-vision";
 import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
 
 /**
@@ -19,6 +22,21 @@ import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
  * on the server on every submission. There is no unit field in this form and
  * no dropdown, because a booth you can choose is a booth somebody can choose
  * wrongly, and a form field naming it is a field somebody can change.
+ *
+ * There is one exception and it is a different power, not a loosening of this
+ * one: an account holding `results:upload` — the desk and the administrator —
+ * may name a unit, because somebody has to be able to enter a return read down
+ * the phone from a booth with no signal. An account with a booth of its own
+ * never gets that field, whatever it sends, and every uploaded row records who
+ * uploaded it and that it did not come from the booth.
+ *
+ * ── AND THE POSITION IS ALWAYS READ FROM THE REQUEST ───────────────────────
+ * The opposite rule, for the opposite reason. One agent at one booth counts
+ * five ballot papers on the same evening, so which contest these figures are
+ * for is genuinely a property of the submission and not of the account. It is
+ * checked against the list in lib/races.js and refused if it is not one of
+ * them: a return filed against a position that does not exist is a return
+ * nobody will ever look at again.
  *
  * The device's position is recorded beside the figures as corroboration. It
  * never decides which booth is being filed for, and a reading that looks wrong
@@ -44,10 +62,38 @@ import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
  */
 
 export async function fileResult(_previous, formData) {
-  const agent = await requireCapability("results:file", "/field");
+  /* Either power gets in; which one you hold decides whose booth you may file
+     for, a few lines down. Checked with the plain guard first so an account
+     with neither is turned away before anything is read from the form. */
+  const agent = await requireUser("/field");
+  const mayFileOwn = can(agent.role, "results:file");
+  const mayUploadAny = can(agent.role, "results:upload");
 
-  if (!agent.scope) {
-    return { error: "This account is not tied to a polling unit. Your coordinator must set one." };
+  if (!mayFileOwn && !mayUploadAny) {
+    return { error: "This account is not allowed to file returns." };
+  }
+
+  const race = String(formData.get("race") ?? "").toUpperCase();
+  if (!isRace(race)) {
+    return { error: "Choose which position these figures are for." };
+  }
+
+  /* ── WHOSE BOOTH ────────────────────────────────────────────────────────
+     An account with a unit of its own files for that unit and nothing else,
+     and the field is ignored rather than rejected: an agent has no way to send
+     one, so anything arriving in it came from somewhere that is not the form.
+     Only an account with no booth and the upload power may name one. */
+  const typed = String(formData.get("unitCode") ?? "").trim();
+  const unitCode = agent.scope
+    ? agent.scope
+    : mayUploadAny && isUnitCode(typed)
+      ? parseUnitCode(typed).code
+      : null;
+
+  if (!unitCode) {
+    return agent.scope === null && mayUploadAny
+      ? { errors: { unitCode: "Type the polling unit code, as it is printed on the sheet." } }
+      : { error: "This account is not tied to a polling unit. Your coordinator must set one." };
   }
 
   const number = (name) => {
@@ -59,8 +105,11 @@ export async function fileResult(_previous, formData) {
   const accredited = number("accredited");
   const rejected = Number.isNaN(number("rejected")) ? 0 : number("rejected");
 
+  /* The ballot for this position, including the bucket at the end. Reading the
+     list from the same module the form drew itself from is what stops a box
+     existing on screen with nowhere to be stored. */
   const votes = {};
-  for (const party of parties) {
+  for (const party of ballotFor(race)) {
     const value = number(`votes_${party.id}`);
     votes[party.id] = Number.isNaN(value) ? 0 : value;
   }
@@ -74,15 +123,34 @@ export async function fileResult(_previous, formData) {
   const check = validateReturn({ registered, accredited, rejected, votes });
   if (!check.ok) return { errors: check.errors };
 
+  /* Filed against the project the agent is looking at, not "the results". A
+     booth reports once per position per election, and the unique index is on
+     the three of them together.
+
+     Resolved here, above the sheet check, because that check now has to know
+     which project it is comparing within — a reading from another election
+     must not be able to corroborate this return. */
+  const project = await currentElection();
+
+  if (!project) {
+    return { error: "No election project is open, so this return has nowhere to go." };
+  }
+
   /* ── THE SHEET, AND WHAT IT IS ALLOWED TO DO ──────────────────────────────
      Read before anything is written, because a return that contradicts its own
      photograph must never reach the results table even briefly. */
-  const sheet = await checkAgainstSheet(formData.get("sheet"), {
-    registered,
-    accredited,
-    rejected,
-    votes,
-  });
+  const sheet = await checkAgainstSheet(
+    formData.get("sheet"),
+    { registered, accredited, rejected, votes },
+    /* The reading the agent was actually shown, if the form read the sheet on
+       attach. Held against that rather than against a fresh reading of the
+       same photograph — see readSheetPhoto. */
+    {
+      readId: String(formData.get("sheetReadId") ?? "").trim(),
+      userId: agent.id,
+      electionId: project?.id ?? null,
+    },
+  );
 
   if (sheet.blocked) {
     return {
@@ -100,14 +168,11 @@ export async function fileResult(_previous, formData) {
       }
     : null;
 
-  /* Filed against the project the agent is looking at, not "the results". A
-     booth reports once per election, and the unique index is on the pair. */
-  const project = await currentElection();
-
   const { amended } = await results.file({
-    electionId: project?.id,
-    unitCode: agent.scope,
-    stateCode: agent.scope.slice(0, 2),
+    electionId: project.id,
+    race,
+    unitCode,
+    stateCode: unitCode.slice(0, 2),
     registered,
     accredited,
     rejected,
@@ -115,6 +180,11 @@ export async function fileResult(_previous, formData) {
     position,
     note: String(formData.get("note") ?? "").trim().slice(0, 500) || null,
     submittedBy: agent.id,
+    /* How it got here, kept on the row. A return typed by the agent standing
+       at the booth and one read down the phone to a desk are both returns and
+       they are not equally direct, and a screen that could not tell them apart
+       would be hiding the difference rather than not knowing it. */
+    source: agent.scope ? "APP" : "UPLOAD",
     /* Null only where no sheet was sent. An unreadable one records the
        attempt and why, so the desk can tell "nobody photographed it" from
        "somebody did and we could not read it" — the second is worth a phone
@@ -122,7 +192,26 @@ export async function fileResult(_previous, formData) {
     sheetMatch: sheet.record,
   });
 
-  await log(agent, amended ? "result:amended" : "result:filed", agent.scope, {
+  /* ── THE BOOTH ENTERS THE REGISTRY BY BEING REPORTED ────────────────────
+     The desk's coverage tree is polling units joined to what has been filed
+     against them, so a return for a booth nobody had heard of would be counted
+     in every total and appear in no tree. Registering here means "reported" and
+     "known about" cannot disagree.
+
+     Idempotent by construction — it upserts on the code — and it never
+     overwrites a name or a position that is already there with a null. */
+  await units.register({
+    electionId: project.id,
+    code: unitCode,
+    registered,
+    repName: String(formData.get("repName") ?? "").trim().slice(0, 120) || null,
+    lat: position?.lat ?? null,
+    lon: position?.lon ?? null,
+    source: agent.scope ? "APP" : "UPLOAD",
+  });
+
+  await log(agent, amended ? "result:amended" : "result:filed", unitCode, {
+    race,
     cast: check.cast,
     positioned: Boolean(position),
     /* Three different facts about a return, and an audit trail that recorded
@@ -136,11 +225,26 @@ export async function fileResult(_previous, formData) {
 
   revalidatePath("/field");
   revalidatePath("/admin");
+  /* Every screen that draws this return, named rather than assumed. The room's
+     map is built from filed returns now, so a new one changes what is on the
+     wall; the desk lists what has arrived; and the divergence room reads them
+     as they land. */
+  revalidatePath("/room");
+  revalidatePath("/whatsapp");
+  revalidatePath("/broadcast");
   /* The divergence room reads returns as they arrive, so a new one changes
      what it is showing. */
   revalidatePath("/gap");
 
-  return { ok: true, amended, cast: check.cast, sheet: sheet.record };
+  return {
+    ok: true,
+    amended,
+    cast: check.cast,
+    sheet: sheet.record,
+    race,
+    raceLabel: raceLabel(race),
+    unitCode,
+  };
 }
 
 /**
@@ -157,7 +261,7 @@ export async function fileResult(_previous, formData) {
  * would stop honest agents filing under a torch, and a count nobody can file
  * into is worse than a count with some uncorroborated rows in it.
  */
-async function checkAgainstSheet(photo, typed) {
+async function checkAgainstSheet(photo, typed, shown = {}) {
   /* ── THREE STATES, NOT TWO ───────────────────────────────────────────────
      No sheet at all is `null`. A sheet that was attached and could not be
      compared records the attempt and why. A sheet that was compared records
@@ -171,6 +275,38 @@ async function checkAgainstSheet(photo, typed) {
     message: null,
     record: { compared: false, agrees: false, checked: [], mismatched: [], reason },
   });
+
+  /* ── THE READING THE AGENT SAW, WHERE THERE IS ONE ───────────────────────
+     Its id comes from the browser, so it is checked rather than trusted: the
+     row has to exist and has to belong to the account filing. A borrowed id
+     would otherwise let one booth's return be corroborated by another booth's
+     photograph, which is precisely the fraud this comparison exists to catch.
+     A stale or borrowed id is not an error — it simply falls through to
+     reading the attached photograph, which is what used to happen always. */
+  if (shown.readId) {
+    const stored = await sheetReads.get(shown.readId);
+    if (
+      stored?.parsed &&
+      stored.userId &&
+      stored.userId === shown.userId &&
+      /* A reading from another project cannot corroborate this one. */
+      (!shown.electionId || stored.electionId === shown.electionId)
+    ) {
+      const match = matchSheet(stored.parsed, typed);
+      /* Note on the reading itself what the human did with it, so the row is
+         a complete account of one photograph rather than half of one. */
+      await sheetReads.accept(shown.readId, typed);
+      if (match.comparable && !match.agrees) {
+        return {
+          blocked: true,
+          match,
+          record: matchRecord(match),
+          message: mismatchMessage(match, { channel: "web" }),
+        };
+      }
+      return { blocked: false, match, record: matchRecord(match), message: null };
+    }
+  }
 
   if (!photo || typeof photo.arrayBuffer !== "function" || photo.size === 0) return none;
   /* The framework caps the request body as well; this is the check that can
@@ -188,10 +324,10 @@ async function checkAgainstSheet(photo, typed) {
   /* The declared type is a claim; the leading bytes are a fact. */
   if (!sniff(bytes)) return uncompared("the file was not a photograph");
 
-  const read = await readImage(bytes);
+  const read = await readSheet(bytes);
   if (!read.ok) return uncompared(read.reason ?? "the picture could not be read");
 
-  const match = matchSheet(parseSheet(read.text), typed);
+  const match = matchSheet(read.parsed, typed);
 
   if (match.comparable && !match.agrees) {
     return {
@@ -203,6 +339,135 @@ async function checkAgainstSheet(photo, typed) {
   }
 
   return { blocked: false, match, record: matchRecord(match), message: null };
+}
+
+/**
+ * Read a photographed sheet and hand the figures back to the form.
+ *
+ * ── WHY THE READING HAPPENS HERE AND NOT AT FILING TIME ────────────────────
+ * The photograph used to be checked against figures the agent had already
+ * typed. That is the wrong way round when the reader can actually read: it
+ * makes somebody type eleven numbers off a form in the dark so a machine can
+ * disagree with them afterwards. Read on attach instead, put the figures in
+ * the boxes, and the agent's job becomes reading them back against the sheet
+ * in their hand — one act of checking rather than eleven of transcription.
+ *
+ * ── AND WHY THE READING IS STORED, NOT JUST RETURNED ───────────────────────
+ * The row written here is what the machine said before any human touched it.
+ * The filing that follows carries this row's id, so what finally lands in the
+ * count is compared against exactly the reading the agent was shown, and the
+ * difference between the two is on the record permanently. Reading the same
+ * photograph a second time at filing would cost twice and prove less: a
+ * second reading is not evidence about the first one.
+ *
+ * ── IT PROPOSES. IT STILL DOES NOT FILE. ───────────────────────────────────
+ * Nothing here writes a result. The figures go into boxes the agent can edit
+ * and must submit. That has been the rule since the first reader and it does
+ * not relax because this one is better.
+ */
+export async function readSheetPhoto(_previous, formData) {
+  const failed = (reason) => ({ ok: false, reason });
+
+  /* ── WHY THIS DOES NOT USE `requireUser` ─────────────────────────────────
+     `requireUser` redirects to the sign-in page, and a redirect here throws
+     away everything already typed into the form — which is the worst thing
+     that can happen to somebody standing at a booth at close of poll. Worse,
+     it redirected accounts that were never signed out at all: a polling unit
+     coordinator has a session of its own and no row in `users`, so this said
+     "not signed in" to the one population it was built for and sent them to
+     a login page they had no business seeing.
+
+     It reports instead. The form keeps its figures, the agent is told what
+     happened, and the sheet can still be filed by hand. The coordinator's
+     own twin of this lives in app/agent/actions.js. */
+  const user = await currentUser();
+  if (!user) {
+    return failed("You appear to be signed out. Open this page again in a new tab to sign in, then take the photograph — nothing typed here is lost.");
+  }
+
+  if (!visionAvailable()) return failed("No reader is configured on this server.");
+
+  const photo = formData.get("sheet");
+  if (!photo || typeof photo.arrayBuffer !== "function" || photo.size === 0) {
+    return failed("No photograph was attached.");
+  }
+  if (photo.size > 6_000_000) return failed("That picture is too large to read.");
+
+  let bytes;
+  try {
+    bytes = Buffer.from(await photo.arrayBuffer());
+  } catch {
+    return failed("That picture could not be opened.");
+  }
+
+  /* The declared type is a claim; the leading bytes are a fact. */
+  if (!sniff(bytes)) return failed("That file is not a photograph.");
+
+  const race = String(formData.get("race") ?? "").toUpperCase();
+
+  /* The project this reading belongs to. Without it the row lands against
+     whatever the column defaults to, which is how every reading taken so far
+     ended up filed under the 2023 project and invisible to the rehearsal that
+     produced it. Refusing beats guessing. */
+  const project = await currentElection();
+  if (!project) {
+    return failed("No election project is running, so a reading has nowhere to be saved.");
+  }
+
+  const read = await readSheet(bytes);
+  if (!read.ok) return failed(read.reason ?? "That picture could not be read.");
+
+  const parsed = read.parsed;
+
+  /* See `trustworthy` in lib/sheet-vision.js for what earns this. */
+  const trusted = trustworthy(read);
+
+  /* The booth is the account's, never the sheet's. A reader that misread a
+     unit code must not be able to move a return to another booth — the code
+     it read is kept for the record and shown to the agent, and that is all. */
+  const id = await sheetReads.record({
+    electionId: project.id,
+    userId: user.id,
+    unitCode: user.scope ?? parsed.unitCode ?? null,
+    parsed,
+    rawText: read.text ?? null,
+    confidence: read.confidence ?? null,
+    reader: read.reader ?? null,
+    race: isRace(race) ? race : null,
+    source: "APP",
+  });
+
+  await log("sheet.read", user.id, {
+    reader: read.reader ?? null,
+    usable: parsed.usable,
+    unit: user.scope ?? null,
+  });
+
+  return {
+    ok: true,
+    readId: id,
+    reader: read.reader ?? null,
+    confidence: read.confidence ?? null,
+    legibility: read.legibility ?? null,
+    /* Named so the agent can look at the right box rather than all of them. */
+    unreadable: read.unreadable ?? [],
+    /* What went into "Other parties", with its working shown. */
+    folded: read.folded ?? [],
+    problems: parsed.problems ?? [],
+    usable: parsed.usable,
+    trusted,
+    /* Said in terms of what to do about it, not what went wrong inside. */
+    /* ── WRITTEN FOR SOMEBODY STANDING AT A BOOTH ─────────────────────────
+       Not a word about readers, servers or keys. Whoever is holding this
+       phone cannot change any of that and has a queue in front of them; what
+       they need is what to do with the figures on screen. The version an
+       administrator can act on is a readiness check — see lib/readiness.js —
+       which is the screen where it can actually be fixed. */
+    why: trusted
+      ? null
+      : "The votes on this sheet do not add up to the accredited total, so at least one figure is misread. Read each box back against your sheet before you send it.",
+    figures: figuresForBallot(parsed, race),
+  };
 }
 
 /** Raise something that is not a number: a queue, a delay, an obstruction. */

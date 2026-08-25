@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 
 import { declared } from "@/lib/db";
 import { requireCapability, log } from "@/lib/guard";
-import { currentElection } from "@/lib/election-scope";
+import { currentElection, currentRace } from "@/lib/election-scope";
+import { isRace, raceLabel } from "@/lib/races";
 import { parseDeclared, summarise } from "@/lib/declared";
 
 /**
@@ -75,8 +76,20 @@ export async function uploadDeclared(_previous, formData) {
 
   const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
 
+  /* ── WHICH CONTEST WAS DECLARED ──────────────────────────────────────────
+     A collation sheet announces one contest. Taken from the form where the
+     person uploading said so, and falling back to the position they are
+     currently looking at — never assumed to be presidential, because a
+     governorship figure filed as a presidential one manufactures a divergence
+     that is entirely our own doing, and the room would read it as the
+     commission's. */
+  const race = isRace(formData.get("race"))
+    ? String(formData.get("race")).toUpperCase()
+    : await currentRace(project);
+
   const { written } = await declared.save({
     electionId: project.id,
+    race,
     rows,
     enteredBy: officer.id,
     note,
@@ -85,6 +98,7 @@ export async function uploadDeclared(_previous, formData) {
   const totals = summarise(rows);
 
   await log(officer, "declared:entered", project.id, {
+    race,
     rows: written,
     byLevel: totals.byLevel,
     /* Rows whose own parties contradict their own stated total, recorded at
@@ -97,7 +111,7 @@ export async function uploadDeclared(_previous, formData) {
   revalidatePath("/gap");
   revalidatePath("/room");
 
-  return { ok: true, written, totals, problems, columns };
+  return { ok: true, written, totals, problems, columns, race, raceLabel: raceLabel(race) };
 }
 
 /** Remove one place's declared figure, for an entry made against the wrong code. */
@@ -111,8 +125,13 @@ export async function removeDeclared(_previous, formData) {
   const key = String(formData.get("key") ?? "");
   if (!level || !key) return { error: "Nothing named to remove." };
 
-  await declared.remove({ electionId: project.id, level, key });
-  await log(officer, "declared:removed", `${level}:${key}`);
+  /* Removed from the contest it was entered against. Without the position a
+     correction to a governorship figure would delete whichever row happened to
+     share the place code — very possibly the presidential one. */
+  const race = await currentRace(project);
+
+  await declared.remove({ electionId: project.id, race, level, key });
+  await log(officer, "declared:removed", `${level}:${key}`, { race });
 
   revalidatePath("/gap");
   revalidatePath("/room");

@@ -7,8 +7,10 @@ import { users, results } from "@/lib/db";
 import { ledger, CREDIT_KINDS } from "@/lib/ledger";
 import { hashPassword } from "@/lib/password";
 import { requireCapability, log } from "@/lib/guard";
-import { currentElection } from "@/lib/election-scope";
+import { coordinators } from "@/lib/coordinators";
+import { currentElection, currentRace } from "@/lib/election-scope";
 import { ROLE_KEYS } from "@/lib/roles";
+import { isUnitCode, parseUnitCode } from "@/lib/units";
 
 /**
  * Issue an account for a room.
@@ -100,7 +102,8 @@ export async function reviewResult(_previous, formData) {
   }
 
   const project = await currentElection();
-  const row = (await results.recent(500, project?.id)).find((r) => r.id === id);
+  const race = await currentRace(project);
+  const row = (await results.recent(500, project?.id, race)).find((r) => r.id === id);
   if (!row) return { error: "That return no longer exists." };
 
   /* The one check that must hold however senior the account: nobody marks
@@ -115,6 +118,91 @@ export async function reviewResult(_previous, formData) {
 
   return { ok: true };
 }
+
+/* --------------------------------------------------------------- approvals */
+
+/**
+ * Let a coordinator in, or turn them down.
+ *
+ * ── THE DECISION THAT DECIDES WHAT COUNTS ──────────────────────────────────
+ * Approving an account is not administration. It is the moment somebody
+ * becomes able to put figures into the count, which is the only thing this
+ * product is for, so it sits behind the same capability as issuing an account
+ * by hand and every call is written to the audit log with the actor on it.
+ *
+ * ── THE BOOTH CAN BE CORRECTED ON THE WAY THROUGH ──────────────────────────
+ * The single likeliest error on the sign-up form is the unit code: nine digits
+ * copied off a form on a phone. The person approving is usually the person who
+ * knows what it should have been, so they can put it right here rather than
+ * declining somebody for a typo and asking them to sign up again.
+ */
+export async function approveCoordinator(_previous, formData) {
+  const admin = await requireCapability("accounts:issue", "/admin");
+
+  const id = String(formData.get("id") ?? "");
+  const applicant = await coordinators.byId(id);
+  if (!applicant) return { error: "That application no longer exists." };
+  if (applicant.status !== "PENDING") {
+    return { error: `${applicant.name} has already been dealt with.` };
+  }
+
+  /* Blank means "leave it as they typed it". A correction is checked to be a
+     real unit code before it replaces one, because an approval that quietly
+     wrote nonsense into the booth would produce a coordinator who can file and
+     a unit that matches nothing on the map. */
+  const typed = String(formData.get("scope") ?? "").trim();
+  let unitCode = null;
+
+  if (typed && typed !== applicant.unitCode) {
+    if (!isUnitCode(typed)) {
+      return { errors: { scope: "That is not a polling unit code. Four parts, nine digits." } };
+    }
+    unitCode = parseUnitCode(typed).code;
+  }
+
+  const person = await coordinators.approve(id, { by: admin.id, unitCode });
+
+  /* ── THE UPDATE IS CONDITIONAL, SO THE RESULT HAS TO BE CHECKED ─────────
+     `approve` only touches a row that is still PENDING, which is what stops
+     two administrators working the queue at once from each approving the same
+     person and the second silently overwriting the first's correction to the
+     booth. That guard is worth nothing if nobody looks at what came back. */
+  if (!person || person.status !== "ACTIVE") {
+    return { error: `${applicant.name} was approved by somebody else a moment ago.` };
+  }
+
+  await log(admin, "coordinator:approved", person.id, {
+    unit: person.unitCode,
+    corrected: Boolean(unitCode),
+  });
+  revalidatePath("/admin");
+  revalidatePath("/admin/coordinators");
+
+  return { ok: true, name: person.name, scope: person.unitCode };
+}
+
+/**
+ * Turn somebody down.
+ *
+ * The row stays, marked. A refusal that deleted the application is a refusal
+ * nobody can see afterwards, and the same person signing up again an hour
+ * later would arrive in the queue looking like a name nobody had seen.
+ */
+export async function declineCoordinator(_previous, formData) {
+  const admin = await requireCapability("accounts:issue", "/admin");
+
+  const id = String(formData.get("id") ?? "");
+  const applicant = await coordinators.byId(id);
+  if (!applicant) return { error: "That application no longer exists." };
+
+  await coordinators.decline(id, { by: admin.id });
+  await log(admin, "coordinator:declined", applicant.id, { unit: applicant.unitCode });
+  revalidatePath("/admin");
+  revalidatePath("/admin/coordinators");
+
+  return { ok: true, declined: applicant.name };
+}
+
 
 /* ---------------------------------------------------------------- payments */
 

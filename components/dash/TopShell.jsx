@@ -65,11 +65,13 @@ export default function TopShell({
 
           Everything that could squeeze the row into a second line is nailed
           down rather than left to chance. The account name is one line or it
-          is not shown at all; the tabs never wrap; the three round controls on
-          the right are all 44px, so the row has one optical baseline instead
-          of three. Below 2xl the name gives its width back to the tabs and
-          lives in the menu, which is where you look to check who you are
-          signed in as anyway.
+          is not shown at all; the tabs never wrap; and every control on the
+          right is 44px, so the row has one optical baseline instead of three.
+          The search was the exception that proved it — a 14rem field holding
+          the baseline but not the footprint — and it is now a circle like the
+          rest. Below 2xl the name gives its width back to the tabs and lives
+          in the menu, which is where you look to check who you are signed in
+          as anyway.
           ─────────────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-dash-line bg-dash-card">
         <div className="flex h-18 items-center gap-3 px-4 lg:px-6">
@@ -144,18 +146,16 @@ export default function TopShell({
               gutters match. */}
           <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
             {searchItems && (
-              /* Narrower while the tabs are on the same row, full width once
-                 there is room for both. It appears from the smallest screen
-                 that can hold it: typing a state name is the fastest way to
-                 the place you want, and a phone has no map to click. */
-              <div className="hidden sm:block">
-                <DashSearch
-                  items={searchItems}
-                  onPick={onSearchPick}
-                  placeholder={searchPlaceholder}
-                  className="w-44 2xl:w-56"
-                />
-              </div>
+              /* A 44px control that drops its field open when it is asked for.
+                 It was an open 14rem field, which is 14rem the tabs beside it
+                 did not have; see components/dash/DashSearch.jsx for why that
+                 trade was the wrong way round.
+
+                 Being one circle also means there is no longer a width at
+                 which it has to be dropped altogether. It used to vanish below
+                 `sm`, which took the search away from precisely the device
+                 that has no map to click. */
+              <DashSearch items={searchItems} onPick={onSearchPick} placeholder={searchPlaceholder} />
             )}
 
             {alerts && <AlarmBell incidents={alerts} onOpenStream={onOpenAlerts} />}

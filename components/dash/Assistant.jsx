@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 import { STARTERS, ask, knowsAbout } from "@/lib/assistant";
-import { DRIVING_STARTERS, WAKE, bestHeard, drive, harvest, topics } from "@/lib/commands";
+import { DRIVING_STARTERS, WAKE, bestHeard, drive, harvest, repair, topics } from "@/lib/commands";
 import { bestVoice, sentences } from "@/lib/voice";
 import { useRoomVoice } from "./RoomVoice";
 import { cn } from "@/lib/utils";
@@ -452,10 +452,18 @@ export default function Assistant({ tab = "results", projection = null }) {
          Whether the question was typed or said makes no difference to that. */
       shutMicrophone();
 
+      /* ── "NO, I MEANT ATIKU" ────────────────────────────────────────────
+         A correction is not a new question, it is the old one with the
+         misheard word replaced. Everything below runs on the corrected
+         phrase; the transcript still shows what was actually said, so
+         nobody is left wondering whether it heard the repair either. */
+      const fixed = repair(text);
+      const intended = fixed ?? text;
+
       /* An instruction first, a question second. The command reader is strict
          and returns nothing unless it is confident, so anything it declines
          falls through to being answered, which is the safe direction. */
-      const order = drive(text, {
+      const order = drive(intended, {
         tabs: room?.tabs ?? [],
         path: room?.path ?? [],
         lgas: room?.lgas ?? [],
@@ -477,7 +485,7 @@ export default function Assistant({ tab = "results", projection = null }) {
          The move is made by the instruction, and the answer read out is the
          full one rather than the one-line headline a deliberate "take me to"
          gets, because the question was the point and the move was incidental. */
-      const asked = !order || order.alsoAnswer ? ask(text, { tab, projection }) : null;
+      const asked = !order || order.alsoAnswer ? ask(intended, { tab, projection }) : null;
 
       const answer =
         carried && asked && asked.kind !== "unknown"
@@ -528,7 +536,7 @@ export default function Assistant({ tab = "results", projection = null }) {
          reaches for their phone — where what they read never reaches the
          room at all. So an unknown question goes to the web, and comes back
          labelled as having come from there. */
-      if (willLook) lookUpRef.current?.(text, { fallback: answer.text });
+      if (willLook) lookUpRef.current?.(intended, { fallback: answer.text });
 
       /* ── THE BOARD KEEPS UP WITH THE CONVERSATION ───────────────────────
          This used to require standing on the board for anything to be put
@@ -543,7 +551,7 @@ export default function Assistant({ tab = "results", projection = null }) {
          it was not addressed by is worse than one that does nothing. It is
          there when they look. */
       if (room?.run) {
-        for (const spec of harvest(text)) room.run({ do: "pin", card: spec, quiet: true });
+        for (const spec of harvest(intended)) room.run({ do: "pin", card: spec, quiet: true });
       }
 
       /* ── AND WHAT WE CANNOT COMPUTE, WE GO AND FETCH ────────────────────
@@ -551,7 +559,7 @@ export default function Assistant({ tab = "results", projection = null }) {
          place: the things a planning conversation reaches for and this
          product has no column for. One per utterance, never the same thing
          twice in a session, and never a word said about it. */
-      for (const topic of topics(text)) {
+      for (const topic of topics(intended)) {
         if (looked.current.has(topic.key)) continue;
         looked.current.add(topic.key);
         lookUpRef.current?.(topic.look, { silent: true, note: topic.note });
@@ -603,7 +611,21 @@ export default function Assistant({ tab = "results", projection = null }) {
       try {
         const response = await fetch(`/api/lookup?q=${encodeURIComponent(wanted)}`);
         data = await response.json().catch(() => null);
-        if (!response.ok) data = { found: false, error: data?.error ?? null };
+        if (!response.ok) {
+          /* ── A SESSION THAT HAS RUN OUT IS NOT A MISSING ARTICLE ────────
+             This is the one failure here that has nothing to do with what
+             was asked, and reporting it as "I could not find anything on
+             Atiku Abubakar" would send somebody looking for a spelling
+             mistake for as long as it took them to give up. An eleven-hour
+             shift outlasts a session, so it will happen. */
+          data = {
+            found: false,
+            error:
+              response.status === 401
+                ? "You have been signed out, so I cannot look anything up. Sign in again in another tab and I will carry on."
+                : (data?.error ?? null),
+          };
+        }
       } catch {
         data = { found: false, unreachable: true };
       } finally {

@@ -44,6 +44,50 @@ const nextConfig = {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
+          {
+            /* ── REPORT-ONLY, AND DELIBERATELY SO ─────────────────────────
+               A content security policy is the single most effective thing
+               left to add here, and also the single easiest one to ship
+               broken: get one directive wrong and the app loads as a blank
+               page for everybody, with no error anybody can act on. That is
+               a poor trade to make blind on a product whose bad night is
+               election night.
+
+               So it goes out in report-only first. The browser enforces
+               nothing and logs every violation to the console, which turns
+               "what does this app actually load" from a guess into a list.
+               Run the product for a day — the dashboards, the WhatsApp desk,
+               the broadcast board in its iframe — collect what it complains
+               about, then change this one key from
+               `Content-Security-Policy-Report-Only` to
+               `Content-Security-Policy` and it is enforced.
+
+               Two notes on what is already here. `unsafe-inline` for scripts
+               is not laziness: the App Router inlines its hydration payload,
+               and removing it needs per-request nonces, which is a separate
+               piece of work and belongs after this one. And `frame-ancestors`
+               is deliberately absent — the broadcast board is *meant* to be
+               embedded in vMix and OBS, that is handled by the X-Frame-Options
+               rule below, and duplicating it here in a form that contradicts
+               it would break the feature the product is sold on. */
+            key: "Content-Security-Policy-Report-Only",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              /* Wikimedia is the only outside origin any image comes from,
+                 and it comes from there because the board can hold a
+                 reference the product itself does not know. */
+              "img-src 'self' data: blob: https://upload.wikimedia.org",
+              "font-src 'self' data:",
+              "connect-src 'self'",
+              "media-src 'self' blob:",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "upgrade-insecure-requests",
+            ].join("; "),
+          },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             /* ── WHY THREE OF THESE ARE `self` AND NOT EMPTY ───────────────
@@ -98,7 +142,7 @@ const nextConfig = {
            administrator's console and the WhatsApp desk cacheable — the four
            that carry the most, and the ones most likely to sit behind a
            corporate proxy in a newsroom. */
-        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp|gap)/:path*",
+        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp|gap|agent)/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
         ],

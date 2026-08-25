@@ -5,7 +5,8 @@ import { useMemo, useRef, useState } from "react";
 import { PARTY_FILL } from "./Charts";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { leaderOf } from "@/lib/drill";
-import { parties } from "@/lib/election2023";
+import { parties, allParties } from "@/lib/election2023";
+import { ruling } from "@/lib/governors";
 import { cn, formatNumber, formatShare } from "@/lib/utils";
 
 /**
@@ -31,6 +32,30 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
 /* Stepped for a dark ground: on near-black the ramp has to run dim-to-bright,
    because a "darker means more" scale disappears into the surface at the top
    of its own range. Same five steps, same single hue, inverted direction. */
+/**
+ * Who governs each state, for the ground under the count.
+ *
+ * ── WHY THE MAP IS NO LONGER GREY BEFORE THE FIRST RETURN ──────────────────
+ * A country drawn in one flat grey until returns land is a country you cannot
+ * read. It tells you nothing you did not already know — that counting has not
+ * finished — while throwing away the thing a room actually needs at that
+ * moment: whose seat is being defended where.
+ *
+ * So an unreported state is drawn in the party that currently holds it, and
+ * the invariant that made it grey in the first place is kept another way. A
+ * held colour is washed out and carries no figure; a counted colour is solid
+ * and carries its votes. The two can never be confused for one another,
+ * because one of them looks like a result and the other looks like a
+ * background. See lib/governors.js for where the parties come from.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+const GOVERNS = new Map(ruling().map((row) => [row.code, row.current]));
+
+/* How far an unreported state is knocked back from a counted one. Low enough
+   that no held state can be mistaken for a called one at a glance across a
+   room, high enough that the party is still legible on a projector. */
+const HELD_OPACITY = 0.3;
+
 const STEPS = [
   "oklch(30% 0.03 255)",
   "oklch(42% 0.06 250)",
@@ -49,6 +74,10 @@ export default function ScopeMap({
   onOpen,
   labelMode = "auto",
   pulsing = null,
+  /* What this map's vote arrays mean, position by position. Comes from the
+     board, because a governorship board's slots are not the presidential
+     ones. See partyCode. */
+  slots = allParties,
   /* code -> { count, worst } for the places that have something reported
      against them. Optional: a map with nothing to be alarmed about omits it. */
   incidentsByPlace = null,
@@ -185,11 +214,20 @@ export default function ScopeMap({
 
       if (y + height > frameTop + frameHeight) y = shape.at[1] - height - 14 * calloutUnit;
 
-      placed.push({ key, name: row.name, value: calloutValue(row, layer), anchor: shape.at, x, y, width, height });
+      placed.push({
+        key,
+        name: row.name,
+        value: calloutValue(row, layer, slots),
+        anchor: shape.at,
+        x,
+        y,
+        width,
+        height,
+      });
     }
 
     return placed;
-  }, [list, rows, layer, frame, shapes.width, shapes.height, calloutUnit]);
+  }, [list, rows, layer, frame, shapes.width, shapes.height, calloutUnit, slots]);
 
   const hoveredRow = hovered ? byName.get(hovered) : null;
   const hoveredShape = hovered ? list.find((shape) => (shape.code ?? shape.name) === hovered) : null;
@@ -302,11 +340,22 @@ export default function ScopeMap({
         const active = hovered === key;
         const size = fits.get(shape.name) ?? { code: true, name: false };
 
-        const code = row && layer === "results" ? partyCode(row) : null;
+        const code = row && layer === "results" ? partyCode(row, slots) : null;
+
+        /* Nothing counted here yet. At national level the state is still known
+           territory: somebody holds it, and that is worth drawing. Below the
+           national level these shapes are local governments, which this data
+           says nothing about, so they stay grey rather than inheriting a
+           colour that would be a claim nobody has checked. */
+        const held =
+          layer === "results" && code === null && level === "nation"
+            ? (GOVERNS.get(shape.code) ?? null)
+            : null;
+
         const fill =
           layer === "results"
             ? code === null
-              ? "var(--color-silent)"
+              ? (held ? PARTY_FILL[held] : "var(--color-silent)")
               : code === "LP"
                 ? "url(#scope-hatch-lp)"
                 : PARTY_FILL[code]
@@ -336,6 +385,7 @@ export default function ScopeMap({
               stroke={active ? "#ffffff" : "var(--color-board)"}
               strokeWidth={(active ? 2.6 : 1.1) * unit}
               strokeLinejoin="round"
+              fillOpacity={held ? HELD_OPACITY : 1}
               style={{ opacity: hovered && !active ? 0.5 : 1 }}
               className="transition-opacity duration-150"
             />
@@ -363,8 +413,12 @@ export default function ScopeMap({
                 {shape.name}
               </text>
             ) : (
-              row &&
-              code &&
+              /* The party code. A counted state prints it in solid white; a
+                 state that is merely held prints the same three letters at
+                 half strength and with no weight behind them, so the eye
+                 sorts the map into "called" and "not called" before it reads
+                 a single word. */
+              (code || held) &&
               size.code && (
                 <text
                   x={shape.at[0]}
@@ -373,16 +427,16 @@ export default function ScopeMap({
                   dominantBaseline="middle"
                   className="pointer-events-none font-mono select-none"
                   style={{
-                    fontSize: frame.width * 0.016,
-                    fontWeight: 700,
-                    fill: "#ffffff",
+                    fontSize: frame.width * (held ? 0.014 : 0.016),
+                    fontWeight: held ? 500 : 700,
+                    fill: held ? "rgba(255,255,255,0.5)" : "#ffffff",
                     paintOrder: "stroke",
-                    stroke: "rgba(0,0,0,0.4)",
+                    stroke: held ? "rgba(0,0,0,0.55)" : "rgba(0,0,0,0.4)",
                     strokeWidth: frame.width * 0.004,
                     strokeLinejoin: "round",
                   }}
                 >
-                  {code}
+                  {code ?? held}
                 </text>
               )
             )}
@@ -517,6 +571,8 @@ export default function ScopeMap({
           layer={layer}
           level={level}
           incident={incidentsByPlace?.[hovered] ?? null}
+          code={hoveredShape?.code ?? null}
+          slots={slots}
         />
       </div>
     </div>
@@ -533,20 +589,26 @@ export default function ScopeMap({
  * appears without the share of booths it came from, and a place nobody has
  * reported from says so in words rather than showing a zero.
  */
-function HoverCard({ name, row, layer, level, incident }) {
+function HoverCard({ name, row, layer, level, incident, code: placeCode, slots = allParties }) {
   if (!name) return <p className="text-[0.8125rem] text-dash-muted">&nbsp;</p>;
 
   const reported = row ? row.reported !== false : false;
-  const code = reported ? partyCode(row) : null;
+  const code = reported ? partyCode(row, slots) : null;
   const total = row?.total ?? 0;
 
   /* The top three, by votes, with the rest folded away. Three is what fits and
      what a producer quotes; the fourth party has never changed a sentence. */
+  /* Ranked over the contenders this board actually carries, not over the
+     presidential four. On a governorship board that four excluded the party
+     that won the state, so the card ranked the losers and left the winner off
+     its own breakdown. The bucket is dropped: it is not a candidate, and it
+     would frequently outrank real ones. */
   const ranked =
     reported && row?.votes
       ? row.votes
-          .slice(0, parties.length)
-          .map((votes, index) => ({ party: parties[index], votes }))
+          .slice(0, Math.min(row.votes.length, slots.length) - 1)
+          .map((votes, index) => ({ party: slots[index], votes }))
+          .filter((entry) => entry.party && entry.votes > 0)
           .sort((a, b) => b.votes - a.votes)
           .slice(0, 3)
       : [];
@@ -586,8 +648,23 @@ function HoverCard({ name, row, layer, level, incident }) {
       </p>
 
       {!reported ? (
+        /* ── WHAT THE WASH MEANS ────────────────────────────────────────────
+           The old copy explained a grey that is no longer there. The state is
+           now tinted with whoever holds it, and the sentence has to do the
+           harder job: say that the colour is the incumbent and NOT a count,
+           in the same breath. Anything vaguer and the map starts calling
+           races nobody has counted. */
         <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
-          No returns yet. Grey means nobody has reported from here, never a low score.
+          {(level === "nation" && GOVERNS.get(placeCode)) ? (
+            <>
+              No returns yet. The wash is{" "}
+              <span className="font-bold text-dash-ink">{GOVERNS.get(placeCode)}</span>, who hold
+              this state going in — not a count, and never a low score. It stays washed out until
+              something is actually reported from here.
+            </>
+          ) : (
+            "No returns yet. Nobody has reported from here, which is never a low score."
+          )}
         </p>
       ) : (
         <>
@@ -667,39 +744,88 @@ export const LABEL = {
   results: "who leads",
   register: "register reporting",
   turnout: "turnout so far",
+  accredited: "voters accredited",
   density: "votes per reporting unit",
 };
 
 /** The figure a callout carries: short enough to read at a glance from across a room. */
-function calloutValue(row, layer) {
+function calloutValue(row, layer, slots = allParties) {
   if (layer === "turnout") return formatShare(row.turnout ?? 0);
   if (layer === "register") return formatNumber(row.registered ?? 0);
+  /* An em dash rather than a zero: this board has no accreditation figure
+     for this place, which is a different fact from nobody being accredited. */
+  if (layer === "accredited")
+    return row.accredited == null ? "—" : formatNumber(row.accredited);
   if (layer === "density") return formatNumber(row.density ?? 0);
-  const code = partyCode(row);
+  const code = partyCode(row, slots);
   return code ? `${code} ${formatNumber(row.total ?? 0)}` : formatNumber(row.total ?? 0);
 }
 
 export function magnitude(row, layer) {
   if (layer === "register") return row.registered ?? 0;
   if (layer === "turnout") return row.turnout ?? 0;
+  if (layer === "accredited") return row.accredited ?? 0;
   if (layer === "density") return row.density ?? 0;
   return row.total ?? 0;
 }
 
-export function describe(row, layer) {
-  if (row && row.reported === false) return "No returns yet";
+export function describe(row, layer, slots = allParties) {
+  /* The list beside the map says the same thing the map says. A state with
+     nothing counted names who holds it, worded so it cannot be read as a
+     result: "held by", never "leading". */
+  if (row && row.reported === false) {
+    const holder = holderOf(row);
+    return holder ? `No returns yet · ${holder} hold it` : "No returns yet";
+  }
   if (layer === "register")
     return `${formatNumber(row.registered ?? 0)} of ${formatNumber(row.fullRegister ?? row.registered ?? 0)} reporting`;
   if (layer === "turnout") return `${formatShare(row.turnout ?? 0)} of the register in`;
+  if (layer === "accredited") {
+    if (row.accredited == null) return "No accreditation figure on this board";
+    const cast = row.total ?? 0;
+    /* Accredited beside what was actually counted, because the gap between
+       them is the interesting half. A place where far fewer ballots were
+       counted than voters accredited is either a lot of rejected papers or
+       something worth a phone call, and neither is visible in a total. */
+    return `${formatNumber(row.accredited)} accredited · ${formatNumber(cast)} counted`;
+  }
   if (layer === "density") return `${formatNumber(row.density ?? 0)} votes per unit in`;
-  const code = partyCode(row);
-  return code ? `${code} leading · ${formatNumber(row.total)} votes` : "No returns yet";
+  const code = partyCode(row, slots);
+  if (code) return `${code} leading · ${formatNumber(row.total)} votes`;
+  const holder = holderOf(row);
+  return holder ? `No returns yet · ${holder} hold it` : "No returns yet";
 }
 
-export function partyCode(row) {
+/**
+ * Who holds the place a row is about, if it is a state.
+ *
+ * Rows carry the state code as `key` at national level and a place NAME as
+ * `key` below it, so this is a lookup that is allowed to miss: an LGA name
+ * simply is not in the table, and a miss is the correct answer there.
+ */
+function holderOf(row) {
+  const code = row?.code ?? row?.key;
+  return code ? (GOVERNS.get(code) ?? null) : null;
+}
+
+/**
+ * Which party leads a row, by name.
+ *
+ * ── `slots` IS NOT OPTIONAL DECORATION ─────────────────────────────────────
+ * A vote array is meaningless without the list that says what its positions
+ * mean. This defaulted to the presidential four for as long as every board had
+ * exactly those; a governorship board carries more, and reading slot 4 out of
+ * a four-item list returns undefined and throws on `.id`. The default is kept
+ * so the presidential screens are untouched, and every caller that can know
+ * better passes the board's own list.
+ */
+export function partyCode(row, slots = allParties) {
   if (!row?.votes) return null;
   const index = leaderOf(row.votes);
-  return index === null ? null : parties[index].id;
+  if (index === null) return null;
+  /* A row whose array is wider than the list it was drawn with is a bug
+     upstream, not something to render a guess for. */
+  return slots[index]?.id ?? null;
 }
 
 export function ramp(value, [min, max]) {

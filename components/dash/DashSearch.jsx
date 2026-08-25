@@ -23,6 +23,23 @@ import { cn } from "@/lib/utils";
  * Arrow keys move, Enter goes, Escape backs out, and the highlighted row is
  * announced. Anyone who can touch-type a state name never has to find the
  * mouse, which is the entire point of having it at 2am.
+ *
+ * ── WHY IT IS A BUTTON UNTIL IT IS NEEDED ──────────────────────────────────
+ * It used to be an open field, 14rem of it, sitting permanently in a bar that
+ * also has to hold a brand, eleven tabs, an alarm and an account. Something
+ * had to give and it was always the tabs: they are the primary control of the
+ * screen and they were the block being squeezed. A field that is empty
+ * ninety-nine minutes in every hundred is not worth that.
+ *
+ * So it is one 44px control, the same size as the bell and the account beside
+ * it, and the field drops out of it when somebody asks for it. The bar keeps
+ * one shape at every width, and the tabs get the width back.
+ *
+ * The cost of hiding an input is that it stops inviting the typing that was
+ * the whole point, so the invitation moves to the keyboard: "/" or ⌘K opens
+ * it from anywhere in the room, focus lands in the field, and Escape puts it
+ * back where it was. Nobody has to find the mouse to use it, which was always
+ * the claim being made two paragraphs up.
  * ───────────────────────────────────────────────────────────────────────────
  */
 const LIMIT = 8;
@@ -31,8 +48,8 @@ export default function DashSearch({
   items = [],
   onPick,
   placeholder = "Search a state…",
-  /* The bar it sits in decides how wide the field may be: the situation room
-     has to fit eight tabs beside it, a phone has to fit nothing at all. */
+  /* Applied to the trigger, not to a field: the bar no longer has a width to
+     hand out here, because the control is the same 44px circle at every size. */
   className,
 }) {
   const listId = useId();
@@ -41,6 +58,7 @@ export default function DashSearch({
   const [active, setActive] = useState(0);
   const boxRef = useRef(null);
   const inputRef = useRef(null);
+  const triggerRef = useRef(null);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -82,18 +100,66 @@ export default function DashSearch({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open]);
 
+  /* Opening it puts the caret in it. A panel that drops open and then waits to
+     be clicked a second time is slower than the field it replaced. */
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  /* ── THE KEYBOARD IS NOW THE FRONT DOOR ──────────────────────────────────
+     "/" is the convention and costs no chrome; ⌘K is the one a newsroom will
+     try first. Neither is allowed to steal a keystroke from somebody who is
+     already typing — into the assistant, into a declared figure, into any
+     field at all — so a bare "/" is ignored whenever the keystroke was going
+     somewhere that accepts text. */
+  useEffect(() => {
+    const onKey = (event) => {
+      const shortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+      if (!shortcut && event.key !== "/") return;
+
+      if (!shortcut) {
+        const target = event.target;
+        const tag = target?.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable) return;
+      }
+
+      event.preventDefault();
+      setOpen(true);
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  /* Closing by keyboard hands focus back to the button that opened it, or the
+     tab order restarts at the top of the document and the reader is lost. */
+  const dismiss = () => {
+    setOpen(false);
+    setQuery("");
+    triggerRef.current?.focus();
+  };
+
   const choose = (item) => {
     if (!item) return;
     onPick?.(item);
     setQuery("");
     setOpen(false);
-    inputRef.current?.blur();
+    /* Back to the trigger, not to nothing. The field it was in is about to be
+       unmounted, and focus left on a removed node falls to <body>, which makes
+       the next Tab start again from the top of the document. */
+    triggerRef.current?.focus();
   };
 
   const onKeyDown = (event) => {
     if (event.key === "Escape") {
+      /* Stopped here rather than allowed to bubble: the assistant hangs up the
+         call on a bare Escape from anywhere, and backing out of a mistyped
+         state name should not also end a conversation. */
+      event.stopPropagation();
+      /* One Escape clears what was typed, a second one puts the panel away:
+         backing out of a wrong query should not also cost you the control. */
       if (query) setQuery("");
-      else setOpen(false);
+      else dismiss();
       return;
     }
     if (!results.length) return;
@@ -112,113 +178,145 @@ export default function DashSearch({
     }
   };
 
-  const showing = open && query.trim().length > 0;
+  const showing = query.trim().length > 0;
 
   return (
     <div ref={boxRef} className="relative">
-      <Search
-        size={16}
-        strokeWidth={2.25}
-        aria-hidden="true"
-        className="pointer-events-none absolute top-1/2 left-3 z-10 -translate-y-1/2 text-dash-muted"
-      />
-
-      <input
-        ref={inputRef}
-        /* Deliberately `text` and not `search`: the native clear button of a
-           search input cannot be reached by keyboard in every browser and fires
-           no event we can hang the reset on, so the control below does that job
-           and does it consistently. */
-        type="text"
-        role="combobox"
-        aria-expanded={showing}
-        aria-controls={listId}
-        aria-autocomplete="list"
-        aria-activedescendant={showing && results[active] ? `${listId}-${active}` : undefined}
-        autoComplete="off"
-        spellCheck={false}
-        value={query}
-        placeholder={placeholder}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={onKeyDown}
+      {/* The control itself: one circle, the same 44px as the alarm and the
+          account beside it, so the row has a single optical baseline whatever
+          is switched on. */}
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => (open ? dismiss() : setOpen(true))}
+        aria-expanded={open}
+        aria-haspopup="dialog"
         aria-label="Search a state or local government"
+        title="Search a place  ( / )"
         className={cn(
-          "h-11 w-56 rounded-full border border-dash-line bg-dash-bg pr-9 pl-9",
-          "text-[0.875rem] text-dash-ink placeholder:text-dash-muted",
-          "focus:border-dash-ink focus:outline-none",
+          "inline-flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+          open
+            ? "border-dash-ink bg-dash-ink text-white"
+            : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink",
           className
         )}
-      />
+      >
+        <Search size={17} strokeWidth={2.25} aria-hidden="true" />
+      </button>
 
-      {query && (
-        <button
-          type="button"
-          onClick={() => {
-            setQuery("");
-            inputRef.current?.focus();
-          }}
-          aria-label="Clear the search"
-          className="absolute top-1/2 right-2 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-dash-muted transition-colors hover:bg-dash-card hover:text-dash-ink"
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Search a place"
+          /* Anchored to the right so it never runs off the edge of the bar,
+             and capped against the viewport so a phone gets the whole panel
+             rather than the left two-thirds of it. */
+          className="absolute right-0 z-40 mt-2 w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-dash border border-dash-line bg-dash-card shadow-lg"
         >
-          <X size={14} strokeWidth={2.5} />
-        </button>
-      )}
+          <div className="relative border-b border-dash-line">
+            <Search
+              size={16}
+              strokeWidth={2.25}
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-dash-muted"
+            />
 
-      {showing && (
-        <ul
-          id={listId}
-          role="listbox"
-          aria-label="Places"
-          className="absolute right-0 z-30 mt-2 w-72 overflow-hidden rounded-dash border border-dash-line bg-dash-card py-1 shadow-lg"
-        >
-          {results.length === 0 && (
-            <li className="px-3 py-3 text-[0.8125rem] text-dash-muted">
-              Nothing here called “{query.trim()}”.
-            </li>
-          )}
+            <input
+              ref={inputRef}
+              /* Deliberately `text` and not `search`: the native clear button of
+                 a search input cannot be reached by keyboard in every browser
+                 and fires no event we can hang the reset on, so the control
+                 below does that job and does it consistently. */
+              type="text"
+              role="combobox"
+              aria-expanded={showing}
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={showing && results[active] ? `${listId}-${active}` : undefined}
+              autoComplete="off"
+              spellCheck={false}
+              value={query}
+              placeholder={placeholder}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={onKeyDown}
+              aria-label="Search a state or local government"
+              className="h-12 w-full bg-transparent pr-10 pl-10 text-[0.9375rem] text-dash-ink placeholder:text-dash-muted focus:outline-none"
+            />
 
-          {results.map((item, index) => (
-            <li key={item.key} id={`${listId}-${index}`} role="option" aria-selected={index === active}>
+            {query && (
               <button
                 type="button"
-                /* `onMouseDown` rather than `onClick`: the input blurs first
-                   otherwise, the list unmounts, and the click lands on nothing.
-                   This is the bug that makes half the search boxes on the web
-                   feel broken. */
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  choose(item);
+                onClick={() => {
+                  setQuery("");
+                  inputRef.current?.focus();
                 }}
-                onMouseEnter={() => setActive(index)}
-                className={cn(
-                  "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors",
-                  index === active ? "bg-dash-bg" : "hover:bg-dash-bg"
-                )}
+                aria-label="Clear the search"
+                className="absolute top-1/2 right-2.5 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-dash-muted transition-colors hover:bg-dash-bg hover:text-dash-ink"
               >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[0.875rem] font-semibold text-dash-ink">
-                    {item.label}
-                  </span>
-                  {item.hint && (
-                    <span className="block truncate text-[0.75rem] text-dash-muted">{item.hint}</span>
-                  )}
-                </span>
-                {index === active && (
-                  <CornerDownLeft
-                    size={13}
-                    strokeWidth={2.5}
-                    aria-hidden="true"
-                    className="shrink-0 text-dash-muted"
-                  />
-                )}
+                <X size={14} strokeWidth={2.5} />
               </button>
-            </li>
-          ))}
-        </ul>
+            )}
+          </div>
+
+          {/* Before a letter is typed the panel says what it searches rather
+              than sitting empty. An empty box teaches nobody that the local
+              governments of the open state are in here too. */}
+          {!showing && (
+            <p className="px-4 py-3.5 text-[0.8125rem] text-dash-muted">
+              Any of the 37 states, and the local governments of whichever one
+              is open.
+            </p>
+          )}
+
+          {showing && (
+            <ul id={listId} role="listbox" aria-label="Places" className="max-h-80 overflow-y-auto py-1">
+              {results.length === 0 && (
+                <li className="px-4 py-3 text-[0.8125rem] text-dash-muted">
+                  Nothing here called “{query.trim()}”.
+                </li>
+              )}
+
+              {results.map((item, index) => (
+                <li key={item.key} id={`${listId}-${index}`} role="option" aria-selected={index === active}>
+                  <button
+                    type="button"
+                    /* `onMouseDown` rather than `onClick`: the input blurs first
+                       otherwise, the list unmounts, and the click lands on
+                       nothing. This is the bug that makes half the search boxes
+                       on the web feel broken. */
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      choose(item);
+                    }}
+                    onMouseEnter={() => setActive(index)}
+                    className={cn(
+                      "flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                      index === active ? "bg-dash-bg" : "hover:bg-dash-bg"
+                    )}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[0.875rem] font-semibold text-dash-ink">
+                        {item.label}
+                      </span>
+                      {item.hint && (
+                        <span className="block truncate text-[0.75rem] text-dash-muted">{item.hint}</span>
+                      )}
+                    </span>
+                    {index === active && (
+                      <CornerDownLeft
+                        size={13}
+                        strokeWidth={2.5}
+                        aria-hidden="true"
+                        className="shrink-0 text-dash-muted"
+                      />
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

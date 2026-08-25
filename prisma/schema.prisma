@@ -63,17 +63,32 @@ model User {
   passwordHash String    @map("password_hash")
   role         String    @default("VIEWER")
   scope        String?
+  /// ACTIVE, PENDING or DECLINED.
+  ///
+  /// ── THREE STATES, BECAUSE TWO COULD NOT SAY IT ───────────────────────────
+  /// Coordinators sign themselves up at /join and an administrator approves
+  /// them before anything they file enters the count. An account nobody has
+  /// looked at yet and an account somebody switched off are different facts,
+  /// and `disabledAt` could only express the second — so a queue built on it
+  /// would have buried real applicants among revoked accounts, and approving
+  /// one would have quietly reinstated the other. Defaults to ACTIVE, so every
+  /// account issued by an administrator is unaffected without a backfill.
+  status       String    @default("ACTIVE")
+  approvedBy   String?   @map("approved_by")
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz(3)
   disabledAt   DateTime? @map("disabled_at") @db.Timestamptz(3)
   lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  sessions         Session[]
+  sessions             Session[]
+  coordinatorsApproved Coordinator[] @relation("CoordinatorApprovedBy")
   resultsFiled     Result[]      @relation("ResultSubmittedBy")
   resultsVerified  Result[]      @relation("ResultVerifiedBy")
   incidents        Incident[]
   ledgerEntries    LedgerEntry[]
   waContacts       WaContact[]
 
+  @@index([status, createdAt])
   @@map("users")
 }
 
@@ -108,11 +123,26 @@ model AccessRequest {
   @@map("access_requests")
 }
 
-/// One row per booth per election. The unique pair is the whole point: a booth
-/// reports once, and a correction updates that row rather than adding a second.
+/// One row per booth per position per election. The unique triple is the whole
+/// point: a booth reports each contest once, and a correction updates that row
+/// rather than adding a second.
+///
+/// ── THE PAIR WAS NOT ENOUGH, AND THE FAILURE WAS SILENT ────────────────────
+/// This was `@@unique([electionId, unitCode])`, which is correct for a project
+/// holding one contest and wrong for a night with five ballot papers on it: the
+/// governorship return from a booth that had already filed the presidential was
+/// rejected by a constraint, and the constraint was Prisma's, under a name that
+/// appears nowhere in lib/db.js. Both owners of this schema now describe the
+/// same rule.
 model Result {
   id          String    @id
   electionId  String    @map("election_id")
+  /// Which ballot paper these figures came off: PRESIDENTIAL, GOVERNORSHIP,
+  /// SENATE, REPRESENTATIVES or LGA — the list in lib/races.js. A booth counts
+  /// several piles on one evening and each is a separate return; summing them
+  /// produces a figure that describes nothing. Defaulted rather than left
+  /// nullable so no reader has to decide what a null means.
+  race        String    @default("PRESIDENTIAL")
   unitCode    String    @map("unit_code")
   stateCode   String    @map("state_code")
   registered  Int
@@ -138,18 +168,31 @@ model Result {
   distanceM   Float?    @map("distance_m")
   source      String    @default("APP")
   repName     String?   @map("rep_name")
-  submittedBy String    @map("submitted_by")
+  /// ── EXACTLY ONE AUTHOR, AND THE DATABASE ENFORCES IT ────────────────────
+  /// A return is filed either by a Poll360 staff account or by a polling unit
+  /// coordinator, and those live in separate tables. `submittedBy` was NOT NULL
+  /// and still holds the author of every return filed before coordinators had
+  /// their own accounts; repointing it at a table those rows have no entry in
+  /// would have lost the authorship of all of them. So a second column was
+  /// added instead, and a CHECK constraint — results_one_author, in the
+  /// migration — makes exactly one of the pair non-null. A result nobody filed
+  /// is not a result; one filed by two people is a bug that would surface for
+  /// the first time in a tribunal.
+  submittedBy   String?  @map("submitted_by")
+  coordinatorId String?  @map("coordinator_id")
   submittedAt DateTime  @default(now()) @map("submitted_at") @db.Timestamptz(3)
   verifiedBy  String?   @map("verified_by")
   verifiedAt  DateTime? @map("verified_at") @db.Timestamptz(3)
 
   election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
-  filedBy  User     @relation("ResultSubmittedBy", fields: [submittedBy], references: [id])
+  filedBy  User?        @relation("ResultSubmittedBy", fields: [submittedBy], references: [id])
+  filedByCoordinator Coordinator? @relation(fields: [coordinatorId], references: [id])
   checkedBy User?   @relation("ResultVerifiedBy", fields: [verifiedBy], references: [id])
 
-  @@unique([electionId, unitCode])
+  @@unique([electionId, race, unitCode])
   @@index([electionId, stateCode, submittedAt])
   @@index([electionId, status])
+  @@index([electionId, race, submittedAt])
   @@map("results")
 }
 
@@ -162,11 +205,15 @@ model Incident {
   severity     String   @default("INFO")
   detailSealed String?  @map("detail_sealed")
   status       String   @default("OPEN")
-  reportedBy   String   @map("reported_by")
+  /// The same two-table bridge as Result above: incidents come from the same
+  /// people, and a coordinator is not in `users`.
+  reportedBy    String?  @map("reported_by")
+  coordinatorId String?  @map("coordinator_id")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
-  reporter User     @relation(fields: [reportedBy], references: [id])
+  reporter User?        @relation(fields: [reportedBy], references: [id])
+  reporterCoordinator Coordinator? @relation(fields: [coordinatorId], references: [id])
   media    Media[]
 
   @@index([electionId, createdAt])
@@ -291,13 +338,14 @@ model WaSession {
 /// register is revised between them, and last year's booth list is not this
 /// year's.
 model PollingUnit {
-  /// Defaulted to the 2023 project as a bridge. The raw-SQL writers in
-  /// lib/db.js predate elections and do not set this column, so without a
-  /// default every insert would fail the not-null constraint — which is
-  /// exactly what a WhatsApp agent registering a new unit hit. Once every
-  /// writer passes an election explicitly, drop the default so a row can
-  /// never quietly land in the wrong project.
-  electionId String   @default("elec_2023_presidential") @map("election_id")
+  /// The default is gone, which is what the note here used to ask for.
+  /// It was a bridge for raw-SQL writers that predated elections, and it
+  /// did exactly the damage a silent default does: every reading taken since
+  /// projects existed landed in the 2023 project regardless of which one was
+  /// running, so a rehearsal read a sheet and its own dashboard stayed empty.
+  /// `sheetReads.record` now refuses without an election id, which fails
+  /// loudly in one place instead of quietly in every project.
+  electionId String   @map("election_id")
   code       String
   stateCode  String   @map("state_code")
   lgaCode    String   @map("lga_code")
@@ -366,12 +414,23 @@ model SheetRead {
   /// holds 0 and 1 and the reading code already treats it that way.
   accepted   Int      @default(0)
   corrected  String?
+  /// Which reader produced this — "claude", "google" or "local". Nullable
+  /// because rows written before there was more than one reader cannot say.
+  reader     String?
+  /// Set when the reading came from the filing form rather than WhatsApp,
+  /// where there is an account but no chat contact.
+  userId     String?  @map("user_id")
+  /// The contest the sheet was read for. WhatsApp readings predate it.
+  race       String?
+  /// "APP" or "WHATSAPP" — which way in the photograph arrived by.
+  source     String   @default("WHATSAPP")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   election Election   @relation(fields: [electionId], references: [id], onDelete: Cascade)
   contact  WaContact? @relation(fields: [contactId], references: [id])
 
   @@index([electionId, createdAt])
+  @@index([electionId, unitCode])
   @@map("sheet_reads")
 }
 
@@ -395,6 +454,11 @@ model SheetRead {
 model Declared {
   id          String   @id
   electionId  String   @map("election_id")
+  /// Which contest was declared. A collation sheet announces one ballot paper,
+  /// and holding our presidential count against a governorship declaration
+  /// compares two different elections and reports the difference as a
+  /// divergence — which is the exact failure the comparison exists to catch.
+  race        String   @default("PRESIDENTIAL")
   /// UNIT, WARD, LGA or STATE — the level it was announced at, read off the
   /// shape of the code itself in lib/declared.js rather than chosen by hand.
   level       String
@@ -427,10 +491,81 @@ model Declared {
 
   election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
 
-  /// A place is declared once. Collation correcting itself replaces the row
-  /// rather than adding one — two rows for a ward is a total counted twice,
-  /// and nobody spots that in an aggregate.
-  @@unique([electionId, level, placeKey])
+  /// A place is declared once per contest. Collation correcting itself replaces
+  /// the row rather than adding one — two rows for a ward is a total counted
+  /// twice, and nobody spots that in an aggregate.
+  @@unique([electionId, race, level, placeKey])
   @@index([electionId, stateCode])
   @@map("declared")
+}
+
+
+/// A polling unit coordinator: a separate population, held separately.
+///
+/// ── WHY NOT A ROW IN User ─────────────────────────────────────────────────
+/// Everything about them differs from a Poll360 staff account. There are
+/// thousands of them to a newsroom's handful, they are recruited in the
+/// fortnight before polling day and finished the morning after, they sign
+/// themselves up rather than being issued a credential down a phone line, and
+/// they hold exactly one power — file the returns from one booth — where a
+/// staff account holds a room. Sharing a table meant one sign-in page trying
+/// to address both audiences and serving neither, and one code path where a
+/// mistake made for the four thousand could reach the four.
+///
+/// The two systems meet in exactly one place: the bridge column on Result.
+model Coordinator {
+  id           String    @id
+  name         String
+  email        String?   @unique
+  phone        String?   @unique
+  passwordHash String    @map("password_hash")
+  /// The booth they file for. A claim until an administrator agrees with it —
+  /// which is what the approval queue is for, and why the approval screen can
+  /// correct it before letting them in.
+  unitCode     String?   @map("unit_code")
+  stateCode    String?   @map("state_code")
+  /// PENDING, ACTIVE, DECLINED or SUSPENDED. Four, because three could not say
+  /// it: an account nobody has looked at, one somebody refused, and one that
+  /// was approved and later switched off are three different facts, and only
+  /// the first belongs in a queue.
+  status       String    @default("PENDING")
+  note         String?
+  /// The administrator who decided. Points at `users` because approving is a
+  /// staff act, which is the one direction these tables reference each other.
+  approvedBy   String?   @map("approved_by")
+  approvedAt   DateTime? @map("approved_at") @db.Timestamptz(3)
+  disabledAt   DateTime? @map("disabled_at") @db.Timestamptz(3)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  approver  User?                 @relation("CoordinatorApprovedBy", fields: [approvedBy], references: [id])
+  sessions  CoordinatorSession[]
+  results   Result[]
+  incidents Incident[]
+
+  @@index([status, createdAt])
+  @@index([unitCode])
+  @@map("coordinators")
+}
+
+/// Their own sessions, on their own cookie.
+///
+/// A twin of Session, deliberately not a shared table. The token is stored
+/// hashed for the same reason it is there: a leaked backup then carries no
+/// usable credentials. Kept separate so a coordinator's token is meaningless
+/// to the staff lookup and vice versa — parameterising one table over the
+/// other would have saved a few lines and turned a mistyped argument into a
+/// privilege escalation.
+model CoordinatorSession {
+  id            String   @id
+  coordinatorId String   @map("coordinator_id")
+  expiresAt     DateTime @map("expires_at") @db.Timestamptz(3)
+  userAgent     String?  @map("user_agent")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  coordinator Coordinator @relation(fields: [coordinatorId], references: [id], onDelete: Cascade)
+
+  @@index([coordinatorId])
+  @@index([expiresAt])
+  @@map("coordinator_sessions")
 }

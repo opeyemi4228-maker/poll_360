@@ -28,9 +28,21 @@ Production, Preview and Development.
 | `WHATSAPP_APP_SECRET` | for WhatsApp | From the Meta app. Every delivery is signature checked against it. |
 | `WHATSAPP_TOKEN` | for WhatsApp | Meta access token, used to send replies and download photographs. |
 | `WHATSAPP_PHONE_ID` | for WhatsApp | The number's id in the Meta console. |
-| `GOOGLE_VISION_API_KEY` | optional | Upgrades the sheet reader. Without it a reader that runs on the server is used, which is free and needs no account, and is weaker on handwriting. |
-| `SHEET_READER` | optional | `google`, `local`, or `off`. Overrides the choice above. `off` puts the bot back to asking its questions. |
+| `ANTHROPIC_API_KEY` | recommended | The sheet reader that can read handwriting, which is what the figures on an EC8A actually are. Without it the sheet is still read, less well. |
+| `GOOGLE_VISION_API_KEY` | optional | An optical reader, used when there is no Anthropic key. Better than the built-in one on printed forms, no better on handwriting. |
+| `SHEET_READER` | optional | `claude`, `google`, `local`, or `off`. Overrides the choice above. `off` puts the bot back to asking its questions. |
+| `SHEET_READER_MODEL` | optional | Which model reads the sheet. Defaults to `claude-opus-5`. |
+| `SHEET_READER_EFFORT` | optional | How much care it takes over the digits: `low` to `max`, default `high`. |
 | `SHEET_READER_CACHE` | optional | Where the local reader keeps its language file. Defaults to the system temporary directory, which is right almost everywhere. |
+
+**Which reader runs.** The keys decide, in this order: Anthropic, then Google,
+then the reader built into the server. Only the first can read handwriting, and
+an EC8A's figures are handwritten — tested against a real INEC form, the
+built-in reader recovered no vote figure at all. The other two are there so the
+product still works without a bill, not because they are equivalent.
+
+Whatever reads the sheet, nothing it reads is ever filed. The figures are put
+in front of the agent holding the sheet, and they submit them.
 
 ### Two things worth being deliberate about
 

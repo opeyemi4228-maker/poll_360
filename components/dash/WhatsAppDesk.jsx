@@ -19,6 +19,8 @@ import {
 import TopShell from "./TopShell";
 import { useGreeting } from "./useGreeting";
 import LiveRefresh from "./LiveRefresh";
+import RaceSwitcher from "./RaceSwitcher";
+import { raceLabel } from "@/lib/races";
 import { STEP_LABEL } from "@/lib/whatsapp-steps";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -56,6 +58,7 @@ const TAB_GROUPS = [
     id: "count",
     label: "The count",
     tabs: [
+      { value: "filed", label: "Returns in" },
       { value: "units", label: "Polling units" },
       { value: "sheets", label: "Sheets read" },
       { value: "places", label: "Locations" },
@@ -73,6 +76,22 @@ const TAB_GROUPS = [
 
 const TABS = TAB_GROUPS.flatMap((group) => group.tabs.map((tab) => ({ ...tab, group: group.id })));
 
+/** How a return reached the count, in words a desk would use out loud. */
+/* Named for what they are to somebody at a desk, not for the vendor. What
+   matters on this screen is whether a reading came from something that can
+   read handwriting, because that is what its figures are worth. */
+const READER_LABEL = {
+  claude: "Handwriting",
+  google: "Hosted",
+  local: "On server",
+};
+
+const SOURCE_LABEL = {
+  WHATSAPP: "WhatsApp",
+  APP: "From the booth",
+  UPLOAD: "Typed at a desk",
+};
+
 export default function WhatsAppDesk({
   user,
   summary,
@@ -86,6 +105,17 @@ export default function WhatsAppDesk({
   places = [],
   reads = [],
   readSummary = {},
+  /* Which contest the coverage figures below are for, and what has arrived in
+     each of the others. A booth files a return per ballot paper, so "how much
+     has come in" is five different numbers and this desk has to say which one
+     it is showing. */
+  race = "PRESIDENTIAL",
+  races = [],
+  filedByRace = {},
+  /* Returns that arrived through the filing screen rather than over a
+     conversation. This desk watches returns land; how each one got here is
+     part of what it is watching. */
+  uploads = [],
 }) {
   const [tab, setTab] = useState("stream");
   const [thread, setThread] = useState(null);
@@ -117,16 +147,25 @@ export default function WhatsAppDesk({
             ? `${open.length} ${open.length === 1 ? "return" : "returns"} part way through`
             : tab === "contacts"
               ? `${formatNumber(summary.verified ?? 0)} of ${formatNumber(summary.contacts ?? 0)} numbers confirmed`
-              : tab === "units"
+              : tab === "filed"
+                ? `${formatNumber(uploads.length)} most recent ${raceLabel(race).toLowerCase()} returns`
+                : tab === "units"
                 ? `${formatNumber(reportedCount)} of ${formatNumber(unitCount)} registered units have reported`
                 : tab === "sheets"
-                  ? `${formatNumber(readSummary.total ?? 0)} sheets read, ${formatNumber(readSummary.accepted ?? 0)} accepted`
+                  ? `${formatNumber(readSummary.total ?? 0)} sheets read, ${formatNumber(readSummary.accepted ?? 0)} accepted${
+                      (readSummary.byReader ?? []).length > 1
+                        ? ` · ${readSummary.byReader
+                            .map((entry) => `${READER_LABEL[entry.reader] ?? entry.reader} ${formatNumber(entry.total)}`)
+                            .join(", ")}`
+                        : ""
+                    }`
                   : tab === "places"
                     ? `${places.length} ${places.length === 1 ? "coordinator" : "coordinators"} sending a position`
                     : "How the bot is wired up"
       }
       aside={
         <>
+          <RaceSwitcher race={race} races={races} filed={filedByRace} />
           <LiveRefresh seconds={12} label="Live" />
           <span className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5 text-[0.8125rem] text-dash-muted">
             <Lock size={13} strokeWidth={2.5} aria-hidden="true" />
@@ -403,6 +442,71 @@ export default function WhatsAppDesk({
 
 
         {/* ------------------------------------------------- the hierarchy */}
+        {/* ------------------------------------------------- returns in */}
+        {tab === "filed" && (
+          <section className="rounded-dash border border-dash-line bg-dash-card">
+            <header className="flex flex-wrap items-center gap-2 border-b border-dash-line px-4 py-3">
+              <CheckCheck size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" />
+              <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
+                {raceLabel(race)} returns, newest first
+              </h2>
+              <p className="w-full text-[0.75rem] text-dash-muted sm:w-auto sm:flex-1">
+                However they arrived
+              </p>
+            </header>
+
+            {uploads.length === 0 ? (
+              <Empty>
+                Nothing filed for this position yet. Returns appear here the moment they are sent,
+                whether they came over WhatsApp, from the app at the booth, or were typed into the
+                filing screen by a desk.
+              </Empty>
+            ) : (
+              <ul className="divide-y divide-dash-line">
+                {uploads.map((row) => (
+                  <li key={row.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
+                    <span className="figure w-32 shrink-0 text-[0.875rem] font-bold text-dash-ink">
+                      {row.unitCode}
+                    </span>
+
+                    {/* ── HOW IT GOT HERE, SAID PLAINLY ──────────────────
+                        A return typed by the agent standing at the booth, one
+                        sent over WhatsApp, and one read down the phone to this
+                        desk are all returns, and they are not equally direct.
+                        A screen that drew them identically would be hiding a
+                        difference it knows about. */}
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold",
+                        row.source === "UPLOAD"
+                          ? "bg-amber-50 text-amber-800"
+                          : "bg-dash-bg text-dash-muted"
+                      )}
+                    >
+                      {SOURCE_LABEL[row.source] ?? row.source}
+                    </span>
+
+                    <span className="figure ml-auto shrink-0 text-[0.875rem] text-dash-ink tabular-nums">
+                      {formatNumber(row.total)} votes
+                    </span>
+                    <span className="figure w-24 shrink-0 text-right text-[0.75rem] text-dash-muted tabular-nums">
+                      {formatNumber(row.accredited)} acc.
+                    </span>
+                    <span className="figure w-12 shrink-0 text-right text-[0.75rem] text-dash-muted">
+                      {row.at}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="border-t border-dash-line px-4 py-2.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+              One row per booth per position. A booth that reports again replaces its own return
+              rather than adding a second one, and the amended figures go back to unchecked.
+            </p>
+          </section>
+        )}
+
         {tab === "units" && (
           <section className="rounded-dash border border-dash-line bg-dash-card">
             <header className="flex flex-wrap items-center gap-2 border-b border-dash-line px-4 py-3">
@@ -432,8 +536,9 @@ export default function WhatsAppDesk({
 
             {!tree || tree.units === 0 ? (
               <Empty>
-                No polling unit has reported yet. The first return over WhatsApp registers its
-                unit, and its ward, local government and state fill in behind it.
+                No polling unit has reported this position yet. The first return registers its
+                unit — however it arrived — and its ward, local government and state fill in
+                behind it.
               </Empty>
             ) : (
               <div className="p-2">
@@ -475,6 +580,7 @@ export default function WhatsAppDesk({
                       <th className="px-4 py-2 font-bold text-dash-muted">Unit</th>
                       <th className="px-3 py-2 font-bold text-dash-muted">Read</th>
                       <th className="px-3 py-2 font-bold text-dash-muted">Officer</th>
+                      <th className="px-3 py-2 font-bold text-dash-muted">Reader</th>
                       <th className="px-3 py-2 text-right font-bold text-dash-muted">Confidence</th>
                       <th className="px-4 py-2 font-bold text-dash-muted">Outcome</th>
                     </tr>
@@ -494,6 +600,7 @@ export default function WhatsAppDesk({
                             {(row.parsed?.votes ?? []).join(", ") || "no figures"}
                           </td>
                           <td className="px-3 py-2 text-dash-ink">{row.parsed?.repName ?? "not read"}</td>
+                          <td className="px-3 py-2 text-dash-muted">{READER_LABEL[row.reader] ?? "—"}</td>
                           <td className="figure px-3 py-2 text-right tabular-nums text-dash-ink">
                             {row.confidence == null ? "n/a" : `${Math.round(row.confidence * 100)}%`}
                           </td>

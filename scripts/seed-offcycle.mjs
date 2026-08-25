@@ -23,7 +23,11 @@ const TITLE = `Off-cycle governorships, ${span0.fromYear} to ${span0.toYear}`;
 
 const span = span0;
 console.log(`${span.states} contests loaded, window ${span.from} to ${span.to}`);
-console.log(`${span.missing} in the window and not loaded: ${NOT_LOADED.map((r) => r.state).join(", ")}`);
+console.log(
+  span.missing
+    ? `${span.missing} in the window and not loaded: ${NOT_LOADED.map((r) => r.state).join(", ")}`
+    : "Every off-cycle contest in the window is loaded"
+);
 
 if (!commit) {
   for (const row of OFF_CYCLE) {
@@ -52,11 +56,29 @@ const project =
     note:
       "Declared state-level results for Nigeria's off-cycle governorship elections. " +
       "Transcribed from INEC declarations, not a live feed. Verify before broadcast. " +
-      `Not loaded: ${NOT_LOADED.map((r) => `${r.state} (${r.votesOn})`).join(", ")}.`,
+      (NOT_LOADED.length
+        ? `Not loaded: ${NOT_LOADED.map((r) => `${r.state} (${r.votesOn})`).join(", ")}.`
+        : `Complete for the window ${span.from} to ${span.lastLoaded}.`),
     scopeStates: OFF_CYCLE.map((row) => row.code),
   }));
 
 console.log(`${existing ? "Using existing" : "Created"} project ${project.id}`);
+
+/* A project created when six states had voted does not know about the two
+   that voted since, and scope is what decides which states the room draws. So
+   the figures would land and stay invisible. Widening is additive: see
+   elections.rescope. */
+if (existing) {
+  const { added } = await elections.rescope(
+    project.id,
+    OFF_CYCLE.map((row) => row.code)
+  );
+  console.log(
+    added.length
+      ? `Scope widened by ${added.length}: ${added.join(", ")}`
+      : "Scope already covers every loaded contest"
+  );
+}
 
 /* `declared.save` takes a batch, and takes it in the shape its own uploader
    speaks: `key` rather than `placeKey`, `total` alongside `statedTotal`. The
@@ -85,6 +107,11 @@ const rows = OFF_CYCLE.map((row) => {
 
 const written = await declared.save({
   electionId: project.id,
+  /* Every contest in this file is a governorship. Stated rather than left to a
+     default: a declared figure now carries the contest it was declared for, and
+     these landing as presidential would be held against a presidential count
+     that was never run in these states. */
+  race: "GOVERNORSHIP",
   rows,
   enteredBy: null,
   source: "INEC declaration, transcribed",

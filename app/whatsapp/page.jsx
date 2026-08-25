@@ -1,9 +1,11 @@
 import WhatsAppDesk from "@/components/dash/WhatsAppDesk";
 import { requireCapability } from "@/lib/guard";
-import { positions, sheetReads, units, whatsapp } from "@/lib/db";
+import { positions, results, sheetReads, units, whatsapp } from "@/lib/db";
 import { groupUnits } from "@/lib/units";
 import { nameUnits } from "@/lib/lga-names";
 import { can } from "@/lib/roles";
+import { currentElection, currentRace } from "@/lib/election-scope";
+import { RACES } from "@/lib/races";
 
 export const metadata = { title: "WhatsApp desk", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -27,6 +29,15 @@ export const dynamic = "force-dynamic";
 export default async function WhatsAppPage() {
   const user = await requireCapability("whatsapp:read", "/whatsapp");
 
+  /* ── THE DESK READS ONE CONTEST AT A TIME ────────────────────────────────
+     A booth files up to five returns in an evening, one per ballot paper, and
+     the unit tree below is a coverage figure: how many of the units we know
+     about have reported. Left unscoped that join returned a row per ballot and
+     counted the same booth five times, which is how a desk ends up looking at
+     "312% reported" at one in the morning. */
+  const project = await currentElection();
+  const race = await currentRace(project);
+
   return (
     <WhatsAppDesk
       user={user}
@@ -43,14 +54,48 @@ export default async function WhatsAppPage() {
          we have already fetched, and doing it here keeps the tree out of the
          browser bundle and off the main thread on a desk machine that is also
          running four other dashboards. */
-      tree={groupUnits(nameUnits(await units.all()))}
-      unitCount={await units.count()}
-      reportedCount={await units.reported()}
+      tree={groupUnits(nameUnits(await units.all(project?.id, race)))}
+      unitCount={await units.count(project?.id)}
+      reportedCount={await units.reported(project?.id, race)}
+      /* Which contest these figures are for, and how much of each of the
+         others has arrived — so the desk can see at a glance that the
+         governorship is in and the senate has barely started. */
+      race={race}
+      races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+      filedByRace={project ? await results.countByRace(project.id) : {}}
+      /* Returns that came in through the upload screen rather than over a
+         conversation. They are part of this desk's job — it is the room that
+         watches returns arrive — and labelling how each one got here is the
+         difference between a count and a rumour. */
+      uploads={project ? (await results.recent(24, project.id, race)).map(shapeUpload) : []}
       places={(await positions.latest()).map(withTime)}
-      reads={(await sheetReads.recent(30)).map(withTime)}
-      readSummary={{ ...(await sheetReads.summary()) }}
+      /* Scoped to the project on screen, like every other figure on this
+         desk. Unscoped, these two showed a rehearsal the 2023 project's
+         readings and its own not at all. */
+      reads={project ? (await sheetReads.recent(project.id, 30)).map(withTime) : []}
+      readSummary={project ? { ...(await sheetReads.summary(project.id)) } : {}}
     />
   );
+}
+
+/**
+ * A filed return, as the desk needs to see it.
+ *
+ * Trimmed rather than passed whole: the desk is a list of what arrived and
+ * from where, and shipping every figure of every return to the browser to draw
+ * a row that shows a total is work nobody asked for.
+ */
+function shapeUpload(row) {
+  return {
+    id: row.id,
+    unitCode: row.unitCode,
+    stateCode: row.stateCode,
+    total: Object.values(row.votes ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0),
+    accredited: row.accredited,
+    status: row.status,
+    source: row.source ?? "APP",
+    at: row.submittedAt ? new Date(row.submittedAt).toTimeString().slice(0, 5) : "",
+  };
 }
 
 /**

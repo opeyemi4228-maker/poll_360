@@ -13,6 +13,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "_comment:test": "node's own runner, so there is no test dependency to install, keep current or audit. That matters more than usual for software that has to build on somebody else's machine on the morning of an election.",
+    "test": "node --test tests/*.test.js",
     "account:create": "node scripts/create-account.mjs",
     "build:map": "node scripts/build-map.mjs",
     "build:icons": "node scripts/build-icons.mjs",
@@ -21,6 +23,7 @@
     "demo:retire": "node --env-file=.env.local scripts/retire-demo-accounts.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@neondatabase/serverless": "^1.1.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
@@ -32,7 +35,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.6.0",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",

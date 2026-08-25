@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle,
   ChevronRight,
@@ -25,17 +25,21 @@ import IncidentStream from "./IncidentStream";
 import DivergencePanel from "./DivergencePanel";
 import Analytics from "./Analytics";
 import ElectionSwitcher from "./ElectionSwitcher";
+import PartyStrength from "./PartyStrength";
 import PlanningMap from "./PlanningMap";
+import RulingParty from "./RulingParty";
 import Whiteboard from "./Whiteboard";
 import { RoomVoiceProvider } from "./RoomVoice";
 import LiveRefresh from "./LiveRefresh";
+import RaceSwitcher from "./RaceSwitcher";
 import Sparkline from "./Sparkline";
 import { PARTY_FILL } from "./Charts";
-import { snapshot, parties } from "@/lib/replay";
+import { snapshot, parties, allParties } from "@/lib/replay";
 import { normalise } from "@/lib/assistant";
 import { board as boardStore, buildCard } from "@/lib/whiteboard";
-import { apportion, wardCount, unitCount } from "@/lib/drill";
+import { apportion, wardCount, unitCount, liveRowsFrom, liveNodeFor } from "@/lib/drill";
 import { COMMERCIAL_CENTRES } from "@/lib/geo";
+import { ruling, seatsBy, crossedFloor, FCT } from "@/lib/governors";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -77,12 +81,20 @@ const TAB_GROUPS = [
       { value: "results", label: "Results" },
       { value: "register", label: "Voters" },
       { value: "turnout", label: "Turnout" },
+      /* Accreditation is the earliest hard figure of the night: it is known
+         at every booth before a single ballot is counted, so this layer has
+         something to draw hours before the results layer does. */
+      { value: "accredited", label: "Accredited" },
       { value: "density", label: "Clusters" },
       /* Not a fifth layer on the map. It is the same count seen against the
          commission's, which is the one question this room is given that the
          broadcast desk's version of the map is not, and it belongs with the
          count rather than off in "the field". */
       { value: "declared", label: "Declared" },
+      /* Also not a map layer. It is the same country by party, but for the
+         governorships rather than the presidential vote, and a room reading a
+         return needs to know who holds the place it came from. */
+      { value: "ruling", label: "Ruling party" },
     ],
   },
   {
@@ -114,13 +126,46 @@ const TAB_GROUPS = [
        for you, so it belongs beside the other eight rather than among them.
        A group of one is honest about that; folding it into "Ahead" would
        have implied it was about a day that has not happened yet. */
-    tabs: [{ value: "board", label: "Board" }],
+    tabs: [
+      { value: "parties", label: "Parties" },
+      { value: "board", label: "Board" },
+    ],
   },
 ];
 
 const TABS = TAB_GROUPS.flatMap((group) => group.tabs.map((tab) => ({ ...tab, group: group.id })));
 
-const MAP_LAYERS = new Set(["results", "register", "turnout", "density"]);
+const MAP_LAYERS = new Set(["results", "register", "turnout", "accredited", "density"]);
+
+/**
+ * Arriving here from the rail, pointed at one view.
+ *
+ * This room's views are local state, not routes, so a link from anywhere else
+ * in the product could only ever land on "Results". "Incident feed" in the
+ * sidebar did exactly that: it went to /room#incidents, there was no such
+ * anchor, and the reader arrived at the map wondering where the reports were.
+ * A hash is the one thing a link can carry into a screen that does not put its
+ * views in the URL.
+ *
+ * It sets the view on arrival and then gets out of the way: the tabs are the
+ * control of this screen, and a hash left in the address bar must never argue
+ * with the last thing somebody pressed.
+ */
+const HASH_LAYERS = {
+  "#incidents": "stream",
+  "#coordinators": "watch",
+  "#declared": "declared",
+  "#analytics": "analytics",
+  "#planning": "planning",
+};
+
+function subscribeHash(onChange) {
+  window.addEventListener("hashchange", onChange);
+  return () => window.removeEventListener("hashchange", onChange);
+}
+
+const readHash = () => window.location.hash;
+const noHash = () => "";
 
 /* How much the board will hold before the oldest starts falling off. */
 const BOARD_LIMIT = 24;
@@ -138,6 +183,21 @@ function sameCard(a, b) {
   if (a.kind === "answer") return a.text === b.text;
   return a.stateCode === b.stateCode && a.lga === b.lga && a.ward === b.ward;
 }
+
+/**
+ * What the map is drawing, said in words on the screen itself.
+ *
+ * Four things, and the last two are the ones worth separating: a grey map
+ * because nobody has filed anything yet and a grey map because nothing was
+ * ever declared look identical and mean completely different things. A room
+ * that cannot tell them apart cannot tell whether to ring somebody.
+ */
+const BOARD_SOURCE = {
+  replay: "Demonstration · 2023 replay",
+  returns: "Our agents' returns",
+  declared: "Declared figures",
+  empty: "Nothing filed yet",
+};
 
 const TICK = 220;
 
@@ -162,8 +222,40 @@ export default function SituationRoom({
      lib/gap-report.js — the same function /gap uses, so the headline here and
      the list there can never disagree. */
   divergence = null,
+  /* ── THE RETURNS, FOLDED INTO THE PLACES THEY CAME FROM ─────────────────
+     Present only for a live project. The board above draws the country; this
+     draws everything underneath a state, and it holds what was filed and
+     nothing else. Null on the 2023 replay, which apportions instead and says
+     so on the screen. */
+  liveTree = null,
+  /* The project being watched, for the one line on screen that has to say
+     whether this is a count or a worked example. */
+  project = null,
+  /* Where the figures on the map came from: "replay", "returns", "declared"
+     or "empty". Decided on the server, which is the only place that can tell
+     an empty count from an undeclared one. */
+  boardSource = "replay",
+  /* Which contest is on screen, and the others available on this project with
+     how much of each has arrived. */
+  race = "PRESIDENTIAL",
+  races = [],
+  filedByRace = {},
+  onRace,
 }) {
   const [layer, setLayer] = useState("results");
+
+  /* Adjusted during render when the hash changes, which is React's documented
+     way to react to a changed value and the only one that cannot paint the
+     wrong view for a frame first. The server snapshot is empty because a hash
+     never reaches the server, so a cold load of /room#incidents corrects
+     itself immediately after hydration and a click from another room, which
+     fires no hash event at all, is caught by the same comparison. */
+  const hash = useSyncExternalStore(subscribeHash, readHash, noHash);
+  const [seenHash, setSeenHash] = useState("");
+  if (hash !== seenHash) {
+    setSeenHash(hash);
+    if (HASH_LAYERS[hash]) setLayer(HASH_LAYERS[hash]);
+  }
   /**
    * The states this contest is fought in.
    *
@@ -264,6 +356,13 @@ export default function SituationRoom({
 
   const view = useMemo(() => snapshot(board, cursor), [board, cursor]);
 
+  /* What this board's vote arrays mean, position by position. A governorship
+     board carries the parties that actually contested it — Accord won Osun and
+     APGA won Anambra, and neither is one of the presidential four — so every
+     screen that turns a position back into a party name has to read this and
+     not the fixed list. See lib/replay.js and ScopeMap.partyCode. */
+  const slots = board.parties ?? allParties;
+
   /* The places a return has just landed in, the last handful of batches.
      Drives the expanding rings on the map, which is the only thing on the
      screen that answers "where is it coming from right now". */
@@ -351,18 +450,32 @@ export default function SituationRoom({
         const reported = live?.reported ?? false;
         const boothsIn = live?.units ?? 0;
 
-        /* One factor, applied to everything, so no two figures on this row can
-           describe different amounts of the same count. */
+        /* ── A LIVE COUNT IS NOT SCALED, BECAUSE THERE IS NOTHING TO SCALE ──
+           The replay holds each state's finished 2023 result and shows the
+           slice of it that has "arrived", which is the only way to play back an
+           election that is already over. A live project has no finished result
+           to take a slice of: the figures are the returns that were filed, and
+           multiplying them by coverage would show a fraction of a fraction.
+
+           So the same row is built two ways, from the same snapshot, and which
+           one is used is decided by the board rather than by the caller
+           remembering. */
         const factor = reported ? boothsIn / Math.max(row.booths, 1) : 0;
-        const scaled = reported
-          ? row.votes.map((value) => Math.round(value * factor))
-          : [0, 0, 0, 0, 0];
+        const scaled = board.live
+          ? (live?.votes ?? [0, 0, 0, 0, 0])
+          : reported
+            ? row.votes.map((value) => Math.round(value * factor))
+            : [0, 0, 0, 0, 0];
         const scaledTotal = scaled.reduce((sum, value) => sum + value, 0);
 
-        /* The slice of this state's register that has actually reported. */
-        const registerIn = reported
-          ? Math.round(row.registered * (boothsIn / Math.max(row.booths, 1)))
-          : 0;
+        /* The slice of this state's register that has actually reported. Added
+           up from the returns on a live board; estimated from coverage on the
+           replay, which has no per-booth registers to add. */
+        const registerIn = board.live
+          ? (live?.registered ?? 0)
+          : reported
+            ? Math.round(row.registered * (boothsIn / Math.max(row.booths, 1)))
+            : 0;
 
         return {
           key: row.code,
@@ -383,6 +496,20 @@ export default function SituationRoom({
           /* Voters: the register that has reported, not the whole register. */
           registered: registerIn,
           fullRegister: row.registered,
+          /* ── ACCREDITATION IS ITS OWN FIGURE, NOT A DERIVED ONE ───────
+             How many people were accredited to vote, added up from the
+             returns. It is not votes and it is not the register: the gap
+             between accredited and votes cast is spoiled and unused ballots,
+             and the gap between accredited and registered is who stayed
+             home. Both are real signals and neither survives being folded
+             into a turnout percentage.
+
+             Only a live board has it. The replay is built from declared
+             state totals, which do not carry an accreditation figure, so it
+             is left null there rather than estimated — an invented
+             accreditation figure on an election night is exactly the kind of
+             number that gets quoted. */
+          accredited: board.live ? (live?.accredited ?? 0) : null,
           booths: boothsIn,
           fullBooths: row.booths,
           coverage: live?.coverage ?? 0,
@@ -394,10 +521,25 @@ export default function SituationRoom({
           density: boothsIn > 0 ? Math.round(scaledTotal / boothsIn) : 0,
         };
       }),
-    [inScope, view.byState]
+    [inScope, view.byState, board.live]
+  );
+
+  /* ── UNDERNEATH A STATE: FILED, OR APPORTIONED, NEVER BOTH ───────────────
+     On a live project every level below the country is built from the returns
+     themselves — a place with nothing filed in it simply is not there. On the
+     2023 replay there are no per-booth returns to build from, so the state's
+     declared total is divided down through its real local governments on a
+     stable seed, exactly as before, and the screen says so underneath the map.
+
+     The branch is on the tree being present rather than on a flag somebody has
+     to remember to pass with it. */
+  const liveStateNode = useMemo(
+    () => (liveTree && state ? liveNodeFor(liveTree, state.name) : null),
+    [liveTree, state]
   );
 
   const lgaRows = useMemo(() => {
+    if (liveTree) return liveRowsFrom(liveStateNode);
     if (!stateData || !lgaShapes) return [];
     return apportion({
       names: lgaShapes.lgas.map((row) => row.name),
@@ -406,9 +548,15 @@ export default function SituationRoom({
       registered: stateData.registered,
       parentKey: stateData.code,
     });
-  }, [stateData, lgaShapes]);
+  }, [liveTree, liveStateNode, stateData, lgaShapes]);
+
+  const liveLgaNode = useMemo(
+    () => (liveStateNode && lga ? liveNodeFor(liveStateNode, lga.name) : null),
+    [liveStateNode, lga]
+  );
 
   const wardRows = useMemo(() => {
+    if (liveTree) return liveRowsFrom(liveLgaNode);
     if (!lga) return [];
     const parent = lgaRows.find((row) => row.name === lga.name);
     if (!parent) return [];
@@ -419,9 +567,12 @@ export default function SituationRoom({
       registered: parent.registered,
       parentKey: `${state.code}:${lga.name}`,
     });
-  }, [lga, lgaRows, state]);
+  }, [liveTree, liveLgaNode, lga, lgaRows, state]);
 
   const unitRows = useMemo(() => {
+    if (liveTree) {
+      return liveRowsFrom(liveLgaNode && ward ? liveNodeFor(liveLgaNode, ward.name) : null);
+    }
     if (!ward) return [];
     const parent = wardRows.find((row) => row.name === ward.name);
     if (!parent) return [];
@@ -433,7 +584,7 @@ export default function SituationRoom({
       registered: parent.registered,
       parentKey: key,
     });
-  }, [ward, wardRows, state, lga]);
+  }, [liveTree, liveLgaNode, ward, wardRows, state, lga]);
 
   const rows =
     level === "nation" ? nationRows : level === "state" ? lgaRows : level === "lga" ? wardRows : unitRows;
@@ -507,11 +658,23 @@ export default function SituationRoom({
     const registered = rows.reduce((sum, row) => sum + (row.registered ?? 0), 0);
     const votes = rows.reduce((sum, row) => sum + (row.total ?? 0), 0);
     const booths = rows.reduce((sum, row) => sum + (row.booths ?? 0), 0);
+    /* Null, not zero, where no row carries one: zero would draw an empty
+       accreditation bar on a replay that simply does not have the figure. */
+    const withAccreditation = rows.filter((row) => row.accredited !== null && row.accredited !== undefined);
+    const accredited = withAccreditation.length
+      ? withAccreditation.reduce((sum, row) => sum + row.accredited, 0)
+      : null;
     return {
       registered,
+      accredited,
       votes,
       booths,
       turnout: registered ? (votes / registered) * 100 : 0,
+      /* The share of accredited voters whose ballot ended up in the count.
+         Short of 100% is normal — rejected ballots live in that gap — but a
+         long way short of it at one place and not its neighbours is the
+         single most useful anomaly on this screen. */
+      counted: accredited ? (votes / accredited) * 100 : null,
       density: booths ? Math.round(registered / booths) : 0,
     };
   }, [rows]);
@@ -832,6 +995,18 @@ export default function SituationRoom({
 
   const greeting = useGreeting(user.name);
 
+  /* Who holds each state. Static for the life of the page: this is a matter of
+     record plus a short list of settled defections, not something the night
+     changes. See lib/governors.js for why there are two answers. */
+  const governing = useMemo(
+    () => ({
+      rows: ruling(),
+      seats: { current: seatsBy("current"), elected: seatsBy("elected") },
+      moves: crossedFloor(),
+    }),
+    []
+  );
+
   /* The board's count, carried on its own pill. Everything else is static, so
      only the group holding the board is rebuilt. */
   const tabGroups = useMemo(
@@ -871,11 +1046,19 @@ export default function SituationRoom({
           : layer === "watch"
             ? `${watchSummary.filed} of ${watchSummary.total} coordinators reporting`
             : layer === "analytics"
-              ? "Projection from the 2023 result, under your assumptions"
-              : layer === "planning"
-                ? "Choose the territory you can actually cover"
-                : layer === "declared"
-                  ? divergence?.ready
+              ? `Projection under your assumptions, from the declared 2023 result${
+                  scopeStates?.length
+                    ? ` in ${scopeStates.length === 1 ? rootLabel : `these ${scopeStates.length} states`}`
+                    : ""
+                }`
+              : layer === "parties"
+                ? "One party at a time, across all 37 states, down to a polling unit"
+                : layer === "planning"
+                  ? "Choose the territory you can actually cover"
+                : layer === "ruling"
+                  ? `${governing.moves.length} of 36 states changed hands without an election`
+                  : layer === "declared"
+                    ? divergence?.ready
                     ? `${formatNumber(divergence.compared)} place${divergence.compared === 1 ? "" : "s"} compared, ${formatNumber(divergence.places)} differing`
                     : "Nothing declared yet to compare against"
                   : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
@@ -887,10 +1070,26 @@ export default function SituationRoom({
            unkeyed array that React could not reconcile. */
         <>
           {projects && <ElectionSwitcher {...projects} />}
+          {/* Which of the day's five contests is on the wall. Beside the
+              project switcher because it is the same kind of decision: both
+              answer "which count am I looking at". */}
+          <RaceSwitcher race={race} races={races} filed={filedByRace} />
           <LiveRefresh seconds={15} label="Live" />
+          {/* ── WHAT THE MAP IS ACTUALLY DRAWING ─────────────────────────
+              Three different things can be on this screen and they must never
+              be mistaken for one another: a demonstration, our agents' own
+              returns, or the figures the commission declared. The chip says
+              which, in words, on the same row as the switch that changes it.
+              A wall display somebody walks past has nothing else to go on. */}
           <span className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5 text-[0.8125rem] text-dash-muted">
-            <span aria-hidden="true" className="size-2 animate-pulse-live rounded-full bg-red-500" />
-            Presidential 2023
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-2 rounded-full",
+                boardSource === "returns" ? "animate-pulse-live bg-red-500" : "bg-dash-muted"
+              )}
+            />
+            {BOARD_SOURCE[boardSource] ?? BOARD_SOURCE.replay}
           </span>
         </>
       }
@@ -903,10 +1102,29 @@ export default function SituationRoom({
           onClear={() => keepCards([])}
           onRestore={keepCards}
         />
+      ) : layer === "parties" ? (
+        /* No scope passed, deliberately: a party's spread is a fact about the
+           party across the whole federation, not about whichever contest is
+           open. See the note at the top of the component. */
+        <PartyStrength shapes={shapes} />
       ) : layer === "analytics" ? (
-        <Analytics />
+        <Analytics
+          /* The contest, so every figure on that screen is about this
+             election rather than about the federation. */
+          scopeStates={scopeStates}
+          race={projects?.current?.kind ?? null}
+          title={projects?.current?.title ?? null}
+        />
       ) : layer === "planning" ? (
         <PlanningMap shapes={shapes} />
+      ) : layer === "ruling" ? (
+        <RulingParty
+          rows={governing.rows}
+          shapes={shapes}
+          fct={FCT}
+          seats={governing.seats}
+          moves={governing.moves}
+        />
       ) : layer === "declared" ? (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_21rem]">
           <DivergencePanel report={divergence ?? { ready: false, flags: [], ourReturns: 0 }} />
@@ -1061,6 +1279,7 @@ export default function SituationRoom({
                 shapes={mapShapes}
                 rows={rows}
                 layer={layer}
+                slots={slots}
                 hovered={hovered}
                 onHover={setHovered}
                 onOpen={select}
@@ -1091,7 +1310,7 @@ export default function SituationRoom({
                         : formatNumber(magnitude(row, layer))}
                     </p>
                     <p className="mt-1 truncate text-[0.6875rem] text-white/45">
-                      {describe(row, layer)}
+                      {describe(row, layer, slots)}
                     </p>
                   </button>
                 ))}
@@ -1115,6 +1334,23 @@ export default function SituationRoom({
               tone={view.byState.some((row) => !row.reported) ? "warn" : "ok"}
             />
             <Readout label="Units" value={formatNumber(view.unitsReported)} />
+            {/* Only on a live board. The replay has no accreditation figure
+                and a dash on the strip is better than a zero that reads as a
+                measurement somebody took. */}
+            {scope.accredited != null && (
+              <>
+                <Readout label="Accredited" value={formatNumber(scope.accredited)} />
+                {scope.counted != null && (
+                  <Readout
+                    label="Counted"
+                    value={formatShare(scope.counted)}
+                    /* Ballots counted well short of voters accredited is the
+                       shape of a problem, not of a slow night. */
+                    tone={scope.counted < 85 ? "warn" : "ok"}
+                  />
+                )}
+              </>
+            )}
             <span className="ml-auto flex items-center gap-2">
               <span
                 aria-hidden="true"
@@ -1134,6 +1370,8 @@ export default function SituationRoom({
           {/* The contest, in full, for whatever is selected, every party,
               not just the one that is winning. */}
           <PartyBreakdown
+            /* Only a presidential project has presidential candidates. */
+            candidates={projects?.current?.kind === "PRESIDENTIAL"}
             place={pickedRow?.name ?? crumbs.at(-1).label}
             level={pickedRow ? childWord(level) : levelWord(level)}
             row={
@@ -1154,6 +1392,7 @@ export default function SituationRoom({
             title={titleFor(level)}
             rows={rows}
             layer={layer}
+            slots={slots}
             hovered={hovered}
             onHover={setHovered}
             onOpen={select}

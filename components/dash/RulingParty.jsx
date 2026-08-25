@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { ArrowRight, Info } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowRight, ChevronLeft, Info } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
+import { councilsIn, coverage } from "@/lib/lga-control";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,9 +12,9 @@ import { cn } from "@/lib/utils";
  *
  * ── THE WHOLE POINT IS THE TOGGLE ──────────────────────────────────────────
  * A single map of "the ruling party" is a map of one of two different facts,
- * and which one it is decides what the picture says. Since 2025 a third of the
- * federation has changed hands without an election, so the map of who won and
- * the map of who governs disagree across a large part of the country, and the
+ * and which one it is decides what the picture says. Since 2025 state after
+ * state has changed hands without an election, so the map of who won and the
+ * map of who governs now disagree across a large part of the country, and the
  * disagreement is the interesting part: those are governorships no voter was
  * asked about. Every count on this screen is read off the data rather than
  * written into the prose, because that gap widens every few months.
@@ -25,6 +26,8 @@ import { cn } from "@/lib/utils";
 export default function RulingParty({ rows, shapes, fct, seats, moves }) {
   const [which, setWhich] = useState("current");
   const [hovered, setHovered] = useState(null);
+  const [openState, setOpenState] = useState(null);
+  const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
 
   const byCode = useMemo(() => new Map(rows.map((row) => [row.code, row])), [rows]);
   const total = rows.length;
@@ -34,6 +37,37 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
   /* Reported moves that are deliberately not on the map. Counted here so the
      note underneath cannot drift out of step with the data. */
   const rumoured = rows.filter((row) => row.rumoured).length;
+
+  /* ── DOWN A LEVEL, TO THE COUNCILS ────────────────────────────────────────
+     Boundaries are fetched per state, and what comes back is stamped with the
+     state it was fetched for so "still loading" is read off the stamp rather
+     than kept in a flag that can be switched on after the shapes have already
+     drawn. Same pattern as ScopeMap and PlanningMap. */
+  const openCode = openState?.code ?? null;
+
+  useEffect(() => {
+    if (!openCode) return;
+    let cancelled = false;
+    fetch(`/geo/lga/${openCode}.json`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => !cancelled && setBoundaries({ code: openCode, data }))
+      .catch(() => !cancelled && setBoundaries({ code: openCode, data: null }));
+    return () => {
+      cancelled = true;
+    };
+  }, [openCode]);
+
+  const councilShapes = boundaries?.code === openCode ? boundaries.data : null;
+  const councilsLoading = Boolean(openCode) && boundaries?.code !== openCode;
+
+  /* What is actually known about this state's councils, reconciled against the
+     number of councils the boundary file draws. Returns a reason instead of a
+     colour whenever the two do not line up. See lib/lga-control.js. */
+  const councils = openCode
+    ? councilsIn(openCode, councilShapes?.lgas?.length ?? null)
+    : null;
+  const councilFill = councils?.known ? PARTY_FILL[councils.party] : null;
+  const cover = useMemo(() => coverage(), []);
 
   return (
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
@@ -59,20 +93,45 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
             ))}
           </div>
 
+          {openState && (
+            <button
+              type="button"
+              onClick={() => setOpenState(null)}
+              className="flex items-center gap-1 rounded-full bg-white/8 px-2.5 py-1.5 text-[0.75rem] font-bold text-white hover:bg-white/15"
+            >
+              <ChevronLeft size={13} className="shrink-0" />
+              {openState.name} · back to Nigeria
+            </button>
+          )}
+
           <span className="ml-auto text-[0.75rem] text-white/45">
-            {which === "current"
-              ? `${moves.length} states changed hands without an election`
-              : "As declared by INEC"}
+            {openState
+              ? councilsLoading
+                ? "Loading councils…"
+                : councils.known
+                  ? `${councils.seats} councils, all ${councils.party}`
+                  : "Council control not established here"
+              : which === "current"
+                ? `${moves.length} states changed hands without an election`
+                : "As declared by INEC"}
           </span>
         </header>
 
         <div className="relative min-h-0 flex-1 p-1.5">
           <svg
-            viewBox={`0 0 ${shapes.width} ${shapes.height}`}
+            viewBox={
+              councilShapes
+                ? `0 0 ${councilShapes.width} ${councilShapes.height}`
+                : `0 0 ${shapes.width} ${shapes.height}`
+            }
             className="h-full w-full"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label="Nigeria by governing party. The same list appears beside this map."
+            aria-label={
+              openState
+                ? `${openState.name} by local government council. What is known about them is written beside this map.`
+                : "Nigeria by governing party. The same list appears beside this map."
+            }
             onPointerLeave={() => setHovered(null)}
           >
             <defs>
@@ -94,9 +153,57 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
               </pattern>
             </defs>
 
-            <rect width={shapes.width} height={shapes.height} fill="url(#ruling-grid)" />
+            <rect
+              width={councilShapes?.width ?? shapes.width}
+              height={councilShapes?.height ?? shapes.height}
+              fill="url(#ruling-grid)"
+            />
 
-            {shapes.states.map((shape) => {
+            {/* ── ONE STATE'S COUNCILS ──────────────────────────────────────
+                Coloured only where one party took every chairmanship and the
+                source's seat count matches the number of councils actually
+                drawn here. Every other case is grey, and the panel beside the
+                map says which case it is. Grey means "nobody has established
+                this", never "no party". */}
+            {councilShapes
+              ? councilShapes.lgas.map((shape) => (
+                  <g key={shape.name} className="cursor-default">
+                    <path
+                      d={shape.d}
+                      fill={councilFill ?? "var(--color-silent)"}
+                      stroke="var(--color-board)"
+                      strokeWidth="1.1"
+                      strokeLinejoin="round"
+                    >
+                      <title>
+                        {`${shape.name}${
+                          councils.known
+                            ? `, ${councils.party}`
+                            : ", council control not established"
+                        }`}
+                      </title>
+                    </path>
+                    <text
+                      x={shape.at[0]}
+                      y={shape.at[1]}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      className="pointer-events-none select-none"
+                      style={{
+                        fontSize: councilShapes.width * 0.018,
+                        fontWeight: 700,
+                        fill: councils.known ? "#ffffff" : "rgba(255,255,255,0.45)",
+                        paintOrder: "stroke",
+                        stroke: "rgba(0,0,0,0.5)",
+                        strokeWidth: councilShapes.width * 0.004,
+                        strokeLinejoin: "round",
+                      }}
+                    >
+                      {shape.name}
+                    </text>
+                  </g>
+                ))
+              : shapes.states.map((shape) => {
               const row = byCode.get(shape.code);
               const party = row?.[which] ?? null;
               const moved = which === "current" && changed.has(shape.code);
@@ -106,7 +213,10 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
                 <g
                   key={shape.code}
                   onPointerEnter={() => setHovered(shape.code)}
-                  className="cursor-default"
+                  onClick={() =>
+                    shape.code !== "FCT" && setOpenState({ code: shape.code, name: shape.name })
+                  }
+                  className={shape.code === "FCT" ? "cursor-default" : "cursor-pointer"}
                 >
                   <path
                     d={shape.d}
@@ -173,7 +283,18 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-board-line px-4 py-2.5">
-          {seats[which].map((row) => (
+          {openState ? (
+            /* ── THE COVERAGE LINE ──────────────────────────────────────────
+               Printed on the map itself, not buried in a tooltip. Anybody
+               reading a council colour is entitled to know how much of the
+               country this file can actually speak for, which is not much. */
+            <span className="figure text-[0.6875rem] leading-relaxed text-white/45">
+              Council control is verified for {cover.states} of {cover.ofStates} states
+              ({cover.councils} of {cover.ofCouncils} councils). Everywhere else is drawn grey
+              because nobody has established it, not because no party holds it.
+            </span>
+          ) : (
+            seats[which].map((row) => (
             <span key={row.party} className="flex items-center gap-2">
               <span
                 aria-hidden="true"
@@ -183,16 +304,112 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
               <span className="text-[0.75rem] font-bold text-white">{row.party}</span>
               <span className="figure text-[0.75rem] text-white/55">{row.seats}</span>
             </span>
-          ))}
-          <span className="figure ml-auto text-[0.6875rem] text-white/35">
-            36 states, {total} governors. The FCT has none.
-          </span>
+            ))
+          )}
+          {!openState && (
+            <span className="figure ml-auto text-[0.6875rem] text-white/35">
+              36 states, {total} governors. The FCT has none.
+            </span>
+          )}
         </div>
       </div>
 
       {/* ------------------------------------------------------------ panel */}
       <div className="flex flex-col gap-3">
-        {active && (
+        {/* ── WHY THIS STATE IS THE COLOUR IT IS ────────────────────────────
+            A grey state has a reason, and the reason is the useful part: not
+            recorded at all, split between parties, under legal challenge, or
+            a source whose seat count does not match the map. Naming which one
+            is the difference between a gap and a shrug. */}
+        {openState && !councilsLoading && (
+          <section className="rounded-dash border border-dash-line bg-dash-card p-4">
+            <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              {openState.name} · local government councils
+            </p>
+
+            {councils.known ? (
+              <>
+                <p className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[0.6875rem] font-bold text-white"
+                    style={{ background: PARTY_FILL[councils.party] }}
+                  >
+                    {councils.party}
+                  </span>
+                  <span className="text-[0.875rem] font-bold text-dash-ink">
+                    all {councils.seats} councils
+                  </span>
+                  <span className="figure text-[0.75rem] text-dash-muted">{councils.on}</span>
+                </p>
+                {councils.current && councils.current !== councils.elected && (
+                  <p className="mt-2 flex flex-wrap items-center gap-2 text-[0.8125rem]">
+                    <span className="text-[0.75rem] text-dash-muted">Elected</span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[0.6875rem] font-bold text-white"
+                      style={{ background: PARTY_FILL[councils.elected] }}
+                    >
+                      {councils.elected}
+                    </span>
+                    <ArrowRight size={13} className="text-dash-muted" />
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[0.6875rem] font-bold text-white"
+                      style={{ background: PARTY_FILL[councils.current] }}
+                    >
+                      {councils.current}
+                    </span>
+                    <span className="figure text-[0.6875rem] text-dash-muted">
+                      {councils.movedOn}
+                    </span>
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="mt-1.5 text-[0.875rem] font-bold text-dash-ink">
+                {councils.reason === "not-recorded"
+                  ? "Not established"
+                  : councils.reason === "contested"
+                    ? "Disputed"
+                    : councils.reason === "unverified"
+                      ? "Reported, not dated"
+                      : councils.reason === "count-mismatch"
+                        ? "Source disagrees with the map"
+                        : "Split between parties"}
+              </p>
+            )}
+
+            {councils.note && (
+              <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">{councils.note}</p>
+            )}
+
+            {councils.stale && (
+              <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
+                {councils.stale}
+              </p>
+            )}
+
+            {councils.mismatch && (
+              <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
+                The source counts {councils.mismatch.claimed} councils here and the boundary file
+                draws {councils.mismatch.actual}. One of the two is wrong, so neither is allowed to
+                colour this map.
+              </p>
+            )}
+
+            {!councils.note && councils.reason === "not-recorded" && (
+              <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
+                No dated, sourced result for this state&rsquo;s council elections. Councils are run
+                by each state&rsquo;s own commission and none publishes machine-readable results, so
+                this is a gap in the record rather than a gap in the loading.
+              </p>
+            )}
+
+            {councils.source && (
+              <p className="mt-2 text-[0.6875rem] text-dash-muted">{councils.source}</p>
+            )}
+          </section>
+        )}
+
+        {active && !openState && (
           <section className="rounded-dash border border-dash-line bg-dash-card p-4">
             <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
               {active.state}

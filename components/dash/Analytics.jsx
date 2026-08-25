@@ -26,6 +26,8 @@ import {
 } from "@/lib/forecast";
 import { EFFECTS, MEANS, adjustedTurnout } from "@/lib/factors";
 import { parties } from "@/lib/election2023";
+import { raceFor } from "@/lib/races";
+import StateAnalytics from "./StateAnalytics";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +56,55 @@ const PROFILE = [
   { key: "hardship", label: "Hardship", format: (row) => String(row.hardship) },
 ];
 
-export default function Analytics() {
+/**
+ * ── WHY THIS TAKES THE CONTEST AND NOT JUST THE SLIDERS ────────────────────
+ * It used to take nothing at all, and computed the presidential projection
+ * over all 37 states whatever the room had open. On an Ekiti governorship
+ * that made every panel on the screen wrong in the same quiet way the map was
+ * before it learned about scope: the win condition tested a spread across 36
+ * states nobody was voting in, the closest-states table ranked Kano against
+ * Ekiti, and six zones were drawn for a contest held in one.
+ *
+ * The contest is now handed in. Nothing else about the screen changes: with
+ * every lever off it still reduces exactly to the declared 2023 figures — for
+ * the states actually in this election.
+ */
+/**
+ * The chooser. Deliberately holds no state of its own, so the two screens
+ * below never share a hook order and neither can be rendered conditionally
+ * inside the other.
+ */
+export default function Analytics({ scopeStates = [], race = null, title = null }) {
+  /**
+   * ── A STATE CONTEST GETS A DIFFERENT SCREEN, NOT A NARROWER ONE ──────────
+   * Scoping the presidential projection to one state made every figure on it
+   * arithmetically correct and analytically useless: it answered how the 2023
+   * presidential result in Ekiti would move under a national swing, which is
+   * not a question anybody planning an Ekiti governorship has ever asked.
+   *
+   * A state election turns on incumbency, the split ticket, a turnout that
+   * collapses off-cycle, and a floor that moves between elections. None of
+   * those is a slider on a national forecast, and all of them are recorded
+   * data this product already holds. So the contest chooses the screen.
+   */
+  if (scopeStates?.length && race && race !== "PRESIDENTIAL") {
+    return (
+      <StateAnalytics
+        scopeStates={scopeStates}
+        title={title}
+        raceLabel={raceFor(race)?.label ?? "State contest"}
+      />
+    );
+  }
+
+  return <FederalAnalytics scopeStates={scopeStates} race={race} title={title} />;
+}
+
+/**
+ * The national projection: a swing model over every state in the contest,
+ * against the constitutional win condition.
+ */
+function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
   const [swing, setSwing] = useState({ APC: 0, PDP: 0, LP: 0, NNPP: 0 });
   const [turnout, setTurnout] = useState(1);
   const [focus, setFocus] = useState("APC");
@@ -72,15 +122,19 @@ export default function Analytics() {
 
   const anyLever = Object.values(levers).some((value) => value > 0);
 
+  /* Stable across renders so the memos below do not recompute on identity
+     alone: the array arrives fresh from the server component each time. */
+  const scope = useMemo(() => scopeStates ?? [], [scopeStates]);
+
   const projection = useMemo(
-    () => project({ swing, turnout, levers: anyLever ? levers : null }),
-    [swing, turnout, levers, anyLever]
+    () => project({ swing, turnout, levers: anyLever ? levers : null, scopeStates: scope }),
+    [swing, turnout, levers, anyLever, scope]
   );
   const outcome = useMemo(() => winCondition(projection), [projection]);
   const close = useMemo(() => battlegrounds(projection, 8), [projection]);
   const zones = useMemo(() => byZone(projection), [projection]);
   const targets = useMemo(() => opportunities(projection, focus), [projection, focus]);
-  const sensitivity = useMemo(() => turnoutSensitivity(swing), [swing]);
+  const sensitivity = useMemo(() => turnoutSensitivity(swing, scope), [swing, scope]);
 
   const untouched =
     turnout === 1 && !anyLever && Object.values(swing).every((value) => value === 0);
@@ -102,6 +156,8 @@ export default function Analytics() {
   /* Nobody clearing the spread test is a constitutional run-off, and it is the
      single most important thing this screen can tell a room. */
   const anyPasses = outcome.some((party) => party.spreadPlain);
+  /* Whether the two-thirds spread test governs this contest at all. */
+  const spread = outcome[0]?.spreadApplies ?? true;
   const leader = outcome[0];
 
   return (
@@ -216,7 +272,13 @@ export default function Analytics() {
               The win condition
             </h2>
             <p className="text-[0.75rem] text-dash-muted">
-              Most votes, and a quarter of the vote in two thirds of the states
+              {/* The rule being applied, named. Two different contests are
+                  won two different ways, and a panel that says "the win
+                  condition" without saying which one is inviting somebody to
+                  read a governorship against a presidential threshold. */}
+              {spread
+                ? "Most votes, and a quarter of the vote in two thirds of the states"
+                : `Most votes ${raceFor(race)?.collatedInto ? `across ${raceFor(race).collatedInto}` : "in this contest"}${title ? ` · ${title}` : ""}`}
             </p>
           </div>
 
@@ -230,7 +292,7 @@ export default function Analytics() {
           </span>
         </header>
 
-        {!anyPasses && (
+        {spread && !anyPasses && (
           /* The finding this whole panel exists to surface. */
           <p className="flex gap-2.5 border-b border-dash-line bg-red-50 px-4 py-3 text-[0.8125rem] leading-relaxed text-dash-ink">
             <AlertTriangle size={16} strokeWidth={2.5} className="mt-px shrink-0 text-red-600" />
@@ -247,7 +309,10 @@ export default function Analytics() {
           <table className="w-full min-w-[42rem] text-left">
             <thead>
               <tr className="border-b border-dash-line">
-                {["Party", "Share", "Votes", "States won", "Quarter in", "Threshold"].map(
+                {(spread
+                  ? ["Party", "Share", "Votes", "States won", "Quarter in", "Threshold"]
+                  : ["Party", "Share", "Votes", "States won", "Standing", "Outcome"]
+                ).map(
                   (head, index) => (
                     <th
                       key={head}
@@ -290,26 +355,48 @@ export default function Analytics() {
                     {party.states}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {/* The bar is the point: how far off twenty-four they are. */}
+                    {/* Where the spread test governs, the bar is the point:
+                        how far off twenty-four they are. Where it does not,
+                        drawing "1/24" beside a governorship would report a
+                        rule that does not apply as though it had been failed,
+                        so the share of the vote goes here instead — which is
+                        the whole condition in that contest. */}
                     <span className="inline-flex items-center gap-2">
                       <span className="h-1.5 w-16 overflow-hidden rounded-full bg-dash-bg">
                         <span
                           className="block h-full rounded-full"
                           style={{
-                            width: `${Math.min(100, (party.quarterStates / 24) * 100)}%`,
-                            background: party.spreadPlain
-                              ? "var(--color-pdp-l)"
-                              : "var(--color-dash-muted)",
+                            width: spread
+                              ? `${Math.min(100, (party.quarterStates / 24) * 100)}%`
+                              : `${Math.min(100, party.share)}%`,
+                            background:
+                              spread && !party.spreadPlain
+                                ? "var(--color-dash-muted)"
+                                : PARTY_FILL[party.id],
                           }}
                         />
                       </span>
                       <span className="figure w-10 text-right text-[0.8125rem] font-bold text-dash-ink tabular-nums">
-                        {party.quarterStates}/24
+                        {spread ? `${party.quarterStates}/24` : formatShare(party.share)}
                       </span>
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    {party.spreadPlain ? (
+                    {/* Where there is no threshold, there is nothing to have
+                        met: the column reports who is ahead, which is the
+                        only condition this contest has. */}
+                    {!spread ? (
+                      party.id === leader.id ? (
+                        <span className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold text-emerald-700">
+                          <Check size={13} strokeWidth={3} />
+                          Leads
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-[0.75rem] text-dash-muted">
+                          {formatShare(Math.max(0, leader.share - party.share))} behind
+                        </span>
+                      )
+                    ) : party.spreadPlain ? (
                       <span className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold text-emerald-700">
                         <Check size={13} strokeWidth={3} />
                         Met
@@ -328,10 +415,23 @@ export default function Analytics() {
         </div>
 
         <p className="border-t border-dash-line px-4 py-2.5 text-[0.6875rem] leading-relaxed text-dash-muted">
-          Section 134 requires the highest number of votes and at least a quarter of the votes in
-          two thirds of the states. Whether the Federal Capital Territory counts as a thirty-seventh
-          state for that test was litigated to the Supreme Court in 2023, so the count above is of
-          the 36 states, and the FCT is reported separately in each state row.
+          {spread ? (
+            <>
+              Section 134 requires the highest number of votes and at least a quarter of the votes
+              in two thirds of the states. Whether the Federal Capital Territory counts as a
+              thirty-seventh state for that test was litigated to the Supreme Court in 2023, so the
+              count above is of the 36 states, and the FCT is reported separately in each state row.
+            </>
+          ) : (
+            <>
+              This contest is decided on the votes cast in it — the most votes wins, and there is no
+              spread test to meet. The two-thirds rule in Section 134 applies to electing a
+              President, not to this. The baseline below every figure here is the declared 2023
+              presidential result in {scope.length === 1 ? "this state" : `these ${scope.length} states`},
+              which is the last real vote on record for {scope.length === 1 ? "it" : "them"} — a
+              starting point, not a forecast of a different office.
+            </>
+          )}
         </p>
       </section>
 

@@ -6,7 +6,7 @@ import { ChevronRight, Loader2, MapPin } from "lucide-react";
 import { PARTY_FILL } from "./Charts";
 import StateLevel from "./StateLevel";
 import { apportion, wardCount, unitCount, leaderOf } from "@/lib/drill";
-import { parties } from "@/lib/election2023";
+import { allParties } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -259,7 +259,10 @@ function TileGrid({ rows, onSelect, leaf }) {
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {rows.map((row) => {
         const leader = leaderOf(row.votes);
-        const code = leader === null ? null : parties[leader].id;
+        /* Read back through the same list the array was built from, and
+           tolerate a miss rather than throwing on `.id`. See ScopeMap.partyCode
+           for why the presidential four is not that list on every board. */
+        const code = leader === null ? null : (allParties[leader]?.id ?? null);
 
         return (
           <button

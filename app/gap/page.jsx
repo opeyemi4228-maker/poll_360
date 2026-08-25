@@ -7,9 +7,8 @@ import DivergencePanel from "@/components/dash/DivergencePanel";
 import GapBoard from "@/components/dash/GapBoard";
 import LiveRefresh from "@/components/dash/LiveRefresh";
 import { requireCapability } from "@/lib/guard";
-import { defaultRace } from "@/lib/races";
 import { can } from "@/lib/roles";
-import { currentElection } from "@/lib/election-scope";
+import { currentElection, currentRace } from "@/lib/election-scope";
 import { gapReport } from "@/lib/gap-report";
 import { formatNumber } from "@/lib/utils";
 
@@ -43,7 +42,11 @@ export default async function GapPage() {
   const user = await requireCapability("gap:read", "/gap");
 
   const project = await currentElection();
-  const report = await gapReport(project?.id, defaultRace(project));
+  /* The position being read, from the same cookie every other dashboard uses,
+     so this screen and the room can never be comparing different contests. It
+     falls back to the project's headline contest when nobody has chosen. */
+  const race = await currentRace(project);
+  const report = await gapReport(project?.id, race);
 
   const mayEnter = can(user.role, "declared:file");
 

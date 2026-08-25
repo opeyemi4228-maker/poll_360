@@ -1,6 +1,32 @@
 @import "tailwindcss";
 
 /* ==================================================================
+   THE RAIL'S WIDTH IS ONE NUMBER, AND IT LIVES HERE
+
+   The dashboard sidebar retracts, and two elements have to agree
+   about it: the rail itself, and the sheet beside it that must be
+   inset by exactly as much. That agreement used to be attempted with
+   a data attribute read on each element separately, which quietly
+   never worked: a `data-` variant matches the element that carries
+   the attribute, not its descendants, and the attribute is on
+   <html>, so the sheet kept a 16rem inset beside a 4.5rem rail.
+   (Written in prose rather than in code because Tailwind scans
+   comments too, and quoting the class here would emit it.)
+
+   One custom property on the root, set before first paint by the
+   inline script in DashLayout, now drives both. Widths transition
+   because the computed value changes; nothing re-renders; and a
+   room that collapsed the rail last night does not watch it snap
+   shut a frame after the page appears.
+
+   The variant below is for the rail's *contents*, the wordmark, the
+   link labels, the identity block, which are hidden by CSS rather
+   than unmounted, so they too are correct in the very first frame.
+================================================================== */
+@custom-variant rail-collapsed (&:where([data-rail="collapsed"] *));
+
+
+/* ==================================================================
    POLL360 DESIGN SYSTEM, "Instrument Editorial"
 
    Two references, deliberately combined:
@@ -427,6 +453,15 @@
     scroll-behavior: smooth;
     scroll-padding-top: 8rem; /* clears the sticky masthead, rule included */
     -webkit-tap-highlight-color: transparent;
+
+    /* Open. Both the rail and the sheet read this one value. */
+    --rail: 16rem;
+  }
+
+  html[data-rail="collapsed"] {
+    /* Icons only: still visible, still one click from anywhere, and
+       11.5rem handed back to the map underneath. */
+    --rail: 4.5rem;
   }
 
   body {
