@@ -168,6 +168,54 @@ model Result {
   distanceM   Float?    @map("distance_m")
   source      String    @default("APP")
   repName     String?   @map("rep_name")
+
+  /// ── FORM EC8A, BOX BY BOX ───────────────────────────────────────────────
+  /// The eight numbered boxes at the head of the sheet, plus the parts of it
+  /// that are not figures. All nullable, for two separate reasons that must
+  /// not be confused: every row filed before these existed has none of them,
+  /// and a photograph or a hurried agent may genuinely leave one unread. Null
+  /// means "not captured" and is never rendered as a zero — a zero is a
+  /// measurement and these are the absence of one.
+  ///
+  /// Why capture boxes the count does not need: because the sheet's own
+  /// arithmetic is the strongest evidence there is about whether it was
+  /// transcribed honestly, and it cannot be checked from figures nobody
+  /// stored. #3 minus #4 must equal #8, and #5 + #6 + #7 must equal #8. The
+  /// first real sheet this product was shown fails both by exactly one — the
+  /// presiding officer wrote the accredited figure into #8 and lost the
+  /// spoiled ballot. See auditSheet in lib/results.js.
+  ///
+  /// The serial number. Pre-printed and unique to one sheet, which makes it
+  /// the only field on the paper that can prove two returns came off two
+  /// different pieces of paper rather than one photographed twice.
+  formSerial    String?  @map("form_serial")
+  /// #3, ballot papers issued to the polling unit.
+  ballotsIssued Int?     @map("ballots_issued")
+  /// #4, unused ballot papers.
+  unusedBallots Int?     @map("unused_ballots")
+  /// #5, spoiled ballot papers. Not the same as rejected: a spoiled paper was
+  /// mismarked and replaced before it went in the box, so it is issued but
+  /// never cast, and it is the difference between #8 and the accredited count.
+  spoiled       Int?
+  /// #7 as the officer wrote it, kept beside the sum of the party rows rather
+  /// than instead of it. Where the two disagree the sheet disagrees with
+  /// itself, and that is a finding, not something to reconcile away.
+  statedValid   Int?     @map("stated_valid")
+  /// #8, total used ballot papers.
+  usedBallots   Int?     @map("used_ballots")
+  /// The presiding officer strikes out one of "CONTESTED / NOT CONTESTED".
+  /// True means an agent disputed the result at the booth, which is a fact
+  /// about the count that no figure on the sheet carries.
+  contested     Boolean? 
+  /// The date written on the form, as written. Text and not a date: this is a
+  /// transcription of what a human wrote in a box, and parsing it into a
+  /// timestamp would quietly invent a day for anything ambiguous.
+  sheetDate     String?  @map("sheet_date")
+  /// The polling agents who signed, keyed by party id. JSON, because the set
+  /// of parties differs by paper and a column each would be eighteen columns
+  /// that are almost always null. This is the witness record: who stood at
+  /// this booth and put their name to this figure.
+  agents        String?
   /// ── EXACTLY ONE AUTHOR, AND THE DATABASE ENFORCES IT ────────────────────
   /// A return is filed either by a Poll360 staff account or by a polling unit
   /// coordinator, and those live in separate tables. `submittedBy` was NOT NULL

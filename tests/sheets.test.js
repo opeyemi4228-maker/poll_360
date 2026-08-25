@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { parseSheet, trustworthy } from "../lib/sheet-vision.js";
-import { countedParties } from "../lib/races.js";
+import { scanList } from "../lib/party-register.js";
 
 /**
  * Reading a result sheet.
@@ -27,11 +27,13 @@ import { countedParties } from "../lib/races.js";
 const sheet = (lines) => parseSheet(lines.join("\n"));
 
 /* Figures by party rather than by position. `parsed.votes` is positional over
-   the ballot, so every assertion written as a bare array had to be rewritten
-   the first time a party was added to it — and an assertion that has to be
-   rewritten to stay green is one nobody reads carefully the second time. */
+   the list the reader scans — which is the whole party register, not any one
+   ballot, because a photograph does not say which paper it is. Every
+   assertion written as a bare array had to be rewritten the first time a
+   party was added, and an assertion that has to be rewritten to stay green is
+   one nobody reads carefully the second time. */
 const byParty = (read) =>
-  Object.fromEntries(countedParties().map((party, index) => [party.id, read.votes[index]]));
+  Object.fromEntries(scanList().map((party, index) => [party.id, read.votes[index]]));
 
 describe("the header trap", () => {
   it("does not read the party names in a header as their votes", () => {

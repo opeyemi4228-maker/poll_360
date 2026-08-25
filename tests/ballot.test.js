@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { ballotFor, countedParties, BALLOT_IDS } from "../lib/races.js";
+import { ballotFor, countedParties, ballotIds } from "../lib/races.js";
 import { allParties, parties, others } from "../lib/election2023.js";
-import { EXTRA_PARTIES } from "../lib/offcycle.js";
+import { partyById } from "../lib/party-register.js";
 import { PATTERNED, partyFill } from "../lib/party-pattern.js";
 
 /**
@@ -22,9 +22,14 @@ import { PATTERNED, partyFill } from "../lib/party-pattern.js";
  */
 
 describe("the ballot", () => {
-  it("carries the parties that have a box of their own", () => {
+  it("carries every party on a Nigerian ballot paper", () => {
     const ids = ballotFor("PRESIDENTIAL").map((party) => party.id);
-    assert.deepEqual(ids, ["APC", "PDP", "LP", "NNPP", "ADC", "NDC", "OTH"]);
+    /* Alphabetical by the code INEC prints, which puts Accord first as "A".
+       The bucket is last and is not a party. */
+    assert.deepEqual(ids, [
+      "ACCORD", "AA", "AAC", "ADC", "ADP", "APC", "APGA", "APM", "APP",
+      "BP", "LP", "NDC", "NNPP", "PDP", "PRP", "SDP", "YPP", "ZLP", "OTH",
+    ]);
   });
 
   it("puts the bucket last, on every position", () => {
@@ -40,7 +45,7 @@ describe("the ballot", () => {
   it("counts every party except the bucket by name", () => {
     const counted = countedParties().map((party) => party.id);
     assert.ok(!counted.includes(others.id), "the bucket was counted as a party");
-    assert.equal(counted.length, BALLOT_IDS.length - 1);
+    assert.equal(counted.length, ballotIds().length - 1);
   });
 
   it("gives every party on it a colour", () => {
@@ -53,33 +58,31 @@ describe("the ballot", () => {
     }
   });
 
-  it("keeps the presidential four first and in their 2023 order", () => {
-    /* `allParties` is the schema of the 2023 declared results, and several
-       screens index into those vote arrays positionally. The ballot may grow
-       past it; it must never reorder the part they share. */
-    const ballot = ballotFor().map((party) => party.id);
-    assert.deepEqual(ballot.slice(0, parties.length), parties.map((party) => party.id));
+  it("leaves the 2023 declared record alone", () => {
+    /* `allParties` is the schema of the 2023 results and several screens index
+       into those vote arrays positionally. The ballot has grown well past it;
+       the record itself must not move a single slot. */
+    assert.deepEqual(parties.map((party) => party.id), ["APC", "PDP", "LP", "NNPP"]);
     assert.equal(allParties.length, parties.length + 1, "the 2023 record grew a party");
   });
 
-  it("defines the added parties once, in the party registry", () => {
-    /* Not redeclared in races.js: a party with two definitions is a party
-       with two colours the day somebody edits one of them. */
-    for (const id of ["ADC", "NDC"]) {
-      const registered = EXTRA_PARTIES.find((party) => party.id === id);
-      const onBallot = ballotFor().find((party) => party.id === id);
-      assert.ok(registered, `${id} is on the ballot but not in lib/offcycle.js`);
-      assert.equal(onBallot.token, registered.token, `${id} has two different colours`);
-      assert.ok(onBallot.name?.length > 3, `${id} has no name to show anybody`);
+  it("defines every party once, in the register", () => {
+    /* A party with two definitions is a party with two colours the day
+       somebody edits one of them. */
+    for (const party of countedParties()) {
+      const registered = partyById(party.id);
+      assert.ok(registered, `${party.id} is on the ballot and not in the register`);
+      assert.equal(party.token, registered.token, `${party.id} has two different colours`);
+      assert.ok(party.name?.length > 2, `${party.id} has no name to show anybody`);
     }
   });
 
-  it("marks the added parties optional, and the four not", () => {
-    /* This is what lets a result sheet with no ADC row be an ordinary sheet
-       rather than a failed reading. See tests/sheets.test.js. */
-    for (const party of ballotFor()) {
-      const expected = ["ADC", "NDC"].includes(party.id);
-      assert.equal(Boolean(party.optional), expected, `${party.id} optional flag is wrong`);
+  it("marks everyone but the four optional on a sheet", () => {
+    /* This is what lets the Osun paper, which carries neither PDP nor LP, be
+       an ordinary sheet rather than a failed reading. See tests/sheets.test.js. */
+    for (const party of countedParties()) {
+      const core = ["APC", "PDP", "LP", "NNPP"].includes(party.id);
+      assert.equal(Boolean(party.optional), !core, `${party.id} optional flag is wrong`);
     }
   });
 });
@@ -87,7 +90,7 @@ describe("the ballot", () => {
 describe("the parties that carry a texture", () => {
   it("are all on the ballot", () => {
     for (const id of Object.keys(PATTERNED)) {
-      assert.ok(BALLOT_IDS.includes(id), `${id} is textured but cannot be counted`);
+      assert.ok(ballotIds().includes(id), `${id} is textured but cannot be counted`);
     }
   });
 

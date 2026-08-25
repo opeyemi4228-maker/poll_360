@@ -6,7 +6,7 @@ import { Camera, Check, Crosshair, Loader2, ScanLine, Sparkles, TriangleAlert, X
 
 import Button from "@/components/ui/Button";
 import { fileResult, readSheetPhoto } from "@/app/field/actions";
-import { validateReturn } from "@/lib/results";
+import { validateReturn, auditSheet, EC8A_BOXES } from "@/lib/results";
 import { ballotFor, raceLabel } from "@/lib/races";
 import { shrinkImage, putOnInput, RESULT_SHEET } from "@/lib/shrink";
 import { formatNumber } from "@/lib/utils";
@@ -77,8 +77,31 @@ export default function FileResultForm({
     registered: existing?.registered ?? "",
     accredited: existing?.accredited ?? "",
     rejected: existing?.rejected ?? "",
+    /* The four boxes on Form EC8A that nothing used to capture. They are what
+       make the sheet checkable against itself — see auditSheet in
+       lib/results.js — and a return without them can only ever be taken on
+       trust. */
+    ballotsIssued: existing?.ballotsIssued ?? "",
+    unusedBallots: existing?.unusedBallots ?? "",
+    spoiled: existing?.spoiled ?? "",
+    statedValid: existing?.statedValid ?? "",
+    usedBallots: existing?.usedBallots ?? "",
     ...Object.fromEntries(ballot.map((p) => [p.id, existing?.votes?.[p.id] ?? ""])),
   }));
+
+  /* Everything on the sheet that is not a number. The serial is the only field
+     on the paper that can tell two booths' returns from one sheet
+     photographed twice, so it is captured even though nothing counts it. */
+  const [serial, setSerial] = useState(existing?.formSerial ?? "");
+  const [sheetDate, setSheetDate] = useState(existing?.sheetDate ?? "");
+  const [contested, setContested] = useState(
+    existing?.contested === true ? "yes" : existing?.contested === false ? "no" : ""
+  );
+  /* Who signed, by party. Optional and folded away by default: this is the
+     witness record and it matters, but an agent at 2am should not have to walk
+     past eighteen name fields to reach the figures. */
+  const [agents, setAgents] = useState(() => existing?.agents ?? {});
+  const [showAgents, setShowAgents] = useState(false);
   const [position, setPosition] = useState({ status: "asking" });
   const [sheet, setSheet] = useState(null);
   const [shrinking, setShrinking] = useState(false);
@@ -238,9 +261,37 @@ export default function FileResultForm({
       put("registered", result.figures.registered);
       put("accredited", result.figures.accredited);
       put("rejected", result.figures.rejected);
+      /* The four boxes that make the sheet checkable, and the stated total
+         beside the one the party rows add up to. A reader that fills the
+         figures and leaves these blank hands back a return nobody can audit. */
+      put("ballotsIssued", result.figures.ballotsIssued);
+      put("unusedBallots", result.figures.unusedBallots);
+      put("spoiled", result.figures.spoiled);
+      put("statedValid", result.figures.statedValid);
+      put("usedBallots", result.figures.usedBallots);
       for (const party of ballot) put(party.id, result.figures.votes?.[party.id]);
       return next;
     });
+
+    /* Not figures, so they live outside `figures` and are set alongside it. */
+    if (result.figures.formSerial) {
+      setSerial(String(result.figures.formSerial));
+      filled.add("formSerial");
+    }
+    if (result.figures.sheetDate) {
+      setSheetDate(String(result.figures.sheetDate));
+      filled.add("sheetDate");
+    }
+    if (result.figures.contested !== null && result.figures.contested !== undefined) {
+      setContested(result.figures.contested ? "yes" : "no");
+    }
+    if (result.figures.agents && Object.keys(result.figures.agents).length) {
+      setAgents((current) => ({ ...result.figures.agents, ...current }));
+      /* Opened, not left folded: names the reader found are the ones most
+         worth a glance before they are filed under somebody's signature. */
+      setShowAgents(true);
+    }
+
     setFromSheet(filled);
   }
 
@@ -289,6 +340,11 @@ export default function FileResultForm({
     if (sheetRef.current) sheetRef.current.value = "";
   }
 
+  /* An untyped box is not a zero. `auditSheet` only checks an identity when
+     every box in it was actually captured, and passing 0 for a blank would
+     manufacture a discrepancy out of a field nobody has reached yet. */
+  const blank = (v) => (v === "" || v === null || v === undefined ? null : Number(String(v).replace(/[^\d]/g, "")));
+
   const numbers = useMemo(() => {
     const toNumber = (v) => (v === "" ? 0 : Number(String(v).replace(/[^\d]/g, "")));
     return {
@@ -300,6 +356,30 @@ export default function FileResultForm({
   }, [figures, ballot]);
 
   const live = validateReturn(numbers);
+
+  /* ── THE SHEET CHECKED AGAINST ITSELF, AS THE AGENT TYPES ────────────────
+     Not an error and never a block: the arithmetic being checked is the
+     presiding officer's, not the agent's, and the agent's job is to transcribe
+     what is written even when what is written is wrong. Refusing here would
+     teach them to type figures that reconcile instead of figures that are on
+     the paper, which destroys the only evidence there was.
+
+     Shown while they type because that is when the sheet is still in their
+     hand: "box #8 says 556 and everything else on the page says 557" is worth
+     a second look at the paper before it is put down, and worth nothing at
+     all a week later. */
+  const audit = useMemo(
+    () =>
+      auditSheet({
+        ...numbers,
+        spoiled: blank(figures.spoiled),
+        ballotsIssued: blank(figures.ballotsIssued),
+        unusedBallots: blank(figures.unusedBallots),
+        usedBallots: blank(figures.usedBallots),
+        statedValid: blank(figures.statedValid),
+      }),
+    [numbers, figures]
+  );
   const touched = figures.registered !== "" || figures.accredited !== "";
   const errors = state?.errors ?? {};
 
@@ -406,30 +486,147 @@ export default function FileResultForm({
         </>
       )}
 
-      {/* ------------------------------------------------------- figures */}
+      {/* ─────────────────────────────────────────────── the form itself */}
+      {/* ── WHY THE SERIAL NUMBER IS THE FIRST THING ASKED FOR ────────────
+          It is pre-printed, it is unique to one piece of paper, and it is the
+          only field on an EC8A that can prove two returns came off two sheets
+          rather than one sheet photographed twice. Nothing counts it; it is
+          the provenance of everything below it. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Number
-          name="registered"
-          label="Registered"
-          value={figures.registered}
-          onChange={(v) => setFigure("registered", v)}
-          read={fromSheet.has("registered")}
+        <Text
+          name="formSerial"
+          label="Form S/N"
+          hint="Top right of the sheet"
+          value={serial}
+          onChange={setSerial}
+          read={fromSheet.has("formSerial")}
         />
-        <Number
-          name="accredited"
-          label="Accredited"
-          value={figures.accredited}
-          onChange={(v) => setFigure("accredited", v)}
-          error={live.errors.accredited}
-          read={fromSheet.has("accredited")}
+        <Text
+          name="sheetDate"
+          label="Date on the form"
+          hint="As written"
+          value={sheetDate}
+          onChange={setSheetDate}
+          read={fromSheet.has("sheetDate")}
         />
-        <Number
-          name="rejected"
-          label="Rejected"
-          value={figures.rejected}
-          onChange={(v) => setFigure("rejected", v)}
-          read={fromSheet.has("rejected")}
-        />
+        <div>
+          <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            The officer struck out
+          </span>
+          {/* Three states, not a checkbox. "Contested", "not contested" and
+              "the officer left it blank" are three different facts about a
+              booth, and a two-state control would file the third as the
+              second — recording a certification nobody made. */}
+          <div className="mt-2 flex h-16 items-stretch gap-2">
+            {[
+              ["no", "Not contested"],
+              ["yes", "Contested"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setContested(contested === value ? "" : value)}
+                aria-pressed={contested === value}
+                className={[
+                  "flex-1 rounded-dash-sm border-2 px-2 text-[0.8125rem] font-bold transition-colors",
+                  contested === value
+                    ? value === "yes"
+                      ? "border-red-500 bg-red-50 text-red-700"
+                      : "border-dash-ink bg-dash-ink text-white"
+                    : "border-dash-line text-dash-muted hover:border-dash-ink",
+                ].join(" ")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <input type="hidden" name="contested" value={contested} />
+        </div>
+      </div>
+
+      {/* ──────────────────────────────────────────── the ballot papers */}
+      {/* ── ALL EIGHT BOXES, IN THE ORDER THE SHEET PRINTS THEM ───────────
+          The form used to ask for three of these and the paper has eight.
+          The other five are not decoration: issued less unused must equal
+          used, and spoiled plus rejected plus valid must equal used too, so
+          together they let the sheet be checked against nothing but itself.
+          Without them a presiding officer's slip is invisible to everybody
+          downstream, which is the one thing this product exists to prevent.
+
+          Read down the screen and you are reading down the paper. That is
+          not tidiness — a form in a different order from the sheet in the
+          agent's hand is how a figure lands one box from where it belongs. */}
+      <div>
+        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          Ballot papers · boxes 1 to 8
+        </p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Number
+            name="registered"
+            label="1 · On the register"
+            value={figures.registered}
+            onChange={(v) => setFigure("registered", v)}
+            read={fromSheet.has("registered")}
+          />
+          <Number
+            name="accredited"
+            label="2 · Accredited"
+            value={figures.accredited}
+            onChange={(v) => setFigure("accredited", v)}
+            error={live.errors.accredited}
+            read={fromSheet.has("accredited")}
+          />
+          <Number
+            name="ballotsIssued"
+            label="3 · Papers issued"
+            value={figures.ballotsIssued}
+            onChange={(v) => setFigure("ballotsIssued", v)}
+            read={fromSheet.has("ballotsIssued")}
+          />
+          <Number
+            name="unusedBallots"
+            label="4 · Unused"
+            value={figures.unusedBallots}
+            onChange={(v) => setFigure("unusedBallots", v)}
+            read={fromSheet.has("unusedBallots")}
+          />
+          <Number
+            name="spoiled"
+            label="5 · Spoiled"
+            /* Not the same as rejected, and the sheet keeps them apart for a
+               reason: a spoiled paper was mismarked and swapped before it
+               went in the box, so it was issued and never cast. It is exactly
+               the difference between the used total and the accredited
+               count, and folding the two together loses that. */
+            hint="Mismarked and replaced"
+            value={figures.spoiled}
+            onChange={(v) => setFigure("spoiled", v)}
+            read={fromSheet.has("spoiled")}
+          />
+          <Number
+            name="rejected"
+            label="6 · Rejected"
+            hint="Cast, and not counted"
+            value={figures.rejected}
+            onChange={(v) => setFigure("rejected", v)}
+            read={fromSheet.has("rejected")}
+          />
+          <Number
+            name="statedValid"
+            label="7 · Total valid"
+            hint="As the sheet says"
+            value={figures.statedValid}
+            onChange={(v) => setFigure("statedValid", v)}
+            read={fromSheet.has("statedValid")}
+          />
+          <Number
+            name="usedBallots"
+            label="8 · Total used"
+            value={figures.usedBallots}
+            onChange={(v) => setFigure("usedBallots", v)}
+            read={fromSheet.has("usedBallots")}
+          />
+        </div>
       </div>
 
       {/* --------------------------------------------------------- votes */}
@@ -458,6 +655,102 @@ export default function FileResultForm({
           Every party on this ballot paper. Add the ones with no box of their own together into
           Other parties, so the total on the sheet and the total here are the same number.
         </p>
+      </div>
+
+      {/* ─────────────────────────────────── does the sheet add up? */}
+      {audit.findings.length > 0 && (
+        <div className="border-2 border-amber-400 bg-amber-50 px-4 py-3.5">
+          <div className="flex items-start gap-3">
+            <TriangleAlert size={17} strokeWidth={2.5} className="mt-0.5 shrink-0 text-amber-700" />
+            <div className="min-w-0">
+              <p className="text-[0.875rem] font-bold text-dash-ink">
+                This sheet does not add up against itself.
+              </p>
+              {/* Where every failing sum points at one box, say which. It
+                  turns "the arithmetic is wrong" into a sentence somebody can
+                  act on without redoing it themselves. */}
+              {audit.culprit && (
+                <p className="mt-1 text-[0.8125rem] text-dash-ink">
+                  Everything else on the page agrees. Look again at box{" "}
+                  <span className="font-bold">
+                    {audit.culprit} · {EC8A_BOXES[audit.culprit]}
+                  </span>
+                  .
+                </p>
+              )}
+              <ul className="mt-2 space-y-1.5">
+                {audit.findings.map((finding) => (
+                  <li key={finding.boxes.join()} className="text-[0.8125rem] leading-relaxed text-dash-muted">
+                    <span className="font-semibold text-dash-ink">{finding.says}</span>{" "}
+                    {finding.why}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2.5 border-t border-amber-300 pt-2 text-[0.75rem] leading-relaxed text-dash-muted">
+                File it exactly as it is written anyway. Type what the paper
+                says, not what balances — this is recorded with the return and
+                shown to the desk, and correcting it here would destroy the
+                only evidence that anything was wrong.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ──────────────────────────────────────── who signed for it */}
+      {/* The witness record. Every agent who signs an EC8A is attesting to
+          these figures at this booth, and their names are on the paper. A
+          count that keeps the figures and throws away who stood behind them
+          keeps the weaker half. Folded away because it is not the fast path. */}
+      <div className="border border-dash-line bg-dash-bg px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setShowAgents((open) => !open)}
+          aria-expanded={showAgents}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <span className="text-[0.8125rem] font-semibold text-dash-ink">
+            Polling agents who signed
+            {Object.values(agents).filter(Boolean).length > 0 && (
+              <span className="ml-2 font-normal text-dash-muted">
+                {Object.values(agents).filter(Boolean).length} recorded
+              </span>
+            )}
+          </span>
+          <span className="text-[0.75rem] font-semibold text-dash-muted">
+            {showAgents ? "Hide" : "Add"}
+          </span>
+        </button>
+
+        {showAgents && (
+          <div className="mt-3 grid gap-3 border-t border-dash-line pt-3 sm:grid-cols-2">
+            {ballot
+              .filter((party) => party.id !== "OTH")
+              .map((party) => (
+                <label key={party.id} className="flex items-center gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="size-2.5 shrink-0"
+                    style={{ background: party.token }}
+                  />
+                  <span className="w-14 shrink-0 text-[0.75rem] font-bold text-dash-ink">
+                    {party.sheet ?? party.id}
+                  </span>
+                  <input
+                    type="text"
+                    name={`agent_${party.id}`}
+                    autoComplete="off"
+                    placeholder="Name as signed"
+                    value={agents[party.id] ?? ""}
+                    onChange={(event) =>
+                      setAgents((current) => ({ ...current, [party.id]: event.target.value }))
+                    }
+                    className="min-w-0 flex-1 rounded-dash-sm border border-dash-line bg-dash-card px-2.5 py-2 text-[0.8125rem] text-dash-ink focus:border-dash-ink focus:outline-none"
+                  />
+                </label>
+              ))}
+          </div>
+        )}
       </div>
 
       {/* ------------------------------------------------- the result sheet */}
@@ -741,7 +1034,39 @@ function Submit({ disabled, amending }) {
  * figure mine or the machine's". A colour and a word on the box answers that
  * where they are already looking; a banner does not.
  */
-function Number({ name, label, value, onChange, error, swatch, read = false }) {
+/** A written field: a serial number, a date as the officer wrote it. */
+function Text({ name, label, hint, value, onChange, read = false }) {
+  return (
+    <div>
+      <label htmlFor={name} className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        {label}
+        {read && (
+          <span className="flex items-center gap-1 font-bold tracking-normal text-sky-700 normal-case">
+            <ScanLine size={11} strokeWidth={2.75} aria-hidden="true" />
+            from your sheet
+          </span>
+        )}
+      </label>
+      <input
+        id={name}
+        name={name}
+        type="text"
+        autoComplete="off"
+        placeholder={hint}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={[
+          "figure mt-2 h-16 w-full rounded-dash-sm border-2 px-4 text-[1.05rem] font-bold text-dash-ink",
+          "placeholder:text-[0.8125rem] placeholder:font-normal placeholder:tracking-normal",
+          "focus:outline-none",
+          read ? "border-sky-400 bg-sky-50 focus:border-dash-ink" : "border-dash-line bg-dash-card focus:border-dash-ink",
+        ].join(" ")}
+      />
+    </div>
+  );
+}
+
+function Number({ name, label, hint, value, onChange, error, swatch, read = false }) {
   return (
     <div>
       <label htmlFor={name} className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase flex items-center gap-2 text-dash-muted">
@@ -756,6 +1081,7 @@ function Number({ name, label, value, onChange, error, swatch, read = false }) {
           </span>
         )}
       </label>
+      {hint && <p className="mt-0.5 text-[0.6875rem] text-dash-muted">{hint}</p>}
       <input
         id={name}
         name={name}

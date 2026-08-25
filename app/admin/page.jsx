@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { AlertTriangle, Banknote, FileText, Inbox, KeyRound, ScanLine, ScrollText, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 
+import SheetLedger from "@/components/dash/SheetLedger";
+import { auditSheet } from "@/lib/results";
 import DashLayout from "@/components/dash/DashLayout";
 import ReadinessBanner from "@/components/dash/ReadinessBanner";
 import { readiness } from "@/lib/readiness";
@@ -281,7 +283,7 @@ export default async function AdminPage() {
               <table className="w-full min-w-[36rem] text-left">
                 <thead>
                   <tr className="border-b border-dash-line">
-                    {["Unit", "Votes", "Accredited", "Filed", "Status"].map((head, index) => (
+                    {["Unit", "Votes", "Accredited", "Sheet", "Filed", "Status"].map((head, index) => (
                       <th
                         key={head}
                         className={`px-5 py-3 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase ${
@@ -305,6 +307,15 @@ export default async function AdminPage() {
                       <td className="figure px-5 py-3 text-right text-[0.8125rem] text-dash-muted">
                         {formatNumber(row.accredited)}
                       </td>
+                      {/* ── WHAT THE PAPER ITSELF SAYS ────────────────────
+                          Three words at most, because this is a scanning
+                          column in a list somebody reads at speed. A sheet
+                          whose boxes were never captured says so rather than
+                          showing a tick it has not earned — "unchecked" and
+                          "checked and fine" must not look the same. */}
+                      <td className="px-5 py-3 text-right text-[0.75rem]">
+                        <SheetCell row={row} />
+                      </td>
                       <td className="figure px-5 py-3 text-right text-[0.8125rem] text-dash-muted">
                         {row.submittedAt.toISOString().slice(11, 16)}
                       </td>
@@ -327,6 +338,21 @@ export default async function AdminPage() {
               </table>
             </div>
           )}
+        </Card>
+
+        {/* ── THE SHEETS, READ BACK AGAINST THEMSELVES ───────────────────
+            Above this card the returns are figures. Here they are pieces of
+            paper: eight numbered boxes that have to account for every ballot
+            issued to the booth, a serial that belongs to one sheet and no
+            other, and a certification somebody signed. Nothing here changes a
+            total — it decides how much weight to put on one. */}
+        <Card
+          id="sheets"
+          title="What the sheets say about themselves"
+          subtitle="Form EC8A, checked against its own arithmetic"
+          padded={false}
+        >
+          <SheetLedger rows={filed} />
         </Card>
 
         {/* ── WHAT THE MACHINE MADE OF THE PHOTOGRAPHS ────────────────────
@@ -567,4 +593,34 @@ function buildTrend(rows) {
     running += count;
     return { label: `${hour.slice(11)}:00`, value: running };
   });
+}
+
+/**
+ * What Form EC8A says about itself, in a column three words wide.
+ *
+ * Four states, and the fourth is the one that matters most: a return whose
+ * boxes were never captured has not been checked, and must not be drawn the
+ * same as one that was checked and passed. A tick nobody earned is worse than
+ * no tick, because it is the tick a desk stops looking behind.
+ */
+function SheetCell({ row }) {
+  const audit = auditSheet(row);
+  const captured =
+    row.ballotsIssued !== null ||
+    row.unusedBallots !== null ||
+    row.usedBallots !== null ||
+    row.statedValid !== null;
+
+  if (row.contested === true) {
+    return <span className="font-bold text-red-600">Contested</span>;
+  }
+  if (!audit.balances) {
+    return (
+      <span className="font-bold text-amber-700">
+        {audit.culprit ? `Box ${audit.culprit.replace("#", "")} off` : "Does not add up"}
+      </span>
+    );
+  }
+  if (!captured) return <span className="text-dash-muted">Not captured</span>;
+  return <span className="font-semibold text-emerald-700">Adds up</span>;
 }

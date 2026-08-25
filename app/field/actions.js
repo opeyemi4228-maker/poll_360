@@ -114,6 +114,48 @@ export async function fileResult(_previous, formData) {
     votes[party.id] = Number.isNaN(value) ? 0 : value;
   }
 
+  /* ── THE REST OF FORM EC8A ────────────────────────────────────────────────
+     A box the agent left empty stays null rather than becoming 0. The two are
+     different answers — "there were no spoiled papers" and "I did not read
+     that box" — and only the first is a measurement. `auditSheet` checks an
+     identity only when every box in it was captured, so a null quietly
+     withdraws that check instead of failing it against a figure nobody wrote. */
+  const optional = (name) => {
+    const value = number(name);
+    return Number.isNaN(value) ? null : value;
+  };
+
+  const text = (name) => {
+    const value = String(formData.get(name) ?? "").trim();
+    return value === "" ? null : value.slice(0, 120);
+  };
+
+  /* Three states in one field: struck out "not contested", struck out
+     "contested", or left alone. A boolean could not carry the third, and the
+     third is common — it is what a hurried officer leaves behind. */
+  const contestedRaw = String(formData.get("contested") ?? "").trim();
+  const contested = contestedRaw === "yes" ? true : contestedRaw === "no" ? false : null;
+
+  /* Who signed, by party. Only the names actually given: an empty object is
+     stored as null so "nobody signed" and "nobody was asked" stay apart. */
+  const agents = {};
+  for (const party of ballotFor(race)) {
+    const name = text(`agent_${party.id}`);
+    if (name) agents[party.id] = name;
+  }
+
+  const sheetBoxes = {
+    formSerial: text("formSerial"),
+    ballotsIssued: optional("ballotsIssued"),
+    unusedBallots: optional("unusedBallots"),
+    spoiled: optional("spoiled"),
+    statedValid: optional("statedValid"),
+    usedBallots: optional("usedBallots"),
+    contested,
+    sheetDate: text("sheetDate"),
+    agents: Object.keys(agents).length ? agents : null,
+  };
+
   if (Number.isNaN(registered) || Number.isNaN(accredited)) {
     return { errors: { figures: "Registered and accredited are both required." } };
   }
@@ -169,6 +211,8 @@ export async function fileResult(_previous, formData) {
     : null;
 
   const { amended } = await results.file({
+    /* Every box on the sheet, straight through. */
+    ...sheetBoxes,
     electionId: project.id,
     race,
     unitCode,
