@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AlertTriangle, Banknote, FileText, Inbox, KeyRound, ScanLine, ScrollText, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 
 import SheetLedger from "@/components/dash/SheetLedger";
+import RaceSwitcher from "@/components/dash/RaceSwitcher";
 import { auditSheet } from "@/lib/results";
 import DashLayout from "@/components/dash/DashLayout";
 import ReadinessBanner from "@/components/dash/ReadinessBanner";
@@ -16,7 +17,7 @@ import LiveRefresh from "@/components/dash/LiveRefresh";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
 import { currentElection, currentRace } from "@/lib/election-scope";
-import { raceLabel } from "@/lib/races";
+import { raceLabel, RACES } from "@/lib/races";
 import { results, incidents, audit, accessRequests, users, sheetReads } from "@/lib/db";
 import { integrityOf } from "@/lib/anomalies";
 import { coordinators } from "@/lib/coordinators";
@@ -126,6 +127,24 @@ export default async function AdminPage() {
       lead="Every unit, every room, every key, and the two actions nobody else holds: issuing credentials, and marking a return checked."
       actions={
         <>
+          {/* ── WITHOUT THIS, HALF THE COUNT WAS UNREACHABLE ────────────────
+              Every screen here reads one position at a time, and this one had
+              no way to change which. `currentRace` falls back to the project's
+              own kind, so an administrator on a project created as
+              presidential could not reach the governorship returns from this
+              page at all — they were filed, stored and counted, and the only
+              screen that could have shown them was pinned to another ballot
+              paper with no control on it.
+
+              The situation room and the WhatsApp desk have had this control
+              all along, which is what made the gap easy to miss: the position
+              was switchable everywhere somebody watches the count and nowhere
+              somebody administers it. */}
+          <RaceSwitcher
+            race={race}
+            races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+            filed={byRace}
+          />
           <LiveRefresh seconds={20} label="Live" />
           <Button href="/broadcast" variant="dashOutline" size="sm">
             Broadcast desk

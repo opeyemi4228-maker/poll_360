@@ -1,5 +1,6 @@
 import { AlertTriangle, ArrowLeftRight, FileText, Scale, ShieldAlert } from "lucide-react";
 
+import RaceSwitcher from "@/components/dash/RaceSwitcher";
 import DashLayout from "@/components/dash/DashLayout";
 import { Card, StatCard } from "@/components/dash/DashCard";
 import DeclaredUpload from "@/components/dash/DeclaredUpload";
@@ -9,6 +10,8 @@ import LiveRefresh from "@/components/dash/LiveRefresh";
 import { requireCapability } from "@/lib/guard";
 import { can } from "@/lib/roles";
 import { currentElection, currentRace } from "@/lib/election-scope";
+import { RACES } from "@/lib/races";
+import { results } from "@/lib/db";
 import { gapReport } from "@/lib/gap-report";
 import { formatNumber } from "@/lib/utils";
 
@@ -46,6 +49,10 @@ export default async function GapPage() {
      so this screen and the room can never be comparing different contests. It
      falls back to the project's headline contest when nobody has chosen. */
   const race = await currentRace(project);
+
+  /* What each of the day's five contests holds, so the control below can show
+     it and an empty screen can say which paper it is empty for. */
+  const byRace = project ? await results.countByRace(project.id) : {};
   const report = await gapReport(project?.id, race);
 
   const mayEnter = can(user.role, "declared:file");
@@ -56,7 +63,17 @@ export default async function GapPage() {
       screen="gap"
       title="Declared figures"
       lead="What our agents counted, held against what was announced. Two independently sourced numbers for the same booths, kept apart and compared."
-      actions={<LiveRefresh seconds={30} label="Live" />}
+      actions={
+        <>
+          {/* One position at a time, and now a way to change which. */}
+          <RaceSwitcher
+            race={race}
+            races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+            filed={byRace}
+          />
+          <LiveRefresh seconds={30} label="Live" />
+        </>
+      }
     >
       {/* ------------------------------------------------------------ heads */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import { parseSheet, trustworthy } from "../lib/sheet-vision.js";
 import { scanList } from "../lib/party-register.js";
+import { figuresForBallot } from "../lib/sheet-vision.js";
 
 /**
  * Reading a result sheet.
@@ -129,13 +130,51 @@ describe("what balances and what does not", () => {
     assert.equal(read.usable, false);
   });
 
-  it("reports a party it could not make out as missing, never as zero", () => {
-    /* A real zero is written on the sheet as a zero. A hole in the return is
-       a different fact, and filing it as nought is how a party silently loses
+  it("never turns a party it could not make out into a zero", () => {
+    /* A real zero is written on the sheet as a zero. A hole in the return is a
+       different fact, and filing it as nought is how a party silently loses
        votes it was never credited with. */
+    /* Asserted against what the form is actually handed, not the raw parse:
+       the reader's own array carries a 0 placeholder, and `figuresForBallot`
+       is the seam that turns "no row read" into an empty box. A zero reaching
+       the form is a figure the agent never wrote. */
     const read = sheet(balanced.filter((line) => !line.startsWith("NNPP")));
-    assert.ok(read.missing.includes("NNPP"), `missing was ${JSON.stringify(read.missing)}`);
-    assert.equal(read.usable, false, "a sheet with an unread party was called usable");
+    const forForm = figuresForBallot(read, "PRESIDENTIAL");
+    assert.equal(forForm.votes.NNPP, null, "a party with no row read came back as a zero");
+    assert.equal(forForm.votes.APC, 180, "a party that was read lost its figure");
+  });
+
+  it("catches a row the reader dropped, using the sheet's own total", () => {
+    /* ── WHAT REPLACED "THESE FOUR ARE ALWAYS PRINTED" ────────────────────
+       A reader cannot tell a party that is absent from the ballot from one
+       whose row it failed to read. This used to be settled by declaring APC,
+       PDP, LP and NNPP present on every sheet in Nigeria — an assumption the
+       Osun 2026 governorship paper disproves, since it carries neither PDP
+       nor LP, and which made a perfectly read sheet unusable.
+
+       Box #7 settles it properly. It is the officer's own total of the party
+       rows, so a reader whose figures add up to it has missed nothing, and
+       one that falls short has missed exactly the difference. That is
+       evidence off the paper rather than an assumption about the contest,
+       and it catches a dropped row for every party rather than four. */
+    const withTotal = [...balanced, "TOTAL VALID VOTES 410"];
+    assert.equal(sheet(withTotal).usable, true, "a complete sheet was refused");
+
+    const dropped = sheet(withTotal.filter((line) => !line.startsWith("PDP")));
+    assert.equal(dropped.usable, false, "a sheet missing a party row was called usable");
+    assert.ok(
+      dropped.problems.some((line) => /add up to 270.*says 410/.test(line)),
+      `expected the shortfall to be named, got ${JSON.stringify(dropped.problems)}`
+    );
+  });
+
+  it("does not refuse a sheet for a party that is simply not on the ballot", () => {
+    /* The Osun case, in miniature: every row present and read, the total
+       agrees, and eleven parties in the register are nowhere on the paper. */
+    const read = sheet([...balanced, "TOTAL VALID VOTES 410"]);
+    assert.equal(read.usable, true, JSON.stringify(read.problems));
+    assert.ok(read.absent.length > 0, "nothing was reported absent on a four-party sheet");
+    assert.deepEqual(read.missing, [], "an absent party was reported as unreadable");
   });
 
   it("reads a genuine zero as a zero", () => {

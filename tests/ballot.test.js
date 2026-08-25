@@ -77,12 +77,18 @@ describe("the ballot", () => {
     }
   });
 
-  it("marks everyone but the four optional on a sheet", () => {
-    /* This is what lets the Osun paper, which carries neither PDP nor LP, be
-       an ordinary sheet rather than a failed reading. See tests/sheets.test.js. */
+  it("claims no party is guaranteed to be on a given sheet", () => {
+    /* There used to be an `optional` flag here, false for the presidential
+       four, on the theory that they are printed on every result sheet in
+       Nigeria. The Osun 2026 governorship paper carries neither PDP nor LP.
+
+       A reader holding that theory read that sheet perfectly and reported
+       "could not read PDP, LP", which marked it unusable and silently
+       cancelled the comparison against what the agent typed. Which parties
+       are on a paper is a property of the paper; see lib/sheet-vision.js for
+       what settles it instead. */
     for (const party of countedParties()) {
-      const core = ["APC", "PDP", "LP", "NNPP"].includes(party.id);
-      assert.equal(Boolean(party.optional), !core, `${party.id} optional flag is wrong`);
+      assert.equal(party.optional, undefined, `${party.id} still carries an optional flag`);
     }
   });
 });

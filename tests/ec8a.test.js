@@ -137,12 +137,15 @@ describe("the paper this sheet came off", () => {
     assert.ok(gov.includes("PDP") && gov.includes("LP"), "PDP and LP are not on the ballot");
   });
 
-  it("holds only the four to 'must be on every sheet'", () => {
-    /* This Osun paper carries neither PDP nor LP. A reader that treats every
-       party as required calls an ordinary sheet a failed reading — see
-       tests/sheets.test.js. */
-    const required = scanList().filter((party) => !party.optional).map((party) => party.id);
-    assert.deepEqual(required.sort(), ["APC", "LP", "NNPP", "PDP"]);
+  it("holds no party to 'must be on every sheet'", () => {
+    /* This paper carries neither PDP nor LP, which is the whole argument: a
+       reader that treats any party as required calls an ordinary sheet a
+       failed reading and cancels its own comparison. */
+    for (const party of scanList()) {
+      assert.equal(party.optional, undefined, `${party.id} is treated as required`);
+    }
+    const ids = scanList().map((party) => party.id);
+    assert.ok(ids.includes("PDP") && ids.includes("LP"), "the reader stopped looking for PDP and LP");
   });
 
   it("reads the polling unit code off the sheet's four boxes", () => {

@@ -1,5 +1,6 @@
 import { Download, Gauge, Radio, Tv } from "lucide-react";
 
+import RaceSwitcher from "@/components/dash/RaceSwitcher";
 import DashLayout from "@/components/dash/DashLayout";
 import { Card, StatCard } from "@/components/dash/DashCard";
 import Sparkline from "@/components/dash/Sparkline";
@@ -7,7 +8,7 @@ import BroadcastAnalysis from "@/components/dash/BroadcastAnalysis";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
 import { currentElection, currentRace } from "@/lib/election-scope";
-import { raceLabel } from "@/lib/races";
+import { RACES, raceLabel } from "@/lib/races";
 import { results } from "@/lib/db";
 import { states2023, DECLARED } from "@/lib/election2023";
 import { parseUnitCode } from "@/lib/units";
@@ -41,6 +42,10 @@ export default async function BroadcastPage() {
   /* The contest being covered. A studio switching between the presidential and
      the governorship is switching between two counts, not filtering one. */
   const race = await currentRace(project);
+
+  /* What each of the day's five contests holds, so the control below can show
+     it and an empty screen can say which paper it is empty for. */
+  const byRace = project ? await results.countByRace(project.id) : {};
   const tally = await results.tally(project?.id, race);
   const ourRows = await results.counted(project?.id, race);
 
@@ -65,6 +70,13 @@ export default async function BroadcastPage() {
       lead="Our agents' count and the commission's declared figures, side by side and never merged. Built to be driven by hand on a touch screen between bulletins."
       actions={
         <>
+          {/* A broadcast desk cuts between contests on one night, so this is
+              the control it needs most and was the one it did not have. */}
+          <RaceSwitcher
+            race={race}
+            races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+            filed={byRace}
+          />
           <Button href="/#board" variant="dashOutline" size="sm">
             <Tv size={15} strokeWidth={2.5} />
             Wall board
