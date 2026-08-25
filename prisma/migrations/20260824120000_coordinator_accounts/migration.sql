@@ -10,6 +10,21 @@
 -- address both audiences and serving neither, and one code path where a
 -- mistake made for the four thousand could reach the four.
 
+-- ══════════════════════════════════════════════════════════════════════════
+--  RE-RUNNABLE, BECAUSE THIS ONE ALREADY FAILED HALF WAY
+--
+--  Postgres has no ADD CONSTRAINT IF NOT EXISTS. This migration created its
+--  tables and indexes, added the first constraint, and then stopped — leaving
+--  _prisma_migrations holding a row with no finished_at, which makes Prisma
+--  retry the whole file on every deploy. The retry died on the constraint its
+--  own first attempt had already created, so the migration could never
+--  complete and every later migration queued behind it.
+--
+--  Each ADD CONSTRAINT is now guarded, which is the only form that survives a
+--  partial run. Everything else here was already IF NOT EXISTS or a no-op on
+--  a second pass.
+-- ══════════════════════════════════════════════════════════════════════════
+
 CREATE TABLE IF NOT EXISTS "coordinators" (
     "id"            TEXT NOT NULL,
     "name"          TEXT NOT NULL,
@@ -36,10 +51,14 @@ CREATE INDEX IF NOT EXISTS "coordinators_unit" ON "coordinators"("unit_code");
 
 -- Approving is a staff act, which is the one direction these tables reference
 -- each other.
-ALTER TABLE "coordinators"
+DO $$
+BEGIN
+  ALTER TABLE "coordinators"
     ADD CONSTRAINT "coordinators_approved_by_fkey"
-    FOREIGN KEY ("approved_by") REFERENCES "users"("id")
-    ON DELETE SET NULL ON UPDATE CASCADE;
+      FOREIGN KEY ("approved_by") REFERENCES "users"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Their own sessions, on their own cookie. A twin of `sessions`, deliberately
 -- not a shared table: a coordinator's token is then meaningless to the staff
@@ -58,10 +77,14 @@ CREATE TABLE IF NOT EXISTS "coordinator_sessions" (
 CREATE INDEX IF NOT EXISTS "coordinator_sessions_owner" ON "coordinator_sessions"("coordinator_id");
 CREATE INDEX IF NOT EXISTS "coordinator_sessions_expiry" ON "coordinator_sessions"("expires_at");
 
-ALTER TABLE "coordinator_sessions"
+DO $$
+BEGIN
+  ALTER TABLE "coordinator_sessions"
     ADD CONSTRAINT "coordinator_sessions_coordinator_id_fkey"
-    FOREIGN KEY ("coordinator_id") REFERENCES "coordinators"("id")
-    ON DELETE CASCADE ON UPDATE CASCADE;
+      FOREIGN KEY ("coordinator_id") REFERENCES "coordinators"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ── THE BRIDGE, AND WHY IT IS A SECOND COLUMN RATHER THAN A REPLACEMENT ───
 -- `results.submitted_by` is NOT NULL and references users(id). Hundreds of
@@ -77,21 +100,33 @@ ALTER TABLE "results" ADD COLUMN IF NOT EXISTS "coordinator_id" TEXT;
 ALTER TABLE "results" ALTER COLUMN "submitted_by" DROP NOT NULL;
 CREATE INDEX IF NOT EXISTS "results_coordinator" ON "results"("coordinator_id");
 
-ALTER TABLE "results"
+DO $$
+BEGIN
+  ALTER TABLE "results"
     ADD CONSTRAINT "results_coordinator_id_fkey"
-    FOREIGN KEY ("coordinator_id") REFERENCES "coordinators"("id")
-    ON DELETE SET NULL ON UPDATE CASCADE;
+      FOREIGN KEY ("coordinator_id") REFERENCES "coordinators"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE "results" DROP CONSTRAINT IF EXISTS "results_one_author";
-ALTER TABLE "results"
+DO $$
+BEGIN
+  ALTER TABLE "results"
     ADD CONSTRAINT "results_one_author"
-    CHECK (("submitted_by" IS NULL) <> ("coordinator_id" IS NULL));
+      CHECK (("submitted_by" IS NULL) <> ("coordinator_id" IS NULL));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Incidents come from the same people and need the same bridge.
 ALTER TABLE "incidents" ADD COLUMN IF NOT EXISTS "coordinator_id" TEXT;
 ALTER TABLE "incidents" ALTER COLUMN "reported_by" DROP NOT NULL;
 
-ALTER TABLE "incidents"
+DO $$
+BEGIN
+  ALTER TABLE "incidents"
     ADD CONSTRAINT "incidents_coordinator_id_fkey"
-    FOREIGN KEY ("coordinator_id") REFERENCES "coordinators"("id")
-    ON DELETE SET NULL ON UPDATE CASCADE;
+      FOREIGN KEY ("coordinator_id") REFERENCES "coordinators"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
