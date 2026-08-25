@@ -231,3 +231,52 @@ describe("reading the whole form off a photograph", () => {
     assert.equal(culprit, "#8", JSON.stringify(findings));
   });
 });
+
+describe("the count, as a file somebody else can check", () => {
+  /* The export route is a request handler and cannot be called without one,
+     so what is asserted here is the part that is pure and the part that is
+     dangerous: how a cell is written. The route itself is exercised against a
+     running server; see the commit that added it. */
+  const cell = (value) => {
+    if (value === null || value === undefined) return "";
+    const text = String(value);
+    const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+    return /[",\r\n]/.test(guarded) ? `"${guarded.replaceAll('"', '""')}"` : guarded;
+  };
+
+  it("defuses a cell a spreadsheet would run as a formula", () => {
+    /* ── THIS FILE IS UNTRUSTED INPUT ────────────────────────────────────
+       Excel, Numbers and Sheets all execute a cell beginning = + - or @.
+       The presiding officer's name and every polling agent's signature are
+       typed by somebody at a booth at two in the morning, and one beginning
+       with "=" becomes an executable cell in whatever spreadsheet a newsroom
+       opens the count in. */
+    for (const attack of ["=cmd|'/c calc'!A1", "+1+1", "-2+3", "@SUM(A1)"]) {
+      assert.equal(cell(attack)[0], "'", `${attack} was written as a live formula`);
+    }
+  });
+
+  it("quotes a comma and doubles a quote rather than losing a column", () => {
+    assert.equal(cell("Ede North, Osun"), '"Ede North, Osun"');
+    assert.equal(cell('he said "yes"'), '"he said ""yes"""');
+  });
+
+  it("writes a figure nobody captured as nothing, and a real zero as zero", () => {
+    /* The distinction the whole audit rests on. A blank box read back as 0
+       would make a sheet balance that never did. */
+    assert.equal(cell(null), "");
+    assert.equal(cell(undefined), "");
+    assert.equal(cell(0), "0");
+  });
+
+  it("carries a verdict a reader can sort by", () => {
+    /* The export's reason for existing: somebody handed this file can find the
+       booths whose paper does not add up without being told which they are. */
+    const { balances, culprit, findings } = auditSheet(OSUN);
+    assert.equal(balances, false);
+    assert.equal(culprit, "#8");
+    const joined = findings.map((f) => f.why).join(" ");
+    assert.ok(joined.includes("974 issued less 417 unused is 557"));
+    assert.equal(cell(joined)[0], '"', "a finding with commas in it would break the row");
+  });
+});
