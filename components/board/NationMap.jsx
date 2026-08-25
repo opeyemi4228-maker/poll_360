@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import PartyPatterns from "@/components/ui/PartyPatterns";
+import { partyFill } from "@/lib/party-pattern";
 import { parties, SILENT, CALL_LABEL } from "@/lib/replay";
 import { formatNumber, formatShare } from "@/lib/utils";
 
@@ -16,7 +18,7 @@ import { formatNumber, formatShare } from "@/lib/utils";
  *
  * So the fill is the fast read and never the only one:
  *   · every reporting state carries its leading party's code in type;
- *   · LP is hatched, so the failing pair separates by pattern for every
+ *   · LP and NDC are textured, so each failing pair separates by pattern for every
  *     reader, in a monochrome print, and under forced colours;
  *   · the tooltip names the party in words;
  *   · the table beside the map is the same data with no colour in it at all.
@@ -51,19 +53,11 @@ export default function NationMap({ shapes, byState, className }) {
           onPointerLeave={() => setHovered(null)}
         >
           <defs>
-            {/* The tie-breaker for the one pair colour cannot separate. Drawn
-                in the party's own red with a lighter rule across it, so it
-                still reads as LP rather than as a different colour. */}
-            <pattern
-              id="poll360-hatch-lp"
-              width="7"
-              height="7"
-              patternUnits="userSpaceOnUse"
-              patternTransform="rotate(45)"
-            >
-              <rect width="7" height="7" fill="var(--color-lp)" />
-              <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(255,255,255,0.42)" strokeWidth="2.5" />
-            </pattern>
+            {/* The tie-breakers for the pairs colour cannot separate. Each is
+                drawn in the party's own colour with a lighter texture over
+                it, so a hatched LP still reads as LP and a dotted NDC still
+                reads as NDC. See components/ui/PartyPatterns.jsx. */}
+            <PartyPatterns prefix="poll360" surface="board" />
           </defs>
 
           {shapes.states.map((state) => {
@@ -84,13 +78,7 @@ export default function NationMap({ shapes, byState, className }) {
               >
                 <path
                   d={state.d}
-                  fill={
-                    party === null
-                      ? SILENT
-                      : party.hatch
-                        ? "url(#poll360-hatch-lp)"
-                        : party.token
-                  }
+                  fill={party === null ? SILENT : partyFill(party.id, "poll360", party.token)}
                   /* Stroked in the board's own colour rather than white: it
                      gives adjacent fills a clean gap so two states leading for
                      different parties never bleed into one another, without

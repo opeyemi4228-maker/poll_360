@@ -1,6 +1,8 @@
 "use client";
 
 import { PARTY_FILL } from "./Charts";
+import { partyFill } from "@/lib/party-pattern";
+import PartyPatterns from "@/components/ui/PartyPatterns";
 import { cn } from "@/lib/utils";
 
 /**
@@ -37,16 +39,7 @@ export default function StateMap({ shapes, leaders, selected, onSelect, classNam
           {/* The tie-breaker for the pair colour cannot separate: LP red
               against PDP green is invisible to the commonest colour blindness,
               so LP is drawn with a rule across it. */}
-          <pattern
-            id="dash-hatch-lp"
-            width="7"
-            height="7"
-            patternUnits="userSpaceOnUse"
-            patternTransform="rotate(45)"
-          >
-            <rect width="7" height="7" fill="var(--color-lp-l)" />
-            <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(255,255,255,0.45)" strokeWidth="2.5" />
-          </pattern>
+          <PartyPatterns prefix="dash" surface="light" />
         </defs>
 
         {shapes.states.map((state) => {
@@ -58,11 +51,7 @@ export default function StateMap({ shapes, leaders, selected, onSelect, classNam
               <path
                 d={state.d}
                 fill={
-                  leader === null
-                    ? SILENT_FILL
-                    : leader === "LP"
-                      ? "url(#dash-hatch-lp)"
-                      : PARTY_FILL[leader]
+                  leader === null ? SILENT_FILL : partyFill(leader, "dash", PARTY_FILL[leader])
                 }
                 stroke={active ? "var(--color-dash-ink)" : "#ffffff"}
                 strokeWidth={active ? 3 : 1.5}

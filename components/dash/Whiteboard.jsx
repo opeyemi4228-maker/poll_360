@@ -7,6 +7,7 @@ import { PARTY_FILL } from "./Charts";
 import { boundsOf } from "@/lib/bbox";
 import { apportion, leaderOf, wardCount } from "@/lib/drill";
 import { states2023, allParties } from "@/lib/election2023";
+import { PATTERNED } from "@/lib/party-pattern";
 import { cn, formatClock, formatNumber, formatShare } from "@/lib/utils";
 import {
   board as store,
@@ -722,6 +723,25 @@ function partyFill(index) {
   return PARTY_FILL[allParties[index]?.id] ?? "var(--color-board-raised)";
 }
 
+/**
+ * A party's swatch in the key, textured to match the map.
+ *
+ * CSS rather than the SVG <pattern> the maps use: this is a 10px box in a
+ * list, not a shape in a drawing. Same angle, same weight, same white over
+ * the party's own colour, so the two read as one system.
+ */
+function keySwatch(id) {
+  const colour = PARTY_FILL[id];
+  const kind = PATTERNED[id];
+  if (kind === "diagonal") {
+    return `repeating-linear-gradient(45deg, ${colour} 0 3px, rgba(255,255,255,0.45) 3px 5px)`;
+  }
+  if (kind === "dots") {
+    return `radial-gradient(rgba(255,255,255,0.45) 1px, ${colour} 1.2px)`;
+  }
+  return colour;
+}
+
 function BoardMap({ card, shapes, boundaries }) {
   const state = card.stateCode ? states2023.find((row) => row.code === card.stateCode) : null;
 
@@ -830,17 +850,27 @@ function BoardMap({ card, shapes, boundaries }) {
       {/* ── THE KEY COMES WITH THE MAP ────────────────────────────────────
           A choropleth without a key is a picture. This one is coloured by
           who led each place, and on a board that may hold four maps at once
-          nobody should have to remember which green is which. LP is drawn
-          with a rule across it here for the same reason it is on the public
-          board: LP's red against PDP's green is invisible to the commonest
-          colour blindness. */}
+          nobody should have to remember which green is which.
+
+          Read from the same list the map fills itself from, rather than a
+          hand-written ["APC","PDP","LP","NNPP"] — the exact mistake the
+          comment beside `partyFill` above warns about, made forty lines
+          further down. A key that names four parties for a map that can draw
+          six is a key that quietly mislabels the other two.
+
+          The textured parties carry their texture here too. The old comment
+          claimed LP was "drawn with a rule across it here" and it was not:
+          the swatch was flat, so the one place a reader goes to learn what
+          the hatching means was the one place that did not show it. */}
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-board-line pt-2.5">
-        {["APC", "PDP", "LP", "NNPP"].map((id) => (
+        {allParties
+          .filter((party) => party.id !== "OTH")
+          .map(({ id }) => (
           <li key={id} className="flex items-center gap-1.5">
             <span
               aria-hidden="true"
               className="size-2.5 rounded-[2px]"
-              style={{ background: PARTY_FILL[id] }}
+              style={{ background: keySwatch(id) }}
             />
             <span className="figure text-[0.6875rem] font-bold text-white/70">{id}</span>
           </li>

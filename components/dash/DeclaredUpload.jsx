@@ -26,9 +26,9 @@ import { formatNumber } from "@/lib/utils";
  * quarter of a file is worse than one that refuses it, because the count on
  * the dashboard afterwards looks perfectly reasonable.
  */
-const EXAMPLE = `Code,Units,Registered,Accredited,Rejected,APC,PDP,LP,NNPP,OTH
-25/07/04,18,12480,8210,96,2210,3105,2480,190,129
-25/07/05,22,15900,10430,140,3020,3640,3300,220,110`;
+const EXAMPLE = `Code,Units,Registered,Accredited,Rejected,APC,PDP,LP,NNPP,ADC,NDC,OTH
+25/07/04,18,12480,8210,96,2210,3105,2480,190,880,410,129
+25/07/05,22,15900,10430,140,3020,3640,3300,220,1140,505,110`;
 
 export default function DeclaredUpload() {
   const [state, formAction] = useActionState(uploadDeclared, {});

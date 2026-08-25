@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { partyFill } from "@/lib/party-pattern";
+import PartyPatterns from "@/components/ui/PartyPatterns";
 import { Pause, Play, RotateCcw, Store } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
@@ -164,16 +166,7 @@ export default function RoomMap({
           onPointerLeave={() => setHovered(null)}
         >
           <defs>
-            <pattern
-              id="room-hatch-lp"
-              width="7"
-              height="7"
-              patternUnits="userSpaceOnUse"
-              patternTransform="rotate(45)"
-            >
-              <rect width="7" height="7" fill="var(--color-lp-l)" />
-              <line x1="0" y1="0" x2="0" y2="7" stroke="rgba(255,255,255,0.45)" strokeWidth="2.5" />
-            </pattern>
+            <PartyPatterns prefix="room" surface="light" />
           </defs>
 
           {shapes.states.map((shape) => {
@@ -186,9 +179,7 @@ export default function RoomMap({
               layer === "results"
                 ? code === null
                   ? "var(--color-dash-bg)"
-                  : code === "LP"
-                    ? "url(#room-hatch-lp)"
-                    : PARTY_FILL[code]
+                  : partyFill(code, "room", PARTY_FILL[code])
                 : ramp(valueFor(state, layer), extent);
 
             return (

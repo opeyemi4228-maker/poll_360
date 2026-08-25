@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { partyFill } from "@/lib/party-pattern";
+import PartyPatterns from "@/components/ui/PartyPatterns";
 
 import { PARTY_FILL } from "./Charts";
 import { boundsOf, extentOf } from "@/lib/bbox";
@@ -73,16 +75,7 @@ export default function StateLevel({ state, shapes, rows, onOpen }) {
           onPointerLeave={() => setHovered(null)}
         >
           <defs>
-            <pattern
-              id="lga-hatch-lp"
-              width="6"
-              height="6"
-              patternUnits="userSpaceOnUse"
-              patternTransform="rotate(45)"
-            >
-              <rect width="6" height="6" fill="var(--color-lp-l)" />
-              <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,0.45)" strokeWidth="2" />
-            </pattern>
+            <PartyPatterns prefix="lga" surface="light" />
           </defs>
 
           {shapes.lgas.map((lga) => {
@@ -102,9 +95,7 @@ export default function StateLevel({ state, shapes, rows, onOpen }) {
                   fill={
                     code === null
                       ? "var(--color-dash-bg)"
-                      : code === "LP"
-                        ? "url(#lga-hatch-lp)"
-                        : PARTY_FILL[code]
+                      : partyFill(code, "lga", PARTY_FILL[code])
                   }
                   stroke={isHovered ? "var(--color-dash-ink)" : "#ffffff"}
                   /* Stroke width is in user units, and those units differ per

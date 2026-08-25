@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { parseSheet, trustworthy } from "../lib/sheet-vision.js";
+import { countedParties } from "../lib/races.js";
 
 /**
  * Reading a result sheet.
@@ -25,6 +26,13 @@ import { parseSheet, trustworthy } from "../lib/sheet-vision.js";
 
 const sheet = (lines) => parseSheet(lines.join("\n"));
 
+/* Figures by party rather than by position. `parsed.votes` is positional over
+   the ballot, so every assertion written as a bare array had to be rewritten
+   the first time a party was added to it — and an assertion that has to be
+   rewritten to stay green is one nobody reads carefully the second time. */
+const byParty = (read) =>
+  Object.fromEntries(countedParties().map((party, index) => [party.id, read.votes[index]]));
+
 describe("the header trap", () => {
   it("does not read the party names in a header as their votes", () => {
     /* The exact failure the fix was written for. */
@@ -40,13 +48,20 @@ describe("the header trap", () => {
       "REJECTED 2",
     ]);
 
+    const figures = byParty(read);
+
     assert.deepEqual(
-      read.votes,
-      [180, 140, 70, 20],
+      { APC: figures.APC, PDP: figures.PDP, LP: figures.LP, NNPP: figures.NNPP },
+      { APC: 180, PDP: 140, LP: 70, NNPP: 20 },
       "the header was read as figures instead of the party rows"
     );
+    /* Checked over the parties this sheet actually names. A party with no row
+       on the paper comes back 0, and including those zeros here would make the
+       "all the same" test pass even if the original bug came back — the four
+       rows would read 8, 8, 8, 8 and the zeros would break the tie. */
+    const onSheet = [figures.APC, figures.PDP, figures.LP, figures.NNPP];
     assert.ok(
-      !read.votes.every((value) => value === read.votes[0]),
+      !onSheet.every((value) => value === onSheet[0]),
       "every party came back with the same figure, which is the original bug"
     );
   });
@@ -131,8 +146,78 @@ describe("what balances and what does not", () => {
       "NNPP 0",
       "REJECTED 0",
     ]);
-    assert.deepEqual(read.votes, [200, 190, 0, 0]);
+    const figures = byParty(read);
+    assert.deepEqual(
+      { APC: figures.APC, PDP: figures.PDP, LP: figures.LP, NNPP: figures.NNPP },
+      { APC: 200, PDP: 190, LP: 0, NNPP: 0 }
+    );
     assert.ok(!read.missing.includes("LP"), "a written zero was reported as unread");
+  });
+});
+
+describe("a row that is not on the paper", () => {
+  /* ══════════════════════════════════════════════════════════════════════
+     The ballot grew past the presidential four, and "no figure for this
+     party" stopped having one meaning.
+
+     A party whose initials are on the page and whose number cannot be read
+     is a failed reading: stop, and make the agent look. A party whose
+     initials are nowhere on the page did not stand in this contest, and the
+     paper is an ordinary one.
+
+     Conflating them refused every honest sheet — `usable` went false, and
+     matchSheet refuses to compare an unusable reading, so a filing that was
+     right in every particular was turned away with no mismatch to show for
+     it. That is the same family as the header trap and the rejected-figure
+     trap above: not a wrong number in the count, a wrong number in the
+     comparison.
+     ══════════════════════════════════════════════════════════════════════ */
+  const fourRows = [
+    "POLLING UNIT 01/01/04/006",
+    "ACCREDITED VOTERS 412",
+    "APC 180",
+    "PDP 140",
+    "LP 70",
+    "NNPP 20",
+    "REJECTED 2",
+  ];
+
+  it("does not call a sheet defective for a party that did not stand", () => {
+    const read = sheet(fourRows);
+
+    assert.deepEqual(read.missing, [], `missing was ${JSON.stringify(read.missing)}`);
+    assert.ok(read.absent.includes("ADC"), "a party with no row was not reported absent");
+    assert.equal(read.usable, true, `unusable: ${read.problems.join("; ")}`);
+    assert.equal(read.balanced, true);
+  });
+
+  it("still stops on a party whose row is there and whose figure is not", () => {
+    const read = sheet([...fourRows.slice(0, 6), "ADC", "REJECTED 2"]);
+
+    assert.ok(read.missing.includes("ADC"), "an unreadable row was not reported missing");
+    assert.ok(!read.absent.includes("ADC"), "a row that was on the page was called absent");
+    assert.equal(read.usable, false, "a sheet with an unread party row was called usable");
+  });
+
+  it("does not refuse an honest filing over a party that is not on the sheet", async () => {
+    const { matchSheet } = await import("../lib/sheet-match.js");
+
+    const match = matchSheet(sheet(fourRows), {
+      accredited: 412,
+      rejected: 2,
+      votes: { APC: 180, PDP: 140, LP: 70, NNPP: 20 },
+    });
+
+    assert.equal(match.agrees, true, `refused: ${match.reason ?? JSON.stringify(match.mismatches)}`);
+    assert.deepEqual(match.mismatches, []);
+  });
+
+  it("never turns an absent party into a zero on the form", async () => {
+    const { figuresForBallot } = await import("../lib/sheet-vision.js");
+    const figures = figuresForBallot(sheet(fourRows), "PRESIDENTIAL");
+
+    assert.equal(figures.votes.ADC, null, "a party nobody measured arrived as a counted zero");
+    assert.equal(figures.votes.APC, 180);
   });
 });
 

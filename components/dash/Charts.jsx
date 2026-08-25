@@ -30,6 +30,10 @@ export const PARTY_FILL = {
   ADC: "var(--color-adc-l)",
   ACCORD: "var(--color-accord-l)",
   APM: "var(--color-apm-l)",
+  /* On the ballot rather than only off-cycle: see lib/races.js. It is drawn
+     with a dot texture wherever a shape is filled, because its violet and
+     APC's blue are the same colour to a protanope. */
+  NDC: "var(--color-ndc-l)",
 };
 
 /**

@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { partyFill } from "@/lib/party-pattern";
+import PartyPatterns from "@/components/ui/PartyPatterns";
 
 import { PARTY_FILL } from "./Charts";
 import { boundsOf, extentOf } from "@/lib/bbox";
@@ -312,16 +314,7 @@ export default function ScopeMap({
           );
         })}
 
-        <pattern
-          id="scope-hatch-lp"
-          width="6"
-          height="6"
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(45)"
-        >
-          <rect width="6" height="6" fill="var(--color-lp-l)" />
-          <line x1="0" y1="0" x2="0" y2="6" stroke="rgba(255,255,255,0.45)" strokeWidth="2" />
-        </pattern>
+        <PartyPatterns prefix="scope" surface="light" />
       </defs>
 
       {/* The ground. */}
@@ -356,9 +349,7 @@ export default function ScopeMap({
           layer === "results"
             ? code === null
               ? (held ? PARTY_FILL[held] : "var(--color-silent)")
-              : code === "LP"
-                ? "url(#scope-hatch-lp)"
-                : PARTY_FILL[code]
+              : partyFill(code, "scope", PARTY_FILL[code])
             : row
               ? `url(#scope-dots-${stepIndex(magnitude(row, layer), extent)})`
               : "var(--color-silent)";

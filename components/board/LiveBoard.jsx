@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PATTERNED } from "@/lib/party-pattern";
 import { Pause, Play, RotateCcw } from "lucide-react";
 
 import NationMap from "./NationMap";
@@ -43,6 +44,26 @@ const HOLD = 6000;
  * things in one frame is how a viewer learns to distrust both.
  * ───────────────────────────────────────────────────────────────────────────
  */
+/**
+ * A party's swatch, textured to match the map.
+ *
+ * CSS rather than the SVG <pattern> the map uses, because this is a 10px box
+ * in a list and not a shape in a drawing. The two are kept deliberately close:
+ * the same angle, the same weight of rule, the same white over the party's
+ * own colour.
+ */
+function swatchFor(party) {
+  const colour = party.token;
+  const kind = PATTERNED[party.id];
+  if (kind === "diagonal") {
+    return `repeating-linear-gradient(45deg, ${colour} 0 3px, rgba(255,255,255,0.42) 3px 5px)`;
+  }
+  if (kind === "dots") {
+    return `radial-gradient(rgba(255,255,255,0.42) 1px, ${colour} 1.2px)`;
+  }
+  return colour;
+}
+
 export default function LiveBoard({ board, className }) {
   /* The server and the first client render produce exactly this cursor, so the
      map is in the HTML, populated, not empty, before any JavaScript runs,
@@ -173,20 +194,16 @@ export default function LiveBoard({ board, className }) {
 
           {/* Legend. Present because there is more than one series; the codes
               on the map and the table below carry the same identity without
-              it. LP's swatch is hatched exactly as the map draws it. */}
+              it. A textured party's swatch carries the same texture the map
+              draws it with — a key that shows a flat colour for a fill the
+              map hatches teaches the reader the wrong thing twice. */}
           <ul className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-board-line pt-4">
             {[...parties, others].map((party) => (
               <li key={party.id} className="flex items-center gap-2">
                 <span
                   aria-hidden="true"
                   className="size-2.5 shrink-0"
-                  style={
-                    party.hatch
-                      ? {
-                          background: `repeating-linear-gradient(45deg, ${"var(--color-lp)"} 0 3px, rgba(255,255,255,0.42) 3px 5px)`,
-                        }
-                      : { background: party.token }
-                  }
+                  style={{ background: swatchFor(party) }}
                 />
                 <span className="figure text-[0.75rem] font-bold text-white">{party.id}</span>
                 <span className="hidden text-[0.75rem] text-white/45 sm:inline">{party.name}</span>

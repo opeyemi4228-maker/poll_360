@@ -163,6 +163,31 @@
   --color-accord: oklch(84% 0.16 95);
   --color-apm: oklch(48% 0.09 60);
 
+  /* ── NDC, AND WHAT ADDING AN ELEVENTH PARTY COST ───────────────────
+     A violet, because it is the last region of the wheel this palette
+     had not spent. It is 4.85:1 on the board and clears every other
+     fill at ΔE 18 for normal vision.
+
+     It does NOT clear APC under red-green colour blindness: ΔE 3.0
+     under protanopia, because violet is blue plus red and taking the
+     red channel away leaves blue. That was not a bad choice among
+     better ones — a full search of the space (L, C and hue, both
+     surfaces, all three dichromacies, at the 3:1 floor) returned five
+     viable slots in the entire gamut, all of them pale blue-violets
+     separated from APC by lightness alone, which trades a machine
+     failure for a human one: nobody reads "light blue" and "blue" as
+     two parties across a room.
+
+     The palette is full. That is a fact about eleven Nigerian parties
+     and a fixed gamut, not about this implementation, and the answer
+     is the one this system already uses for PDP/LP: NDC carries a dot
+     pattern wherever it is drawn, so the pair is separable by texture
+     for every reader, in print, and under forced colours.
+
+     Provisional. NDC's own colour replaces this the moment it is
+     known; only the hue would move. */
+  --color-ndc: oklch(62% 0.2 305);
+
   /* The same four hues re-stepped for a white dashboard surface. Only
      lightness moves; the hue that identifies each party is untouched.
 
@@ -183,6 +208,10 @@
      dashboard step is darkened until it is not. The hue is untouched. */
   --color-accord-l: oklch(70% 0.15 95);
   --color-apm-l: oklch(42% 0.09 60);
+  /* 7.27:1 on white. Darker than the board step rather than lighter,
+     which is the usual direction here, because a violet light enough
+     to sit on the board is too light to read as ink on paper. */
+  --color-ndc-l: oklch(48% 0.2 305);
 
   /* Silence. Not a low number, not a pale party colour, an absence.
      Drawn just above the board surface so the shape of the country
