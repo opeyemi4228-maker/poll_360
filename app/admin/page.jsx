@@ -68,9 +68,10 @@ export default async function AdminPage() {
      the one check worth paying for on every page view: an administrator
      should never be looking at a ledger whose integrity has not just been
      proved. */
-  const [tally, filed, feed, requests, trail, chain, payments, waiting, ready, reads, readScore] = await Promise.all([
+  const [tally, filed, byRace, feed, requests, trail, chain, payments, waiting, ready, reads, readScore] = await Promise.all([
     results.tally(project?.id, race),
     results.recent(200, project?.id, race),
+    project ? results.countByRace(project.id) : {},
     incidents.recent(6, project?.id),
     accessRequests.recent(5),
     audit.recent(8),
@@ -268,15 +269,43 @@ export default async function AdminPage() {
         <Card
           id="returns"
           title="Returns as they land"
-          subtitle="Newest first, with the arithmetic already checked"
+          /* The position is named rather than assumed. This screen shows one
+             contest at a time and a reader who does not know which is reading
+             a coverage figure that means something else entirely. */
+          subtitle={`${raceLabel(race)} · newest first, with the arithmetic already checked`}
           padded={false}
         >
           {filed.length === 0 ? (
             <div className="p-5">
               <Empty>
-                Nothing filed yet. A return appears here within a second of a coordinator
-                submitting it, with its figures already checked twice.
+                Nothing filed yet for {raceLabel(race).toLowerCase()}. A return appears here
+                within a second of a coordinator submitting it, with its figures already
+                checked twice.
               </Empty>
+
+              {/* ── A RETURN FILED FOR ANOTHER POSITION IS NOT A MISSING ONE ──
+                  Every screen here reads one position at a time, which is
+                  right — five ballot papers are five counts and adding them
+                  together describes nothing. But it means a return filed
+                  against the governorship while this screen is showing the
+                  presidential is stored, counted, and completely invisible,
+                  and the screen said "nothing filed yet" as though the upload
+                  had failed. Somebody then files it again.
+
+                  So an empty list says where the returns actually are. */}
+              {Object.entries(byRace).filter(([, n]) => n > 0).length > 0 && (
+                <p className="mt-4 border-t border-dash-line pt-4 text-[0.875rem] leading-relaxed text-dash-muted">
+                  <span className="font-semibold text-dash-ink">
+                    This project is not empty.
+                  </span>{" "}
+                  {Object.entries(byRace)
+                    .filter(([, n]) => n > 0)
+                    .map(([id, n]) => `${n} ${raceLabel(id).toLowerCase()}`)
+                    .join(", ")}{" "}
+                  {Object.values(byRace).reduce((a, b) => a + b, 0) === 1 ? "return is" : "returns are"}{" "}
+                  already in. Switch position at the top of this page to see them.
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

@@ -41,9 +41,31 @@ export default async function FieldPage() {
      Five positions, one query. The screen needs to know which of them are in
      so it can tick them, open on the next one still to do, and put the figures
      back in the boxes if somebody is correcting one. */
+  /* Declared here rather than beside its first use in the markup: the upload
+     list below is conditional on it, and a `const` read above its own
+     declaration is a ReferenceError at request time, not a lint error. */
+  const canNameUnit = !user.scope && can(user.role, "results:upload");
+
   const filedRows = user.scope && project
     ? await results.forUnitAcrossRaces(user.scope, project.id)
     : {};
+
+  /* ── AND WHAT A DESK WITH NO BOOTH HAS UPLOADED ──────────────────────────
+     The question above is "which of my five ballots are in", which only has an
+     answer for an account that has a booth. An upload desk has none, so it got
+     an empty object and the screen told somebody who had just uploaded a stack
+     of returns that nothing had been sent — indistinguishable from the upload
+     having failed, and the first thing anybody checks after pressing the
+     button. This is the question that does have an answer for them. */
+  const uploaded =
+    canNameUnit && project
+      ? (await results.uploadedBy(project.id, user.id, 20)).map((row) => ({
+          id: `${row.unitCode}:${row.race}`,
+          unitCode: row.unitCode,
+          race: row.race,
+          total: Object.values(row.votes ?? {}).reduce((sum, n) => sum + (Number(n) || 0), 0),
+        }))
+      : [];
 
   const filed = Object.fromEntries(
     RACES.filter((race) => filedRows[race.id]).map((race) => {
@@ -69,7 +91,6 @@ export default async function FieldPage() {
 
   /* A desk or an administrator has no booth of its own and may name one. An
      agent may not, and the server enforces that regardless of what this says. */
-  const canNameUnit = !user.scope && can(user.role, "results:upload");
 
   /* Everything about the account is derived from the ledger on read: the
      balance is a sum, never a stored figure that could drift from its own
@@ -110,7 +131,12 @@ export default async function FieldPage() {
               is open. All of it in one client component because which position
               is selected, and which have been sent, are the same piece of
               state. */}
-          <FileReturns unitCode={user.scope} filed={filed} canNameUnit={canNameUnit} />
+          <FileReturns
+            unitCode={user.scope}
+            filed={filed}
+            canNameUnit={canNameUnit}
+            uploaded={uploaded}
+          />
 
           <Card
             id="wallet"

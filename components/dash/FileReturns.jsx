@@ -34,7 +34,16 @@ import { cn } from "@/lib/utils";
  * arrives can switch, file it, and come back to their half-typed count.
  * ───────────────────────────────────────────────────────────────────────────
  */
-export default function FileReturns({ unitCode, filed = {}, canNameUnit = false, action, readAction }) {
+export default function FileReturns({
+  unitCode,
+  filed = {},
+  canNameUnit = false,
+  /* What this account has already uploaded, for a desk that has no booth of
+     its own. See the panel at the foot of this file for why it exists. */
+  uploaded = [],
+  action,
+  readAction,
+}) {
   /* Opens on the first position with nothing against it, which on a fresh
      evening is the presidential and after three filings is the next one to do.
      A screen that always opened on the first tab would make an agent who has
@@ -48,13 +57,33 @@ export default function FileReturns({ unitCode, filed = {}, canNameUnit = false,
      form succeeds rather than after a reload nobody performs. */
   const [sent, setSent] = useState(filed);
 
+  /* The desk's own record of what it has put in, seeded from the server and
+     added to as each return lands. Newest first, so the thing that just
+     happened is the thing at the top. */
+  const [sentRows, setSentRows] = useState(uploaded);
+
   const onFiled = useCallback((result) => {
     if (!result?.race) return;
     setSent((current) => ({
       ...current,
       [result.race]: { total: result.cast, status: "SUBMITTED", amended: result.amended },
     }));
-  }, []);
+
+    /* An amendment replaces its row rather than adding a second: the list is
+       "what is on file", and a booth appearing twice in it would say the desk
+       had uploaded two returns when the table holds one. */
+    setSentRows((current) => {
+      const row = {
+        id: `${result.unitCode ?? unitCode}:${result.race}`,
+        unitCode: result.unitCode ?? unitCode,
+        race: result.race,
+        total: result.cast,
+        amended: result.amended,
+        justNow: true,
+      };
+      return [row, ...current.filter((seen) => seen.id !== row.id)].slice(0, 20);
+    });
+  }, [unitCode]);
 
   const done = useMemo(() => RACES.filter((row) => sent[row.id]).length, [sent]);
   const current = RACES.find((row) => row.id === race) ?? RACES[0];
@@ -171,6 +200,63 @@ export default function FileReturns({ unitCode, filed = {}, canNameUnit = false,
           onFiled={onFiled}
         />
       </div>
+
+      {/* ── WHAT THIS DESK HAS ACTUALLY PUT IN ───────────────────────────────
+          Only for an account filing on behalf of booths it is not standing at.
+
+          An agent has one booth and the ticks above answer everything they
+          need. A desk has none, so `filed` came back empty for them however
+          many returns they had uploaded, and the screen said nothing had been
+          sent — which is indistinguishable from the upload having failed. It
+          is the first thing anybody checks after pressing the button, and it
+          was the one question this screen could not answer.
+
+          Server-rendered and then added to in place, so a return appears here
+          the instant it lands rather than after a reload nobody performs. */}
+      {canNameUnit && (
+        <div className="rounded-dash border border-dash-line bg-dash-card">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-dash-line px-5 py-3.5">
+            <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              Uploaded from this account
+            </p>
+            <p className="text-[0.75rem] text-dash-muted">
+              {sentRows.length === 0
+                ? "Nothing yet"
+                : `${sentRows.length} return${sentRows.length === 1 ? "" : "s"} on file`}
+            </p>
+          </div>
+
+          {sentRows.length === 0 ? (
+            <p className="px-5 py-4 text-[0.875rem] leading-relaxed text-dash-muted">
+              Returns you upload appear here the moment they are stored, with the
+              booth and the position they were filed against. If a return is not
+              on this list, it is not in the count.
+            </p>
+          ) : (
+            <ul className="divide-y divide-dash-line">
+              {sentRows.map((row) => (
+                <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-x-4 px-5 py-2.5">
+                  <span className="figure text-[0.8125rem] font-bold text-dash-ink">
+                    {row.unitCode}
+                    {row.justNow && (
+                      <span className="ml-2 text-[0.6875rem] font-semibold text-emerald-700">
+                        {row.amended ? "amended" : "just now"}
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-[0.75rem] text-dash-muted">
+                    {/* The position is named on every row, because a desk works
+                        across all five and a booth code alone does not say
+                        which pile of ballots these figures came off. */}
+                    {RACES.find((race) => race.id === row.race)?.label ?? row.race}
+                    {typeof row.total === "number" ? ` · ${formatNumber(row.total)} votes` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
