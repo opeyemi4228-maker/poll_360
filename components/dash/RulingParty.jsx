@@ -63,10 +63,12 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
   /* What is actually known about this state's councils, reconciled against the
      number of councils the boundary file draws. Returns a reason instead of a
      colour whenever the two do not line up. See lib/lga-control.js. */
+  /* The NAMES, not the count: lga-control checks the exceptions it holds
+     against the places the map will actually draw, and a named exception the
+     map has never heard of is a source that cannot be trusted to colour it. */
   const councils = openCode
-    ? councilsIn(openCode, councilShapes?.lgas?.length ?? null)
+    ? councilsIn(openCode, councilShapes?.lgas?.map((row) => row.name) ?? null)
     : null;
-  const councilFill = councils?.known ? PARTY_FILL[councils.party] : null;
   const cover = useMemo(() => coverage(), []);
 
   return (
@@ -109,7 +111,11 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
               ? councilsLoading
                 ? "Loading councils…"
                 : councils.known
-                  ? `${councils.seats} councils, all ${councils.party}`
+                  ? councils.breakdown?.length > 1
+                    ? `${councils.seats} councils · ${councils.breakdown
+                        .map(([party, n]) => `${party} ${n}`)
+                        .join(", ")}`
+                    : `${councils.seats} councils, all ${councils.party}`
                   : "Council control not established here"
               : which === "current"
                 ? `${moves.length} states changed hands without an election`
@@ -166,20 +172,23 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
                 map says which case it is. Grey means "nobody has established
                 this", never "no party". */}
             {councilShapes
-              ? councilShapes.lgas.map((shape) => (
+              ? councilShapes.lgas.map((shape) => {
+                  /* Per council, not per state. Akwa Ibom's 31 are PDP except
+                     Essien Udim, and a single state-wide fill would have drawn
+                     that one the wrong colour. */
+                  const party = councils.known ? councils.partyFor(shape.name) : null;
+                  return (
                   <g key={shape.name} className="cursor-default">
                     <path
                       d={shape.d}
-                      fill={councilFill ?? "var(--color-silent)"}
+                      fill={party ? PARTY_FILL[party] : "var(--color-silent)"}
                       stroke="var(--color-board)"
                       strokeWidth="1.1"
                       strokeLinejoin="round"
                     >
                       <title>
                         {`${shape.name}${
-                          councils.known
-                            ? `, ${councils.party}`
-                            : ", council control not established"
+                          party ? `, ${party}` : ", council control not established"
                         }`}
                       </title>
                     </path>
@@ -192,7 +201,7 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
                       style={{
                         fontSize: councilShapes.width * 0.018,
                         fontWeight: 700,
-                        fill: councils.known ? "#ffffff" : "rgba(255,255,255,0.45)",
+                        fill: party ? "#ffffff" : "rgba(255,255,255,0.45)",
                         paintOrder: "stroke",
                         stroke: "rgba(0,0,0,0.5)",
                         strokeWidth: councilShapes.width * 0.004,
@@ -202,7 +211,8 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
                       {shape.name}
                     </text>
                   </g>
-                ))
+                  );
+                })
               : shapes.states.map((shape) => {
               const row = byCode.get(shape.code);
               const party = row?.[which] ?? null;
@@ -330,16 +340,20 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
             {councils.known ? (
               <>
                 <p className="mt-1.5 flex flex-wrap items-center gap-2">
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[0.6875rem] font-bold text-white"
-                    style={{ background: PARTY_FILL[councils.party] }}
-                  >
-                    {councils.party}
-                  </span>
-                  <span className="text-[0.875rem] font-bold text-dash-ink">
-                    all {councils.seats} councils
-                  </span>
-                  <span className="figure text-[0.75rem] text-dash-muted">{councils.on}</span>
+                  {(councils.breakdown?.length ? councils.breakdown : [[councils.party, councils.seats]]).map(
+                    ([party, seats]) => (
+                      <span key={party} className="flex items-center gap-1.5">
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[0.6875rem] font-bold text-white"
+                          style={{ background: PARTY_FILL[party] }}
+                        >
+                          {party}
+                        </span>
+                        <span className="figure text-[0.8125rem] font-bold text-dash-ink">{seats}</span>
+                      </span>
+                    )
+                  )}
+                  <span className="figure ml-auto text-[0.75rem] text-dash-muted">{councils.on}</span>
                 </p>
                 {councils.current && councils.current !== councils.elected && (
                   <p className="mt-2 flex flex-wrap items-center gap-2 text-[0.8125rem]">
@@ -373,7 +387,9 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
                       ? "Reported, not dated"
                       : councils.reason === "count-mismatch"
                         ? "Source disagrees with the map"
-                        : "Split between parties"}
+                        : councils.reason === "unknown-council"
+                          ? "Source names a council this map does not draw"
+                          : "Split, and not every council is accounted for"}
               </p>
             )}
 
@@ -384,6 +400,14 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
             {councils.stale && (
               <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
                 {councils.stale}
+              </p>
+            )}
+
+            {councils.unknown?.length > 0 && (
+              <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
+                The source names {councils.unknown.join(", ")}, which this map does not draw in this
+                state. Either the spelling differs or the council belongs somewhere else, and
+                neither is safe to colour from.
               </p>
             )}
 

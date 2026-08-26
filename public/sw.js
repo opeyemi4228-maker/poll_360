@@ -23,7 +23,19 @@
 /* Bump to invalidate everything. The activate handler deletes any cache whose
    name is not in this list, so a deploy cannot leave a previous version's
    assets behind to be served alongside the new ones. */
-const VERSION = "poll360-v3";
+/* ── THE VERSION COMES FROM THE URL, NOT FROM THIS FILE ────────────────────
+   It used to be written here by hand, which meant it never changed, which
+   meant every deploy shipped a worker the browser considered identical to the
+   one it already had and declined to install. The page registers this script
+   at /sw.js?v=<build>, so the build id arrives in our own location and every
+   deploy is a distinct script with distinct caches. `activate` already deletes
+   every cache whose name does not match, so the previous build's copies go the
+   moment this one takes over.
+
+   The fallback matters for the first load after this change ships, and for
+   anyone who opens /sw.js directly. */
+const BUILD = new URL(self.location.href).searchParams.get("v") || "unversioned";
+const VERSION = `poll360-${BUILD}`;
 const SHELL = `${VERSION}-shell`;
 const PAGES = `${VERSION}-pages`;
 const ASSETS = `${VERSION}-assets`;

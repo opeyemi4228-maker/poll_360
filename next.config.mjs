@@ -24,6 +24,27 @@ const nextConfig = {
      external it is resolved by Node the ordinary way and simply works. */
   serverExternalPackages: ["tesseract.js"],
 
+  /* ── A BUILD NEEDS A NAME THE BROWSER CAN SEE ─────────────────────────────
+     The service worker caches under a version string. That string was written
+     by hand, so it stayed the same across every deploy, and a browser decides
+     whether to install a new worker by comparing the script byte for byte:
+     identical bytes, no install. The old worker kept control, kept its caches,
+     and a deploy could not reach a device that had already visited once.
+     Serving /sw.js with no-cache did not help, because the file it re-fetched
+     was the same file.
+
+     So each build gets an identity. On Vercel it is the commit; locally it is
+     the moment the build ran, which is different every time and is what you
+     want when you are testing exactly this. The worker is then registered at a
+     URL carrying it, which makes every deploy a new script to the browser and
+     lets the worker name its caches after itself. */
+  env: {
+    NEXT_PUBLIC_BUILD_ID:
+      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ??
+      process.env.NEXT_PUBLIC_BUILD_ID ??
+      Date.now().toString(36),
+  },
+
   experimental: {
     serverActions: {
       bodySizeLimit: "4mb",
