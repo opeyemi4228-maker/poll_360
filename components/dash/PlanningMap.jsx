@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Download, Layers, Loader2, MapPin, RotateCcw, Target, Users } from "lucide-react";
 
+import { PARTY_FILL } from "./Charts";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { apportion, wardCount } from "@/lib/drill";
 import { FACTOR_ROWS } from "@/lib/forecast";
-import { parties, states2023 } from "@/lib/election2023";
+import { allParties, parties, states2023 } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -41,6 +42,14 @@ const NATIONAL = {
   booths: states2023.reduce((sum, state) => sum + state.booths, 0),
   cast: states2023.reduce((sum, state) => sum + state.total, 0),
 };
+
+/* Every party's national figure, summed from the same declared state rows the
+   plan is costed against. The country's split and a state's split therefore
+   come from one source and cannot drift apart. */
+NATIONAL.votes = states2023.reduce(
+  (running, state) => running.map((value, index) => value + (state.votes[index] ?? 0)),
+  allParties.map(() => 0)
+);
 
 /**
  * INEC declared 25,286,616 accredited against 24,025,940 valid votes in 2023.
@@ -182,6 +191,38 @@ function winnerOf(votes) {
     id: PARTY_ID[best],
     votes: votes[best] ?? 0,
     margin: total ? ((ranked[0] - ranked[1]) / total) * 100 : 0,
+  };
+}
+
+/**
+ * Every party's figure for one place, ranked, with the share behind each.
+ *
+ * Everybody else is an aggregate of fourteen candidates rather than a
+ * contender, so it is pinned to the foot however many votes it holds. Sorting
+ * it with the rest would let "other" outrank a party that actually stood, and
+ * a reader scanning the second row would take an aggregate for a challenger.
+ */
+function standings(votes = []) {
+  const total = votes.reduce((sum, value) => sum + (value ?? 0), 0);
+
+  const rows = allParties.map((party, index) => ({
+    id: party.id,
+    /* "OTH" is the code this product uses in its data. It is not a word, so it
+       is not what a reader is shown. */
+    label: party.id === "OTH" ? "Others" : party.id,
+    token: party.token,
+    fill: PARTY_FILL[party.id] ?? PARTY_FILL.OTH,
+    votes: votes[index] ?? 0,
+    share: total ? ((votes[index] ?? 0) / total) * 100 : 0,
+  }));
+
+  const named = rows.slice(0, parties.length).sort((a, b) => b.votes - a.votes);
+
+  return {
+    rows: [...named, rows[rows.length - 1]],
+    total,
+    /* Never zero: it is a divisor for every bar drawn from this. */
+    lead: Math.max(named[0]?.votes ?? 0, 1),
   };
 }
 
@@ -604,6 +645,7 @@ export default function PlanningMap({ shapes }) {
           turnout: row.turnout,
           perBooth: row.density,
           wards: wardCount(name),
+          votes: row.votes,
           winner: winnerOf(row.votes),
           estimate: true,
         };
@@ -624,6 +666,7 @@ export default function PlanningMap({ shapes }) {
         turnout: state.turnout,
         perBooth: state.booths ? Math.round(state.registered / state.booths) : 0,
         wards: null,
+        votes: state.votes,
         winner: winnerOf(state.votes),
         estimate: false,
       };
@@ -1210,30 +1253,42 @@ const STATUS = {
  * clamping slides it over the shape, which is the thing it must never do.
  */
 function HoverCard({ detail, status, pointer }) {
-  /* ── MEASURED, NOT ESTIMATED ──────────────────────────────────────────
-     A constant is honest here only because the card's content is fixed: the
-     same six rows and a one-line header, both truncated, whatever place is
-     under the pointer. These are its real dimensions at the rendered type
-     scale — the first guess was 232 and the card is 283, which left it
-     hanging fifty pixels past where the flip believed it ended, so it clipped
-     against the bottom of the frame instead of flipping above the pointer.
-     If a row is ever added here, this has to move with it. */
+  /* The width is fixed by the class below, so it can be a constant. */
   const WIDTH = 224;
-  const HEIGHT = 283;
   const GAP = 18;
 
+  /* ── THE HEIGHT IS MEASURED, NOT WRITTEN DOWN ─────────────────────────
+     It used to be a constant, and a constant goes stale the first time a row
+     is added: the flip believed the card ended fifty pixels above where it
+     really did, so it clipped against the bottom of the frame instead of
+     flipping above the pointer. Now the card measures itself once it has
+     drawn and the flip uses that, which stays true however this card grows.
+     The number below is only the first frame's guess, before any measurement
+     exists — close enough that nothing visibly jumps. */
+  const card = useRef(null);
+  const [height, setHeight] = useState(400);
+
+  /* Re-measured whenever the place changes as well as after a measurement
+     settles: a place with nothing counted in it drops the party block, and a
+     card that got shorter must not go on being flipped as though it had not. */
+  useLayoutEffect(() => {
+    const box = card.current?.getBoundingClientRect();
+    if (box && Math.abs(box.height - height) > 1) setHeight(box.height);
+  }, [height, detail]);
+
   const flipX = pointer.x + GAP + WIDTH > pointer.width;
-  const flipY = pointer.y + GAP + HEIGHT > pointer.height;
+  const flipY = pointer.y + GAP + height > pointer.height;
 
   const mark = STATUS[status] ?? STATUS.none;
 
   return (
     <div
+      ref={card}
       aria-hidden="true"
       className="pointer-events-none absolute z-20 w-56 overflow-hidden rounded-dash border border-white/15 bg-board/95 shadow-e3 backdrop-blur-sm"
       style={{
         left: flipX ? pointer.x - GAP - WIDTH : pointer.x + GAP,
-        top: flipY ? Math.max(0, pointer.y - GAP - HEIGHT) : pointer.y + GAP,
+        top: flipY ? Math.max(0, pointer.y - GAP - height) : pointer.y + GAP,
       }}
     >
       <header className="border-b border-white/10 px-3 py-2">
@@ -1255,11 +1310,11 @@ function HoverCard({ detail, status, pointer }) {
         <Line label="Turnout" value={formatShare(detail.turnout)} />
         <Line label="Polling units" value={formatNumber(detail.booths)} />
         <Line label="Voters per unit" value={formatNumber(detail.perBooth)} />
-        <Line
-          label="Carried 2023"
-          value={`${detail.winner.id} by ${detail.winner.margin.toFixed(1)}%`}
-        />
       </dl>
+
+      {/* Who carried the place used to be one line here. It is the whole
+          ballot now, which says that and four other things besides. */}
+      <PartySplit votes={detail.votes} winner={detail.winner} tone="board" />
 
       <footer className="flex items-center gap-1.5 border-t border-white/10 px-3 py-2">
         <span
@@ -1300,6 +1355,128 @@ function Line({ label, value, lead = false }) {
 }
 
 /**
+ * What every party got in the place under the pointer.
+ *
+ * ── WHY THE WHOLE BALLOT AND NOT THE WINNER ────────────────────────────────
+ * "APC by 4.2%" is one fact about a place, and on a planning board it is the
+ * least useful one. A local government that split 39/37 is a different piece
+ * of work from one that split 71/12; a party lying third on 40,000 votes is a
+ * different prospect from one lying third on 400. None of that survives a
+ * winner's name, and all of it is what a room deciding where to put agents is
+ * actually arguing about.
+ *
+ * ── THE BAR IS THE ROW ─────────────────────────────────────────────────────
+ * The bar is drawn behind each row rather than in a column of its own, because
+ * at the hover card's width a bar column takes exactly the space the vote
+ * figure needs, and truncating a number to make room for a picture of that
+ * number is the wrong trade. It runs against the leading party rather than
+ * against 100%: in a four-way race with a 38% winner every bar scaled to 100
+ * is short, and the shape of the contest disappears. Every row still prints
+ * its own figure and its own share, so nothing here depends on reading a bar,
+ * or on telling two party colours apart.
+ *
+ * ── THE SAME BLOCK ON TWO SURFACES ─────────────────────────────────────────
+ * `board` is the near-black map; `card` is the white panel beside it. Only the
+ * colours change, never the rows or their order, so a reader who has learnt
+ * this block in one place can read it in the other without relearning it. The
+ * party hues are the two sets already in this product, each stepped for the
+ * surface it sits on rather than one set used at two contrasts.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+function PartySplit({ votes, winner, tone = "card" }) {
+  const board = tone === "board";
+  const { rows, total, lead } = standings(votes);
+
+  /* Nothing counted here. Five rows of zeroes look like a result where there
+     is none, so the block simply does not appear. */
+  if (!total) return null;
+
+  return (
+    <section className={cn("border-t", board ? "border-white/10" : "border-dash-line")}>
+      <div
+        className={cn(
+          "flex items-baseline justify-between gap-2",
+          board ? "px-3 pt-2 pb-1" : "px-4 pt-3 pb-1.5"
+        )}
+      >
+        {/* ── BOTH LINES REFUSE TO WRAP ────────────────────────────────
+            Left to wrap, "2023 presidential" breaks after the year the moment
+            the winner beside it is NNPP rather than LP, and the block gains a
+            line for the longest party name on the ballot. Neither half is
+            worth wrapping, so the margin is stated in the fewest words that
+            still say it and both lines are held on one. */}
+        <p
+          className={cn(
+            "text-[0.5625rem] font-semibold tracking-[0.1em] whitespace-nowrap uppercase",
+            board ? "text-white/35" : "text-dash-muted"
+          )}
+        >
+          2023 presidential
+        </p>
+        {winner && (
+          <p
+            className={cn(
+              "shrink-0 text-[0.625rem] whitespace-nowrap",
+              board ? "text-white/45" : "text-dash-muted"
+            )}
+          >
+            <span className={cn("figure font-bold", board ? "text-white/75" : "text-dash-ink")}>
+              {winner.id}
+            </span>{" "}
+            by {formatShare(winner.margin)}
+          </p>
+        )}
+      </div>
+
+      <ul className={cn("pb-1.5", board ? "px-1.5" : "px-2.5")}>
+        {rows.map((party) => (
+          <li
+            key={party.id}
+            className="relative isolate flex items-center gap-2 rounded-dash-sm px-1.5 py-[0.1875rem]"
+          >
+            <span
+              aria-hidden="true"
+              className="absolute inset-y-0 left-0 -z-10 rounded-dash-sm"
+              style={{
+                /* A party with votes never draws nothing: a sliver says "few",
+                   an empty row says "none", and they are different facts. */
+                width: `${party.votes ? Math.max((party.votes / lead) * 100, 2) : 0}%`,
+                background: board ? party.token : party.fill,
+                opacity: board ? 0.34 : 0.18,
+              }}
+            />
+            <span
+              className={cn(
+                "figure w-12 shrink-0 text-[0.6875rem] font-bold",
+                board ? "text-white" : "text-dash-ink"
+              )}
+            >
+              {party.label}
+            </span>
+            <span
+              className={cn(
+                "figure ml-auto shrink-0 text-[0.6875rem] font-bold tabular-nums",
+                board ? "text-white" : "text-dash-ink"
+              )}
+            >
+              {formatNumber(party.votes)}
+            </span>
+            <span
+              className={cn(
+                "figure w-11 shrink-0 text-right text-[0.625rem] tabular-nums",
+                board ? "text-white/45" : "text-dash-muted"
+              )}
+            >
+              {formatShare(party.share)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
  * The panel that keeps the board from being blank.
  *
  * ── WHY IT FALLS BACK RATHER THAN EMPTYING ────────────────────────────────
@@ -1311,6 +1488,7 @@ function Line({ label, value, lead = false }) {
  */
 function PlaceDetail({ detail, status, national, basis }) {
   const mark = detail ? (STATUS[status] ?? STATUS.none) : null;
+  const nationalWinner = useMemo(() => winnerOf(national.votes), [national.votes]);
 
   const rows = detail
     ? [
@@ -1323,7 +1501,8 @@ function PlaceDetail({ detail, status, national, basis }) {
            reading it. The plan's own agent count is in the panel below. */
         ["Polling units to staff", formatNumber(detail.booths)],
         ["Voters per unit", formatNumber(detail.perBooth)],
-        ["Carried 2023", `${detail.winner.id} by ${detail.winner.margin.toFixed(1)}%`],
+        /* Who carried it is not a row here either: the party block below says
+           that and gives the four figures behind it. */
       ]
     : [
         ["Registered voters", formatNumber(national.registered)],
@@ -1374,6 +1553,16 @@ function PlaceDetail({ detail, status, national, basis }) {
         ))}
       </dl>
 
+      {/* The country's own split when nothing is under the pointer, so the
+          panel teaches this block before a reader has hovered anything, and
+          every place they then hover is read against a figure they have
+          already seen. */}
+      <PartySplit
+        votes={detail ? detail.votes : national.votes}
+        winner={detail ? detail.winner : nationalWinner}
+        tone="card"
+      />
+
       <footer className="border-t border-dash-line px-4 py-2.5">
         {mark ? (
           <div className="flex items-center gap-2">
@@ -1397,8 +1586,9 @@ function PlaceDetail({ detail, status, national, basis }) {
 
         {detail?.estimate && (
           <p className="mt-2 text-[0.6875rem] leading-relaxed text-dash-muted">
-            Apportioned from {detail.parent}&rsquo;s declared total. The parts always add back to
-            the state, so the shape is right and each single figure is an estimate.
+            Apportioned from {detail.parent}&rsquo;s declared total, every party&rsquo;s vote
+            above included. The parts always add back to the state, so the shape is right and each
+            single figure is an estimate.
           </p>
         )}
       </footer>
