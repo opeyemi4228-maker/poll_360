@@ -15,7 +15,7 @@ import {
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { rateLimit } from "@/lib/ratelimit";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
-import { isUnitCode, parseUnitCode } from "@/lib/units";
+import { boothFromForm } from "@/lib/booth";
 import { audit, results, units, sheetReads } from "@/lib/db";
 import { currentElection } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
@@ -69,8 +69,17 @@ export async function joinAsAgent(_previous, formData) {
   const name = String(formData.get("name") ?? "").trim().slice(0, 120);
   const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 160);
   const rawPhone = String(formData.get("phone") ?? "").trim();
-  const unitRaw = String(formData.get("unitCode") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+
+  /* Where they say they are, in the four parts the form asks for. */
+  const booth = boothFromForm(formData);
+
+  /* Optional, and stored exactly as written. These are the agent's words for
+     their own ward and booth, not a lookup: nobody here holds INEC's ward or
+     unit names, and a name we could not check is worth having only as long as
+     it is never mistaken for one we could. */
+  const wardName = String(formData.get("wardName") ?? "").trim().slice(0, 80);
+  const unitName = String(formData.get("unitName") ?? "").trim().slice(0, 80);
 
   /* `normalisePhone` puts a number into one shape; it does not judge whether
      it is one. A Nigerian mobile is 234 and ten digits, and anything that does
@@ -81,17 +90,23 @@ export async function joinAsAgent(_previous, formData) {
      script that takes a number agree on what one is. */
   const phone = isNigerianMobile(cleaned) ? cleaned : null;
 
-  const values = { name, email, phone: rawPhone, unitCode: unitRaw };
-  const errors = {};
+  const values = {
+    name,
+    email,
+    phone: rawPhone,
+    state: booth.state,
+    lga: booth.lga,
+    ward: booth.ward,
+    unit: booth.unit,
+    wardName,
+    unitName,
+  };
+  const errors = { ...booth.errors };
 
   if (!name) errors.name = "Tell us your name, as your coordinator knows it.";
   if (!phone && !email) errors.phone = "A phone number or an email address is needed to sign in.";
   if (rawPhone && !phone) errors.phone = "That does not look like a Nigerian phone number.";
   if (email && !EMAIL.test(email)) errors.email = "That does not look like an email address.";
-  if (!isUnitCode(unitRaw)) {
-    errors.unitCode =
-      "Type your polling unit code as it is printed on the sheet, for example 01/01/04/006.";
-  }
   if (password.length < MIN_PASSWORD) {
     errors.password = `Choose a password of at least ${MIN_PASSWORD} characters. Length is what makes it hard to guess.`;
   }
@@ -117,9 +132,12 @@ export async function joinAsAgent(_previous, formData) {
     passwordHash: await hashPassword(password),
     /* The booth they say they are at. A claim until an administrator agrees
        with it, which is what the queue is for — and the approval screen can
-       correct it, because nine digits copied off a form in the dark is the
-       likeliest thing on this form to be wrong. */
-    unitCode: parseUnitCode(unitRaw).code,
+       still correct it, because a booth chosen from a list is a great deal
+       harder to get wrong than nine digits copied off a form in the dark, and
+       nowhere near impossible. */
+    unitCode: booth.code,
+    wardName: wardName || null,
+    unitName: unitName || null,
   });
 
   /* Signed in immediately, on purpose. There is nothing to protect — the

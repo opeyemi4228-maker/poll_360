@@ -5,6 +5,8 @@ import { Card } from "@/components/dash/DashCard";
 import ApprovalQueue from "@/components/dash/ApprovalQueue";
 import { requireCapability } from "@/lib/guard";
 import { coordinators } from "@/lib/coordinators";
+import { lgaNameFor } from "@/lib/lga-names";
+import { parseUnitCode } from "@/lib/units";
 
 export const metadata = { title: "Coordinators", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -101,6 +103,16 @@ function Count({ label, value, tone = "ink" }) {
 function shapeApplicant(person) {
   const hours = Math.floor((Date.now() - person.createdAt.getTime()) / 3_600_000);
 
+  /* ── THE CODE, SAID IN WORDS ─────────────────────────────────────────────
+     The queue used to print nine digits and ask somebody to approve them. The
+     one thing an administrator can actually check is whether this person is on
+     the appointment list for a named place, and 19/04/07/013 is not a named
+     place to anybody. So the two halves we can name are named here, from the
+     code itself rather than from anything the applicant typed, and appear
+     beside it. A number that reads as the wrong town is a mistake caught
+     before polling day rather than after the first return. */
+  const at = person.unitCode ? parseUnitCode(person.unitCode) : null;
+
   return {
     id: person.id,
     name: person.name,
@@ -109,6 +121,13 @@ function shapeApplicant(person) {
        last four digits are enough to match against an appointment list. */
     phoneTail: person.phoneTail,
     scope: person.unitCode,
+    stateName: at?.stateName ?? null,
+    lgaName: person.unitCode ? lgaNameFor(person.unitCode) : null,
+    /* These two are the applicant's own words, not a lookup — we hold no ward
+       or unit names. Shown as what they are, because an unchecked name printed
+       as though it were the register is worse than no name at all. */
+    wardName: person.wardName,
+    unitName: person.unitName,
     waitingFor:
       hours < 1 ? "under an hour" : hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`,
   };

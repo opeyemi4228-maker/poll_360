@@ -5,6 +5,7 @@ import { ClipboardCheck, ShieldCheck, Smartphone } from "lucide-react";
 import AgentAuthForm from "@/components/agent/AgentAuthForm";
 import { joinAsAgent } from "@/app/agent/actions";
 import { currentCoordinator } from "@/lib/coordinator-session";
+import { inecPlaces } from "@/lib/lga-names";
 
 export const metadata = { title: "Sign up — polling unit", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ const STEPS = [
   {
     icon: Smartphone,
     title: "You sign up",
-    body: "Your name, your number and the code of the polling unit you were appointed to. Two minutes on a phone.",
+    body: "Your name, your number, and the state, local government, ward and unit you were appointed to. Two minutes on a phone.",
   },
   {
     icon: ShieldCheck,
@@ -39,6 +40,15 @@ export default async function AgentJoinPage() {
   const person = await currentCoordinator();
   if (person) redirect(person.canFile ? "/agent" : "/agent/pending");
 
+  /* ── THE PLACES, READ HERE AND PASSED DOWN ─────────────────────────────
+     `inecPlaces` reads the boundary files off disk, so it cannot run in the
+     browser. Sending the whole table with the page rather than fetching it
+     per state is the right trade for this audience twice over: it is about
+     fifteen kilobytes, and it means the state and local government lists are
+     already in the page when the network drops halfway through a sign-up at
+     a booth. A cascading fetch would leave an empty dropdown exactly there. */
+  const places = inecPlaces();
+
   return (
     <main className="mx-auto w-full max-w-md px-5 py-12">
       <h1 className="text-fluid-2xl text-ink-950">Sign up to file your booth</h1>
@@ -47,7 +57,7 @@ export default async function AgentJoinPage() {
         anything you send counts towards a result.
       </p>
 
-      <AgentAuthForm action={joinAsAgent} mode="join" />
+      <AgentAuthForm action={joinAsAgent} mode="join" places={places} />
 
       <ol className="mt-10 space-y-5 border-t border-ink-200 pt-8">
         {STEPS.map((step, index) => (
