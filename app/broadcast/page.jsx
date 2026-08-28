@@ -5,6 +5,7 @@ import DashLayout from "@/components/dash/DashLayout";
 import { Card, StatCard } from "@/components/dash/DashCard";
 import Sparkline from "@/components/dash/Sparkline";
 import BroadcastAnalysis from "@/components/dash/BroadcastAnalysis";
+import ShareGraphic from "@/components/dash/ShareGraphic";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
 import { currentElection, currentRace } from "@/lib/election-scope";
@@ -120,6 +121,15 @@ export default async function BroadcastPage() {
           somebody to find it by scrolling. */}
       <div id="analysis" className="mt-6 scroll-mt-24">
         <BroadcastAnalysis declared={states2023} ours={ours} shapes={nation} />
+      </div>
+
+      {/* ── WHAT GOES OUT BETWEEN BULLETINS ────────────────────────────────
+          The audience is on a phone and the count has moved. Without this the
+          desk photographs its own wall board, and that picture — no coverage
+          figure, no timestamp, nothing saying it is a parallel count — is what
+          circulates. This makes the picture from the same figures. */}
+      <div id="post" className="mt-6 scroll-mt-24">
+        <ShareGraphic race={race} />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
