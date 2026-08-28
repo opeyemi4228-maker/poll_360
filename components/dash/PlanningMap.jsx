@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ChevronRight, Download, Layers, Loader2, MapPin, RotateCcw, Target, Users } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
+import UnitMap from "./UnitMap";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { apportion, wardCount } from "@/lib/drill";
 import { FACTOR_ROWS } from "@/lib/forecast";
@@ -256,6 +257,26 @@ const TAP_SLOP = 14;
 
 export default function PlanningMap({ shapes }) {
   const [openState, setOpenState] = useState(null);
+
+  /**
+   * ── HOW FAR DOWN THE READER HAS WALKED ───────────────────────────────────
+   * A plan is costed in agents, and an agent stands at a polling unit, so a
+   * planner has to be able to get to one. The map opens on the country, opens
+   * a state into its local governments, and now opens a local government into
+   * its wards and a ward into its booths.
+   *
+   * ── AND WHY SELECTION STOPS AT A LOCAL GOVERNMENT ────────────────────────
+   * The plan's arithmetic folds every pick into one entry per state before it
+   * costs anything, which is what stops a state and its parts being counted
+   * twice — see the note on `picked` below, and the bug it was written for.
+   * Wards and booths are read, costed and exported at full depth; what a tap
+   * *selects* is still the local government they are in, and the panel says so
+   * in those words. A four-deep selection model with the same guarantee is a
+   * bigger change than the one this screen needed, and half of one would put
+   * the double-count straight back.
+   */
+  const [openLga, setOpenLga] = useState(null); // name, inside openState
+  const [openWard, setOpenWard] = useState(null); // name, inside openLga
   const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
   const [hovered, setHovered] = useState(null);
   const [basisKey, setBasisKey] = useState("registered");
@@ -363,6 +384,74 @@ export default function PlanningMap({ shapes }) {
   }, [openState, lgaShapes, lgaCache]);
 
   const inState = openState !== null;
+
+  /* ── THE LEVEL, AND THE ROWS THAT BELONG TO IT ─────────────────────────
+     Each one is divided out of the row above it on the same stable seed the
+     rest of the product uses, so a ward is the same size every time anybody
+     opens it and every level still sums back to the state's declared total.
+     Nothing below a state is measured, and the panel says so. */
+  const level = !inState ? "nation" : openWard ? "ward" : openLga ? "lga" : "state";
+
+  const lgaRow = useMemo(
+    () => (openLga ? lgaRows.find((row) => row.name === openLga) ?? null : null),
+    [openLga, lgaRows]
+  );
+
+  const wardRows = useMemo(() => {
+    if (!lgaRow || !openState) return [];
+    return apportion({
+      names: Array.from({ length: wardCount(lgaRow.name) }, (_, index) =>
+        `Ward ${String(index + 1).padStart(2, "0")}`
+      ),
+      votes: lgaRow.votes,
+      booths: lgaRow.booths,
+      registered: lgaRow.registered,
+      parentKey: `${openState.code}:${lgaRow.name}`,
+    });
+  }, [lgaRow, openState]);
+
+  const wardRow = useMemo(
+    () => (openWard ? wardRows.find((row) => row.name === openWard) ?? null : null),
+    [openWard, wardRows]
+  );
+
+  const unitRows = useMemo(() => {
+    if (!wardRow || !openState || !openLga) return [];
+    const key = `${openState.code}:${openLga}:${wardRow.name}`;
+
+    /* ── A WARD HAS EXACTLY AS MANY UNITS AS IT HAS BOOTHS ────────────────
+       The generic drill draws a plausible unit count from the ward's name,
+       which is right when nothing better is known and wrong here: this screen
+       already holds the ward's booth count, and a polling unit *is* a booth.
+       Deriving the two independently produced a ward of 29 booths split into
+       26 units, and then apportioning 29 booths across those 26 rows gave
+       some of them none — a polling unit reporting "0 polling units", costed
+       at zero agents. The count comes from the booths, and each row is then
+       one booth, because that is what one is. */
+    const count = Math.max(1, wardRow.booths);
+
+    return apportion({
+      names: Array.from({ length: count }, (_, index) => `PU ${String(index + 1).padStart(3, "0")}`),
+      votes: wardRow.votes,
+      booths: count,
+      registered: wardRow.registered,
+      parentKey: key,
+    }).map((row) => ({
+      ...row,
+      booths: 1,
+      /* Voters per unit, at a unit, is its own register. */
+      density: row.registered,
+    }));
+  }, [wardRow, openState, openLga]);
+
+  /* The outline everything below a local government is drawn inside: the
+     local government's own real boundary. Wards have none published and a
+     booth is a table under a tree. See components/dash/UnitMap. */
+  const lgaOutline = useMemo(() => {
+    if (!openLga) return null;
+    const shape = lgaShapes?.lgas?.find((row) => row.name === openLga);
+    return shape ? [shape.d] : null;
+  }, [openLga, lgaShapes]);
 
   const frame = useMemo(() => {
     if (!inState) return { viewBox: `0 0 ${shapes.width} ${shapes.height}`, width: shapes.width };
@@ -628,23 +717,39 @@ export default function PlanningMap({ shapes }) {
       if (!key) return null;
 
       if (key.includes(":")) {
-        const [code, name] = key.split(":");
+        /* "KAN:Bagwai", "KAN:Bagwai:Ward 03", "KAN:Bagwai:Ward 03:PU 007" —
+           two, three or four rungs, and the depth decides which set of rows
+           holds the answer. Everything below a state is apportioned, so all
+           three carry `estimate`. */
+        const parts = key.split(":");
+        const [code, lgaName, wardName, unitName] = parts;
         const state = byCode.get(code);
-        const row = (lgaCache.get(code) ?? []).find((item) => item.name === name);
-        if (!state || !row) return null;
+        if (!state) return null;
+
+        const row =
+          parts.length === 2
+            ? (lgaCache.get(code) ?? []).find((item) => item.name === lgaName)
+            : parts.length === 3
+              ? wardRows.find((item) => item.name === wardName)
+              : unitRows.find((item) => item.name === unitName);
+        if (!row) return null;
+
+        const name = parts.at(-1);
+        const kind = parts.length === 2 ? "lga" : parts.length === 3 ? "ward" : "unit";
 
         return {
           key,
-          kind: "lga",
+          kind,
           name,
-          parent: state.name,
+          parent:
+            kind === "lga" ? state.name : kind === "ward" ? `${lgaName}, ${state.name}` : `${wardName}, ${lgaName}`,
           code,
           registered: row.registered,
           cast: row.total,
           booths: row.booths,
           turnout: row.turnout,
           perBooth: row.density,
-          wards: wardCount(name),
+          wards: kind === "lga" ? wardCount(name) : null,
           votes: row.votes,
           winner: winnerOf(row.votes),
           estimate: true,
@@ -671,13 +776,17 @@ export default function PlanningMap({ shapes }) {
         estimate: false,
       };
     },
-    [byCode, lgaCache]
+    [byCode, lgaCache, wardRows, unitRows]
   );
 
   /** Where this place stands in the plan, in one word the readout can print. */
   const statusOf = (key) => {
     if (!key) return "none";
     if (key.includes(":")) {
+      /* A ward and a booth are covered exactly when the local government they
+         sit in is, so a deeper key answers with its local government's status
+         rather than looking for a pick that cannot exist. Selection stops at
+         a local government; see the note on the open state. */
       const [code, name] = key.split(":");
       if (picked.has(code)) return picked.has(`${code}!${name}`) ? "carved" : "covered";
       return picked.has(key) ? "chosen" : "none";
@@ -749,30 +858,54 @@ export default function PlanningMap({ shapes }) {
           the page. See the same note in SituationRoom. */}
       <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
         <nav className="flex flex-wrap items-center gap-1 border-b border-board-line px-4 py-2.5">
-          <button
-            type="button"
-            onClick={() => setOpenState(null)}
-            className={cn(
-              "rounded-dash-sm px-2 py-1 text-[0.8125rem] font-semibold transition-colors",
-              inState ? "text-white/55 hover:bg-white/10 hover:text-white" : "text-white"
-            )}
-          >
-            Nigeria
-          </button>
+          <Crumb
+            label="Nigeria"
+            last={!inState}
+            onClick={() => {
+              setOpenState(null);
+              setOpenLga(null);
+              setOpenWard(null);
+            }}
+          />
           {inState && (
             <>
               <ChevronRight size={13} className="shrink-0 text-white/35" />
-              <span className="px-2 py-1 text-[0.8125rem] font-semibold text-white">
-                {openState.name}
-              </span>
+              <Crumb
+                label={openState.name}
+                last={level === "state"}
+                onClick={() => {
+                  setOpenLga(null);
+                  setOpenWard(null);
+                }}
+              />
+            </>
+          )}
+          {openLga && (
+            <>
+              <ChevronRight size={13} className="shrink-0 text-white/35" />
+              <Crumb
+                label={openLga}
+                last={level === "lga"}
+                onClick={() => setOpenWard(null)}
+              />
+            </>
+          )}
+          {openWard && (
+            <>
+              <ChevronRight size={13} className="shrink-0 text-white/35" />
+              <Crumb label={openWard} last onClick={() => {}} />
             </>
           )}
           <span className="ml-auto text-[0.75rem] text-white/45">
-            {inState
-              ? picked.has(openState.code)
-                ? "This state is covered. Tap a local government to take it back out"
-                : "Tap a local government to add it"
-              : "Tap to add, twice to open, three times to take it back out"}
+            {level === "ward"
+              ? "Polling units, costed at one agent each"
+              : level === "lga"
+                ? "Tap a ward to open its polling units"
+                : inState
+                  ? picked.has(openState.code)
+                    ? "Tap to take a local government out · twice to open it"
+                    : "Tap to add a local government · twice to open it"
+                  : "Tap to add, twice to open, three times to take it back out"}
           </span>
         </nav>
 
@@ -816,6 +949,32 @@ export default function PlanningMap({ shapes }) {
             </p>
           )}
 
+          {/* ── BELOW A LOCAL GOVERNMENT THERE ARE NO BOUNDARIES ────────
+              So the wards and booths are drawn as cells filling the local
+              government's real outline, with any booth that has reported a
+              position plotted where it said it was. Same component the
+              situation room uses, so the two screens draw a ward the same
+              way. See components/dash/UnitMap. */}
+          {(level === "lga" || level === "ward") && lgaOutline ? (
+            <UnitMap
+              outline={lgaOutline}
+              parentLabel={openLga}
+              childWord={level === "lga" ? "ward" : "polling unit"}
+              rows={(level === "lga" ? wardRows : unitRows).map((row) => ({
+                key:
+                  level === "lga"
+                    ? `${openState.code}:${openLga}:${row.name}`
+                    : `${openState.code}:${openLga}:${openWard}:${row.name}`,
+                name: row.name,
+                value: basis.of(row),
+                note: `${formatNumber(basis.of(row))} ${basis.unit} · ${formatNumber(row.booths)} booths`,
+                fix: null,
+              }))}
+              hovered={hovered}
+              onHover={setHovered}
+              onOpen={(row) => level === "lga" && setOpenWard(row.name.split(":").at(-1))}
+            />
+          ) : (
           <svg
             viewBox={frame.viewBox}
             className="h-full w-full"
@@ -898,6 +1057,17 @@ export default function PlanningMap({ shapes }) {
                     }
 
                     if (inState) {
+                      /* Same gesture as a state one level up: the first tap
+                         takes the place, the second opens it. Learning one
+                         rule for the country and a different one inside it is
+                         how a reader stops trusting the map. */
+                      const held = picked.has(openState.code)
+                        ? picked.has(`${openState.code}!${shape.name}`)
+                        : picked.has(`${openState.code}:${shape.name}`);
+                      if (held) {
+                        setOpenLga(shape.name);
+                        return;
+                      }
                       toggleLga(openState.code, shape.name);
                       return;
                     }
@@ -970,6 +1140,7 @@ export default function PlanningMap({ shapes }) {
               );
             })}
           </svg>
+          )}
 
           {/* ── THE READOUT ────────────────────────────────────────────────
               Beside the pointer, never under it, and flipped to the other side
@@ -1298,7 +1469,13 @@ function HoverCard({ detail, status, pointer }) {
           {detail.name}
         </p>
         <p className="mt-0.5 truncate text-[0.6875rem] text-white/45">
-          {detail.kind === "lga" ? `Local government · ${detail.parent}` : "State"}
+          {detail.kind === "lga"
+            ? `Local government · ${detail.parent}`
+            : detail.kind === "ward"
+              ? `Ward · ${detail.parent}`
+              : detail.kind === "unit"
+                ? `Polling unit · ${detail.parent}`
+                : "State"}
         </p>
       </header>
 
@@ -1337,6 +1514,22 @@ function HoverCard({ detail, status, pointer }) {
         )}
       </footer>
     </div>
+  );
+}
+
+/** One rung of the trail. Four of them now, so it is a component. */
+function Crumb({ label, last, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-dash-sm px-2 py-1 text-[0.8125rem] font-semibold transition-colors",
+        last ? "text-white" : "text-white/55 hover:bg-white/10 hover:text-white"
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -1520,7 +1713,7 @@ function PlaceDetail({ detail, status, national, basis }) {
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card">
       <header className="flex items-start gap-2 border-b border-dash-line px-4 py-3">
-        {detail?.kind === "lga" ? (
+        {detail && detail.kind !== "state" ? (
           <MapPin size={15} strokeWidth={2.25} className="mt-0.5 shrink-0 text-dash-muted" />
         ) : (
           <Users size={15} strokeWidth={2.25} className="mt-0.5 shrink-0 text-dash-muted" />
@@ -1530,11 +1723,15 @@ function PlaceDetail({ detail, status, national, basis }) {
             {detail ? detail.name : "Nigeria"}
           </h3>
           <p className="mt-0.5 truncate text-[0.6875rem] text-dash-muted">
-            {detail
-              ? detail.kind === "lga"
+            {!detail
+              ? "Nothing under the pointer. The whole country, for scale"
+              : detail.kind === "lga"
                 ? `Local government · ${detail.parent}`
-                : "State · declared 2023"
-              : "Nothing under the pointer. The whole country, for scale"}
+                : detail.kind === "ward"
+                  ? `Ward · ${detail.parent}`
+                  : detail.kind === "unit"
+                    ? `Polling unit · ${detail.parent}`
+                    : "State · declared 2023"}
           </p>
         </div>
         {detail?.estimate && (
@@ -1588,9 +1785,10 @@ function PlaceDetail({ detail, status, national, basis }) {
 
         {detail?.estimate && (
           <p className="mt-2 text-[0.6875rem] leading-relaxed text-dash-muted">
-            Apportioned from {detail.parent}&rsquo;s declared total, every party&rsquo;s vote
-            above included. The parts always add back to the state, so the shape is right and each
-            single figure is an estimate.
+            Apportioned from the declared state total, every party&rsquo;s vote above included.
+            Each level divides the one above it and always adds back to it, so the shape is right
+            all the way down to a booth and each single figure is an estimate. Your own returns
+            replace it as they land.
           </p>
         )}
       </footer>

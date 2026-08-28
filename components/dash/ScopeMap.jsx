@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { partyFill } from "@/lib/party-pattern";
 import PartyPatterns from "@/components/ui/PartyPatterns";
+import HeatLayer from "./HeatLayer";
+import { coordinate, unproject } from "@/lib/geo";
 
 import { PARTY_FILL } from "./Charts";
 import { boundsOf, extentOf } from "@/lib/bbox";
@@ -83,6 +85,10 @@ export default function ScopeMap({
   /* code -> { count, worst } for the places that have something reported
      against them. Optional: a map with nothing to be alarmed about omits it. */
   incidentsByPlace = null,
+  /* Density field over the shapes, for the magnitude layers. Never on the
+     results layer: "who won" is not a quantity and has no density. */
+  heat = false,
+  heatTint = "var(--color-red-500)",
 }) {
   const byName = useMemo(() => new Map(rows.map((row) => [row.key ?? row.name, row])), [rows]);
 
@@ -101,6 +107,11 @@ export default function ScopeMap({
     const values = rows.map((row) => magnitude(row, layer));
     return [Math.min(...values), Math.max(...values)];
   }, [rows, layer]);
+
+  const heatPoints = useMemo(
+    () => (heat ? heatPointsFor({ shapes, rows, layer }) : []),
+    [heat, shapes, rows, layer]
+  );
 
   /* Which shapes can hold their own name. Recomputed against the current
      frame, so an LGA that is unlabelable nationally may well be labelable once
@@ -475,6 +486,12 @@ export default function ScopeMap({
             </circle>
           ))}
 
+      {/* ── THE DENSITY FIELD ───────────────────────────────────────────────
+          Over the shapes and under the labels: it is a way of seeing where the
+          mass is, not a thing to read a figure off, so nothing it draws is
+          allowed to obscure a number. See components/dash/HeatLayer. */}
+      {heat && <HeatLayer points={heatPoints} width={frame.width ?? shapes.width} tint={heatTint} />}
+
       {/* ── THE LEADERBOARD, ON THE MAP ─────────────────────────────────────
           The handful of places that are carrying the layer, labelled in place
           with their figure, pinned to the map rather than sitting in a list
@@ -564,6 +581,20 @@ export default function ScopeMap({
           incident={incidentsByPlace?.[hovered] ?? null}
           code={hoveredShape?.code ?? null}
           slots={slots}
+          /* Where this place is, in degrees. A booth that filed a position
+             gives a measured one; everywhere else it is the centre of the
+             shape being drawn, recovered through the inverse of the boundary
+             files' own projection. Two different facts, labelled apart. */
+          coord={
+            hoveredRow?.fix
+              ? { label: "GPS", text: coordinate(hoveredRow.fix.lon, hoveredRow.fix.lat) }
+              : hoveredShape?.at
+                ? {
+                    label: "Centre",
+                    text: coordinate(...unproject(hoveredShape.at[0], hoveredShape.at[1])),
+                  }
+                : null
+          }
         />
       </div>
     </div>
@@ -580,7 +611,16 @@ export default function ScopeMap({
  * appears without the share of booths it came from, and a place nobody has
  * reported from says so in words rather than showing a zero.
  */
-function HoverCard({ name, row, layer, level, incident, code: placeCode, slots = allParties }) {
+function HoverCard({
+  name,
+  row,
+  layer,
+  level,
+  incident,
+  code: placeCode,
+  slots = allParties,
+  coord = null,
+}) {
   if (!name) return <p className="text-[0.8125rem] text-dash-muted">&nbsp;</p>;
 
   const reported = row ? row.reported !== false : false;
@@ -722,6 +762,20 @@ function HoverCard({ name, row, layer, level, incident, code: placeCode, slots =
         </p>
       )}
 
+      {/* ── THE COORDINATE ─────────────────────────────────────────────────
+          On a screen that directs people to physical places, "where is this"
+          is a real question and the answer is two numbers. Which kind of
+          answer it is matters as much as the digits: GPS means somebody stood
+          there, Centre means this is the middle of the shape on screen. */}
+      {coord && (
+        <p className="mt-2.5 flex items-center gap-1.5 border-t border-dash-line pt-2.5">
+          <span className="rounded-dash-sm bg-dash-bg px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+            {coord.label}
+          </span>
+          <span className="font-mono text-[0.625rem] text-dash-ink">{coord.text}</span>
+        </p>
+      )}
+
       <p className="mt-2.5 text-[0.6875rem] text-dash-muted">
         {level === "ward" ? "Click to open" : "Click to open · again to drill in"}
       </p>
@@ -795,6 +849,38 @@ function holderOf(row) {
  * so the presidential screens are untouched, and every caller that can know
  * better passes the board's own list.
  */
+/**
+ * The density field's points: one per place, at the place's own label anchor.
+ *
+ * Exported because two things draw this field — our own layer and the optional
+ * Google one — and they must be drawing the same numbers at the same places.
+ * Computing it twice, in two components, is how those two quietly diverge.
+ *
+ * Weighted against the top of the range rather than stretched across it, so a
+ * place holding a tenth of the largest figure draws a tenth of the heat. A
+ * min-max stretch lights up the emptiest place on any map where every place is
+ * nearly equal, which is the opposite of what a density field is for.
+ */
+export function heatPointsFor({ shapes, rows, layer }) {
+  if (!shapes || layer === "results") return [];
+  const shown = shapes.paths ?? shapes.states ?? [];
+  const byKey = new Map(rows.map((row) => [row.key ?? row.name, row]));
+  const ceiling = Math.max(...rows.map((row) => magnitude(row, layer)), 1);
+
+  return shown
+    .map((shape) => {
+      const row = byKey.get(shape.code ?? shape.name);
+      if (!row || !shape.at) return null;
+      return {
+        key: shape.code ?? shape.name,
+        x: shape.at[0],
+        y: shape.at[1],
+        weight: magnitude(row, layer) / ceiling,
+      };
+    })
+    .filter(Boolean);
+}
+
 export function partyCode(row, slots = allParties) {
   if (!row?.votes) return null;
   const index = leaderOf(row.votes);

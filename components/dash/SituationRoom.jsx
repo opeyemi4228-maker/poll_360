@@ -17,7 +17,9 @@ import {
 
 import TopShell from "./TopShell";
 import { useGreeting } from "./useGreeting";
-import ScopeMap, { LABEL, describe, magnitude } from "./ScopeMap";
+import ScopeMap, { LABEL, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
+import GoogleHeat, { googleAvailable } from "./GoogleHeat";
+import UnitMap, { latLon } from "./UnitMap";
 import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
 import CoordinatorWatch from "./CoordinatorWatch";
@@ -34,11 +36,12 @@ import LiveRefresh from "./LiveRefresh";
 import RaceSwitcher from "./RaceSwitcher";
 import Sparkline from "./Sparkline";
 import { PARTY_FILL } from "./Charts";
+import { partyFill } from "@/lib/party-pattern";
 import { snapshot, parties, allParties } from "@/lib/replay";
 import { normalise } from "@/lib/assistant";
 import { board as boardStore, buildCard } from "@/lib/whiteboard";
-import { apportion, wardCount, unitCount, liveRowsFrom, liveNodeFor } from "@/lib/drill";
-import { COMMERCIAL_CENTRES } from "@/lib/geo";
+import { apportion, wardCount, liveRowsFrom, liveNodeFor } from "@/lib/drill";
+import { COMMERCIAL_CENTRES, coordinate, unproject } from "@/lib/geo";
 import { ruling, seatsBy, crossedFloor, FCT } from "@/lib/governors";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -284,6 +287,18 @@ export default function SituationRoom({
       : []
   ); // [state, lga, ward]
   const [hovered, setHovered] = useState(null);
+
+  /* ── THE FIELD, AND WHOSE GROUND IT IS ON ─────────────────────────────
+     Voters, Turnout and Clusters are questions about concentration, and a
+     choropleth cannot answer one: it paints Nasarawa and Kano the same size.
+     So those three carry a density field by default. Results never does —
+     "who won" is not a quantity and has no density.
+
+     The ground under it is a separate choice. Our own map always works;
+     Google's is offered only where a key is configured, because a room on a
+     venue's wifi cannot fix somebody else's outage at nine at night. */
+  const [heat, setHeat] = useState(true);
+  const [basemap, setBasemap] = useState("board"); // board | google | satellite
   const [picked, setPicked] = useState(null); // the jurisdiction whose full card is open
   const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
   const [cursor, setCursor] = useState(board.opening);
@@ -581,13 +596,20 @@ export default function SituationRoom({
     const parent = wardRows.find((row) => row.name === ward.name);
     if (!parent) return [];
     const key = `${state.code}:${lga.name}:${ward.name}`;
+
+    /* One row per booth, because a polling unit is a booth. Drawing the unit
+       count from the ward's name instead — which is what the generic drill
+       does when nothing better is known — let the two disagree, and a ward of
+       29 booths split into 26 units left some units holding none of them. */
+    const count = Math.max(1, parent.booths);
+
     return apportion({
-      names: Array.from({ length: unitCount(key) }, (_, i) => `PU ${String(i + 1).padStart(3, "0")}`),
+      names: Array.from({ length: count }, (_, i) => `PU ${String(i + 1).padStart(3, "0")}`),
       votes: parent.votes,
-      booths: parent.booths,
+      booths: count,
       registered: parent.registered,
       parentKey: key,
-    });
+    }).map((row) => ({ ...row, booths: 1, density: row.registered }));
   }, [liveTree, liveLgaNode, ward, wardRows, state, lga]);
 
   const rows =
@@ -647,8 +669,8 @@ export default function SituationRoom({
     item.go();
   };
 
-  /* The shapes for the current level. Wards and units have no boundaries
-     anywhere, so those levels are lists rather than maps, stated, not faked. */
+  /* The shapes for the current level. Only two levels have boundaries of
+     their own: the country's states, and a state's local governments. */
   const mapShapes = useMemo(() => {
     if (level === "nation") return shapes;
     if (level === "state" && lgaShapes) {
@@ -656,6 +678,48 @@ export default function SituationRoom({
     }
     return null;
   }, [level, shapes, lgaShapes, state]);
+
+  /* ── AND THE TWO LEVELS THAT HAVE NONE ──────────────────────────────────
+     A ward has no published boundary and a polling unit is a table under a
+     tree, so neither can be drawn as a shape. What they can be drawn inside
+     is the local government they are in, which is real and which we hold.
+     That outline is what UnitMap packs its tiles into and what any booth
+     reporting a real position is plotted on. See components/dash/UnitMap. */
+  /* One computation, two renderers: our own field and Google's draw the same
+     figures at the same places or they are two maps of two countries. */
+  const heatPoints = useMemo(
+    () => (mapShapes ? heatPointsFor({ shapes: mapShapes, rows, layer }) : []),
+    [mapShapes, rows, layer]
+  );
+
+  /**
+   * Where the thing under the pointer is, in degrees.
+   *
+   * ── TWO KINDS OF COORDINATE, NEVER THE SAME KIND ────────────────────────
+   * A booth that filed with a position has a MEASURED one: somebody stood
+   * there and a phone said where. Everywhere else the best that can be
+   * offered is the CENTRE of the place's own drawn shape, recovered through
+   * the inverse of the projection the boundary files were made with. Both are
+   * true and they are not the same fact, so the strip labels which it is
+   * holding rather than printing two numbers that look alike.
+   */
+  const focusCoord = useMemo(() => {
+    if (!hovered) return null;
+    const row = rows.find((item) => (item.key ?? item.name) === hovered);
+    if (row?.fix) return { label: "GPS", text: coordinate(row.fix.lon, row.fix.lat) };
+
+    const shown = mapShapes?.paths ?? mapShapes?.states ?? [];
+    const shape = shown.find((item) => (item.code ?? item.name) === hovered);
+    if (!shape?.at) return null;
+    const [lon, lat] = unproject(shape.at[0], shape.at[1]);
+    return { label: "Centre", text: coordinate(lon, lat) };
+  }, [hovered, rows, mapShapes]);
+
+  const unitOutline = useMemo(() => {
+    if (level !== "lga" && level !== "ward") return null;
+    const shape = lgaShapes?.lgas?.find((row) => row.name === lga?.name);
+    return shape ? [shape.d] : null;
+  }, [level, lgaShapes, lga]);
 
   /* -------------------------------------------------------------- summary */
   const scope = useMemo(() => {
@@ -1271,9 +1335,43 @@ export default function SituationRoom({
                 </button>
               </span>
             ))}
-            <span className="ml-auto text-[0.75rem] text-white/45">
-              {level === "ward" ? "Polling units" : `Tap a ${unitWord(level, true)}`}
-            </span>
+            <div className="ml-auto flex flex-wrap items-center gap-1">
+              {/* ── THE FIELD AND ITS GROUND ──────────────────────────────
+                  Only on the magnitude layers. Results has no density to
+                  draw, and offering the control there would teach the reader
+                  that it does. Google appears only where a key is configured;
+                  see components/dash/GoogleHeat. */}
+              {layer !== "results" && (
+                <>
+                  <MapToggle on={heat} onClick={() => setHeat((was) => !was)}>
+                    Heat
+                  </MapToggle>
+                  {googleAvailable && (
+                    <>
+                      <MapToggle
+                        on={basemap === "google"}
+                        onClick={() =>
+                          setBasemap((was) => (was === "google" ? "board" : "google"))
+                        }
+                      >
+                        Google
+                      </MapToggle>
+                      <MapToggle
+                        on={basemap === "satellite"}
+                        onClick={() =>
+                          setBasemap((was) => (was === "satellite" ? "board" : "satellite"))
+                        }
+                      >
+                        Satellite
+                      </MapToggle>
+                    </>
+                  )}
+                </>
+              )}
+              <span className="pl-1 text-[0.75rem] text-white/45">
+                {level === "ward" ? "Polling units" : `Tap a ${unitWord(level, true)}`}
+              </span>
+            </div>
           </nav>
 
           <div className="relative min-h-0 flex-1 p-1.5">
@@ -1284,7 +1382,12 @@ export default function SituationRoom({
               </p>
             )}
 
-            {mapShapes ? (
+            {basemap !== "board" && layer !== "results" && heatPoints.length ? (
+              /* Somebody else's ground under our own figures. Nothing is
+                 computed differently here; the points are the ones the layer
+                 above draws. */
+              <GoogleHeat points={heatPoints} satellite={basemap === "satellite"} />
+            ) : mapShapes ? (
               <ScopeMap
                 level={level}
                 shapes={mapShapes}
@@ -1296,10 +1399,65 @@ export default function SituationRoom({
                 onOpen={select}
                 incidentsByPlace={incidentsByPlace}
                 pulsing={level === "nation" && layer === "results" ? pulsing : null}
+                heat={heat && layer !== "results"}
+                heatTint={
+                  layer === "turnout"
+                    ? "var(--color-emerald-400)"
+                    : layer === "density"
+                      ? "var(--color-amber-400)"
+                      : "var(--color-red-500)"
+                }
+              />
+            ) : unitOutline ? (
+              /* ── WARDS AND BOOTHS, INSIDE THE PLACE THEY ARE IN ────────
+                  This was a grid of boxes, which claimed nothing and showed
+                  nothing: at the two levels where a room is actually deciding
+                  where to send somebody, the map stopped being a map. It is
+                  the local government's real outline now, with a tile for
+                  every place inside it and a plotted point for every booth
+                  that has reported where it is. What each of those two means
+                  is written across the foot of the frame. */
+              <UnitMap
+                outline={unitOutline}
+                parentLabel={lga?.name}
+                childWord={unitWord(level, true)}
+                tint={layer === "turnout" ? "var(--color-emerald-400)" : "var(--color-red-500)"}
+                hovered={hovered}
+                picked={picked}
+                onHover={setHovered}
+                onOpen={select}
+                rows={rows.map((row) => {
+                  /* ── A WARD IS COLOURED THE WAY A STATE IS ─────────────
+                     On the results layer these cells carry the party that
+                     carried them, in the same fill, with the same hatch on
+                     LP, as the choropleth two levels up. A reader who has
+                     learnt the country's colours does not have to learn a
+                     second language to read a booth. Grey stays what it is
+                     everywhere here: nobody has reported, never a low score.
+
+                     Every other layer is a magnitude, and a magnitude gets
+                     the single-hue ramp rather than a party colour it has
+                     nothing to do with. */
+                  const code = layer === "results" ? partyCode(row, slots) : null;
+
+                  return {
+                    key: row.key ?? row.name,
+                    name: row.name,
+                    value: magnitude(row, layer),
+                    note: describe(row, layer, slots),
+                    fix: row.fix ?? null,
+                    paint:
+                      layer !== "results"
+                        ? null
+                        : code
+                          ? { fill: partyFill(code, "unit", PARTY_FILL[code]), opacity: 1 }
+                          : { fill: "var(--color-silent)", opacity: 1 },
+                  };
+                })}
               />
             ) : (
-              /* Wards and polling units: no boundaries exist, so a grid, it
-                 claims nothing about geography and still answers the level. */
+              /* Only while a state's boundaries are still in flight: without
+                 an outline there is nothing to pack tiles into. */
               <div className="grid h-full grid-cols-2 content-start gap-2 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4">
                 {rows.map((row) => (
                   <button
@@ -1345,6 +1503,12 @@ export default function SituationRoom({
               tone={view.byState.some((row) => !row.reported) ? "warn" : "ok"}
             />
             <Readout label="Units" value={formatNumber(view.unitsReported)} />
+            {/* ── WHERE, IN DEGREES ────────────────────────────────────────
+                A room that is directing people to places needs the coordinate
+                of the place it is pointing at, and it needs to know whether
+                that coordinate was measured at a booth or is the centre of a
+                drawn shape. Both are printed here; the label says which. */}
+            {focusCoord && <Readout label={focusCoord.label} value={focusCoord.text} />}
             {/* Only on a live board. The replay has no accreditation figure
                 and a dash on the strip is better than a zero that reads as a
                 measurement somebody took. */}
@@ -1384,6 +1548,9 @@ export default function SituationRoom({
           <PartyBreakdown
             /* Only a presidential project has presidential candidates. */
             candidates={projects?.current?.kind === "PRESIDENTIAL"}
+            /* The board's own ballot, so a live count names ADC, APM, NDC and
+               everyone else who stood rather than folding them into "other". */
+            slots={slots}
             place={pickedRow?.name ?? crumbs.at(-1).label}
             level={pickedRow ? childWord(level) : levelWord(level)}
             row={
@@ -1637,6 +1804,31 @@ function Section({ title, foot, children }) {
  * shuffles is a strip nobody can read peripherally, and peripheral is the
  * only way anybody reads it during a count.
  */
+/**
+ * A switch on the instrument.
+ *
+ * Pill-shaped and on the map's own header rather than in a settings panel:
+ * these change what the map in front of you is drawing, so they belong where
+ * the reader is already looking. Pressed state is carried by `aria-pressed`
+ * as well as by colour, because "is the heat on" must be answerable without
+ * seeing the difference between two greys.
+ */
+function MapToggle({ on, onClick, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={on}
+      className={cn(
+        "rounded-full px-2.5 py-1 text-[0.75rem] font-semibold transition-colors",
+        on ? "bg-white text-ink-950" : "text-white/55 hover:bg-white/10 hover:text-white"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
 function Readout({ label, value, tone = "ink" }) {
   return (
     <span className="flex items-baseline gap-2">

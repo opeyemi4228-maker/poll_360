@@ -474,6 +474,9 @@ export default function PartyStrength({ shapes }) {
               here — the picked one if there is one, the level itself if not —
               and it goes all the way down to a single polling unit. */}
           <PartyBreakdown
+            /* The 2023 declared record, whose vote arrays are positional over
+               exactly these five slots. Nothing wider exists to pass. */
+            slots={allParties}
             place={pickedRow?.name ?? crumbs.at(-1).label}
             level={pickedRow ? childWord(level) : levelWord(level)}
             row={{
