@@ -5,6 +5,15 @@ import { ChevronRight, Download, Layers, Loader2, MapPin, RotateCcw, Target, Use
 
 import { PARTY_FILL } from "./Charts";
 import UnitMap from "./UnitMap";
+import {
+  SEP,
+  clearUnder,
+  costPlan,
+  isCovered,
+  pathKey,
+  statusOf as coverageStatus,
+  toggle as toggleMark,
+} from "@/lib/coverage";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { apportion, wardCount } from "@/lib/drill";
 import { FACTOR_ROWS } from "@/lib/forecast";
@@ -255,6 +264,18 @@ const TRIPLE_MS = 600;
  */
 const TAP_SLOP = 14;
 
+/**
+ * Ward and booth divisions, kept once.
+ *
+ * Module scope rather than a ref, because `apportion` is a pure function of a
+ * parent's figures and a seed string that is globally unique to the place —
+ * the same key always yields the same rows, so there is nothing per-instance
+ * about the answer and nothing that can go stale. It is also read while the
+ * plan is being costed, which is during render, and a ref read during render
+ * is a bug waiting for a reason.
+ */
+const SPLITS = new Map();
+
 export default function PlanningMap({ shapes }) {
   const [openState, setOpenState] = useState(null);
 
@@ -306,27 +327,26 @@ export default function PlanningMap({ shapes }) {
   const sequence = useRef({ code: null, count: 0, at: 0, x: null, y: null, snapshot: null });
 
   /**
-   * ── HOW A SELECTION IS KEYED, AND WHY IT HAS THREE FORMS ─────────────────
-   * A state is not a peer of its local governments, it *is* them. Picking Kano
-   * means all 44 of Kano's local governments, and the total has to say Kano
-   * once however many of its parts are also ticked.
+   * ── HOW A SELECTION IS HELD ───────────────────────────────────────────────
+   * A state is not a peer of its local governments, it *is* them, and the same
+   * is true of a ward and its booths. Picking Kano means all 44 of Kano's
+   * local governments, and the total has to say Kano once however many of its
+   * parts are also ticked.
    *
-   * The first version stored a whole state and its local governments as two
+   * An early version stored a whole state and its local governments as two
    * independent kinds of pick and added both. Taking Kano and then ticking
-   * three places inside Kano counted Kano's register once, and three
-   * forty-fourths of it a second time. Enough of that and the reach went past
+   * three places inside it counted Kano's register once and three
+   * forty-fourths of it a second time; enough of that and the reach went past
    * 100%, which is not a rounding problem, it is the model being wrong.
    *
-   *   "KAN"           the whole state
-   *   "KAN:Nassarawa" one local government, where the state is not taken whole
-   *   "KAN!Nassarawa" one local government carved OUT of a whole state
-   *
-   * The third form is what makes tapping inside a selected state do the only
-   * thing it can sensibly mean. The state is already covered, so the tap takes
-   * that place back out and the figures go down. Adding it again would be
-   * adding something you already have.
+   * The scheme that replaced it could only express two levels, which is what
+   * kept selection out of the wards and booths this map can now open. So the
+   * plan is a map of paths to marks — "+" takes a place and everything in it,
+   * "-" takes it back out of whatever contains it — and every figure on this
+   * screen is costed by walking it. That walk, and the proof that nothing is
+   * counted twice at any depth, is lib/coverage.js and tests/coverage.test.js.
    */
-  const [picked, setPicked] = useState(() => new Set());
+  const [picked, setPicked] = useState(() => new Map());
 
   /* Local government figures for every state opened so far. A carve-out has to
      be costed exactly, and the rows are only derivable while their state is
@@ -385,6 +405,90 @@ export default function PlanningMap({ shapes }) {
 
   const inState = openState !== null;
 
+  /**
+   * The wards of a local government, and the booths of a ward.
+   *
+   * Memoised because the plan asks for these while costing marks in places the
+   * reader has never opened — a booth carved out of Kano still has to be
+   * subtracted exactly — and `apportion` is a pure function of the parent's
+   * figures and a seed, so the answer is the same every time and worth
+   * keeping. The seed strings are the ones the drill has always used, so a
+   * ward costed here is the same ward drawn on the map.
+   */
+  const wardsOf = useCallback((code, row) => {
+    const key = `${code}:${row.name}`;
+    const held = SPLITS.get(key);
+    if (held) return held;
+    const rows = apportion({
+      names: Array.from({ length: wardCount(row.name) }, (_, index) =>
+        `Ward ${String(index + 1).padStart(2, "0")}`
+      ),
+      votes: row.votes,
+      booths: row.booths,
+      registered: row.registered,
+      parentKey: key,
+    });
+    SPLITS.set(key, rows);
+    return rows;
+  }, []);
+
+  const unitsOf = useCallback((code, lgaName, row) => {
+    const key = `${code}:${lgaName}:${row.name}`;
+    const held = SPLITS.get(key);
+    if (held) return held;
+    /* A ward has exactly as many polling units as it has booths, and each of
+       them is one booth. See the note where these are drawn. */
+    const count = Math.max(1, row.booths);
+    const rows = apportion({
+      names: Array.from({ length: count }, (_, index) => `PU ${String(index + 1).padStart(3, "0")}`),
+      votes: row.votes,
+      booths: count,
+      registered: row.registered,
+      parentKey: key,
+    }).map((unit) => ({ ...unit, booths: 1, density: unit.registered }));
+    SPLITS.set(key, rows);
+    return rows;
+  }, []);
+
+  /**
+   * What one place is worth on the chosen basis, and what it costs in booths.
+   *
+   * Null where it cannot be resolved — a local government inside a state whose
+   * boundaries have never been fetched has no row to read — and the cost walk
+   * treats null as nothing rather than as a guess. The one exception is a bare
+   * local government, which falls back to the state's own average, because
+   * that is a figure a planner can act on and its absence is not.
+   */
+  const figuresFor = useCallback(
+    (parts) => {
+      const [code, lgaName, wardName, unitName] = parts;
+      const state = byCode.get(code);
+      if (!state) return null;
+      if (parts.length === 1) return { value: basis.of(state), booths: state.booths };
+
+      const rows = lgaCache.get(code);
+      const lga = rows?.find((row) => row.name === lgaName);
+
+      if (!lga) {
+        if (parts.length !== 2) return null;
+        const share = Math.max(wardCount(code) * 2, 1);
+        return {
+          value: Math.round(basis.of(state) / share),
+          booths: Math.round(state.booths / share),
+        };
+      }
+      if (parts.length === 2) return { value: basis.of(lga), booths: lga.booths };
+
+      const ward = wardsOf(code, lga).find((row) => row.name === wardName);
+      if (!ward) return null;
+      if (parts.length === 3) return { value: basis.of(ward), booths: ward.booths };
+
+      const unit = unitsOf(code, lgaName, ward).find((row) => row.name === unitName);
+      return unit ? { value: basis.of(unit), booths: unit.booths } : null;
+    },
+    [byCode, lgaCache, basis, wardsOf, unitsOf]
+  );
+
   /* ── THE LEVEL, AND THE ROWS THAT BELONG TO IT ─────────────────────────
      Each one is divided out of the row above it on the same stable seed the
      rest of the product uses, so a ward is the same size every time anybody
@@ -397,52 +501,23 @@ export default function PlanningMap({ shapes }) {
     [openLga, lgaRows]
   );
 
-  const wardRows = useMemo(() => {
-    if (!lgaRow || !openState) return [];
-    return apportion({
-      names: Array.from({ length: wardCount(lgaRow.name) }, (_, index) =>
-        `Ward ${String(index + 1).padStart(2, "0")}`
-      ),
-      votes: lgaRow.votes,
-      booths: lgaRow.booths,
-      registered: lgaRow.registered,
-      parentKey: `${openState.code}:${lgaRow.name}`,
-    });
-  }, [lgaRow, openState]);
+  /* Drawn from the same divisions the plan is costed against, rather than
+     apportioned a second time here: two call sites dividing the same ward is
+     two chances for the map and the bill to disagree about what a ward is. */
+  const wardRows = useMemo(
+    () => (lgaRow && openState ? wardsOf(openState.code, lgaRow) : []),
+    [lgaRow, openState, wardsOf]
+  );
 
   const wardRow = useMemo(
     () => (openWard ? wardRows.find((row) => row.name === openWard) ?? null : null),
     [openWard, wardRows]
   );
 
-  const unitRows = useMemo(() => {
-    if (!wardRow || !openState || !openLga) return [];
-    const key = `${openState.code}:${openLga}:${wardRow.name}`;
-
-    /* ── A WARD HAS EXACTLY AS MANY UNITS AS IT HAS BOOTHS ────────────────
-       The generic drill draws a plausible unit count from the ward's name,
-       which is right when nothing better is known and wrong here: this screen
-       already holds the ward's booth count, and a polling unit *is* a booth.
-       Deriving the two independently produced a ward of 29 booths split into
-       26 units, and then apportioning 29 booths across those 26 rows gave
-       some of them none — a polling unit reporting "0 polling units", costed
-       at zero agents. The count comes from the booths, and each row is then
-       one booth, because that is what one is. */
-    const count = Math.max(1, wardRow.booths);
-
-    return apportion({
-      names: Array.from({ length: count }, (_, index) => `PU ${String(index + 1).padStart(3, "0")}`),
-      votes: wardRow.votes,
-      booths: count,
-      registered: wardRow.registered,
-      parentKey: key,
-    }).map((row) => ({
-      ...row,
-      booths: 1,
-      /* Voters per unit, at a unit, is its own register. */
-      density: row.registered,
-    }));
-  }, [wardRow, openState, openLga]);
+  const unitRows = useMemo(
+    () => (wardRow && openState && openLga ? unitsOf(openState.code, openLga, wardRow) : []),
+    [wardRow, openState, openLga, unitsOf]
+  );
 
   /* The outline everything below a local government is drawn inside: the
      local government's own real boundary. Wards have none published and a
@@ -469,85 +544,44 @@ export default function PlanningMap({ shapes }) {
 
   /* ---------------------------------------------------------------- totals */
   /**
-   * Every state contributes exactly once, and never more than itself.
+   * What the plan covers, and what it costs.
    *
-   * The plan is folded into one entry per state first, whole or a named set of
-   * parts, and only then costed. That ordering is the fix: by the time
-   * anything is added up, each state has a single answer for what is covered
-   * inside it, so there is no path left where a place can be counted twice.
+   * The walk itself is lib/coverage.js, which is where the guarantee lives
+   * that no place is counted twice however deep the marks go. This adds the
+   * two things that are about *this screen*: the local government count, which
+   * has to include the ones inside a state taken whole and are therefore not
+   * marked individually, and the clamp.
    */
   const plan = useMemo(() => {
-    const cover = new Map();
-    const entry = (code) => {
-      if (!cover.has(code)) cover.set(code, { whole: false, include: new Set(), exclude: new Set() });
-      return cover.get(code);
-    };
+    const cost = costPlan(picked, figuresFor);
 
-    for (const key of picked) {
-      if (key.includes("!")) entry(key.split("!")[0]).exclude.add(key.split("!")[1]);
-      else if (key.includes(":")) entry(key.split(":")[0]).include.add(key.split(":")[1]);
-      else entry(key).whole = true;
-    }
-
-    let value = 0;
-    let booths = 0;
-    let states = 0;
+    /* Local governments covered. A state taken whole covers all of its own,
+       which are not in the marks at all, so they are counted from the boundary
+       rows and the carved ones taken back off. Where a state has never been
+       opened its rows are unknown and it contributes what is marked. */
     let lgas = 0;
-
-    for (const [code, scope] of cover) {
-      const state = byCode.get(code);
-      if (!state) continue;
-      const rows = lgaCache.get(code);
-
-      if (scope.whole) {
-        value += basis.of(state);
-        booths += state.booths;
-        states += 1;
-        lgas += rows?.length ?? 0;
-
-        /* Carve-outs come straight back off the state's own figures, so a
-           state minus everything inside it lands at zero rather than at some
-           remainder an average left behind. */
-        for (const name of scope.exclude) {
-          const row = rows?.find((item) => item.name === name);
-          if (!row) continue;
-          value -= basis.of(row);
-          booths -= row.booths;
-          lgas -= 1;
-        }
-        continue;
-      }
-
-      /* Parts only. An exclusion with no whole state behind it is meaningless,
-         so it is ignored rather than allowed to subtract from a neighbour. */
-      if (!scope.include.size) continue;
-      states += 1;
-
-      for (const name of scope.include) {
+    for (const [key, mark] of picked) {
+      const parts = key.split(SEP);
+      if (parts.length === 1 && mark === "+") {
+        const rows = lgaCache.get(parts[0]);
+        if (!rows) continue;
+        lgas += rows.filter((row) => isCovered(picked, pathKey([parts[0], row.name]))).length;
+      } else if (parts.length === 2 && mark === "+" && !isCovered(picked, parts[0])) {
         lgas += 1;
-        const row = rows?.find((item) => item.name === name);
-        if (row) {
-          value += basis.of(row);
-          booths += row.booths;
-        } else {
-          /* Never opened, so cost it at the state's own average. */
-          const parts = Math.max(wardCount(code) * 2, 1);
-          value += Math.round(basis.of(state) / parts);
-          booths += Math.round(state.booths / parts);
-        }
       }
     }
 
     /* Guarding the arithmetic as well as the model. If these ever clamp, the
-       fold above has a hole in it and the figure on screen would be a lie. */
+       walk above has a hole in it and the figure on screen would be a lie. */
     const total = NATIONAL[basis.key] || 1;
-    value = Math.max(0, Math.min(value, total));
-    booths = Math.max(0, Math.min(booths, NATIONAL.booths));
+    const value = Math.max(0, Math.min(cost.value, total));
+    const booths = Math.max(0, Math.min(cost.booths, NATIONAL.booths));
 
     return {
-      cover,
-      states,
-      lgas: Math.max(0, lgas),
+      states: cost.states,
+      lgas,
+      wards: cost.wards,
+      units: cost.units,
       value,
       booths,
       /* One agent per booth is the product's own rule: seatsPerUnit is 1. */
@@ -555,85 +589,92 @@ export default function PlanningMap({ shapes }) {
       reach: (value / total) * 100,
       boothShare: (booths / NATIONAL.booths) * 100,
     };
-  }, [picked, byCode, lgaCache, basis]);
+  }, [picked, figuresFor, lgaCache, basis]);
 
   /* ------------------------------------------------------------- shortlist */
   /** The places not yet covered, ranked by the chosen lens. */
+  /**
+   * The plan as a list, one line per state.
+   *
+   * Built from the marks rather than kept alongside them, so what the panel
+   * says and what the totals cost can never be two different plans. The
+   * detail line counts marks by depth, because "whole state" and "whole
+   * state, less two wards" are different plans and a reader about to spend
+   * money on agents is entitled to see which one they have.
+   */
+  const summary = useMemo(() => {
+    const byState = new Map();
+
+    for (const [key, mark] of picked) {
+      const parts = key.split(SEP);
+      const code = parts[0];
+      if (!byState.has(code)) {
+        byState.set(code, { code, whole: false, added: [], removed: [] });
+      }
+      const entry = byState.get(code);
+      if (parts.length === 1) entry.whole = mark === "+";
+      else (mark === "+" ? entry.added : entry.removed).push(parts);
+    }
+
+    const word = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+
+    return [...byState.values()]
+      .filter((entry) => entry.whole || entry.added.length)
+      .sort((a, b) => (byCode.get(a.code)?.name ?? "").localeCompare(byCode.get(b.code)?.name ?? ""))
+      .map((entry) => {
+        const depth = (list, at) => list.filter((parts) => parts.length === at).length;
+        const holes = [
+          depth(entry.removed, 2) && word(depth(entry.removed, 2), "local government", "local governments"),
+          depth(entry.removed, 3) && word(depth(entry.removed, 3), "ward", "wards"),
+          depth(entry.removed, 4) && word(depth(entry.removed, 4), "polling unit", "polling units"),
+        ].filter(Boolean);
+
+        const parts = [
+          depth(entry.added, 2) && word(depth(entry.added, 2), "local government", "local governments"),
+          depth(entry.added, 3) && word(depth(entry.added, 3), "ward", "wards"),
+          depth(entry.added, 4) && word(depth(entry.added, 4), "polling unit", "polling units"),
+        ].filter(Boolean);
+
+        return {
+          ...entry,
+          detail: entry.whole
+            ? holes.length
+              ? `whole state, less ${holes.join(", ")}`
+              : "whole state"
+            : parts.join(", "),
+          exact: entry.whole && !holes.length,
+        };
+      });
+  }, [picked, byCode]);
+
   const shortlist = useMemo(() => {
-    const scope = plan.cover;
     return states2023
-      .filter((state) => {
-        const held = scope.get(state.code);
-        return !held || (!held.whole && !held.include.size);
-      })
+      .filter((state) => coverageStatus(picked, state.code) === "none")
       .map((state) => ({ state, score: lens.score(state, basis), note: lens.show(state, basis) }))
       .sort((a, b) => b.score - a.score)
       .slice(0, 6);
-  }, [plan.cover, lens, basis]);
+  }, [picked, lens, basis]);
 
   /* ------------------------------------------------------------- gestures */
   /** Taking or dropping a whole state, and clearing whatever was set inside it. */
-  const toggleState = (code) =>
-    setPicked((current) => {
-      const next = new Set(current);
-      const had = next.has(code);
-      /* Either direction wipes the parts. Dropping a state must not leave
-         carve-outs behind to reappear next time it is taken, and taking one
-         must not leave individual ticks that now mean nothing. */
-      for (const key of [...next]) {
-        if (key.startsWith(`${code}:`) || key.startsWith(`${code}!`)) next.delete(key);
-      }
-      if (had) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-
   /**
-   * Taking or dropping one local government.
+   * Taking a place, or taking it back out, at any depth.
    *
-   * Inside a state already taken whole this carves the place out instead of
-   * adding it, because you cannot add what you already have. That is the
-   * behaviour the arithmetic depends on, and it is the only reading of the
-   * gesture that leaves the reader in control: tap to remove, tap to put back.
+   * One gesture for a state, a local government, a ward and a booth, because
+   * they are one gesture: tap a place nothing covers and it is added, tap a
+   * place something already covers and it is carved out, tap it again and the
+   * mark is lifted. Which of those a tap means is worked out from the marks
+   * rather than from which level the reader happens to be standing on.
    */
-  const toggleLga = (code, name) =>
-    setPicked((current) => {
-      const next = new Set(current);
-      const whole = next.has(code);
-      const key = `${code}${whole ? "!" : ":"}${name}`;
-
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-
-      /* Carving out the last place leaves a state covering nothing, so it
-         stops being selected at all rather than sitting at zero. */
-      if (whole) {
-        const rows = lgaCache.get(code);
-        const carved = [...next].filter((item) => item.startsWith(`${code}!`)).length;
-        if (rows && carved >= rows.length) {
-          for (const item of [...next]) {
-            if (item === code || item.startsWith(`${code}!`)) next.delete(item);
-          }
-        }
-      }
-
-      return next;
-    });
+  const take = useCallback((parts) => {
+    setPicked((current) => toggleMark(current, pathKey(parts)));
+  }, []);
 
   /** Is this place counted in the plan right now? */
-  const isPicked = (key) => {
-    if (!key.includes(":")) return picked.has(key);
-    const [code, name] = key.split(":");
-    /* Inside a whole state everything counts except what has been carved out. */
-    if (picked.has(code)) return !picked.has(`${code}!${name}`);
-    return picked.has(key);
-  };
+  const isPicked = (key) => isCovered(picked, key);
 
-  /** Some of this state is covered, but not the whole of it. */
-  const statePartly = (code) =>
-    picked.has(code)
-      ? [...picked].some((key) => key.startsWith(`${code}!`))
-      : [...picked].some((key) => key.startsWith(`${code}:`));
+  /** Some of this place is covered, but not the whole of it. */
+  const partlyCovered = (key) => coverageStatus(picked, key) === "partly";
 
   /* ------------------------------------------------------- the third tap */
 
@@ -644,18 +685,28 @@ export default function PlanningMap({ shapes }) {
    * longer in the plan is not a state anybody is still working inside, and
    * leaving the frame zoomed into it would say otherwise.
    */
-  const dropState = useCallback((code) => {
+  const dropAt = useCallback((key) => {
     const held = sequence.current.snapshot;
-    setPicked(() => {
-      const next = new Set(held ?? []);
-      for (const key of [...next]) {
-        if (key === code || key.startsWith(`${code}:`) || key.startsWith(`${code}!`)) {
-          next.delete(key);
-        }
-      }
-      return next;
-    });
-    setOpenState((current) => (current?.code === code ? null : current));
+    /* Restore the plan as it stood before the first tap, then remove this
+       place and everything marked inside it. Undoing a gesture has to undo all
+       of it, including whatever tap two did on the way past. */
+    setPicked(() => clearUnder(new Map(held ?? []), key));
+
+    /* And come back out of it. A place that is no longer in the plan is not a
+       place anybody is still working inside, and leaving the frame zoomed into
+       it would say otherwise. */
+    const parts = key.split(SEP);
+    if (parts.length === 1) {
+      setOpenState((current) => (current?.code === key ? null : current));
+      setOpenLga(null);
+      setOpenWard(null);
+    } else if (parts.length === 2) {
+      setOpenLga((current) => (current === parts[1] ? null : current));
+      setOpenWard(null);
+    } else if (parts.length === 3) {
+      setOpenWard((current) => (current === parts[2] ? null : current));
+    }
+
     sequence.current = { code: null, count: 0, at: 0, x: null, y: null, snapshot: null };
   }, []);
 
@@ -690,7 +741,7 @@ export default function PlanningMap({ shapes }) {
       run.count = 1;
       /* Captured before the first tap changes anything, which is what makes
          the third tap able to put the plan back exactly as it was. */
-      run.snapshot = new Set(picked);
+      run.snapshot = new Map(picked);
     }
 
     run.at = event.timeStamp;
@@ -716,12 +767,12 @@ export default function PlanningMap({ shapes }) {
     (key) => {
       if (!key) return null;
 
-      if (key.includes(":")) {
+      if (key.includes(SEP)) {
         /* "KAN:Bagwai", "KAN:Bagwai:Ward 03", "KAN:Bagwai:Ward 03:PU 007" —
            two, three or four rungs, and the depth decides which set of rows
            holds the answer. Everything below a state is apportioned, so all
            three carry `estimate`. */
-        const parts = key.split(":");
+        const parts = key.split(SEP);
         const [code, lgaName, wardName, unitName] = parts;
         const state = byCode.get(code);
         if (!state) return null;
@@ -780,20 +831,7 @@ export default function PlanningMap({ shapes }) {
   );
 
   /** Where this place stands in the plan, in one word the readout can print. */
-  const statusOf = (key) => {
-    if (!key) return "none";
-    if (key.includes(":")) {
-      /* A ward and a booth are covered exactly when the local government they
-         sit in is, so a deeper key answers with its local government's status
-         rather than looking for a pick that cannot exist. Selection stops at
-         a local government; see the note on the open state. */
-      const [code, name] = key.split(":");
-      if (picked.has(code)) return picked.has(`${code}!${name}`) ? "carved" : "covered";
-      return picked.has(key) ? "chosen" : "none";
-    }
-    if (picked.has(key)) return statePartly(key) ? "partly" : "chosen";
-    return statePartly(key) ? "partly" : "none";
-  };
+  const statusOf = (key) => coverageStatus(picked, key);
 
   /**
    * What the side panel is describing right now.
@@ -813,31 +851,42 @@ export default function PlanningMap({ shapes }) {
   );
 
   /**
-   * The plan as a file, written from the same fold the totals use, so the
-   * export and the screen can never disagree about what is covered.
+   * The plan as a file, written from the same marks the totals are costed
+   * from, so the export and the screen can never disagree about what is
+   * covered.
+   *
+   * One row per mark, at whatever depth it was made, with the word that says
+   * whether it adds or removes. A plan that reads "Kano, whole" and then "Ward
+   * 03, removed" is a plan somebody else can check line by line — which is the
+   * only reason to export anything in this product.
    */
   const exportPlan = () => {
-    const lines = [`scope,state,local government,${basis.short.toLowerCase()},booths`];
+    const lines = [
+      `scope,state,local government,ward,polling unit,${basis.short.toLowerCase()},booths`,
+    ];
 
-    for (const [code, scope] of [...plan.cover.entries()].sort()) {
-      const state = byCode.get(code);
+    const WORD = { 1: "State", 2: "Local government", 3: "Ward", 4: "Polling unit" };
+    const cell = (value) => (value ? `"${String(value).replace(/"/g, '""')}"` : "");
+
+    for (const key of [...picked.keys()].sort()) {
+      const parts = key.split(SEP);
+      const state = byCode.get(parts[0]);
       if (!state) continue;
-      const rows = lgaCache.get(code);
-      const figures = (name) => {
-        const row = rows?.find((item) => item.name === name);
-        return row ? `${basis.of(row)},${row.booths}` : ",";
-      };
 
-      if (scope.whole) {
-        lines.push(`State,${state.name},,${basis.of(state)},${state.booths}`);
-        for (const name of [...scope.exclude].sort()) {
-          lines.push(`Excluded,${state.name},"${name}",${figures(name)}`);
-        }
-        continue;
-      }
-      for (const name of [...scope.include].sort()) {
-        lines.push(`LGA,${state.name},"${name}",${figures(name)}`);
-      }
+      const own = figuresFor(parts);
+      const [, lgaName, wardName, unitName] = parts;
+
+      lines.push(
+        [
+          `${WORD[parts.length]}${picked.get(key) === "-" ? " removed" : ""}`,
+          cell(state.name),
+          cell(lgaName),
+          cell(wardName),
+          cell(unitName),
+          own ? own.value : "",
+          own ? own.booths : "",
+        ].join(",")
+      );
     }
 
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
@@ -898,11 +947,11 @@ export default function PlanningMap({ shapes }) {
           )}
           <span className="ml-auto text-[0.75rem] text-white/45">
             {level === "ward"
-              ? "Polling units, costed at one agent each"
+              ? "Tap a polling unit to take it, or to take it back out"
               : level === "lga"
-                ? "Tap a ward to open its polling units"
+                ? "Tap a ward to settle it · twice to open its polling units"
                 : inState
-                  ? picked.has(openState.code)
+                  ? isPicked(openState.code)
                     ? "Tap to take a local government out · twice to open it"
                     : "Tap to add a local government · twice to open it"
                   : "Tap to add, twice to open, three times to take it back out"}
@@ -960,19 +1009,76 @@ export default function PlanningMap({ shapes }) {
               outline={lgaOutline}
               parentLabel={openLga}
               childWord={level === "lga" ? "ward" : "polling unit"}
-              rows={(level === "lga" ? wardRows : unitRows).map((row) => ({
-                key:
+              rows={(level === "lga" ? wardRows : unitRows).map((row) => {
+                const path =
                   level === "lga"
-                    ? `${openState.code}:${openLga}:${row.name}`
-                    : `${openState.code}:${openLga}:${openWard}:${row.name}`,
-                name: row.name,
-                value: basis.of(row),
-                note: `${formatNumber(basis.of(row))} ${basis.unit} · ${formatNumber(row.booths)} booths`,
-                fix: null,
-              }))}
+                    ? [openState.code, openLga, row.name]
+                    : [openState.code, openLga, openWard, row.name];
+                const key = pathKey(path);
+                const state = statusOf(key);
+
+                return {
+                  key,
+                  path,
+                  name: row.name,
+                  value: basis.of(row),
+                  note: `${formatNumber(basis.of(row))} ${basis.unit} · ${formatNumber(row.booths)} ${
+                    row.booths === 1 ? "booth" : "booths"
+                  }`,
+                  fix: null,
+                  /* ── WHAT IS IN THE PLAN, AT THIS DEPTH ─────────────────
+                     Covered places are red, the same red a chosen state is
+                     painted on the country map; a place carved out of one goes
+                     nearly dark, because "taken out" has to look different
+                     from "never taken". Everything else keeps the size ramp,
+                     which is what a planner is reading the map for. */
+                  paint:
+                    state === "chosen" || state === "covered"
+                      ? { fill: "var(--color-red-500)", opacity: 0.92 }
+                      : state === "partly"
+                        ? { fill: "var(--color-red-500)", opacity: 0.5 }
+                        : state === "carved"
+                          ? { fill: "#ffffff", opacity: 0.06 }
+                          : null,
+                };
+              })}
               hovered={hovered}
               onHover={setHovered}
-              onOpen={(row) => level === "lga" && setOpenWard(row.name.split(":").at(-1))}
+              onOpen={(row, event) => {
+                /* ── ONE GESTURE, EVERY LEVEL ──────────────────────────────
+                   Tap settles a place, a second tap opens it, a third takes it
+                   back out and undoes the two before it — the same three taps
+                   that work on a state, because a reader who has learnt them
+                   on the country map should not have to learn anything else
+                   further down. A polling unit has nothing inside it to open,
+                   so there every tap simply settles it. */
+                /* ── THE THIRD TAP, WHEREVER IT LANDS ──────────────────────
+                   The second tap opens the ward, so the third arrives on a
+                   booth inside it rather than on the ward it was aimed at.
+                   Keying the sequence on the ward being worked in, exactly as
+                   the country map keys it on the open state, is what lets one
+                   gesture start on a ward and finish on a polling unit without
+                   the taps in between leaving anything behind. */
+                const key =
+                  level === "lga" ? row.key : pathKey([openState.code, openLga, openWard]);
+                const tap = event ? countTap(key, event) : 1;
+
+                if (tap >= 3) {
+                  dropAt(key);
+                  return;
+                }
+                if (level === "lga") {
+                  if (tap === 2) {
+                    setOpenWard(row.name);
+                    return;
+                  }
+                  take(row.path);
+                  return;
+                }
+                /* A polling unit has nothing inside it to open, so every tap
+                   on one simply settles it. */
+                take(row.path);
+              }}
             />
           ) : (
           <svg
@@ -1014,11 +1120,11 @@ export default function PlanningMap({ shapes }) {
             />
 
             {list.map((shape) => {
-              const key = inState ? `${openState.code}:${shape.name}` : shape.code;
+              const path = inState ? [openState.code, shape.name] : [shape.code];
+              const key = pathKey(path);
               const chosen = isPicked(key);
-              const carved =
-                inState && picked.has(openState.code) && picked.has(`${openState.code}!${shape.name}`);
-              const partly = !inState && statePartly(shape.code);
+              const carved = statusOf(key) === "carved";
+              const partly = partlyCovered(key);
               const active = hovered === key;
               const unit = frame.width / 1000;
 
@@ -1052,32 +1158,29 @@ export default function PlanningMap({ shapes }) {
                     const tap = countTap(code, event);
 
                     if (tap >= 3) {
-                      dropState(code);
+                      dropAt(code);
                       return;
                     }
 
                     if (inState) {
                       /* Same gesture as a state one level up: the first tap
-                         takes the place, the second opens it. Learning one
+                         settles the place, the second opens it. Learning one
                          rule for the country and a different one inside it is
                          how a reader stops trusting the map. */
-                      const held = picked.has(openState.code)
-                        ? picked.has(`${openState.code}!${shape.name}`)
-                        : picked.has(`${openState.code}:${shape.name}`);
-                      if (held) {
+                      if (picked.has(key)) {
                         setOpenLga(shape.name);
                         return;
                       }
-                      toggleLga(openState.code, shape.name);
+                      take(path);
                       return;
                     }
-                    if (chosen) {
-                      /* Second tap on a chosen state opens it, so one gesture
+                    if (picked.has(key)) {
+                      /* Second tap on a settled state opens it, so one gesture
                          covers both "take the whole state" and "take part". */
                       setOpenState({ code: shape.code, name: shape.name });
                       return;
                     }
-                    toggleState(shape.code);
+                    take(path);
                   }}
                   role="button"
                   tabIndex={0}
@@ -1290,7 +1393,7 @@ export default function PlanningMap({ shapes }) {
                 <li key={state.code}>
                   <button
                     type="button"
-                    onClick={() => toggleState(state.code)}
+                    onClick={() => take([state.code])}
                     onMouseEnter={() => setHovered(state.code)}
                     onMouseLeave={() => setHovered(null)}
                     className="flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors hover:bg-dash-bg"
@@ -1324,51 +1427,39 @@ export default function PlanningMap({ shapes }) {
             </span>
           </header>
 
-          {plan.cover.size === 0 ? (
+          {summary.length === 0 ? (
             <p className="px-4 py-8 text-center text-[0.875rem] leading-relaxed text-dash-muted">
               Nothing chosen yet. Tap a state to add it whole, or tap it twice to open it and take
-              only the local governments you want.
+              only the local governments, wards or booths you want.
             </p>
           ) : (
             <ul className="divide-y divide-dash-line">
-              {[...plan.cover.entries()]
-                .sort()
-                .filter(([, scope]) => scope.whole || scope.include.size)
-                .map(([code, scope]) => {
-                  const state = byCode.get(code);
-                  const detail = scope.whole
-                    ? scope.exclude.size
-                      ? `whole state, less ${scope.exclude.size} local ${scope.exclude.size === 1 ? "government" : "governments"}`
-                      : "whole state"
-                    : `${scope.include.size} local ${scope.include.size === 1 ? "government" : "governments"}`;
-
-                  return (
-                    <li key={code}>
-                      <button
-                        type="button"
-                        onClick={() => toggleState(code)}
-                        onMouseEnter={() => setHovered(code)}
-                        onMouseLeave={() => setHovered(null)}
-                        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-dash-bg"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            "size-2.5 shrink-0 rounded-full",
-                            scope.whole && !scope.exclude.size ? "bg-red-500" : "bg-red-900"
-                          )}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[0.8125rem] font-semibold text-dash-ink">
-                            {state?.name ?? code}
-                          </span>
-                          <span className="block text-[0.6875rem] text-dash-muted">{detail}</span>
-                        </span>
-                        <span className="shrink-0 text-[0.6875rem] text-dash-muted">remove</span>
-                      </button>
-                    </li>
-                  );
-                })}
+              {summary.map((entry) => (
+                <li key={entry.code}>
+                  <button
+                    type="button"
+                    onClick={() => setPicked((current) => clearUnder(current, entry.code))}
+                    onMouseEnter={() => setHovered(entry.code)}
+                    onMouseLeave={() => setHovered(null)}
+                    className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-dash-bg"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "size-2.5 shrink-0 rounded-full",
+                        entry.exact ? "bg-red-500" : "bg-red-900"
+                      )}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[0.8125rem] font-semibold text-dash-ink">
+                        {byCode.get(entry.code)?.name ?? entry.code}
+                      </span>
+                      <span className="block text-[0.6875rem] text-dash-muted">{entry.detail}</span>
+                    </span>
+                    <span className="shrink-0 text-[0.6875rem] text-dash-muted">remove</span>
+                  </button>
+                </li>
+              ))}
             </ul>
           )}
 
@@ -1376,7 +1467,7 @@ export default function PlanningMap({ shapes }) {
             <button
               type="button"
               onClick={exportPlan}
-              disabled={plan.cover.size === 0}
+              disabled={summary.length === 0}
               className="flex flex-1 items-center justify-center gap-2 rounded-dash-sm bg-dash-ink px-3 py-2.5 text-[0.8125rem] font-bold text-white transition-colors hover:bg-red-600 disabled:opacity-40"
             >
               <Download size={14} strokeWidth={2.5} />
@@ -1384,8 +1475,8 @@ export default function PlanningMap({ shapes }) {
             </button>
             <button
               type="button"
-              onClick={() => setPicked(new Set())}
-              disabled={plan.cover.size === 0}
+              onClick={() => setPicked(new Map())}
+              disabled={summary.length === 0}
               aria-label="Clear the plan"
               className="inline-flex size-10 items-center justify-center rounded-dash-sm border border-dash-line text-dash-ink transition-colors hover:border-dash-ink disabled:opacity-40"
             >

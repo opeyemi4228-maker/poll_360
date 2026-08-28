@@ -325,11 +325,15 @@ export default function UnitMap({
                 className="cursor-pointer focus:outline-none"
                 onPointerEnter={() => onHover?.(row.key)}
                 onFocus={() => onHover?.(row.key)}
-                onClick={() => onOpen?.(row)}
+                /* The event travels with the row: the map above counts taps
+                   to tell "settle" from "open" from "take back out", and it
+                   cannot do that without knowing when and where each one
+                   landed. See countTap in PlanningMap. */
+                onClick={(event) => onOpen?.(row, event)}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  onOpen?.(row);
+                  onOpen?.(row, event);
                 }}
               />
             );
