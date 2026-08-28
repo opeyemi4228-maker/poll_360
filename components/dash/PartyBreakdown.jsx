@@ -87,7 +87,7 @@ export default function PartyBreakdown({
   }
 
   return (
-    <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
+    <section className="@container overflow-hidden rounded-dash border border-dash-line bg-dash-card">
       {/* ------------------------------------------------------------ head */}
       <header className="border-b border-dash-line px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
@@ -187,7 +187,14 @@ export default function PartyBreakdown({
       </ul>
 
       {/* ------------------------------------------------- the arithmetic */}
-      <dl className="grid grid-cols-2 gap-px border-t border-dash-line bg-dash-line sm:grid-cols-4">
+      {/* ── FOUR ACROSS ONLY WHERE FOUR FIT ──────────────────────────────
+          This was `sm:grid-cols-4`, which asks the *viewport* whether there is
+          room and then draws four columns inside a 21rem panel on a 1600px
+          screen. Each cell got about five and a half rem, and the national
+          register — 89,284,124 — printed as "89,284,1". A truncated total is
+          not a smaller total, it is a wrong one. The question is how wide this
+          card is, not how wide the screen is, so it is asked of the container. */}
+      <dl className="grid grid-cols-2 gap-px border-t border-dash-line bg-dash-line @md:grid-cols-4">
         <Cell label="Votes" value={formatNumber(total)} />
         <Cell label="Register" value={formatNumber(row.registered ?? 0)} />
         <Cell label="Turnout" value={formatShare(row.turnout ?? 0)} />

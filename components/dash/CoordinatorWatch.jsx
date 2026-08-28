@@ -70,9 +70,9 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
   const active = hovered ? coordinators.find((row) => row.id === hovered) : null;
 
   return (
-    <div className="grid gap-3 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[minmax(0,1fr)_21rem]">
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
       {/* --------------------------------------------------------- the map */}
-      <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:min-h-0">
+      <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-board-line px-4 py-2.5">
           {[
             ["all", "Everyone"],

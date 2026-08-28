@@ -81,10 +81,14 @@ const TAB_GROUPS = [
       { value: "results", label: "Results" },
       { value: "register", label: "Voters" },
       { value: "turnout", label: "Turnout" },
-      /* Accreditation is the earliest hard figure of the night: it is known
-         at every booth before a single ballot is counted, so this layer has
-         something to draw hours before the results layer does. */
-      { value: "accredited", label: "Accredited" },
+      /* ── NO ACCREDITATION LAYER ──────────────────────────────────────
+         It was the earliest hard figure of the night and it drew a map of
+         almost nothing: the replay carries no accreditation column at all,
+         so every shape on it was an em dash until our own returns started
+         landing. A layer that is empty on the surface most people open is a
+         layer that teaches them the map is broken. The figure itself has not
+         gone anywhere — it is on the telemetry strip whenever the board is
+         live, and every return still files it. */
       { value: "density", label: "Clusters" },
       /* Not a fifth layer on the map. It is the same count seen against the
          commission's, which is the one question this room is given that the
@@ -135,7 +139,7 @@ const TAB_GROUPS = [
 
 const TABS = TAB_GROUPS.flatMap((group) => group.tabs.map((tab) => ({ ...tab, group: group.id })));
 
-const MAP_LAYERS = new Set(["results", "register", "turnout", "accredited", "density"]);
+const MAP_LAYERS = new Set(["results", "register", "turnout", "density"]);
 
 /**
  * Arriving here from the rail, pointed at one view.
@@ -1215,16 +1219,23 @@ export default function SituationRoom({
           all evening. If the page scrolls as one document, every one of those
           pushes the map off screen and the reader has to hunt for it again.
 
-          So on a desktop this region is exactly the height of what is left of
-          the viewport, and each column scrolls inside itself. The map is
-          always where it was a second ago, whatever the column beside it is
-          doing. That is worth more than seeing one extra row without
-          scrolling: re-finding a thing you were just looking at costs far more
-          attention than reaching for it deliberately.
+          The first attempt at that was a fixed-height region with a scrollbar
+          inside each column, and it was wrong in one specific way: the region
+          began below the figures, so scrolling the *page* — which is what a
+          wheel does when the pointer is anywhere else, and what every browser
+          does on a keyboard PageDown — still carried the map up and off. The
+          map only held still if you were already careful where you pointed.
+
+          It is pinned now instead. The map is stuck to the top of the
+          viewport, under the bar, at exactly the height of what is left of the
+          screen; the column beside it is ordinary page flow and scrolls the
+          ordinary way. Scroll anywhere, by any means, and the map stays where
+          it was. `--dash-top` is the bar's measured height, published by
+          TopShell, because the bar is not the same height on every screen.
 
           Below xl it stacks and the page scrolls normally, because on a phone
-          two independent scroll regions is a trap. */}
-      <div className="mt-3 grid gap-3 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[minmax(0,1fr)_21rem]">
+          a pinned half-screen map leaves nothing to read the figures in. */}
+      <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
         {/* ── THE ONE DARK OBJECT ON A LIGHT SHEET ─────────────────────────
             The panels are working surfaces and stay white. The map is the
             instrument, and it goes dark: a saturated fill reads far better
@@ -1232,7 +1243,7 @@ export default function SituationRoom({
             with the cards around it, and the eye lands here first because it
             is the only high-contrast object on the page. This is the same
             reason a trading desk is dark and its paperwork is not. */}
-        <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:min-h-0">
+        <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
           {/* Breadcrumb, inside the frame, you never leave the page, so this
               is the only thing that tells you how deep you are. */}
           <nav
@@ -1366,7 +1377,8 @@ export default function SituationRoom({
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+        {/* Ordinary flow: this column is what the page scroll is for now. */}
+        <div className="flex flex-col gap-4">
           {/* The contest, in full, for whatever is selected, every party,
               not just the one that is winning. */}
           <PartyBreakdown

@@ -743,9 +743,11 @@ export default function PlanningMap({ shapes }) {
   const list = inState ? (lgaShapes?.lgas ?? []) : shapes.states;
 
   return (
-    <div className="grid gap-3 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[minmax(0,1fr)_22rem]">
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
       {/* ------------------------------------------------------------- map */}
-      <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:min-h-0">
+      {/* Pinned under the bar rather than sized to a region that scrolled with
+          the page. See the same note in SituationRoom. */}
+      <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
         <nav className="flex flex-wrap items-center gap-1 border-b border-board-line px-4 py-2.5">
           <button
             type="button"
@@ -1008,7 +1010,7 @@ export default function PlanningMap({ shapes }) {
           So the column itself scrolls and the sections inside it are their own
           natural height. A panel that scrolls inside a panel that scrolls is
           two scrollbars competing for the same wheel, and the reader loses. */}
-      <div className="flex flex-col gap-3 xl:min-h-0 xl:overflow-y-auto">
+      <div className="flex flex-col gap-3">
         {/* ------------------------------------------------- what is under it */}
         <PlaceDetail
           detail={focus}

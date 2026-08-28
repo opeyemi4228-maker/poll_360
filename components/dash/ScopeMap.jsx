@@ -735,7 +735,6 @@ export const LABEL = {
   results: "who leads",
   register: "register reporting",
   turnout: "turnout so far",
-  accredited: "voters accredited",
   density: "votes per reporting unit",
 };
 
@@ -743,10 +742,6 @@ export const LABEL = {
 function calloutValue(row, layer, slots = allParties) {
   if (layer === "turnout") return formatShare(row.turnout ?? 0);
   if (layer === "register") return formatNumber(row.registered ?? 0);
-  /* An em dash rather than a zero: this board has no accreditation figure
-     for this place, which is a different fact from nobody being accredited. */
-  if (layer === "accredited")
-    return row.accredited == null ? "—" : formatNumber(row.accredited);
   if (layer === "density") return formatNumber(row.density ?? 0);
   const code = partyCode(row, slots);
   return code ? `${code} ${formatNumber(row.total ?? 0)}` : formatNumber(row.total ?? 0);
@@ -755,7 +750,6 @@ function calloutValue(row, layer, slots = allParties) {
 export function magnitude(row, layer) {
   if (layer === "register") return row.registered ?? 0;
   if (layer === "turnout") return row.turnout ?? 0;
-  if (layer === "accredited") return row.accredited ?? 0;
   if (layer === "density") return row.density ?? 0;
   return row.total ?? 0;
 }
@@ -771,15 +765,6 @@ export function describe(row, layer, slots = allParties) {
   if (layer === "register")
     return `${formatNumber(row.registered ?? 0)} of ${formatNumber(row.fullRegister ?? row.registered ?? 0)} reporting`;
   if (layer === "turnout") return `${formatShare(row.turnout ?? 0)} of the register in`;
-  if (layer === "accredited") {
-    if (row.accredited == null) return "No accreditation figure on this board";
-    const cast = row.total ?? 0;
-    /* Accredited beside what was actually counted, because the gap between
-       them is the interesting half. A place where far fewer ballots were
-       counted than voters accredited is either a lot of rejected papers or
-       something worth a phone call, and neither is visible in a total. */
-    return `${formatNumber(row.accredited)} accredited · ${formatNumber(cast)} counted`;
-  }
   if (layer === "density") return `${formatNumber(row.density ?? 0)} votes per unit in`;
   const code = partyCode(row, slots);
   if (code) return `${code} leading · ${formatNumber(row.total)} votes`;
