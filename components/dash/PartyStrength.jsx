@@ -46,9 +46,16 @@ const RAMP = [0.14, 0.3, 0.5, 0.72, 1];
    are the tokens the dark board already uses everywhere else. */
 const PARTY_TOKEN = Object.fromEntries(allParties.map((item) => [item.id, item.token]));
 
-export default function PartyStrength({ shapes }) {
+export default function PartyStrength({ shapes, territory = null, ground = null }) {
   const [party, setParty] = useState("APC");
-  const [path, setPath] = useState([]);
+  /* A room that holds a ground opens inside it. There is no country above a
+     senatorial district that this account may read, so there is nowhere to
+     zoom out to and the trail starts at the state. */
+  const [path, setPath] = useState(() =>
+    territory?.stateCode
+      ? [{ code: territory.stateCode, name: territory.stateName ?? territory.name }]
+      : []
+  );
   const [boundaries, setBoundaries] = useState(null);
 
   /* The one place inside the current level the reader has asked about. It
@@ -72,9 +79,23 @@ export default function PartyStrength({ shapes }) {
    * different and far less useful question, and it does it silently: the
    * screen would look complete while showing one state.
    *
-   * So this one ignores scope by design, and says so on the trail.
+   * So this one ignores the PROJECT's scope by design, and says so on the
+   * trail.
+   *
+   * ── AND WHY AN ACCOUNT'S GROUND IS THE ONE EXCEPTION ─────────────────────
+   * The reasoning above is about a project — a contest being run — and it does
+   * not survive being applied to an account that may not read the rest of the
+   * country. "Where is this party strong" is still the question, but for a
+   * campaign holding seven local governments the useful answer is inside those
+   * seven, and the federal map is a screen full of places they cannot file
+   * from and will never be asked about. A ground is not a scope: it is the
+   * limit of what this account is permitted to see, and no screen gets to
+   * ignore it on the grounds of being more interesting.
    */
-  const inScope = states2023;
+  const inScope = useMemo(
+    () => (territory?.stateCode ? states2023.filter((row) => row.code === territory.stateCode) : states2023),
+    [territory]
+  );
 
   const [state, lga, ward] = path;
   const level = ["nation", "state", "lga", "ward"][path.length];
@@ -107,14 +128,19 @@ export default function PartyStrength({ shapes }) {
 
   const lgaRows = useMemo(() => {
     if (!stateRow || !lgaShapes?.lgas) return [];
+    /* Narrowed with everything else: an account holding a district must not be
+       shown its state's other sixteen local governments, here or on the map. */
+    const held = territory?.lgaNames?.length
+      ? lgaShapes.lgas.filter((row) => territory.lgaNames.includes(row.name))
+      : lgaShapes.lgas;
     return apportion({
-      names: lgaShapes.lgas.map((row) => row.name),
+      names: held.map((row) => row.name),
       votes: stateRow.votes,
       booths: stateRow.booths,
       registered: stateRow.registered,
       parentKey: stateRow.code,
     });
-  }, [stateRow, lgaShapes]);
+  }, [stateRow, lgaShapes, territory]);
 
   const wardRows = useMemo(() => {
     if (!lga) return [];
@@ -226,10 +252,20 @@ export default function PartyStrength({ shapes }) {
       .sort((a, b) => b.share - a.share);
   }, [level, inScope, index]);
 
-  /* ------------------------------------------------------------- the trail */
+  /* ------------------------------------------------------------- the trail
+     A narrowed room's trail starts at its own ground, and its root goes back
+     to the ground rather than to the country: "Nigeria" on a trail an account
+     may not open is a control that looks like "start again" and lands on
+     thirty-six states of nothing. */
+  const home = territory?.stateCode
+    ? { code: territory.stateCode, name: territory.stateName ?? territory.name }
+    : null;
+
   const crumbs = [
-    { label: "Nigeria", go: () => setPath([]) },
-    state && { label: state.name, go: () => setPath([state]) },
+    home
+      ? { label: ground ?? territory.name, go: () => setPath([home]) }
+      : { label: "Nigeria", go: () => setPath([]) },
+    !home && state && { label: state.name, go: () => setPath([state]) },
     lga && { label: lga.name, go: () => setPath([state, lga]) },
     ward && { label: ward.name, go: () => setPath([state, lga, ward]) },
   ].filter(Boolean);
@@ -255,8 +291,18 @@ export default function PartyStrength({ shapes }) {
 
   const pickedRow = picked ? children.find((row) => row.key === picked.key) ?? null : null;
 
+  /* The shapes follow the rows: a panel ranking three local governments beside
+     a map drawing twenty-one is two answers to one question. */
   const mapShapes =
-    level === "nation" ? shapes : level === "state" && lgaShapes ? { paths: lgaShapes.lgas } : null;
+    level === "nation"
+      ? shapes
+      : level === "state" && lgaShapes
+        ? {
+            paths: territory?.lgaNames?.length
+              ? lgaShapes.lgas.filter((row) => territory.lgaNames.includes(row.name))
+              : lgaShapes.lgas,
+          }
+        : null;
 
   const strongest = children[0];
   const weakest = children[children.length - 1];

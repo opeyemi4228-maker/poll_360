@@ -7,7 +7,8 @@ import { listElections } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { viewing } from "@/lib/viewing";
 import { lgasOf } from "@/lib/constituencies";
-import { RACES } from "@/lib/races";
+import { holdersOf, lastResultFor } from "@/lib/seats";
+import { RACES, raceLabel } from "@/lib/races";
 import { results, incidents, media, declared } from "@/lib/db";
 import { watch } from "@/lib/watch";
 import { gapReport } from "@/lib/gap-report";
@@ -62,7 +63,7 @@ export default async function RoomPage() {
      of the incidents above and cannot be asked for until those are known. */
   const [rawFeed, coordinators, divergence, declaredRows] = await Promise.all([
     incidents.recent(40, project?.id, territory),
-    watch.coordinators(project?.id, race),
+    watch.coordinators(project?.id, race, territory),
     /* The same function /gap builds its whole screen from. Two assemblers
        would mean the headline on this wall could disagree with the list on the
        drill-down, and the first time a room reads "3 impossible" here and
@@ -178,6 +179,20 @@ export default async function RoomPage() {
       ground={ground}
       racePinned={pinned}
       territoryUnresolved={unresolved}
+      /* ── THE SEAT THIS ROOM IS ABOUT ──────────────────────────────────
+         Who holds this ground in this contest, and what the last election
+         for it came to. Read on the server because the seat tables reach
+         lib/lga-names.js, which reads from disk — the same reason the local
+         government names above are resolved here. A room that is narrowed
+         shows this where an unnarrowed one shows the national ruling-party
+         map: 37 states is the right answer to a question a senatorial
+         campaign is not asking. */
+      seat={{
+        race,
+        raceLabel: raceLabel(race),
+        holders: holdersOf({ race, territory }),
+        result: lastResultFor({ race, territory }),
+      }}
       divergence={divergence}
       liveTree={tree}
       race={race}

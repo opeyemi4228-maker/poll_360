@@ -35,6 +35,7 @@ import { RoomVoiceProvider } from "./RoomVoice";
 import LiveRefresh from "./LiveRefresh";
 import RaceSwitcher from "./RaceSwitcher";
 import GroundBanner from "./GroundBanner";
+import SeatBrief from "./SeatBrief";
 import Sparkline from "./Sparkline";
 import { PARTY_FILL } from "./Charts";
 import { partyFill } from "@/lib/party-pattern";
@@ -242,6 +243,9 @@ export default function SituationRoom({
   ground = null,
   racePinned = false,
   territoryUnresolved = false,
+  /* Who holds this ground in this contest, and the last election for it.
+     Built on the server — see app/room/page.jsx. */
+  seat = null,
   /* Our count held against what was announced. Built on the server by
      lib/gap-report.js — the same function /gap uses, so the headline here and
      the list there can never disagree. */
@@ -1134,11 +1138,18 @@ export default function SituationRoom({
     () =>
       TAB_GROUPS.map((group) => ({
         ...group,
-        tabs: group.tabs.map((tab) =>
-          tab.value === "board" && cards.length ? { ...tab, badge: cards.length } : tab
-        ),
+        tabs: group.tabs.map((tab) => {
+          if (tab.value === "board" && cards.length) return { ...tab, badge: cards.length };
+          /* ── A TAB NAMED FOR WHAT IS UNDER IT ────────────────────────
+             "Ruling party" is the national map's name. In a narrowed room
+             the same tab holds this seat and the last election for it, and
+             calling that "Ruling party" would send somebody looking for a
+             map of the country. */
+          if (tab.value === "ruling" && territory) return { ...tab, label: "The seat" };
+          return tab;
+        }),
       })),
-    [cards.length]
+    [cards.length, territory]
   );
 
   return (
@@ -1168,16 +1179,26 @@ export default function SituationRoom({
             ? `${watchSummary.filed} of ${watchSummary.total} coordinators reporting`
             : layer === "analytics"
               ? `Projection under your assumptions, from the declared 2023 result${
-                  scopeStates?.length
-                    ? ` in ${scopeStates.length === 1 ? rootLabel : `these ${scopeStates.length} states`}`
-                    : ""
+                  territory
+                    ? ` in ${territory.stateName ?? ground}`
+                    : scopeStates?.length
+                      ? ` in ${scopeStates.length === 1 ? rootLabel : `these ${scopeStates.length} states`}`
+                      : ""
                 }`
               : layer === "parties"
-                ? "One party at a time, across all 37 states, down to a polling unit"
+                ? territory
+                  ? `One party at a time, across ${ground ?? territory.name}, down to a polling unit`
+                  : "One party at a time, across all 37 states, down to a polling unit"
                 : layer === "planning"
-                  ? "Choose the territory you can actually cover"
+                  ? territory
+                    ? `Choose what you can actually cover inside ${ground ?? territory.name}`
+                    : "Choose the territory you can actually cover"
                 : layer === "ruling"
-                  ? `${governing.moves.length} of 36 states changed hands without an election`
+                  ? territory && seat
+                    ? seat.result?.votes
+                      ? `The last ${seat.raceLabel.toLowerCase()} here, and who holds it now`
+                      : `Who holds this seat now. The last result is on record; its figures are not`
+                    : `${governing.moves.length} of 36 states changed hands without an election`
                   : layer === "declared"
                     ? divergence?.ready
                     ? `${formatNumber(divergence.compared)} place${divergence.compared === 1 ? "" : "s"} compared, ${formatNumber(divergence.places)} differing`
@@ -1235,28 +1256,61 @@ export default function SituationRoom({
           onRestore={keepCards}
         />
       ) : layer === "parties" ? (
-        /* No scope passed, deliberately: a party's spread is a fact about the
-           party across the whole federation, not about whichever contest is
-           open. See the note at the top of the component. */
-        <PartyStrength shapes={shapes} />
+        /* ── A PARTY'S SPREAD, INSIDE THE GROUND THAT IS BEING FOUGHT ────
+           This was national on purpose: a party's spread is a fact about the
+           party across the federation, not about whichever contest is open.
+           That reasoning holds for a room reading the whole country and fails
+           for one that holds seven local governments — for them the federal
+           picture is a true statement about somewhere else, and the question
+           they have is where this party is strong inside their own ground.
+           Unnarrowed rooms still get all 37. */
+        <PartyStrength shapes={shapes} territory={territory} ground={ground} />
       ) : layer === "analytics" ? (
         <Analytics
-          /* The contest, so every figure on that screen is about this
-             election rather than about the federation. */
-          scopeStates={scopeStates}
-          race={projects?.current?.kind ?? null}
-          title={projects?.current?.title ?? null}
+          /* ── THE CONTEST BEING READ, NOT THE PROJECT'S HEADLINE ──────────
+             This passed the project's `kind`, which is the contest a project
+             is named after and not the one on screen. An account pinned to
+             the senate inside a project titled for a governorship therefore
+             got the governorship's analytics — a different election, under
+             the right heading, with every figure correct.
+
+             And the ground rather than the project's scope, for the same
+             reason every other panel now takes it: a campaign in one state
+             does not want a projection over the six that project covers. */
+          scopeStates={territory?.stateCode ? [territory.stateCode] : scopeStates}
+          race={racePinned ? race : (projects?.current?.kind ?? null)}
+          title={territory?.stateName ?? (projects?.current?.title ?? null)}
+          ground={ground ?? territory?.name ?? null}
+          /* True when the account's seat is smaller than the state these
+             figures are recorded at — every contest below a governorship. */
+          subState={Boolean(territory) && !["NATION", "STATE"].includes(territory.level)}
         />
       ) : layer === "planning" ? (
-        <PlanningMap shapes={shapes} />
+        <PlanningMap shapes={shapes} territory={territory} ground={ground} />
       ) : layer === "ruling" ? (
-        <RulingParty
-          rows={governing.rows}
-          shapes={shapes}
-          fct={FCT}
-          seats={governing.seats}
-          moves={governing.moves}
-        />
+        /* ── THE SAME TAB, TWO DIFFERENT QUESTIONS ────────────────────────
+           An unnarrowed room asks "who governs the country", and the answer
+           is a map of 37 states. A room that holds a ground asks "who holds
+           this seat, and what did it take last time", and the 37-state map
+           is a true answer to somebody else's question. The tab is renamed
+           to match — see TAB_GROUPS. */
+        territory && seat ? (
+          <SeatBrief
+            race={seat.race}
+            raceLabel={seat.raceLabel}
+            ground={ground ?? territory.name}
+            holders={seat.holders}
+            result={seat.result}
+          />
+        ) : (
+          <RulingParty
+            rows={governing.rows}
+            shapes={shapes}
+            fct={FCT}
+            seats={governing.seats}
+            moves={governing.moves}
+          />
+        )
       ) : layer === "declared" ? (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_21rem]">
           <DivergencePanel report={divergence ?? { ready: false, flags: [], ourReturns: 0 }} />

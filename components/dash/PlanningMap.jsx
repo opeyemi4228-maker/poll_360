@@ -276,8 +276,32 @@ const TAP_SLOP = 14;
  */
 const SPLITS = new Map();
 
-export default function PlanningMap({ shapes }) {
-  const [openState, setOpenState] = useState(null);
+/**
+ * The shapes an account is allowed to plan over.
+ *
+ * Inside a state that is its own local governments, matched by name because
+ * the boundary files are keyed by name; above one it is the single state its
+ * ground sits in. An unnarrowed room gets everything, which is what `null`
+ * means everywhere else in this product.
+ */
+function withinGround(rows, inState, territory) {
+  if (!territory) return rows;
+  if (inState) {
+    return territory.lgaNames?.length
+      ? rows.filter((row) => territory.lgaNames.includes(row.name))
+      : rows;
+  }
+  return territory.stateCode ? rows.filter((row) => row.code === territory.stateCode) : rows;
+}
+
+export default function PlanningMap({ shapes, territory = null, ground = null }) {
+  /* ── A PLAN IS MADE INSIDE THE GROUND YOU HOLD ──────────────────────────
+     This screen opens on the country, which is right for a room reading the
+     federation and wrong for one that may not file outside seven local
+     governments: it would invite a campaign to cost agents into places its
+     own returns can never come from. A narrowed room opens on its own state
+     and is shown its own local governments and nothing else. */
+  const [openState, setOpenState] = useState(() => territory?.stateCode ?? null);
 
   /**
    * ── HOW FAR DOWN THE READER HAS WALKED ───────────────────────────────────
@@ -534,13 +558,13 @@ export default function PlanningMap({ shapes }) {
   }, [inState, shapes, lgaShapes]);
 
   const fits = useMemo(() => {
-    const shown = inState ? (lgaShapes?.lgas ?? []) : shapes.states;
+    const shown = withinGround(inState ? (lgaShapes?.lgas ?? []) : shapes.states, inState, territory);
     const map = new Map();
     for (const shape of shown) {
       map.set(shape.name, extentOf(shape.d).width > frame.width * 0.075);
     }
     return map;
-  }, [inState, lgaShapes, shapes, frame]);
+  }, [inState, lgaShapes, shapes, frame, territory]);
 
   /* ---------------------------------------------------------------- totals */
   /**
@@ -898,7 +922,7 @@ export default function PlanningMap({ shapes }) {
     URL.revokeObjectURL(url);
   };
 
-  const list = inState ? (lgaShapes?.lgas ?? []) : shapes.states;
+  const list = withinGround(inState ? (lgaShapes?.lgas ?? []) : shapes.states, inState, territory);
 
   return (
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
