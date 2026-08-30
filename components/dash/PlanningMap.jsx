@@ -212,8 +212,12 @@ function winnerOf(votes) {
  * it with the rest would let "other" outrank a party that actually stood, and
  * a reader scanning the second row would take an aggregate for a challenger.
  */
-function standings(votes = []) {
-  const total = votes.reduce((sum, value) => sum + (value ?? 0), 0);
+function standings(votes) {
+  /* Tolerant of null as well as undefined, because the caller now has a third
+     state: a ground whose own figures have not been derived yet. A default
+     parameter catches only `undefined`, and `null.reduce` is a blank screen. */
+  const list = Array.isArray(votes) ? votes : [];
+  const total = list.reduce((sum, value) => sum + (value ?? 0), 0);
 
   const rows = allParties.map((party, index) => ({
     id: party.id,
@@ -222,8 +226,8 @@ function standings(votes = []) {
     label: party.id === "OTH" ? "Others" : party.id,
     token: party.token,
     fill: PARTY_FILL[party.id] ?? PARTY_FILL.OTH,
-    votes: votes[index] ?? 0,
-    share: total ? ((votes[index] ?? 0) / total) * 100 : 0,
+    votes: list[index] ?? 0,
+    share: total ? ((list[index] ?? 0) / total) * 100 : 0,
   }));
 
   const named = rows.slice(0, parties.length).sort((a, b) => b.votes - a.votes);
@@ -300,8 +304,14 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
      federation and wrong for one that may not file outside seven local
      governments: it would invite a campaign to cost agents into places its
      own returns can never come from. A narrowed room opens on its own state
-     and is shown its own local governments and nothing else. */
-  const [openState, setOpenState] = useState(() => territory?.stateCode ?? null);
+     and is shown its own local governments and nothing else.
+
+     The shape rather than the code, because everything downstream reads
+     `openState.code` and `openState.name` off it — a bare string opens a
+     state whose boundaries never load and whose name is undefined. */
+  const [openState, setOpenState] = useState(() =>
+    territory?.stateCode ? (shapes.states.find((row) => row.code === territory.stateCode) ?? null) : null
+  );
 
   /**
    * ── HOW FAR DOWN THE READER HAS WALKED ───────────────────────────────────
@@ -429,6 +439,79 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
 
   const inState = openState !== null;
 
+  /* The state a narrowed plan lives in, and the only place its trail returns
+     to. Null for a room reading the whole federation, whose root is the
+     country and always was. */
+  const homeState = useMemo(
+    () =>
+      territory?.stateCode
+        ? (shapes.states.find((row) => row.code === territory.stateCode) ?? null)
+        : null,
+    [shapes, territory]
+  );
+
+  /**
+   * The whole of what this plan may cover.
+   *
+   * ══════════════════════════════════════════════════════════════════════
+   *  Every figure on the right-hand side of this screen is a share: "38% of
+   *  the register", "4,120 of 176,623 booths". A share is only a fact about
+   *  a plan if the denominator is the ground the plan is for.
+   *
+   *  It was the federation, always. So an Adamawa Central campaign selecting
+   *  every one of its seven local governments — a complete plan, every booth
+   *  in the district staffed — read 1.2% reach and 0.9% of booths, and the
+   *  progress bar sat almost empty. Those numbers are arithmetically correct
+   *  and they answer "what fraction of Nigeria is this", which is a question
+   *  nobody planning a senatorial district has ever asked. A complete plan
+   *  must read as a complete plan.
+   *
+   *  ── AND WHY IT CAN BE NULL ───────────────────────────────────────────
+   *  Below a state the ground's total is the sum of its local governments,
+   *  and those figures only exist once the state's boundary file has landed
+   *  — the same apportionment the rest of this screen costs marks against.
+   *  Until then there is no honest denominator, so there is none: the panel
+   *  prints an em dash for a second rather than a percentage of the wrong
+   *  whole that silently corrects itself afterwards.
+   * ══════════════════════════════════════════════════════════════════════
+   */
+  const universe = useMemo(() => {
+    if (!territory || territory.level === "NATION") return NATIONAL;
+
+    const state = byCode.get(territory.stateCode);
+    if (!state) return NATIONAL;
+
+    if (territory.level === "STATE") {
+      return {
+        registered: state.registered,
+        cast: state.total,
+        accredited: Math.round(state.total * ACCREDITATION),
+        booths: state.booths,
+        votes: state.votes,
+      };
+    }
+
+    const rows = lgaCache.get(territory.stateCode);
+    if (!rows?.length) return null;
+
+    const mine = rows.filter((row) => territory.lgaNames?.includes(row.name));
+    if (!mine.length) return null;
+
+    const cast = mine.reduce((sum, row) => sum + (row.total ?? 0), 0);
+    return {
+      registered: mine.reduce((sum, row) => sum + (row.registered ?? 0), 0),
+      cast,
+      accredited: Math.round(cast * ACCREDITATION),
+      booths: mine.reduce((sum, row) => sum + (row.booths ?? 0), 0),
+      /* Party by party, summed from the same apportioned rows the plan is
+         costed against, so the panel's split and its totals cannot drift. */
+      votes: mine.reduce(
+        (running, row) => running.map((value, index) => value + (row.votes?.[index] ?? 0)),
+        allParties.map(() => 0)
+      ),
+    };
+  }, [territory, byCode, lgaCache]);
+
   /**
    * The wards of a local government, and the booths of a ward.
    *
@@ -552,10 +635,30 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
     return shape ? [shape.d] : null;
   }, [openLga, lgaShapes]);
 
+  /* ── THE WINDOW IS THE GROUND, NOT THE COUNTRY ──────────────────────────
+     This was the whole 1000×812 canvas above a state and the whole state's
+     bounding box inside one. Both are the right window for a national plan
+     and both are why a narrowed one looked broken: an account holding Yola
+     North drew a single local government inside an outline of Nigeria — a
+     shape a few pixels across, in a panel that could have given it the whole
+     frame — and, one level down, three local governments floating in the
+     empty box of a state whose other eighteen were not drawn at all.
+
+     Cropped to what is actually on screen at both levels, which is the same
+     thing `boundsOf` was written for and the same thing the room's own map
+     already does. For a national plan nothing changes: all 37 states occupy
+     the canvas, so the box around them is the canvas. */
   const frame = useMemo(() => {
-    if (!inState) return { viewBox: `0 0 ${shapes.width} ${shapes.height}`, width: shapes.width };
-    return boundsOf(lgaShapes?.lgas.map((row) => row.d) ?? []);
-  }, [inState, shapes, lgaShapes]);
+    const drawn = withinGround(
+      inState ? (lgaShapes?.lgas ?? []) : shapes.states,
+      inState,
+      territory
+    );
+    if (!drawn.length) {
+      return { viewBox: `0 0 ${shapes.width} ${shapes.height}`, width: shapes.width };
+    }
+    return boundsOf(drawn.map((row) => row.d));
+  }, [inState, shapes, lgaShapes, territory]);
 
   const fits = useMemo(() => {
     const shown = withinGround(inState ? (lgaShapes?.lgas ?? []) : shapes.states, inState, territory);
@@ -596,10 +699,15 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
     }
 
     /* Guarding the arithmetic as well as the model. If these ever clamp, the
-       walk above has a hole in it and the figure on screen would be a lie. */
-    const total = NATIONAL[basis.key] || 1;
-    const value = Math.max(0, Math.min(cost.value, total));
-    const booths = Math.max(0, Math.min(cost.booths, NATIONAL.booths));
+       walk above has a hole in it and the figure on screen would be a lie.
+
+       Clamped to the ground rather than to the country, which is also what
+       makes the clamp mean something again: against a national total a
+       district plan could never approach it, so the guard could never fire
+       and a hole in the walk would have gone unnoticed. */
+    const total = universe ? universe[basis.key] || 1 : null;
+    const value = total === null ? cost.value : Math.max(0, Math.min(cost.value, total));
+    const booths = universe ? Math.max(0, Math.min(cost.booths, universe.booths)) : cost.booths;
 
     return {
       states: cost.states,
@@ -610,10 +718,13 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
       booths,
       /* One agent per booth is the product's own rule: seatsPerUnit is 1. */
       agents: booths,
-      reach: (value / total) * 100,
-      boothShare: (booths / NATIONAL.booths) * 100,
+      /* Null while the ground's own total is still unknown. Every reader of
+         these two prints an em dash for null rather than a zero, because
+         "0% covered" and "we cannot say yet" are different sentences. */
+      reach: total === null ? null : (value / total) * 100,
+      boothShare: universe ? (booths / universe.booths) * 100 : null,
     };
-  }, [picked, figuresFor, lgaCache, basis]);
+  }, [picked, figuresFor, lgaCache, basis, universe]);
 
   /* ------------------------------------------------------------- shortlist */
   /** The places not yet covered, ranked by the chosen lens. */
@@ -869,9 +980,19 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
    */
   const hoverDetail = useMemo(() => describe(hovered), [describe, hovered]);
 
+  /* ── WHAT THE PANEL DESCRIBES WHEN NOTHING IS UNDER THE POINTER ─────────
+     The open state, which for a narrowed room is a place three times the size
+     of the plan being made: an Adamawa Central account was shown Adamawa's
+     2,108,855 registered voters beside a plan denominated on the district's
+     782,022. Two different wholes on one screen, neither labelled as the
+     other's parent.
+
+     A narrowed room falls back to nothing instead, and `PlaceDetail` then
+     prints the ground's own figures — which is what the plan is costed
+     against and the only whole that belongs on this screen. */
   const focus = useMemo(
-    () => hoverDetail ?? describe(openState?.code ?? null),
-    [hoverDetail, describe, openState]
+    () => hoverDetail ?? (territory ? null : describe(openState?.code ?? null)),
+    [hoverDetail, describe, openState, territory]
   );
 
   /**
@@ -931,16 +1052,23 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
           the page. See the same note in SituationRoom. */}
       <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
         <nav className="flex flex-wrap items-center gap-1 border-b border-board-line px-4 py-2.5">
+          {/* ── THE TRAIL STARTS AT THE GROUND, NOT ABOVE IT ──────────────
+              "Nigeria" on the trail of a plan an account may only make
+              inside one senatorial district is a control that looks like
+              "start again" and lands on a country it cannot cost a single
+              agent into. For a narrowed room the root is the ground, and it
+              returns to the ground's own state rather than to the map of
+              thirty-six places that are not theirs. */}
           <Crumb
-            label="Nigeria"
-            last={!inState}
+            label={ground ?? "Nigeria"}
+            last={ground ? level === "state" : !inState}
             onClick={() => {
-              setOpenState(null);
+              setOpenState(homeState);
               setOpenLga(null);
               setOpenWard(null);
             }}
           />
-          {inState && (
+          {inState && !ground && (
             <>
               <ChevronRight size={13} className="shrink-0 text-white/35" />
               <Crumb
@@ -1313,7 +1441,8 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
         <PlaceDetail
           detail={focus}
           status={statusOf(focus?.key ?? null)}
-          national={NATIONAL}
+          whole={universe}
+          ground={ground}
           basis={basis}
         />
 
@@ -1345,23 +1474,27 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
           <p className="mt-2 text-[0.6875rem] leading-relaxed text-dash-muted">{basis.note}</p>
 
           <p className="figure mt-3 text-[2rem] leading-none font-bold tracking-[-0.03em] text-dash-ink tabular-nums">
-            {formatShare(plan.reach)}
+            {plan.reach === null ? "—" : formatShare(plan.reach)}
           </p>
           <p className="mt-1.5 text-[0.8125rem] text-dash-muted">
-            {formatNumber(plan.value)} of {formatNumber(NATIONAL[basis.key])} {basis.unit}
+            {formatNumber(plan.value)} of{" "}
+            {universe ? formatNumber(universe[basis.key]) : "—"} {basis.unit}
+            {ground && <span className="text-dash-muted"> in {ground}</span>}
           </p>
 
           <div className="mt-3 h-2 overflow-hidden rounded-full bg-dash-bg">
             <div
               className="h-full rounded-full bg-dash-ink transition-[width] duration-300"
-              style={{ width: `${Math.min(100, plan.reach)}%` }}
+              style={{ width: `${Math.min(100, plan.reach ?? 0)}%` }}
             />
           </div>
 
           <dl className="mt-4 space-y-2 border-t border-dash-line pt-3 text-[0.8125rem]">
             <div className="flex justify-between gap-3">
               <dt className="text-dash-muted">Share of all booths</dt>
-              <dd className="figure font-bold text-dash-ink">{formatShare(plan.boothShare)}</dd>
+              <dd className="figure font-bold text-dash-ink">
+                {plan.boothShare === null ? "—" : formatShare(plan.boothShare)}
+              </dd>
             </div>
             <div className="flex justify-between gap-3">
               <dt className="text-dash-muted">Agents to recruit</dt>
@@ -1796,9 +1929,15 @@ function PartySplit({ votes, winner, tone = "card" }) {
  * to say, and it never teaches the reader that this corner of the screen goes
  * blank and can be ignored.
  */
-function PlaceDetail({ detail, status, national, basis }) {
+/**
+ * `whole` is the ground this plan may cover, not the country: an account
+ * holding a senatorial district is shown that district's register and booths
+ * when nothing is selected, because that is the whole it is planning against.
+ * Null while the ground's own figures are still being derived.
+ */
+function PlaceDetail({ detail, status, whole, ground, basis }) {
   const mark = detail ? (STATUS[status] ?? STATUS.none) : null;
-  const nationalWinner = useMemo(() => winnerOf(national.votes), [national.votes]);
+  const wholeWinner = useMemo(() => (whole ? winnerOf(whole.votes) : null), [whole]);
 
   const rows = detail
     ? [
@@ -1814,16 +1953,21 @@ function PlaceDetail({ detail, status, national, basis }) {
         /* Who carried it is not a row here either: the party block below says
            that and gives the four figures behind it. */
       ]
-    : [
-        ["Registered voters", formatNumber(national.registered)],
-        ["Votes cast 2023", formatNumber(national.cast)],
-        ["Polling units to staff", formatNumber(national.booths)],
+    : whole
+      ? [
+        ["Registered voters", formatNumber(whole.registered)],
+        ["Votes cast 2023", formatNumber(whole.cast)],
+        ["Polling units to staff", formatNumber(whole.booths)],
         [
           "Voters per unit",
-          formatNumber(Math.round(national.registered / Math.max(national.booths, 1))),
+          formatNumber(Math.round(whole.registered / Math.max(whole.booths, 1))),
         ],
-        ["States", formatNumber(states2023.length)],
-      ];
+        /* "States 37" is a fact about Nigeria and nothing else, and it was
+           printed to a campaign holding one local government. What belongs
+           here is the ground the plan is against. */
+        [ground ? "This plan covers" : "States", ground ?? formatNumber(states2023.length)],
+      ]
+      : [["Registered voters", "—"], ["Votes cast 2023", "—"], ["Polling units to staff", "—"]];
 
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card">
@@ -1835,11 +1979,13 @@ function PlaceDetail({ detail, status, national, basis }) {
         )}
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-display text-[0.875rem] font-extrabold text-dash-ink">
-            {detail ? detail.name : "Nigeria"}
+            {detail ? detail.name : (ground ?? "Nigeria")}
           </h3>
           <p className="mt-0.5 truncate text-[0.6875rem] text-dash-muted">
             {!detail
-              ? "Nothing under the pointer. The whole country, for scale"
+              ? ground
+                ? "Nothing under the pointer. Your whole ground, for scale"
+                : "Nothing under the pointer. The whole country, for scale"
               : detail.kind === "lga"
                 ? `Local government · ${detail.parent}`
                 : detail.kind === "ward"
@@ -1872,8 +2018,8 @@ function PlaceDetail({ detail, status, national, basis }) {
           every place they then hover is read against a figure they have
           already seen. */}
       <PartySplit
-        votes={detail ? detail.votes : national.votes}
-        winner={detail ? detail.winner : nationalWinner}
+        votes={detail ? detail.votes : (whole?.votes ?? null)}
+        winner={detail ? detail.winner : wholeWinner}
         tone="card"
       />
 
@@ -1894,7 +2040,8 @@ function PlaceDetail({ detail, status, national, basis }) {
           </div>
         ) : (
           <p className="text-[0.6875rem] leading-relaxed text-dash-muted">
-            Hover any state or local government to read its figures here.
+            Hover any {ground ? "local government" : "state or local government"} to read its
+            figures here.
           </p>
         )}
 

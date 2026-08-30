@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { MapPin, Radio, ShieldAlert, Users } from "lucide-react";
 
+import { boundsOf } from "@/lib/bbox";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -44,9 +45,30 @@ const TONE = {
   unknown: "transparent",
 };
 
-export default function CoordinatorWatch({ shapes, coordinators, summary }) {
+export default function CoordinatorWatch({ shapes, coordinators, summary, territory = null, ground = null }) {
   const [hovered, setHovered] = useState(null);
   const [filter, setFilter] = useState("all");
+
+  /* ── THE COUNTRY, OR THE GROUND ─────────────────────────────────────────
+     Every agent this room may see stands inside its ground, so drawing the
+     other 36 states is drawing 36 places from which no dot will ever appear —
+     and squeezing the ones that will into a corner of the frame. The outline
+     narrows with the watch, and the window narrows to the outline. */
+  const land = useMemo(
+    () =>
+      territory?.stateCode
+        ? shapes.states.filter((row) => row.code === territory.stateCode)
+        : shapes.states,
+    [shapes, territory]
+  );
+
+  const frame = useMemo(
+    () =>
+      land.length && territory?.stateCode
+        ? boundsOf(land.map((row) => row.d))
+        : { viewBox: `0 0 ${shapes.width} ${shapes.height}` },
+    [land, territory, shapes]
+  );
 
   const shown = useMemo(
     () =>
@@ -100,11 +122,11 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
 
         <div className="relative min-h-0 flex-1 p-1.5">
           <svg
-            viewBox={`0 0 ${shapes.width} ${shapes.height}`}
+            viewBox={frame.viewBox}
             className="h-full w-full"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label={`${coordinators.length} polling unit coordinators. ${summary.located} have reported a position. The same list appears beside this map.`}
+            aria-label={`${coordinators.length} polling unit coordinators in ${ground ?? "Nigeria"}. ${summary.located} have reported a position. The same list appears beside this map.`}
             onPointerLeave={() => setHovered(null)}
           >
             <defs>
@@ -127,7 +149,7 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
                 land from the ground behind it, and at this weight they read
                 across a room without competing with the markers, which are
                 the data. */}
-            {shapes.states.map((shape) => (
+            {land.map((shape) => (
               <path
                 key={shape.code}
                 d={shape.d}

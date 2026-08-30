@@ -295,7 +295,12 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
      a map drawing twenty-one is two answers to one question. */
   const mapShapes =
     level === "nation"
-      ? shapes
+      ? /* The country, or the one state of it this account may read. Drawing
+           all 37 outlines beside a panel listing one is two answers to one
+           question, and the one that is drawn is the wrong one. */
+        territory?.stateCode
+        ? { ...shapes, states: shapes.states.filter((row) => row.code === territory.stateCode) }
+        : shapes
       : level === "state" && lgaShapes
         ? {
             paths: territory?.lgaNames?.length
@@ -670,10 +675,15 @@ function ShareMap({ shapes, level, rows, party, onOpen }) {
      every render would re-measure every path on every pointer move. */
   const list = useMemo(() => shapes.paths ?? shapes.states ?? [], [shapes]);
 
+  /* Cropped to what is drawn at every level, not only below the country. A
+     room narrowed to one state drew that state inside an outline of Nigeria,
+     which is a map of the right place at a twentieth of the size the panel
+     could give it. With all 37 on screen the box around them is the canvas,
+     so a national reader sees no change. */
   const frame = useMemo(() => {
-    if (level === "nation") return `0 0 ${shapes.width} ${shapes.height}`;
+    if (!list.length) return `0 0 ${shapes.width} ${shapes.height}`;
     return boundsOf(list.map((shape) => shape.d)).viewBox;
-  }, [level, shapes, list]);
+  }, [shapes, list]);
 
   const top = Math.max(...rows.map((row) => row.share), 1);
 

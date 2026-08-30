@@ -92,9 +92,15 @@ export default function ScopeMap({
 }) {
   const byName = useMemo(() => new Map(rows.map((row) => [row.key ?? row.name, row])), [rows]);
 
-  /* The window. At national level it is the whole canvas; inside a state it is
-     cropped to that state, because the files carry the national projection and
-     an uncropped Lagos is 1/178th of the frame. */
+  /* ── THE WINDOW ─────────────────────────────────────────────────────────
+     At national level it is the whole canvas; inside a state it is cropped to
+     whatever is actually being drawn, because the files carry the national
+     projection and an uncropped Lagos is 1/178th of the frame. Cropping to the
+     drawn paths rather than to the state also means a room narrowed to three
+     local governments gets a window around those three.
+
+     `boundsOf` returns exactly the box the drawn paths occupy, so whatever is
+     on screen is as large as the panel can draw it without distortion. */
   const frame = useMemo(() => {
     if (level === "nation") {
       return { viewBox: `0 0 ${shapes.width} ${shapes.height}`, width: shapes.width };
@@ -113,16 +119,64 @@ export default function ScopeMap({
     [heat, shapes, rows, layer]
   );
 
-  /* Which shapes can hold their own name. Recomputed against the current
-     frame, so an LGA that is unlabelable nationally may well be labelable once
-     its state fills the screen. */
+  /**
+   * Which shapes can hold their own name.
+   *
+   * Recomputed against the current frame, so a local government that is
+   * unlabelable nationally may well be labelable once its state fills the
+   * screen.
+   *
+   * ── AND WHICH OF THEM MAY ACTUALLY PRINT IT ──────────────────────────────
+   * Fitting inside your own outline is not enough. Yola North and Yola South
+   * are two small local governments that share a border, both wide enough to
+   * pass the test above, and their anchors are close enough that the two names
+   * were drawn on top of each other — a smear that reads as neither.
+   *
+   * So the names are placed rather than merely permitted: largest shape first,
+   * and a name is skipped if its anchor is inside the space one already
+   * placed is occupying. Largest first because when two labels cannot both be
+   * drawn, the one belonging to the bigger place is the one a reader can still
+   * work the other out from — and because it makes the choice stable, which
+   * matters more than which one wins. Nothing is hidden: every shape still
+   * answers to the pointer and is still in the list beside the map.
+   */
   const fits = useMemo(() => {
     const map = new Map();
-    for (const shape of shapes.paths ?? shapes.states ?? []) {
-      const size = extentOf(shape.d);
+    const drawn = shapes.paths ?? shapes.states ?? [];
+
+    const sized = drawn.map((shape) => ({ shape, size: extentOf(shape.d) }));
+    sized.sort((a, b) => b.size.width * b.size.height - a.size.width * a.size.height);
+
+    /* ── HOW WIDE A NAME ACTUALLY IS ─────────────────────────────────────
+       Measured from the text rather than guessed at with one constant, which
+       is what let "Yola South" and "Yola North" through: their anchors are
+       further apart than a fixed guard and closer than either name is long.
+       The type is set at 1.6% of the frame and this face averages a little
+       over half an em per character, so a name occupies roughly its length
+       times that. Half of it either side of the anchor, which is where it is
+       centred. */
+    const em = frame.width * 0.016;
+    const halfWidth = (name) => (String(name).length * em * 0.55) / 2;
+    const guardY = em * 1.4;
+    const placed = [];
+
+    for (const { shape, size } of sized) {
+      const wide = size.width > frame.width * 0.085;
+      const at = shape.at ?? null;
+      const half = halfWidth(shape.name);
+
+      const clear =
+        !at ||
+        !placed.some(
+          (one) =>
+            Math.abs(one.x - at[0]) < half + one.half && Math.abs(one.y - at[1]) < guardY
+        );
+
+      if (wide && clear && at) placed.push({ x: at[0], y: at[1], half });
+
       map.set(shape.name, {
         code: size.width > frame.width * 0.03,
-        name: size.width > frame.width * 0.085,
+        name: wide && clear,
       });
     }
     return map;

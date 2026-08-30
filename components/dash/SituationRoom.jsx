@@ -1349,7 +1349,13 @@ export default function SituationRoom({
           </div>
         </div>
       ) : layer === "watch" ? (
-        <CoordinatorWatch shapes={shapes} coordinators={coordinators} summary={watchSummary} />
+        <CoordinatorWatch
+          shapes={shapes}
+          coordinators={coordinators}
+          summary={watchSummary}
+          territory={territory}
+          ground={ground}
+        />
       ) : layer === "stream" ? (
         <div className="grid gap-3 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[minmax(0,1fr)_21rem]">
           <IncidentStream incidents={incidents} photos={photos} />
@@ -1816,7 +1822,27 @@ function metricsFor({ layer, level, scope, rows, view, trend, incidentCount, pla
   return [
     { icon: Gauge, label: "Booths counted", value: formatShare(view.coverage), foot: `${formatNumber(view.unitsReported)} of ${formatNumber(view.booths)}`, spark: trend },
     { icon: Vote, label: "Votes counted", value: formatNumber(level === "nation" ? view.total : scope.votes), foot: place },
-    { icon: TrendingUp, label: "Leading", value: view.leader?.id ?? "n/a", foot: view.standings[1] ? `by ${formatShare(view.standings[0].share - view.standings[1].share)}` : "" },
+    /* ── NOBODY LEADS A COUNT THAT HAS NOT STARTED ────────────────────────
+       This read the top of the standings whatever was in them, and with every
+       party on zero the sort still had a first row: a room with nothing filed
+       and nothing declared printed "LEADING — APC — by 0%". That is a claim
+       about an election, made from an empty table, on the largest type on the
+       screen. It is now a dash until a vote exists to lead by. */
+    ...(() => {
+      const counted = view.standings.reduce((sum, row) => sum + (row.votes ?? 0), 0);
+      return [
+        {
+          icon: TrendingUp,
+          label: "Leading",
+          value: counted ? (view.leader?.id ?? "n/a") : "—",
+          foot: counted
+            ? view.standings[1]
+              ? `by ${formatShare(view.standings[0].share - view.standings[1].share)}`
+              : ""
+            : "Nothing counted here yet",
+        },
+      ];
+    })(),
     { icon: AlertTriangle, label: "Incidents", value: formatNumber(incidentCount ?? 0), foot: incidentCount ? "Open now" : "Nothing flagged", tone: incidentCount ? "red" : "ink" },
   ];
 }

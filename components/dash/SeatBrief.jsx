@@ -32,7 +32,7 @@ import { formatNumber, formatShare } from "@/lib/utils";
  */
 export default function SeatBrief({ race, raceLabel, ground, holders = [], result = null }) {
   return (
-    <div className="grid gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+    <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <section className="rounded-dash border border-dash-line bg-dash-card">
         <header className="border-b border-dash-line px-5 py-4">
           <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
@@ -178,8 +178,15 @@ function LastResult({ result, raceLabel, ground }) {
               tone={margin !== null && counted && margin / counted < 0.05 ? "alert" : "ink"}
             />
             <Figure label="Registered" value={result.registered ? formatNumber(result.registered) : "not held"} />
+            {/* ── NOT "TURNOUT", BECAUSE IT IS NOT THE TURNOUT ──────────────
+                It is the votes we hold as a share of the register, and where
+                only the leading parties' totals were published that is below
+                the declared turnout — 37.8% against 39.90% in Adamawa. Two
+                percentages of the same election, differing, one labelled as
+                the thing the other actually is, four lines apart on one
+                screen. This one says what it is. */}
             <Figure
-              label="Turnout"
+              label="Of the register"
               value={result.registered && counted ? formatShare((counted / result.registered) * 100) : "—"}
             />
           </dl>
