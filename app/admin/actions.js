@@ -1,11 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { randomBytes } from "node:crypto";
 
 import { users, results, accessRequests } from "@/lib/db";
 import { ledger, CREDIT_KINDS } from "@/lib/ledger";
-import { hashPassword } from "@/lib/password";
+import { hashPassword, passphrase } from "@/lib/password";
 import { requireCapability, log } from "@/lib/guard";
 import { coordinators } from "@/lib/coordinators";
 import { currentElection, currentRace } from "@/lib/election-scope";
@@ -29,26 +28,6 @@ import { isUnitCode, parseUnitCode } from "@/lib/units";
  * only the broadcaster has it.
  * ───────────────────────────────────────────────────────────────────────────
  */
-
-/**
- * Four words from a small list beats twelve random characters: it survives
- * being read down a phone line to a newsroom at 2am, which is exactly how this
- * credential will actually be delivered.
- */
-const WORDS = [
-  "ballot", "booth", "collate", "counted", "declare", "district", "federal", "gazette",
-  "harmony", "ledger", "margin", "monitor", "notice", "observer", "polling", "quorum",
-  "record", "return", "sealed", "station", "tally", "turnout", "unit", "verify",
-  "warrant", "witness", "zonal", "coverage", "register", "mandate",
-];
-
-function passphrase() {
-  const bytes = randomBytes(4);
-  const words = [...bytes].map((byte) => WORDS[byte % WORDS.length]);
-  /* A number on the end so it clears "must contain a digit" policies without
-     making the whole thing unsayable. */
-  return `${words.join("-")}-${10 + (randomBytes(1)[0] % 90)}`;
-}
 
 export async function issueAccount(_previous, formData) {
   const admin = await requireCapability("accounts:issue", "/admin");
