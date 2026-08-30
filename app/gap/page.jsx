@@ -9,7 +9,9 @@ import GapBoard from "@/components/dash/GapBoard";
 import LiveRefresh from "@/components/dash/LiveRefresh";
 import { requireCapability } from "@/lib/guard";
 import { can } from "@/lib/roles";
-import { currentElection, currentRace } from "@/lib/election-scope";
+import { viewing } from "@/lib/viewing";
+import GroundBanner from "@/components/dash/GroundBanner";
+import { lgasOf } from "@/lib/constituencies";
 import { RACES } from "@/lib/races";
 import { results } from "@/lib/db";
 import { gapReport } from "@/lib/gap-report";
@@ -42,18 +44,19 @@ export const dynamic = "force-dynamic";
  * ───────────────────────────────────────────────────────────────────────────
  */
 export default async function GapPage() {
-  const user = await requireCapability("gap:read", "/gap");
+  /* ── ONE READ, AND BOTH SIDES OF THE COMPARISON NARROWED BY IT ──────────
+     The position comes from the same place every other dashboard reads it, so
+     this screen and the room can never be comparing different contests — and
+     the ground does the same job for places. A room holding a district must
+     not have its returns held against a whole state's declaration; that is a
+     subtraction of two different places reported as a divergence, which is
+     the exact failure this screen exists to catch. */
+  const { user, project, race, territory, ground, pinned, unresolved } = await viewing("/gap");
+  const lgaNames = territory ? lgasOf(territory).map((row) => row.name) : [];
+  await requireCapability("gap:read", "/gap");
 
-  const project = await currentElection();
-  /* The position being read, from the same cookie every other dashboard uses,
-     so this screen and the room can never be comparing different contests. It
-     falls back to the project's headline contest when nobody has chosen. */
-  const race = await currentRace(project);
-
-  /* What each of the day's five contests holds, so the control below can show
-     it and an empty screen can say which paper it is empty for. */
-  const byRace = project ? await results.countByRace(project.id) : {};
-  const report = await gapReport(project?.id, race);
+  const byRace = project ? await results.countByRace(project.id, territory) : {};
+  const report = await gapReport(project?.id, race, territory);
 
   const mayEnter = can(user.role, "declared:file");
 
@@ -70,11 +73,22 @@ export default async function GapPage() {
             race={race}
             races={RACES.map((row) => ({ id: row.id, label: row.label }))}
             filed={byRace}
+            /* An account issued for one contest over one district does not
+               switch between counts — see components/dash/RaceSwitcher. */
+            pinned={pinned}
+            ground={ground}
           />
           <LiveRefresh seconds={30} label="Live" />
         </>
       }
     >
+      <GroundBanner
+        territory={territory}
+        ground={ground}
+        unresolved={unresolved}
+        lgaNames={lgaNames}
+      />
+
       {/* ------------------------------------------------------------ heads */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

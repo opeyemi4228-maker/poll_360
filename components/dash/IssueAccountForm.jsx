@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { Check, Copy, KeyRound, Loader2, TriangleAlert } from "lucide-react";
 
 import Button from "@/components/ui/Button";
+import TerritoryPicker from "@/components/access/TerritoryPicker";
 import { issueAccount } from "@/app/admin/actions";
 import { ROLES } from "@/lib/roles";
 
@@ -18,9 +19,17 @@ import { ROLES } from "@/lib/roles";
  */
 const ISSUABLE = ["PU_AGENT", "BROADCASTER", "SITUATION_ROOM", "SUPER_ADMIN"];
 
-export default function IssueAccountForm() {
+export default function IssueAccountForm({
+  places = [],
+  races = [],
+  /* Filled in when this form is standing under a request somebody made, so an
+     administrator approves what was asked for rather than retyping it. See
+     app/admin/requests/page.jsx. */
+  initial = {},
+  requestId = null,
+}) {
   const [state, formAction] = useActionState(issueAccount, {});
-  const [role, setRole] = useState("BROADCASTER");
+  const [role, setRole] = useState(initial.role ?? "BROADCASTER");
   const [copied, setCopied] = useState(false);
 
   if (state?.issued) {
@@ -84,11 +93,19 @@ export default function IssueAccountForm() {
 
   return (
     <form action={formAction} className="space-y-4">
-      <Field name="name" label="Name of the person or desk" error={errors.name} required />
+      {requestId && <input type="hidden" name="requestId" value={requestId} />}
+
+      <Field
+        name="name"
+        label="Name of the person or desk"
+        defaultValue={initial.name}
+        error={errors.name}
+        required
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field name="email" type="email" label="Email" error={errors.email} />
-        <Field name="phone" type="tel" label="Phone" error={errors.phone} />
+        <Field name="email" type="email" label="Email" defaultValue={initial.email} error={errors.email} />
+        <Field name="phone" type="tel" label="Phone" defaultValue={initial.phone} error={errors.phone} />
       </div>
 
       <div>
@@ -119,10 +136,31 @@ export default function IssueAccountForm() {
           name="scope"
           label="Polling unit code"
           hint="state/LGA/ward/unit"
+          defaultValue={initial.scope}
           placeholder="25/07/04/019"
           error={errors.scope}
           required
         />
+      )}
+
+      {/* ── THE GROUND, FOR EVERY ROOM THAT READS RATHER THAN FILES ────────
+          A coordinator's ground is the booth above and nothing else: they
+          stand in one place and file from it. Every other room is a reader,
+          and what it may read is exactly this — which of the day's contests
+          and which piece of Nigeria. Left unset it is the whole federation,
+          which is right for an administrator and wrong for everybody else,
+          so it is asked here rather than defaulted quietly. */}
+      {role !== "PU_AGENT" && (
+        <div className="border-t border-dash-line pt-4">
+          <TerritoryPicker
+            places={places}
+            races={races}
+            race={initial.race}
+            territory={initial.territory}
+            errors={errors}
+            tone="dash"
+          />
+        </div>
       )}
 
       {state?.error && (

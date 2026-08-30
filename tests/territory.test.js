@@ -11,7 +11,8 @@ import {
   levelForRace,
   lgaOf,
   parseTerritory,
-  unitPatterns,
+  within,
+  withinDeclared,
 } from "../lib/territory.js";
 import {
   allPlaces,
@@ -129,7 +130,7 @@ describe("resolving a stored territory", () => {
     assert.equal(nation.level, "NATION");
     assert.equal(nation.lgas, null);
     assert.equal(coversUnit(nation, "01/01/04/006"), true);
-    assert.equal(unitPatterns(nation), null);
+    assert.equal(within(nation).sql, "", "the federation adds no clause at all");
   });
 
   it("resolves a state to its own local governments", () => {
@@ -183,11 +184,24 @@ describe("what a territory contains", () => {
     assert.equal(coversLga(central, "18/99"), false);
   });
 
-  it("turns into the patterns that select its returns", () => {
-    const patterns = unitPatterns(central);
-    assert.equal(patterns.length, central.lgas.length);
-    assert.ok(patterns.every((pattern) => pattern.endsWith("/%")));
-    assert.ok(patterns.includes(`${central.lgas[0]}/%`));
+  it("turns into the clause that selects its returns", () => {
+    const clause = within(central);
+    assert.match(clause.sql, /^ AND substr\(unit_code, 1, 5\) IN \(\?(, \?)*\)$/);
+    assert.deepEqual(clause.params, central.lgas);
+    assert.equal(clause.sql.split("?").length - 1, central.lgas.length, "one mark per parameter");
+  });
+
+  it("narrows whichever column it is pointed at", () => {
+    assert.match(within(central, "i.unit_code").sql, /substr\(i\.unit_code, 1, 5\)/);
+  });
+
+  /* The failure this guards against is silent and total: an empty ground that
+     produced no clause would read every return in Nigeria. */
+  it("matches nothing for a territory that contains nothing", () => {
+    const empty = { level: "SENATORIAL", lgas: [], stateNumber: "18" };
+    assert.equal(within(empty).sql, " AND 1 = 0");
+    assert.deepEqual(within(empty).params, []);
+    assert.equal(withinDeclared(empty).sql, " AND 1 = 0");
   });
 
   /* An unnarrowed account is the whole federation, deliberately: it is every
@@ -196,7 +210,35 @@ describe("what a territory contains", () => {
   it("treats no territory at all as the federation", () => {
     assert.equal(coversUnit(null, "01/01/04/006"), true);
     assert.equal(coversState(null, "24"), true);
-    assert.equal(unitPatterns(null), null);
+    assert.equal(within(null).sql, "");
+    assert.deepEqual(within(null).params, []);
+  });
+});
+
+describe("narrowing the declared figures", () => {
+  const central = resolveTerritory("SENATORIAL:18/kaduna-central");
+  const kaduna = resolveTerritory("STATE:18");
+
+  it("adds no clause for the federation", () => {
+    assert.equal(withinDeclared(resolveTerritory("NATION")).sql, "");
+    assert.equal(withinDeclared(null).sql, "");
+  });
+
+  /* A state's declared total is not a figure about one district inside it, so
+     a district must not be handed the state row to be measured against. Its
+     place key is two digits and never matches a five-character local
+     government code, which is what keeps it out. */
+  it("keeps a state's own declaration out of a district's comparison", () => {
+    const clause = withinDeclared(central);
+    assert.ok(!clause.sql.includes("level = 'STATE'"));
+    assert.deepEqual(clause.params, central.lgas);
+  });
+
+  it("gives a room holding the whole state its state row", () => {
+    const clause = withinDeclared(kaduna);
+    assert.ok(clause.sql.includes("level = 'STATE'"));
+    assert.equal(clause.params.at(-1), "18");
+    assert.deepEqual(clause.params.slice(0, -1), kaduna.lgas);
   });
 });
 

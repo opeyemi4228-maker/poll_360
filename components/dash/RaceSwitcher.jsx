@@ -24,13 +24,36 @@ import { cn } from "@/lib/utils";
  * beside each one can, and it costs a single grouped query on the server.
  * ───────────────────────────────────────────────────────────────────────────
  */
-export default function RaceSwitcher({ race, races = [], filed = {} }) {
+export default function RaceSwitcher({ race, races = [], filed = {}, pinned = false, ground = null }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const boxRef = useRef(null);
 
   const current = races.find((row) => row.id === race) ?? races[0];
   if (!current) return null;
+
+  /* ── AN ACCOUNT ISSUED FOR ONE CONTEST DOES NOT SWITCH ──────────────────
+     A newsroom given the Kaduna Central senate race holds a senatorial
+     district, and a district is not an extent the presidential count is read
+     over: switching would show them a seventh of a national board and let
+     them read it as their coverage.
+
+     So it becomes a label rather than a control. Not a disabled button, which
+     invites a click and answers with nothing, and not a hidden one, which
+     would leave a desk unable to see which of the day's counts they are
+     looking at — the one thing this control exists to say. */
+  if (pinned) {
+    return (
+      <span
+        className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-bg px-4 py-2.5 text-[0.8125rem] font-semibold text-dash-muted"
+        title={ground ? `This account covers ${ground}.` : undefined}
+      >
+        <Vote size={14} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />
+        <span className="whitespace-nowrap text-dash-ink">{current.label}</span>
+        {ground && <span className="whitespace-nowrap">· {ground}</span>}
+      </span>
+    );
+  }
 
   const pick = (id) => {
     setOpen(false);

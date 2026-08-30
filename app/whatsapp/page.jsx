@@ -5,6 +5,7 @@ import { groupUnits } from "@/lib/units";
 import { nameUnits } from "@/lib/lga-names";
 import { can } from "@/lib/roles";
 import { currentElection, currentRace } from "@/lib/election-scope";
+import { resolveTerritory } from "@/lib/constituencies";
 import { RACES } from "@/lib/races";
 
 export const metadata = { title: "WhatsApp desk", robots: { index: false } };
@@ -38,6 +39,16 @@ export default async function WhatsAppPage() {
   const project = await currentElection();
   const race = await currentRace(project);
 
+  /* ── THE DESK IS NARROWED LIKE EVERY OTHER ROOM ─────────────────────────
+     A thread on this screen names a booth and a person in the same breath,
+     which makes it the most sensitive read in the product — so an account
+     with a ground gets that ground here too. The conversations themselves are
+     not filtered: a message arrives from a phone number before anybody knows
+     which booth it is about, and hiding an unclaimed number from the only
+     desk that can claim it would break the one job this room has. What is
+     narrowed is what has been *filed*, which is the part that is a count. */
+  const territory = user.territory ? resolveTerritory(user.territory) : null;
+
   return (
     <WhatsAppDesk
       user={user}
@@ -62,12 +73,12 @@ export default async function WhatsAppPage() {
          governorship is in and the senate has barely started. */
       race={race}
       races={RACES.map((row) => ({ id: row.id, label: row.label }))}
-      filedByRace={project ? await results.countByRace(project.id) : {}}
+      filedByRace={project ? await results.countByRace(project.id, territory) : {}}
       /* Returns that came in through the upload screen rather than over a
          conversation. They are part of this desk's job — it is the room that
          watches returns arrive — and labelling how each one got here is the
          difference between a count and a rumour. */
-      uploads={project ? (await results.recent(24, project.id, race)).map(shapeUpload) : []}
+      uploads={project ? (await results.recent(24, project.id, race, territory)).map(shapeUpload) : []}
       places={(await positions.latest()).map(withTime)}
       /* Scoped to the project on screen, like every other figure on this
          desk. Unscoped, these two showed a rehearsal the 2023 project's

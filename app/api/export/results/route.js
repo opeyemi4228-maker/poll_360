@@ -3,6 +3,7 @@ import { log } from "@/lib/guard";
 import { can } from "@/lib/roles";
 import { results } from "@/lib/db";
 import { currentElection, currentRace } from "@/lib/election-scope";
+import { resolveTerritory } from "@/lib/constituencies";
 import { ballotFor, isRace, raceLabel } from "@/lib/races";
 import { auditSheet } from "@/lib/results";
 import { printedAs } from "@/lib/party-register";
@@ -79,7 +80,20 @@ export async function GET(request) {
   const asked = String(new URL(request.url).searchParams.get("race") ?? "").toUpperCase();
   const race = isRace(asked) ? asked : await currentRace(project);
 
-  const rows = await results.recent(LIMIT, project.id, race);
+  /* ── A DOWNLOAD IS A ROOM, AND IS NARROWED LIKE ONE ─────────────────────
+     Everything a screen refuses to show, a spreadsheet will hand over in full
+     if nobody narrows it — and a file leaves the building, which makes this
+     the one read where getting the ground wrong cannot be taken back. Same
+     territory, same function, same rule as every dashboard. */
+  const territory = user.territory ? resolveTerritory(user.territory) : null;
+  if (user.territory && !territory) {
+    return new Response(
+      "This account's ground no longer names a place we hold, so there is nothing safe to export. Ask an administrator to set it again.",
+      { status: 409 }
+    );
+  }
+
+  const rows = await results.recent(LIMIT, project.id, race, territory);
   const ballot = ballotFor(race);
 
   const header = [

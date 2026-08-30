@@ -141,6 +141,35 @@ A voter is handed more than one ballot paper. `lib/races.js` makes the
 booth, every screen reading one position at a time. That is what makes "62%
 counted" mean something — 62% of booths have reported *this* contest.
 
+### And each position is counted over different ground
+
+The six positions are not fought over the same map, so an account is issued a
+**territory** as well as a contest (`lib/territory.js`):
+
+| Position | Ground | How many |
+| --- | --- | --- |
+| Presidency | the federation | one |
+| Governorship | a state | 37 |
+| Senate | a senatorial district | 109 |
+| Representatives | a federal constituency | 360 |
+| House of Assembly | a local government | 774 |
+| Local government | a local government | 774 |
+
+Every one of those resolves to **a set of local governments**, because that is
+the level where a unit code, a boundary file and INEC's numbering already agree.
+Containment, the shapes drawn on the map and the denominator of the coverage
+percentage are all read off that one set, so they cannot drift apart.
+`public/geo/constituencies.json` holds the compositions, generated and checked
+by `scripts/build-constituencies.mjs`.
+
+Two limits are stated rather than papered over. Five federal constituencies
+share a local government with their pair (Surulere, Mushin, Oshodi-Isolo, Lagos
+Island, Port Harcourt) and the line between them runs between wards, which
+nobody publishes in a form we hold — so both cover the whole local government
+and every screen says so. State constituencies are carved out of local
+governments the same way, so a House of Assembly account is scoped to the local
+government its seat sits inside, named as a container and not as the seat.
+
 ---
 
 ## 9. Security posture

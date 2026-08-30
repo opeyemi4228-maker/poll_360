@@ -3,13 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { randomBytes } from "node:crypto";
 
-import { users, results } from "@/lib/db";
+import { users, results, accessRequests } from "@/lib/db";
 import { ledger, CREDIT_KINDS } from "@/lib/ledger";
 import { hashPassword } from "@/lib/password";
 import { requireCapability, log } from "@/lib/guard";
 import { coordinators } from "@/lib/coordinators";
 import { currentElection, currentRace } from "@/lib/election-scope";
 import { ROLE_KEYS } from "@/lib/roles";
+import { isRace, raceLabel } from "@/lib/races";
+import { resolveTerritory } from "@/lib/constituencies";
+import { describeTerritory, levelForRace } from "@/lib/territory";
 import { isUnitCode, parseUnitCode } from "@/lib/units";
 
 /**
@@ -55,6 +58,21 @@ export async function issueAccount(_previous, formData) {
   const phone = String(formData.get("phone") ?? "").replace(/[^\d]/g, "").slice(0, 15) || null;
   const role = String(formData.get("role") ?? "");
   const scope = String(formData.get("scope") ?? "").trim().slice(0, 40) || null;
+  const requestId = String(formData.get("requestId") ?? "").trim() || null;
+
+  /* ── WHAT THIS ACCOUNT MAY READ, AND OVER WHAT ──────────────────────────
+     A coordinator's ground is their booth: they stand in one place, and the
+     unit code above is the whole of it. Every other room is a reader, and a
+     reader is defined by a contest and a territory.
+
+     Both are resolved against the same tables the picker was filled from, and
+     checked against each other. The pairing check is the one that matters:
+     a senatorial district is a perfectly valid territory and a nonsensical
+     answer to a governorship, and an account issued on that pairing would
+     quietly hold a third of the state it was meant to hold. */
+  const wantsGround = role !== "PU_AGENT";
+  const race = wantsGround ? String(formData.get("race") ?? "").trim().toUpperCase() || null : null;
+  const territoryRaw = wantsGround ? String(formData.get("territory") ?? "").trim().slice(0, 80) || null : null;
 
   const errors = {};
   if (!name) errors.name = "Give the account a name.";
@@ -62,6 +80,21 @@ export async function issueAccount(_previous, formData) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errors.email = "That is not an email address.";
   if (!ROLE_KEYS.includes(role)) errors.role = "Pick a room.";
   if (role === "PU_AGENT" && !scope) errors.scope = "A coordinator must be tied to one polling unit.";
+
+  let territory = null;
+  if (wantsGround) {
+    if (!race || !isRace(race)) {
+      errors.race = "Say which contest this account is for.";
+    } else if (!territoryRaw) {
+      errors.territory = "Say how much of the country this account covers.";
+    } else {
+      territory = resolveTerritory(territoryRaw);
+      if (!territory) errors.territory = "That is not a place we hold. Choose it from the list.";
+      else if (territory.level !== levelForRace(race)) {
+        errors.territory = `A ${raceLabel(race).toLowerCase()} is not counted over ${describeTerritory(territory)}.`;
+      }
+    }
+  }
 
   if (Object.keys(errors).length) return { errors };
 
@@ -80,14 +113,72 @@ export async function issueAccount(_previous, formData) {
     phone,
     role,
     scope,
+    race,
+    territory: territoryRaw,
     passwordHash: await hashPassword(password),
   });
 
-  await log(admin, "account:issued", user.id, { role, scope });
+  /* ── THE REQUEST AND THE ACCOUNT, TIED TOGETHER ─────────────────────────
+     Written before the audit line rather than after, because the one question
+     anybody asks afterwards is "what were they actually given?" — and a
+     request marked approved with no account attached cannot answer it. A room
+     that asked for Kaduna Central and was issued Kaduna is a mistake that has
+     to be findable, and this is the only place the two halves meet. */
+  if (requestId) {
+    await accessRequests.decide(requestId, { status: "APPROVED", userId: user.id });
+    revalidatePath("/admin/requests");
+  }
+
+  await log(admin, "account:issued", user.id, {
+    role,
+    scope,
+    race,
+    territory: territoryRaw,
+    fromRequest: requestId,
+  });
   revalidatePath("/admin");
 
   /* Returned to the screen once, and to nowhere else. */
-  return { issued: { name: user.name, email: user.email, phone: user.phone, role, password } };
+  return {
+    issued: {
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role,
+      password,
+      /* Printed back on the confirmation, because the ground is the half of
+         this decision that cannot be checked by reading the name. */
+      ground: territory ? describeTerritory(territory) : null,
+      race: race ? raceLabel(race) : null,
+    },
+  };
+}
+
+/**
+ * Turn a request down.
+ *
+ * ── WHY THIS IS A BUTTON AND NOT AN OMISSION ───────────────────────────────
+ * A queue that can only be added to is a queue that grows until nobody reads
+ * it, and the requests that matter are then behind the ones already answered
+ * by email months ago. Declining writes no account, sends nothing, and
+ * changes only which list the row appears in — it is housekeeping, and it is
+ * recorded like every other decision an administrator makes.
+ */
+export async function declineRequest(_previous, formData) {
+  const admin = await requireCapability("accounts:issue", "/admin");
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) return { error: "No request named." };
+
+  const request = await accessRequests.get(id);
+  if (!request) return { error: "That request is no longer there." };
+
+  await accessRequests.decide(id, { status: "DECLINED" });
+  await log(admin, "access:declined", id, { organisation: request.organisation });
+  revalidatePath("/admin/requests");
+  revalidatePath("/admin");
+
+  return { ok: true };
 }
 
 /** Verify or dispute a filed return. Never by the person who filed it. */

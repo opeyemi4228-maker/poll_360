@@ -3,6 +3,8 @@ import { LogIn } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Reveal from "@/components/ui/Reveal";
 import AccessForm from "./AccessForm";
+import { allPlaces } from "@/lib/constituencies";
+import { RACES } from "@/lib/races";
 import { site } from "@/lib/site";
 
 /**
@@ -26,6 +28,16 @@ const AUDIENCES = [
 ];
 
 export default function Access() {
+  /* ── READ HERE, BECAUSE ONLY A SERVER CAN ────────────────────────────────
+     `allPlaces` reads the state, district and local government tables off
+     disk, so it cannot run in the browser, and the form that needs them is a
+     client component. It goes down with the page for the same reason the
+     coordinators' sign-up form's state list does: the moment the second
+     dropdown is needed is the moment somebody has just answered the first,
+     and a list that arrives after that is a list that was empty when it was
+     looked at. */
+  const places = allPlaces();
+
   return (
     <section id="access" className="on-dark relative overflow-hidden bg-blue-900">
       <div aria-hidden="true" className="board-grid absolute inset-0 opacity-[0.14]" />
@@ -95,7 +107,10 @@ export default function Access() {
           </div>
 
           <Reveal delay={160} className="min-w-0">
-            <AccessForm />
+            <AccessForm
+              places={places}
+              races={RACES.map((race) => ({ id: race.id, label: race.label }))}
+            />
           </Reveal>
         </div>
       </div>

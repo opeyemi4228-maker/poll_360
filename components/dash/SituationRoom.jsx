@@ -34,6 +34,7 @@ import Whiteboard from "./Whiteboard";
 import { RoomVoiceProvider } from "./RoomVoice";
 import LiveRefresh from "./LiveRefresh";
 import RaceSwitcher from "./RaceSwitcher";
+import GroundBanner from "./GroundBanner";
 import Sparkline from "./Sparkline";
 import { PARTY_FILL } from "./Charts";
 import { partyFill } from "@/lib/party-pattern";
@@ -225,6 +226,22 @@ export default function SituationRoom({
   /* The states this election is actually fought in. Empty means the whole
      federation. */
   scopeStates = [],
+  /* ── AND THE GROUND THIS PARTICULAR ROOM MAY READ ────────────────────────
+     Not the same thing as the line above, and the difference is the whole
+     point: `scopeStates` is what the contest covers, this is what this account
+     holds of it. A project running the governorship in six states may be
+     watched by a newsroom that holds one, and by a campaign that holds a
+     single senatorial district inside it.
+
+     Resolved on the server — the district tables and the local government
+     names are both read from disk — and arrives carrying the names of the
+     local governments it contains, because the boundary files are keyed by
+     name and turning a code back into one is an assumption that lives in
+     lib/lga-names.js and must not be made a second time in a browser. */
+  territory = null,
+  ground = null,
+  racePinned = false,
+  territoryUnresolved = false,
   /* Our count held against what was announced. Built on the server by
      lib/gap-report.js — the same function /gap uses, so the headline here and
      the list there can never disagree. */
@@ -274,18 +291,27 @@ export default function SituationRoom({
    * a board that draws them the same way is quietly wrong all night.
    */
   const inScope = useMemo(() => {
+    /* The account's own ground wins over the project's, because it is always
+       the narrower of the two: an account inside a six-state contest holding
+       one state must not be shown the other five, and one holding a district
+       is inside exactly one state by construction. */
+    if (territory?.stateCode) return states.filter((row) => row.code === territory.stateCode);
     if (!scopeStates?.length) return states;
     const wanted = new Set(scopeStates);
     return states.filter((row) => wanted.has(row.code));
-  }, [states, scopeStates]);
+  }, [states, scopeStates, territory]);
 
-  /* A contest in one state opens on that state. There is no country to zoom
-     out to, so the map starts where the election actually is. */
-  const [path, setPath] = useState(() =>
-    scopeStates?.length === 1
-      ? [{ code: scopeStates[0], name: states.find((r) => r.code === scopeStates[0])?.name ?? scopeStates[0] }]
-      : []
-  ); // [state, lga, ward]
+  /* The state the map has no reason to leave: the one this account's ground is
+     inside, or the single state this contest is fought in. */
+  const pinnedCode = territory?.stateCode ?? (scopeStates?.length === 1 ? scopeStates[0] : null);
+  const pinnedState = pinnedCode
+    ? { code: pinnedCode, name: states.find((row) => row.code === pinnedCode)?.name ?? pinnedCode }
+    : null;
+
+  /* A contest in one state, or an account inside one, opens on that state.
+     There is no country to zoom out to, so the map starts where the election
+     — or the account — actually is. */
+  const [path, setPath] = useState(() => (pinnedState ? [pinnedState] : [])); // [state, lga, ward]
   const [hovered, setHovered] = useState(null);
 
   /* ── THE FIELD, AND WHOSE GROUND IT IS ON ─────────────────────────────
@@ -561,13 +587,18 @@ export default function SituationRoom({
     if (liveTree) return liveRowsFrom(liveStateNode);
     if (!stateData || !lgaShapes) return [];
     return apportion({
-      names: lgaShapes.lgas.map((row) => row.name),
+      /* Narrowed with the map. A panel ranking 23 local governments beside a
+         map drawing seven is two answers to one question. */
+      names: (territory?.lgaNames?.length
+        ? lgaShapes.lgas.filter((row) => territory.lgaNames.includes(row.name))
+        : lgaShapes.lgas
+      ).map((row) => row.name),
       votes: stateData.votes,
       booths: stateData.booths,
       registered: stateData.registered,
       parentKey: stateData.code,
     });
-  }, [liveTree, liveStateNode, stateData, lgaShapes]);
+  }, [liveTree, liveStateNode, stateData, lgaShapes, territory]);
 
   const liveLgaNode = useMemo(
     () => (liveStateNode && lga ? liveNodeFor(liveStateNode, lga.name) : null),
@@ -674,10 +705,22 @@ export default function SituationRoom({
   const mapShapes = useMemo(() => {
     if (level === "nation") return shapes;
     if (level === "state" && lgaShapes) {
-      return { title: state.name, paths: lgaShapes.lgas };
+      /* ── A DISTRICT IS DRAWN AS ITS OWN PLACES, NOT AS ITS STATE ───────
+         The boundary file holds every local government in the state. An
+         account holding a senatorial district holds seven of Kaduna's 23, and
+         drawing the other sixteen — grey, with no figures, inside the frame —
+         would say that sixteen places have not reported when the truth is
+         that they are not this room's to see. Matched by name because that is
+         what the boundary files are keyed by; the names come down already
+         resolved from the codes. See lib/lga-names.js. */
+      const paths = territory?.lgaNames?.length
+        ? lgaShapes.lgas.filter((row) => territory.lgaNames.includes(row.name))
+        : lgaShapes.lgas;
+
+      return { title: territory ? (ground ?? territory.name) : state.name, paths };
     }
     return null;
-  }, [level, shapes, lgaShapes, state]);
+  }, [level, shapes, lgaShapes, state, territory, ground]);
 
   /* ── AND THE TWO LEVELS THAT HAVE NONE ──────────────────────────────────
      A ward has no published boundary and a polling unit is a table under a
@@ -758,7 +801,7 @@ export default function SituationRoom({
   /* A single-state contest has no country above it. Offering "Nigeria" as a
      breadcrumb would invite the reader to zoom out to 36 states that are not
      in this election, and then wonder why they are all empty. */
-  const pinned = scopeStates?.length === 1;
+  const pinned = Boolean(pinnedState);
 
   /**
    * ── THE TRAIL ALWAYS HAS A ROOT ──────────────────────────────────────────
@@ -773,12 +816,22 @@ export default function SituationRoom({
    * contest the state itself is the top of the trail, which is also what it
    * is on the map. The array is never empty by construction.
    */
-  const rootLabel = pinned
-    ? (inScope[0]?.name ?? states.find((row) => row.code === scopeStates[0])?.name ?? "This election")
-    : "Nigeria";
+  const rootLabel = territory
+    ? /* A room holding Kaduna Central holds a district, not Kaduna. Naming
+         the state at the top of the trail would say the wrong thing about
+         what these figures are of. */
+      (ground ?? territory.name)
+    : pinned
+      ? (inScope[0]?.name ?? pinnedState?.name ?? "This election")
+      : "Nigeria";
 
   const crumbs = [
-    { label: rootLabel, go: () => setPath([]) },
+    /* ── AND THE ROOT GOES TO THE ROOT, NOT ABOVE IT ────────────────────
+         This sent a pinned view back to `[]`, which is the country — the
+         exact 36 empty states the label was dropped to avoid, one click
+         away and reachable by the only control that looked like "start
+         again". A pinned trail's first stop is its own state. */
+    { label: rootLabel, go: () => setPath(pinnedState ? [pinnedState] : []) },
     /* In a pinned contest the root already names the state, so adding it
        again would read "Ekiti / Ekiti". */
     !pinned && state && { label: state.name, go: () => setPath([state]) },
@@ -1138,10 +1191,10 @@ export default function SituationRoom({
            unkeyed array that React could not reconcile. */
         <>
           {projects && <ElectionSwitcher {...projects} />}
-          {/* Which of the day's five contests is on the wall. Beside the
+          {/* Which of the day's contests is on the wall. Beside the
               project switcher because it is the same kind of decision: both
               answer "which count am I looking at". */}
-          <RaceSwitcher race={race} races={races} filed={filedByRace} />
+          <RaceSwitcher race={race} races={races} filed={filedByRace} pinned={racePinned} ground={ground} />
           <LiveRefresh seconds={15} label="Live" />
           {/* ── WHAT THE MAP IS ACTUALLY DRAWING ─────────────────────────
               Three different things can be on this screen and they must never
@@ -1162,6 +1215,17 @@ export default function SituationRoom({
         </>
       }
     >
+      {/* ── WHAT THIS WALL IS OF, BEFORE ANY FIGURE ON IT ────────────────
+          A room narrowed to a district looks exactly like a room that is not,
+          and the coverage dial below reads the same either way. This is the
+          line that makes the percentage mean something. */}
+      <GroundBanner
+        territory={territory}
+        ground={ground}
+        unresolved={territoryUnresolved}
+        lgaNames={territory?.lgaNames ?? []}
+      />
+
       {layer === "board" ? (
         <Whiteboard
           shapes={shapes}
