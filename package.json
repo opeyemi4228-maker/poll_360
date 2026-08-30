@@ -16,6 +16,8 @@
     "_comment:test": "node's own runner, so there is no test dependency to install, keep current or audit. That matters more than usual for software that has to build on somebody else's machine on the morning of an election.",
     "test": "node --test tests/*.test.js",
     "account:create": "node scripts/create-account.mjs",
+    "_comment:build:constituencies": "The 109 senatorial districts and 360 federal constituencies, joined to the 774 local governments we draw. Run after editing scripts/sources/nigeria-lga-districts.sql or the alias table; it refuses to write anything unless every local government lands in exactly one senatorial district.",
+    "build:constituencies": "node scripts/build-constituencies.mjs",
     "build:map": "node scripts/build-map.mjs",
     "build:icons": "node scripts/build-icons.mjs",
     "seed:demo": "node scripts/seed-demo.mjs",
