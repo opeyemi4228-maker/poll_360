@@ -246,6 +246,9 @@ export default function SituationRoom({
   /* Who holds this ground in this contest, and the last election for it.
      Built on the server — see app/room/page.jsx. */
   seat = null,
+  /* The last declared governorship in each state on screen, keyed by state
+     code, from lib/seats.js. The analytics screen's baseline. */
+  stateResults = {},
   /* Our count held against what was announced. Built on the server by
      lib/gap-report.js — the same function /gap uses, so the headline here and
      the list there can never disagree. */
@@ -590,18 +593,29 @@ export default function SituationRoom({
   const lgaRows = useMemo(() => {
     if (liveTree) return liveRowsFrom(liveStateNode);
     if (!stateData || !lgaShapes) return [];
-    return apportion({
-      /* Narrowed with the map. A panel ranking 23 local governments beside a
-         map drawing seven is two answers to one question. */
-      names: (territory?.lgaNames?.length
-        ? lgaShapes.lgas.filter((row) => territory.lgaNames.includes(row.name))
-        : lgaShapes.lgas
-      ).map((row) => row.name),
+
+    /* ── DIVIDED ACROSS THE STATE, THEN NARROWED. NOT THE OTHER WAY ROUND ──
+       `apportion` splits a parent's total across the names it is handed, so
+       handing it seven names splits the WHOLE STATE's votes across seven local
+       governments — every figure inflated by three, on a screen whose entire
+       purpose is that its figures are real. Adamawa Central came out holding
+       Adamawa's 731,140 votes.
+
+       The split has to happen over all 21 for each one to get its own share,
+       and the narrowing happens to the answer. A panel ranking 21 beside a map
+       drawing 7 is two answers to one question; a panel ranking 7 that add up
+       to 21 places' votes is one answer and it is wrong. */
+    const all = apportion({
+      names: lgaShapes.lgas.map((row) => row.name),
       votes: stateData.votes,
       booths: stateData.booths,
       registered: stateData.registered,
       parentKey: stateData.code,
     });
+
+    return territory?.lgaNames?.length
+      ? all.filter((row) => territory.lgaNames.includes(row.name))
+      : all;
   }, [liveTree, liveStateNode, stateData, lgaShapes, territory]);
 
   const liveLgaNode = useMemo(
@@ -1284,6 +1298,7 @@ export default function SituationRoom({
           /* True when the account's seat is smaller than the state these
              figures are recorded at — every contest below a governorship. */
           subState={Boolean(territory) && !["NATION", "STATE"].includes(territory.level)}
+          results={stateResults}
         />
       ) : layer === "planning" ? (
         <PlanningMap shapes={shapes} territory={territory} ground={ground} />

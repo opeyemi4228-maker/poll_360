@@ -173,6 +173,34 @@ describe("the last election for this seat", () => {
     assert.match(result.note, /not loaded/);
   });
 
+  /* A National Assembly seat's date is a swearing-in and a council's is a
+     polling day. Neither is a declaration, and printing either under
+     "declared" is a small lie about a small thing — which is what a reader
+     calibrates trust on before they get to the large ones. */
+  it("gives a date to hold the seat by, not a declaration date it does not have", () => {
+    const seat = lastResultFor({ race: "SENATE", territory: at("SENATORIAL:02/adamawa-central") });
+    assert.equal(seat.declaredOn, null);
+    assert.equal(seat.heldSince, "2023-06-13");
+
+    /* A real declaration keeps its real date. */
+    const declared = lastResultFor({ race: "GOVERNORSHIP", territory: at("STATE:02") });
+    assert.equal(declared.declaredOn, "2023-04-18");
+  });
+
+  /* The panel already says, in full, that no totals were published. A second
+     sentence saying it again is a line a reader learns to skip, and the next
+     line they skip is one that mattered. */
+  it("carries no filler note, only one specific to the seat", () => {
+    assert.equal(
+      lastResultFor({ race: "REPRESENTATIVES", territory: at("FEDERAL:02/fufore-song") }).note,
+      null
+    );
+
+    /* Adamawa North's seat changed hands in court, which is worth a sentence. */
+    const north = lastResultFor({ race: "SENATE", territory: at("SENATORIAL:02/adamawa-north") });
+    assert.match(north.note, /Court of Appeal/);
+  });
+
   it("returns nothing rather than something for a seat we do not hold", () => {
     assert.equal(lastResultFor({ race: "SENATE", territory: at("SENATORIAL:24/lagos-west") }), null);
     assert.equal(lastResultFor({ race: "LGA", territory: at("LGA:24/13") }), null);

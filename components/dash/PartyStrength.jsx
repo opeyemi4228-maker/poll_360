@@ -128,18 +128,24 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
 
   const lgaRows = useMemo(() => {
     if (!stateRow || !lgaShapes?.lgas) return [];
-    /* Narrowed with everything else: an account holding a district must not be
-       shown its state's other sixteen local governments, here or on the map. */
-    const held = territory?.lgaNames?.length
-      ? lgaShapes.lgas.filter((row) => territory.lgaNames.includes(row.name))
-      : lgaShapes.lgas;
-    return apportion({
-      names: held.map((row) => row.name),
+
+    /* ── DIVIDED ACROSS THE STATE, THEN NARROWED ─────────────────────────
+       `apportion` splits the parent's total across whatever names it is given.
+       Handing it only the ground's seven splits the whole state's votes across
+       seven local governments, and the summary above the map then reads the
+       state's 731,140 as the district's. Split over all 21, then keep the
+       seven — see the same note in SituationRoom. */
+    const all = apportion({
+      names: lgaShapes.lgas.map((row) => row.name),
       votes: stateRow.votes,
       booths: stateRow.booths,
       registered: stateRow.registered,
       parentKey: stateRow.code,
     });
+
+    return territory?.lgaNames?.length
+      ? all.filter((row) => territory.lgaNames.includes(row.name))
+      : all;
   }, [stateRow, lgaShapes, territory]);
 
   const wardRows = useMemo(() => {
@@ -529,7 +535,19 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
                exactly these five slots. Nothing wider exists to pass. */
             slots={allParties}
             place={pickedRow?.name ?? crumbs.at(-1).label}
-            level={pickedRow ? childWord(level) : levelWord(level)}
+            /* ── A GROUND IS NOT A STATE, EVEN WHEN IT SITS INSIDE ONE ────
+               The word under the place name says what kind of thing it is, and
+               "State" over "Adamawa Central" is wrong twice: the name is a
+               senatorial district, and the figures beneath it are now the
+               district's rather than the state's. The account's own ground
+               names itself. */
+            level={
+              pickedRow
+                ? childWord(level)
+                : territory && level === "state"
+                  ? GROUND_WORD[territory.level] ?? "Ground"
+                  : levelWord(level)
+            }
             row={{
               votes: pickedRow?.all ?? scope.all,
               registered: pickedRow?.registered ?? scope.registered,
@@ -653,6 +671,14 @@ const childWord = (level) =>
   level === "nation" ? "state" : level === "state" ? "local government" : level === "lga" ? "ward" : "polling unit";
 
 /** What the reader is standing *in*, as opposed to what they can open. */
+/* What an account's own ground is called, for the card above the map. */
+const GROUND_WORD = {
+  STATE: "State",
+  SENATORIAL: "Senatorial district",
+  FEDERAL: "Federal constituency",
+  LGA: "Local government",
+};
+
 const levelWord = (level) =>
   level === "nation"
     ? "Federation"

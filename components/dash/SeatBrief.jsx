@@ -30,7 +30,25 @@ import { formatNumber, formatShare } from "@/lib/utils";
  *  anybody voting on the change. Both are printed, with the date of the move.
  * ══════════════════════════════════════════════════════════════════════════
  */
+/**
+ * How each contest is named in a sentence.
+ *
+ * `raceLabel` is a column heading — "Local government", "Representatives" —
+ * and dropping it into "the last ___ here" produced "the last local government
+ * here", which reads as a question about geography. These are the same six
+ * contests said the way somebody says them out loud.
+ */
+const CONTEST = {
+  PRESIDENTIAL: "presidential election",
+  GOVERNORSHIP: "governorship election",
+  SENATE: "senatorial election",
+  REPRESENTATIVES: "House of Representatives election",
+  ASSEMBLY: "House of Assembly election",
+  LGA: "local government election",
+};
+
 export default function SeatBrief({ race, raceLabel, ground, holders = [], result = null }) {
+  const contest = CONTEST[race] ?? String(raceLabel ?? "election").toLowerCase();
   return (
     <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <section className="rounded-dash border border-dash-line bg-dash-card">
@@ -87,7 +105,7 @@ export default function SeatBrief({ race, raceLabel, ground, holders = [], resul
         )}
       </section>
 
-      <LastResult result={result} raceLabel={raceLabel} ground={ground} />
+      <LastResult result={result} contest={contest} ground={ground} holders={holders} />
     </div>
   );
 }
@@ -100,18 +118,18 @@ export default function SeatBrief({ race, raceLabel, ground, holders = [], resul
  * there is something to compare, and where nothing was published the honest
  * shape on the screen is a sentence.
  */
-function LastResult({ result, raceLabel, ground }) {
+function LastResult({ result, contest, ground, holders = [] }) {
   if (!result) {
     return (
       <section className="rounded-dash border border-dash-line bg-dash-card">
         <header className="border-b border-dash-line px-5 py-4">
           <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-            The last {raceLabel.toLowerCase()} here
+            The last {contest} here
           </p>
         </header>
         <p className="px-5 py-6 text-[0.875rem] leading-relaxed text-dash-muted">
-          We hold no record of the last {raceLabel.toLowerCase()} for {ground}. That is a gap in what
-          this product has transcribed, not a statement that none was held.
+          We hold no record of the last {contest} for {ground}. That is a gap in what this product
+          has transcribed, not a statement that none was held.
         </p>
       </section>
     );
@@ -127,19 +145,33 @@ function LastResult({ result, raceLabel, ground }) {
   const counted = ranked.reduce((sum, [, value]) => sum + value, 0);
   const margin = ranked.length > 1 ? ranked[0][1] - ranked[1][1] : null;
 
+  /* ── SAID ONCE ────────────────────────────────────────────────────────
+     A seat's note and its last result's note are frequently the same sentence
+     — a council sweep carries one line explaining itself and both halves of
+     this panel were printing it, side by side, in full. Repetition on a screen
+     teaches a reader that this corner does not need reading. */
+  const note = holders.some((seat) => seat.note === result.note) ? null : result.note;
+
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card">
       <header className="border-b border-dash-line px-5 py-4">
         <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-          The last {raceLabel.toLowerCase()} here
+          The last {contest} here
         </p>
+        {/* A winner nobody named — the 21 Adamawa chairmen, for instance — is
+            not headlined by their party code alone, which reads as a label
+            rather than as a result. The sentence says what happened. */}
         <p className="mt-1 text-[0.9375rem] font-bold text-dash-ink">
-          {result.candidate ?? result.party}
+          {result.candidate ?? `${result.party} took this seat`}
           {result.candidate && <span className="font-normal text-dash-muted"> · {result.party}</span>}
         </p>
         <p className="mt-0.5 text-[0.8125rem] text-dash-muted">
           {result.place}
-          {result.declaredOn && ` · declared ${result.declaredOn}`}
+          {result.declaredOn
+            ? ` · declared ${result.declaredOn}`
+            : result.heldSince
+              ? ` · held since ${result.heldSince}`
+              : ""}
         </p>
       </header>
 
@@ -201,11 +233,9 @@ function LastResult({ result, raceLabel, ground }) {
         </p>
       )}
 
-      {(result.note || result.source) && (
+      {(note || result.source) && (
         <footer className="border-t border-dash-line px-5 py-3">
-          {result.note && (
-            <p className="text-[0.8125rem] leading-relaxed text-dash-muted">{result.note}</p>
-          )}
+          {note && <p className="text-[0.8125rem] leading-relaxed text-dash-muted">{note}</p>}
           {result.source && (
             <p className="mt-1.5 flex gap-1.5 text-[0.75rem] leading-relaxed text-dash-muted">
               <FileText size={12} strokeWidth={2.5} className="mt-0.5 shrink-0" />

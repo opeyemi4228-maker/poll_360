@@ -6,7 +6,7 @@ import SituationRoom from "@/components/dash/SituationRoom";
 import { listElections } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { viewing } from "@/lib/viewing";
-import { lgasOf } from "@/lib/constituencies";
+import { lgasOf, resolveTerritory } from "@/lib/constituencies";
 import { holdersOf, lastResultFor } from "@/lib/seats";
 import { RACES, raceLabel } from "@/lib/races";
 import { results, incidents, media, declared } from "@/lib/db";
@@ -165,6 +165,11 @@ export default async function RoomPage() {
           level: territory.level,
           name: territory.name,
           stateCode: territory.stateCode,
+          /* The state's name, not only its code. Panels that have to say
+             whose figures they are showing were printing the project's title
+             instead — "Every figure below is Adamawa State, 2023's" where they
+             meant "Adamawa's". */
+          stateName: territory.stateName,
           stateNumber: territory.stateNumber,
           lgas: territory.lgas,
           /* The names as well as the codes, because the boundary files are
@@ -193,6 +198,40 @@ export default async function RoomPage() {
         holders: holdersOf({ race, territory }),
         result: lastResultFor({ race, territory }),
       }}
+      /* ── THE LAST GOVERNORSHIP IN THE STATES ON SCREEN ─────────────────
+         The analytics screen's baseline. It read lib/offcycle.js alone, which
+         holds the eight contests fought outside the general cycle — so for
+         Adamawa, whose 2023 declaration this product has transcribed in full,
+         it announced "no governorship result loaded" and rested every figure
+         on the presidential vote instead. Two modules holding the same fact
+         and only one of them consulted.
+
+         Resolved here, from lib/seats.js, which is the one place that answers
+         "the last election for this contest on this ground" — and shaped the
+         way lib/offcycle.js shapes a row, so the screen reads one kind of
+         thing however it was sourced. */
+      stateResults={Object.fromEntries(
+        (territory?.stateCode ? [territory.stateNumber] : []).flatMap((number) => {
+          const whole = resolveTerritory(`STATE:${number}`);
+          const last = whole && lastResultFor({ race: "GOVERNORSHIP", territory: whole });
+          if (!last?.votes) return [];
+          return [[
+            whole.stateCode,
+            {
+              code: whole.stateCode,
+              state: whole.name,
+              votesOn: last.votesOn,
+              winner: last.party,
+              candidate: last.candidate,
+              votes: last.votes,
+              /* The register that election was actually run on, which is not
+                 the presidential one: Adamawa's differ by 88,000. */
+              registered: last.registered ?? null,
+              source: last.source,
+            },
+          ]];
+        })
+      )}
       divergence={divergence}
       liveTree={tree}
       race={race}

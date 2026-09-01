@@ -74,7 +74,7 @@ const PROFILE = [
  * below never share a hook order and neither can be rendered conditionally
  * inside the other.
  */
-export default function Analytics({ scopeStates = [], race = null, title = null, ground = null, subState = false }) {
+export default function Analytics({ scopeStates = [], race = null, title = null, ground = null, subState = false, results = {} }) {
   /**
    * ── A STATE CONTEST GETS A DIFFERENT SCREEN, NOT A NARROWER ONE ──────────
    * Scoping the presidential projection to one state made every figure on it
@@ -119,6 +119,7 @@ export default function Analytics({ scopeStates = [], race = null, title = null,
           scopeStates={scopeStates}
           title={title}
           raceLabel={raceFor(race)?.label ?? "State contest"}
+          results={results}
         />
       </>
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapPin, Radio, ShieldAlert, Users } from "lucide-react";
 
 import { boundsOf } from "@/lib/bbox";
@@ -53,14 +53,41 @@ export default function CoordinatorWatch({ shapes, coordinators, summary, territ
      Every agent this room may see stands inside its ground, so drawing the
      other 36 states is drawing 36 places from which no dot will ever appear —
      and squeezing the ones that will into a corner of the frame. The outline
-     narrows with the watch, and the window narrows to the outline. */
-  const land = useMemo(
-    () =>
-      territory?.stateCode
-        ? shapes.states.filter((row) => row.code === territory.stateCode)
-        : shapes.states,
-    [shapes, territory]
-  );
+     narrows with the watch, and the window narrows to the outline.
+
+     ── AND BELOW A STATE, THE GROUND'S OWN PLACES ────────────────────────
+     A senatorial district is seven local governments, not a state, and every
+     other panel in this room draws exactly those seven. Drawing the whole
+     state here would put two thirds of the outline outside the ground and
+     invite somebody to read a dot's position against a border that is not
+     theirs. The boundary file is fetched the same way the other maps fetch
+     it, and until it lands the state's own outline stands in — which is the
+     right place, drawn one level too wide, for about a second. */
+  const [boundaries, setBoundaries] = useState(null);
+  const wanted = territory?.stateCode ?? null;
+
+  useEffect(() => {
+    if (!wanted || !territory?.lgaNames?.length) return undefined;
+    let live = true;
+    fetch(`/geo/lga/${wanted}.json`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => live && setBoundaries({ code: wanted, data }))
+      .catch(() => live && setBoundaries({ code: wanted, data: null }));
+    return () => {
+      live = false;
+    };
+  }, [wanted, territory]);
+
+  const land = useMemo(() => {
+    if (!territory?.stateCode) return shapes.states;
+
+    const held = boundaries?.code === territory.stateCode ? boundaries.data : null;
+    if (held?.lgas && territory.lgaNames?.length) {
+      return held.lgas.filter((row) => territory.lgaNames.includes(row.name));
+    }
+
+    return shapes.states.filter((row) => row.code === territory.stateCode);
+  }, [shapes, territory, boundaries]);
 
   const frame = useMemo(
     () =>
@@ -151,7 +178,10 @@ export default function CoordinatorWatch({ shapes, coordinators, summary, territ
                 the data. */}
             {land.map((shape) => (
               <path
-                key={shape.code}
+                /* A state carries a code and a local government does not, and
+                   this map now draws either. Named or coded, both are unique
+                   within what is drawn. */
+                key={shape.code ?? shape.name}
                 d={shape.d}
                 fill="var(--color-silent)"
                 stroke="rgba(255,255,255,0.55)"
@@ -258,8 +288,8 @@ export default function CoordinatorWatch({ shapes, coordinators, summary, territ
 
         {shown.length === 0 ? (
           <p className="px-4 py-8 text-center text-[0.875rem] leading-relaxed text-dash-muted">
-            No coordinators match this filter. Accounts are created by an administrator and tied to
-            one polling unit each.
+            No coordinators match this filter{ground ? ` in ${ground}` : ""}. Accounts are created
+            by an administrator and tied to one polling unit each.
           </p>
         ) : (
           <ul className="min-h-0 flex-1 divide-y divide-dash-line overflow-y-auto">
