@@ -336,7 +336,24 @@ export default function SituationRoom({
      Google's is offered only where a key is configured, because a room on a
      venue's wifi cannot fix somebody else's outage at nine at night. */
   const [heat, setHeat] = useState(true);
-  const [basemap, setBasemap] = useState("board"); // board | google | satellite
+
+  /**
+   * ── WHICH GROUND, AND WHY EARTH IS THE DEFAULT HERE ──────────────────────
+   * Null means "whatever this layer should open on", and for Voters, Turnout
+   * and Clusters that is the satellite imagery whenever a key is configured.
+   * Those three ask questions a drawn map cannot answer — where the people
+   * are, and what is physically under a crowd — so the ground is the answer
+   * rather than the backdrop. Results opens on our own map, because who won
+   * is not a question about terrain.
+   *
+   * Once the reader picks a ground it is kept, including across a change of
+   * layer: somebody who has deliberately gone back to the drawn board should
+   * not be returned to imagery by clicking a tab.
+   */
+  /* Named `basemap`, not `ground`: this room already has a `ground`, and it
+     means the political territory an account covers. Two grounds in one
+     component is a bug waiting for somebody in a hurry. */
+  const [basemap, setBasemap] = useState(null); // null = the layer's own default
   const [picked, setPicked] = useState(null); // the jurisdiction whose full card is open
   const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
   const [cursor, setCursor] = useState(board.opening);
@@ -781,6 +798,11 @@ export default function SituationRoom({
         };
       });
   }, [level, rows, layer]);
+
+  /* Null means the layer's own default; Voters, Turnout and Clusters open on
+     the imagery wherever a key exists, and everything else on our own map. */
+  const activeBasemap =
+    basemap ?? (googleAvailable && layer !== "results" && level === "nation" ? "earth" : "board");
 
   const heatPoints = useMemo(
     () => (mapShapes ? heatPointsFor({ shapes: mapShapes, rows, layer }) : []),
@@ -1523,30 +1545,30 @@ export default function SituationRoom({
                   see components/dash/GoogleLayer. */}
               {layer !== "results" && (
                 <>
-                  <MapToggle on={heat} onClick={() => setHeat((was) => !was)}>
-                    Heat
-                  </MapToggle>
-                  {/* Only where it can actually draw: the outlines are
-                      states, so inside a state there is nothing for Google to
-                      put under the figures and the control would be a switch
-                      that appears to do nothing. */}
+                  {/* The field belongs to our own map. On Google the layer
+                      draws its own, tuned to what that dashboard is about —
+                      and turnout gets none at all, there or here, because a
+                      rate has no density. See components/dash/GoogleLayer. */}
+                  {activeBasemap === "board" && (
+                    <MapToggle on={heat} onClick={() => setHeat((was) => !was)}>
+                      Heat
+                    </MapToggle>
+                  )}
+
+                  {/* Only where it can actually draw: the outlines are states,
+                      so inside a state there is nothing for Google to put
+                      under the figures and the control would be a switch that
+                      appears to do nothing. */}
                   {googleAvailable && level === "nation" && (
                     <>
-                      <MapToggle
-                        on={basemap === "google"}
-                        onClick={() =>
-                          setBasemap((was) => (was === "google" ? "board" : "google"))
-                        }
-                      >
-                        Google
+                      <MapToggle on={activeBasemap === "earth"} onClick={() => setBasemap("earth")}>
+                        Earth
                       </MapToggle>
-                      <MapToggle
-                        on={basemap === "satellite"}
-                        onClick={() =>
-                          setBasemap((was) => (was === "satellite" ? "board" : "satellite"))
-                        }
-                      >
-                        Satellite
+                      <MapToggle on={activeBasemap === "map"} onClick={() => setBasemap("map")}>
+                        Map
+                      </MapToggle>
+                      <MapToggle on={activeBasemap === "board"} onClick={() => setBasemap("board")}>
+                        Board
                       </MapToggle>
                     </>
                   )}
@@ -1566,14 +1588,14 @@ export default function SituationRoom({
               </p>
             )}
 
-            {basemap !== "board" && layer !== "results" && googlePlaces.length ? (
+            {activeBasemap !== "board" && layer !== "results" && googlePlaces.length ? (
               /* Somebody else's ground under our own figures. Nothing is
                  computed differently here; the points are the ones the layer
                  above draws. */
               <GoogleLayer
                 places={googlePlaces}
-                satellite={basemap === "satellite"}
-                heat={heat}
+                layer={layer}
+                ground={activeBasemap}
                 onOpen={(code) => setHovered(code)}
               />
             ) : mapShapes ? (
