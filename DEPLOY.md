@@ -34,6 +34,15 @@ Production, Preview and Development.
 | `SHEET_READER_MODEL` | optional | Which model reads the sheet. Defaults to `claude-opus-5`. |
 | `SHEET_READER_EFFORT` | optional | How much care it takes over the digits: `low` to `max`, default `high`. |
 | `SHEET_READER_CACHE` | optional | Where the local reader keeps its language file. Defaults to the system temporary directory, which is right almost everywhere. |
+| `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | optional | Turns on the Google and Satellite grounds under the Voters, Turnout and Clusters layers. Without it those controls are not rendered and the room draws its own map, which is the default either way. |
+
+**The Google ground.** `NEXT_PUBLIC_GOOGLE_MAPS_KEY` is a browser key, so it
+travels to every reader of the room and must be restricted in the Google Cloud
+console — HTTP referrers limited to your own domain, and the Maps JavaScript API
+enabled and nothing else. It is deliberately optional. The room's own map is
+drawn from files this repository ships and works on a venue's wifi with the
+uplink down; the Google ground is worth having for the imagery under a cluster,
+and it is not worth depending on at nine o'clock on election night.
 
 **Which reader runs.** The keys decide, in this order: Anthropic, then Google,
 then the reader built into the server. Only the first can read handwriting, and

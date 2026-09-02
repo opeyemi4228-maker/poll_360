@@ -18,7 +18,7 @@ import {
 import TopShell from "./TopShell";
 import { useGreeting } from "./useGreeting";
 import ScopeMap, { LABEL, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
-import GoogleHeat, { googleAvailable } from "./GoogleHeat";
+import GoogleLayer, { googleAvailable } from "./GoogleLayer";
 import UnitMap, { latLon } from "./UnitMap";
 import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
@@ -28,6 +28,7 @@ import DivergencePanel from "./DivergencePanel";
 import Analytics from "./Analytics";
 import ElectionSwitcher from "./ElectionSwitcher";
 import PartyStrength from "./PartyStrength";
+import Behaviour from "./Behaviour";
 import PlanningMap from "./PlanningMap";
 import RulingParty from "./RulingParty";
 import Whiteboard from "./Whiteboard";
@@ -122,6 +123,10 @@ const TAB_GROUPS = [
     /* Everything above answers "what is happening". These two answer "what
        would happen" and "where will we work". */
     tabs: [
+      /* First in the group, because it is the evidence the other two are
+         argued from: a projection with no history behind it is a preference
+         with error bars. */
+      { value: "behaviour", label: "Behaviour" },
       { value: "analytics", label: "Analytics" },
       { value: "planning", label: "Planning" },
     ],
@@ -748,6 +753,35 @@ export default function SituationRoom({
      reporting a real position is plotted on. See components/dash/UnitMap. */
   /* One computation, two renderers: our own field and Google's draw the same
      figures at the same places or they are two maps of two countries. */
+  /**
+   * The states, as the Google layer wants them: a real code, the figure this
+   * layer is about, and that figure normalised so a fill and a pin can be
+   * sized by it. Built from the same rows the choropleth draws, so the two
+   * grounds can never disagree about a number.
+   */
+  const googlePlaces = useMemo(() => {
+    if (level !== "nation") return [];
+    const ceiling = Math.max(...rows.map((row) => magnitude(row, layer)), 1);
+
+    return rows
+      .filter((row) => row.code)
+      .map((row) => {
+        const value = magnitude(row, layer);
+        return {
+          code: row.code,
+          name: row.name,
+          value,
+          label:
+            layer === "turnout"
+              ? `${formatShare(value)} turnout`
+              : layer === "density"
+                ? `${formatNumber(value)} voters per unit`
+                : `${formatNumber(value)} registered`,
+          weight: value / ceiling,
+        };
+      });
+  }, [level, rows, layer]);
+
   const heatPoints = useMemo(
     () => (mapShapes ? heatPointsFor({ shapes: mapShapes, rows, layer }) : []),
     [mapShapes, rows, layer]
@@ -1199,6 +1233,8 @@ export default function SituationRoom({
                       ? ` in ${scopeStates.length === 1 ? rootLabel : `these ${scopeStates.length} states`}`
                       : ""
                 }`
+              : layer === "behaviour"
+                ? "Seven presidential elections, 1999 to 2023, and every governorship since"
               : layer === "parties"
                 ? territory
                   ? `One party at a time, across ${ground ?? territory.name}, down to a polling unit`
@@ -1279,6 +1315,11 @@ export default function SituationRoom({
            they have is where this party is strong inside their own ground.
            Unnarrowed rooms still get all 37. */
         <PartyStrength shapes={shapes} territory={territory} ground={ground} />
+      ) : layer === "behaviour" ? (
+        /* No scope passed, deliberately, for the same reason PartyStrength
+           takes none: how a country has voted over seven elections is not a
+           question about whichever contest happens to be open. */
+        <Behaviour shapes={shapes} />
       ) : layer === "analytics" ? (
         <Analytics
           /* ── THE CONTEST BEING READ, NOT THE PROJECT'S HEADLINE ──────────
@@ -1479,13 +1520,17 @@ export default function SituationRoom({
                   Only on the magnitude layers. Results has no density to
                   draw, and offering the control there would teach the reader
                   that it does. Google appears only where a key is configured;
-                  see components/dash/GoogleHeat. */}
+                  see components/dash/GoogleLayer. */}
               {layer !== "results" && (
                 <>
                   <MapToggle on={heat} onClick={() => setHeat((was) => !was)}>
                     Heat
                   </MapToggle>
-                  {googleAvailable && (
+                  {/* Only where it can actually draw: the outlines are
+                      states, so inside a state there is nothing for Google to
+                      put under the figures and the control would be a switch
+                      that appears to do nothing. */}
+                  {googleAvailable && level === "nation" && (
                     <>
                       <MapToggle
                         on={basemap === "google"}
@@ -1521,11 +1566,16 @@ export default function SituationRoom({
               </p>
             )}
 
-            {basemap !== "board" && layer !== "results" && heatPoints.length ? (
+            {basemap !== "board" && layer !== "results" && googlePlaces.length ? (
               /* Somebody else's ground under our own figures. Nothing is
                  computed differently here; the points are the ones the layer
                  above draws. */
-              <GoogleHeat points={heatPoints} satellite={basemap === "satellite"} />
+              <GoogleLayer
+                places={googlePlaces}
+                satellite={basemap === "satellite"}
+                heat={heat}
+                onOpen={(code) => setHovered(code)}
+              />
             ) : mapShapes ? (
               <ScopeMap
                 level={level}

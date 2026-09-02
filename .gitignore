@@ -44,3 +44,7 @@ yarn-error.log*
 # A scheme is not a path. Guarded in lib/db.js, ignored here as well, because
 # the directory this catches carries a live password in its own name.
 postgresql:/
+
+# Fetched source data for scripts/build-history.mjs and build-latlng.mjs.
+# Re-downloadable, and the checked-in output is what matters.
+.cache/
