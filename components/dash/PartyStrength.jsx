@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Target, TrendingDown, TrendingUp } from "lucide-react";
 
+import AddToPlan from "./AddToPlan";
 import { PARTY_FILL } from "./Charts";
 import PartyBreakdown from "./PartyBreakdown";
 import { boundsOf } from "@/lib/bbox";
@@ -64,6 +65,13 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
      a screen that can answer the first and not the second sends the reader to
      another tab and loses their place. */
   const [picked, setPicked] = useState(null);
+
+  /* ── THE QUESTION A CAMPAIGN ACTUALLY ASKS THIS SCREEN ────────────────────
+     Not "where are we strong" — that is a headline. It is "where did we lose
+     by less than this much", because those are the places another week of
+     work could have taken, and they are the only places on the map where the
+     margin is a budget rather than a fact. */
+  const [within, setWithin] = useState(5);
 
   /**
    * ── ALWAYS THE WHOLE FEDERATION, WHATEVER PROJECT IS OPEN ────────────────
@@ -315,6 +323,29 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
           }
         : null;
 
+  /* Places this party did not carry, that it lost by no more than the chosen
+     margin. Sorted by how close, because that is the order they are worth
+     working in. */
+  const nearMisses = useMemo(
+    () =>
+      children
+        .filter((row) => !row.won && row.behind > 0 && row.behind <= within)
+        .sort((a, b) => a.behind - b.behind),
+    [children, within]
+  );
+
+  const pathOf = useCallback(
+    (row) =>
+      level === "nation"
+        ? [row.key]
+        : level === "state"
+          ? [state.code, row.name]
+          : level === "lga"
+            ? [state.code, lga.name, row.name]
+            : [state.code, lga.name, ward.name, row.name],
+    [level, state, lga, ward]
+  );
+
   const strongest = children[0];
   const weakest = children[children.length - 1];
 
@@ -522,6 +553,72 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
               small
             />
           </div>
+
+          {/* ── WHERE THE MARGIN IS A BUDGET ──────────────────────────────
+              The places this party lost by little enough that another week of
+              work was the difference. This is the one panel on this screen
+              that is an instruction rather than a description, so it carries
+              the control that puts them in the plan. */}
+          <section className="rounded-dash border border-dash-line bg-dash-card">
+            <header className="border-b border-dash-line px-4 py-3">
+              <div className="flex items-baseline gap-2">
+                <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
+                  Lost by under
+                </h3>
+                <div className="ml-auto flex gap-1">
+                  {[2, 5, 10, 20].map((points) => (
+                    <button
+                      key={points}
+                      type="button"
+                      onClick={() => setWithin(points)}
+                      aria-pressed={within === points}
+                      className={cn(
+                        "figure rounded-full px-2 py-0.5 text-[0.6875rem] font-bold transition-colors",
+                        within === points
+                          ? "bg-dash-ink text-white"
+                          : "border border-dash-line text-dash-muted hover:text-dash-ink"
+                      )}
+                    >
+                      {points}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+                {nearMisses.length
+                  ? `${nearMisses.length} ${childWord(level)}${nearMisses.length === 1 ? "" : "s"} where ${party} was behind by ${within} points or less.`
+                  : `${party} was not within ${within} points anywhere at this level.`}
+              </p>
+            </header>
+
+            {nearMisses.length > 0 && (
+              <>
+                <ul className="max-h-56 divide-y divide-dash-line overflow-y-auto">
+                  {nearMisses.map((row) => (
+                    <li key={row.key} className="flex items-baseline gap-2 px-4 py-1.5">
+                      <span className="min-w-0 flex-1 truncate text-[0.75rem] text-dash-ink">
+                        {row.name}
+                      </span>
+                      <span className="figure shrink-0 text-[0.75rem] font-bold text-dash-ink tabular-nums">
+                        {formatShare(row.behind)}
+                      </span>
+                      <span className="figure w-20 shrink-0 text-right text-[0.6875rem] text-dash-muted tabular-nums">
+                        {formatNumber(row.total)} cast
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="border-t border-dash-line p-3">
+                  <AddToPlan
+                    paths={nearMisses.map(pathOf)}
+                    reason={`${party} lost here by ${within} points or less in 2023`}
+                    from={`Parties · ${party}`}
+                    label={`Add all ${nearMisses.length} to plan`}
+                  />
+                </div>
+              </>
+            )}
+          </section>
 
           {/* ── THE WHOLE CONTEST, WHEREVER YOU ARE STANDING ──────────────
               One party at a time is the right way to read strength and the

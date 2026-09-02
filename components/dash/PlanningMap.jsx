@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { ChevronRight, Download, Layers, Loader2, MapPin, RotateCcw, Target, Users } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
 import UnitMap from "./UnitMap";
+import { campaign } from "@/lib/campaign";
 import {
   SEP,
   clearUnder,
@@ -12,7 +21,6 @@ import {
   isCovered,
   pathKey,
   statusOf as coverageStatus,
-  toggle as toggleMark,
 } from "@/lib/coverage";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { apportion, wardCount } from "@/lib/drill";
@@ -380,7 +388,16 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
    * screen is costed by walking it. That walk, and the proof that nothing is
    * counted twice at any depth, is lib/coverage.js and tests/coverage.test.js.
    */
-  const [picked, setPicked] = useState(() => new Map());
+  /* ── AND IT IS NOT THIS SCREEN'S PLAN ANY MORE ──────────────────────────
+     It used to be local state here, which meant it died on a refresh and no
+     other dashboard could reach it. It is the campaign's plan now: the
+     behaviour screen, the party screen and the maps all write into it, it
+     survives a reload, and every entry carries the sentence that put it
+     there. This screen is where it is costed and exported. See
+     lib/campaign.js. */
+  const plan_ = useSyncExternalStore(campaign.subscribe, campaign.snapshot, campaign.serverSnapshot);
+  const picked = plan_.marks;
+  const reasons = plan_.reasons;
 
   /* Local government figures for every state opened so far. A carve-out has to
      be costed exactly, and the rows are only derivable while their state is
@@ -802,7 +819,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
    * rather than from which level the reader happens to be standing on.
    */
   const take = useCallback((parts) => {
-    setPicked((current) => toggleMark(current, pathKey(parts)));
+    campaign.flip(parts);
   }, []);
 
   /** Is this place counted in the plan right now? */
@@ -825,7 +842,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
     /* Restore the plan as it stood before the first tap, then remove this
        place and everything marked inside it. Undoing a gesture has to undo all
        of it, including whatever tap two did on the way past. */
-    setPicked(() => clearUnder(new Map(held ?? []), key));
+    campaign.restore(clearUnder(new Map(held ?? []), key));
 
     /* And come back out of it. A place that is no longer in the plan is not a
        place anybody is still working inside, and leaving the frame zoomed into
@@ -1007,7 +1024,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
    */
   const exportPlan = () => {
     const lines = [
-      `scope,state,local government,ward,polling unit,${basis.short.toLowerCase()},booths`,
+      `scope,state,local government,ward,polling unit,${basis.short.toLowerCase()},booths,why,from`,
     ];
 
     const WORD = { 1: "State", 2: "Local government", 3: "Ward", 4: "Polling unit" };
@@ -1021,6 +1038,8 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
       const own = figuresFor(parts);
       const [, lgaName, wardName, unitName] = parts;
 
+      const reason = reasons[key];
+
       lines.push(
         [
           `${WORD[parts.length]}${picked.get(key) === "-" ? " removed" : ""}`,
@@ -1030,6 +1049,10 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
           cell(unitName),
           own ? own.value : "",
           own ? own.booths : "",
+          /* The argument travels with the row. A coverage plan somebody has to
+             defend is a plan whose every line says why it is there. */
+          cell(reason?.why),
+          cell(reason?.from),
         ].join(",")
       );
     }
@@ -1595,7 +1618,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
                 <li key={entry.code}>
                   <button
                     type="button"
-                    onClick={() => setPicked((current) => clearUnder(current, entry.code))}
+                    onClick={() => campaign.drop(entry.code)}
                     onMouseEnter={() => setHovered(entry.code)}
                     onMouseLeave={() => setHovered(null)}
                     className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors hover:bg-dash-bg"
@@ -1612,6 +1635,19 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
                         {byCode.get(entry.code)?.name ?? entry.code}
                       </span>
                       <span className="block text-[0.6875rem] text-dash-muted">{entry.detail}</span>
+                      {/* ── WHY IT IS IN THE PLAN ──────────────────────────
+                          The plan is read by somebody who was not in the room
+                          when it was made, usually the person being asked to
+                          pay for it. A list of place names is not an argument;
+                          the sentence that put each one there is. */}
+                      {reasons[entry.code] && (
+                        <span className="mt-0.5 block text-[0.625rem] leading-relaxed text-dash-muted italic">
+                          {reasons[entry.code].why}
+                          {reasons[entry.code].from && (
+                            <span className="not-italic"> · from {reasons[entry.code].from}</span>
+                          )}
+                        </span>
+                      )}
                     </span>
                     <span className="shrink-0 text-[0.6875rem] text-dash-muted">remove</span>
                   </button>
@@ -1632,7 +1668,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
             </button>
             <button
               type="button"
-              onClick={() => setPicked(new Map())}
+              onClick={() => campaign.clear()}
               disabled={summary.length === 0}
               aria-label="Clear the plan"
               className="inline-flex size-10 items-center justify-center rounded-dash-sm border border-dash-line text-dash-ink transition-colors hover:border-dash-ink disabled:opacity-40"

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { ChevronRight, TrendingDown, Users, Vote } from "lucide-react";
 
+import AddToPlan from "./AddToPlan";
 import { PARTY_FILL } from "./Charts";
 import {
   ELECTIONS,
@@ -10,9 +11,11 @@ import {
   MAPPABLE,
   effectiveParties,
   findings,
+  flippedAt,
   recentContests,
   sharesOf,
   stateHistories,
+  stayAtHomeByState,
   turnoutSeries,
   volatilitySeries,
   zoneSeries,
@@ -73,6 +76,14 @@ export default function Behaviour({ shapes }) {
   const zones = useMemo(() => zoneSeries(), []);
   const recent = useMemo(() => recentContests(), []);
   const found = useMemo(() => findings(), []);
+
+  /* ── THE THREE LISTS THIS SCREEN EXISTS TO PRODUCE ────────────────────────
+     A history dashboard that ends in a finding ends. These are the three
+     target lists the record actually supports, each one a claim somebody can
+     argue with, and each one a press away from the campaign's plan. */
+  const home = useMemo(() => stayAtHomeByState().slice(0, 6), []);
+  const flips = useMemo(() => flippedAt(2023).slice(0, 8), []);
+  const loyal = useMemo(() => states.filter((state) => state.loyal), [states]);
 
   /* Which election the map is showing. Only the five with a state-level
      breakdown can be drawn, and the scrubber offers only those, so there is
@@ -149,6 +160,61 @@ export default function Behaviour({ shapes }) {
           foot="Effective parties, 2023 — every earlier election was near 2"
         />
       </div>
+
+      {/* ─────────────────────────────────────────────── what to do about it */}
+      {/* ── A HISTORY SCREEN THAT ENDS IN WORK ────────────────────────────
+          Every list here is derived from the declared record above it, carries
+          the arithmetic that justifies it, and writes into the same plan the
+          planning map costs and exports. The three disagree with each other on
+          purpose: the biggest pool, the most winnable, and the ones not to
+          spend money on. That argument is the planning conversation. */}
+      <section className="rounded-dash border border-dash-line bg-dash-card">
+        <header className="border-b border-dash-line px-4 py-3">
+          <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
+            Turn this into a plan
+          </h3>
+          <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+            Each list is computed from the record on this page and goes into the campaign plan with
+            the reason attached. Open Planning to cost it.
+          </p>
+        </header>
+
+        <div className="grid divide-y divide-dash-line md:grid-cols-3 md:divide-x md:divide-y-0">
+          <Target
+            title="The biggest stay-at-home pools"
+            figure={formatNumber(home.reduce((sum, row) => sum + row.stayed, 0))}
+            unit="registered non-voters"
+            note={`${home.map((row) => row.name).join(", ")} — the six states holding the most people who were entitled to vote in 2023 and did not.`}
+            paths={home.map((row) => [row.code])}
+            reason={`Among the six largest stay-at-home pools in 2023 (${formatNumber(home[0]?.stayed ?? 0)} in ${home[0]?.name} alone)`}
+          />
+          <Target
+            title="The closest states that changed hands"
+            figure={`${flips.length}`}
+            unit={`flipped in 2023, tightest ${flips[0] ? formatShare(flips[0].margin) : "n/a"}`}
+            note={
+              flips.length
+                ? `${flips.map((row) => row.name).join(", ")} — carried by a different party in 2023 than the election before, closest margin first.`
+                : "Nothing changed hands."
+            }
+            paths={flips.map((row) => [row.code])}
+            reason="Changed hands in 2023 on a narrow margin"
+          />
+          <Target
+            title="Never changed hands"
+            figure={`${loyal.length}`}
+            unit="of 37 states"
+            note={
+              loyal.length
+                ? `${loyal.map((row) => row.name).join(", ")} — the same party at every election the record can speak for. Hold, or do not spend here.`
+                : "Every state has changed hands at least once."
+            }
+            paths={loyal.map((row) => [row.code])}
+            reason="Has never changed hands in the recorded elections"
+            quiet
+          />
+        </div>
+      </section>
 
       {/* ───────────────────────────────────────────── the scissors chart */}
       <Panel
@@ -531,6 +597,42 @@ function Scissors({ series }) {
           Voted
         </text>
       </svg>
+    </div>
+  );
+}
+
+/**
+ * One target list: the claim, the arithmetic behind it, and the press that
+ * turns it into work.
+ *
+ * `quiet` is for a list that is an argument *against* spending — the states
+ * that never move. It goes in the plan just as readily, because "we are
+ * defending these" is a decision somebody has to cost too, but it does not
+ * get the colour that says opportunity.
+ */
+function Target({ title, figure, unit, note, paths, reason, quiet }) {
+  return (
+    <div className="flex flex-col gap-2 p-4">
+      <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        {title}
+      </p>
+      <p
+        className={cn(
+          "figure text-[1.5rem] leading-none font-bold tracking-[-0.02em]",
+          quiet ? "text-dash-muted" : "text-dash-ink"
+        )}
+      >
+        {figure}
+      </p>
+      <p className="text-[0.6875rem] text-dash-muted">{unit}</p>
+      <p className="flex-1 text-[0.75rem] leading-relaxed text-dash-muted">{note}</p>
+      <AddToPlan
+        paths={paths}
+        reason={reason}
+        from="Behaviour"
+        label={`Add ${paths.length} to plan`}
+        className="self-start"
+      />
     </div>
   );
 }
