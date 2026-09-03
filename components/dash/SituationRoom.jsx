@@ -19,6 +19,7 @@ import TopShell from "./TopShell";
 import { useGreeting } from "./useGreeting";
 import ScopeMap, { LABEL, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
 import GoogleLayer, { googleAvailable } from "./GoogleLayer";
+import TargetList from "./TargetList";
 import UnitMap, { latLon } from "./UnitMap";
 import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
@@ -803,6 +804,102 @@ export default function SituationRoom({
      the imagery wherever a key exists, and everything else on our own map. */
   const activeBasemap =
     basemap ?? (googleAvailable && layer !== "results" && level === "nation" ? "earth" : "board");
+
+  /**
+   * ── WHAT THIS LAYER IS FOR, AS A LIST OF PLACES ──────────────────────────
+   * Each layer answers a different question and therefore produces a
+   * different target list, from whatever rows are on screen at whatever level
+   * is open. Voters finds the biggest untapped register; turnout finds where
+   * the fewest people came; clusters finds where the queues will be; results
+   * finds what has not reported yet. All four write into the same plan.
+   *
+   * Six, because a target list is something a person reads out and argues
+   * with, and a list of thirty is a spreadsheet nobody reads.
+   */
+  const layerTargets = useMemo(() => {
+    const named = rows.filter((row) => row.name);
+    if (!named.length) return null;
+
+    /* The place being stood in, named without reaching for the breadcrumb
+       trail, which is built further down this component. */
+    const here =
+      level === "nation"
+        ? "Nigeria"
+        : level === "state"
+          ? state.name
+          : level === "lga"
+            ? lga.name
+            : ward.name;
+
+    const path = (row) =>
+      level === "nation"
+        ? [row.code ?? row.key ?? row.name]
+        : level === "state"
+          ? [state.code, row.name]
+          : level === "lga"
+            ? [state.code, lga.name, row.name]
+            : [state.code, lga.name, ward.name, row.name];
+
+    const take = (sorted, count = 6) => sorted.slice(0, count);
+
+    if (layer === "register") {
+      const top = take([...named].sort((a, b) => (b.registered ?? 0) - (a.registered ?? 0)));
+      return {
+        title: "The biggest registers here",
+        figure: formatNumber(top.reduce((sum, row) => sum + (row.registered ?? 0), 0)),
+        unit: "registered voters across " + top.length + " places",
+        note: top.map((row) => row.name).join(", "),
+        here,
+        rows: top,
+        reason: `Among the largest registers in ${here}`,
+        paths: top.map(path),
+      };
+    }
+
+    if (layer === "turnout") {
+      const worst = take([...named].sort((a, b) => (a.turnout ?? 0) - (b.turnout ?? 0)));
+      return {
+        title: "Where fewest people came",
+        figure: formatShare(worst[0]?.turnout ?? 0),
+        unit: `lowest turnout of ${named.length} places`,
+        note: worst.map((row) => `${row.name} ${formatShare(row.turnout ?? 0)}`).join(" · "),
+        here,
+        rows: worst,
+        reason: `Among the lowest turnouts in ${here}`,
+        paths: worst.map(path),
+      };
+    }
+
+    if (layer === "density") {
+      const worst = take([...named].sort((a, b) => (b.density ?? 0) - (a.density ?? 0)));
+      return {
+        title: "Where the queues will be",
+        figure: formatNumber(worst[0]?.density ?? 0),
+        unit: "voters per unit at the worst of them",
+        note: worst.map((row) => `${row.name} ${formatNumber(row.density ?? 0)}`).join(" · "),
+        here,
+        rows: worst,
+        reason: `Among the most crowded polling units in ${here}`,
+        paths: worst.map(path),
+      };
+    }
+
+    /* Results: what has not reported. Only meaningful on a live board, where
+       `reported` is a fact rather than a replay artefact. */
+    const silent = named.filter((row) => row.reported === false);
+    if (!silent.length) return null;
+    const biggest = take([...silent].sort((a, b) => (b.registered ?? 0) - (a.registered ?? 0)));
+    return {
+      title: "Nothing counted here yet",
+      figure: `${silent.length}`,
+      unit: `of ${named.length} places have not reported`,
+      note: biggest.map((row) => row.name).join(", "),
+      here,
+      rows: biggest,
+      reason: `Had not reported from ${here} when this was added`,
+      paths: biggest.map(path),
+    };
+  }, [rows, layer, level, state, lga, ward]);
 
   const heatPoints = useMemo(
     () => (mapShapes ? heatPointsFor({ shapes: mapShapes, rows, layer }) : []),
@@ -1788,6 +1885,23 @@ export default function SituationRoom({
             onOpen={select}
             canOpen={level !== "ward"}
           />
+
+          {/* ── THE LAYER'S OWN ACTION ────────────────────────────────────
+              Every map layer now ends in a list of places rather than in a
+              colour. See layerTargets. */}
+          {layerTargets && (
+            <section className="rounded-dash border border-dash-line bg-dash-card">
+              <TargetList
+                title={layerTargets.title}
+                figure={layerTargets.figure}
+                unit={layerTargets.unit}
+                note={layerTargets.note}
+                paths={layerTargets.paths}
+                reason={layerTargets.reason}
+                from={`${LABEL[layer] ?? layer} · ${layerTargets.here}`}
+              />
+            </section>
+          )}
 
           <SidePanel
             layer={layer}

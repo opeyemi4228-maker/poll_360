@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Camera, Clock, MapPin, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Camera, Clock, Download, MapPin, ShieldAlert } from "lucide-react";
 
+import { download, stamped, toCsv } from "@/lib/csv";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,41 @@ export default function IncidentStream({ incidents, photos = {} }) {
     [incidents]
   );
 
+  /**
+   * ── A FEED IS NOT A TRIAGE LIST ──────────────────────────────────────────
+   * Reading a live stream is what somebody does while nothing else is
+   * happening. Working one is a different job: it is done away from this
+   * screen, by somebody ringing returning officers or briefing a lawyer, and
+   * it needs the reports in a form that can be sorted, assigned and ticked
+   * off. So whatever the filter is showing leaves as a file, worst first.
+   *
+   * The narrative is sealed at rest and decrypted only for this room, and it
+   * is exported here because a report nobody can act on outside the room is a
+   * report that does not get acted on. Whoever presses this is taking it out
+   * of the room deliberately, and the file is theirs to look after.
+   */
+  const RANK = { CRITICAL: 0, SERIOUS: 1, WARNING: 2, INFO: 3 };
+
+  const exportTriage = () =>
+    download(
+      stamped(filter === "all" ? "incidents" : `incidents-${filter}`),
+      toCsv(
+        [...shown].sort(
+          (a, b) =>
+            (RANK[a.severity] ?? 9) - (RANK[b.severity] ?? 9) ||
+            new Date(b.createdAt) - new Date(a.createdAt)
+        ),
+        [
+          ["Severity", (item) => item.severity],
+          ["Polling unit", (item) => item.unitCode],
+          ["What", (item) => item.kind],
+          ["Reported", (item) => new Date(item.createdAt).toISOString()],
+          ["Photographs", (item) => (photos[item.id] ?? []).length],
+          ["Narrative", (item) => item.detail ?? ""],
+        ]
+      )
+    );
+
   return (
     <section className="flex min-h-0 flex-col rounded-dash border border-dash-line bg-dash-card">
       <header className="border-b border-dash-line px-4 py-3">
@@ -104,6 +140,19 @@ export default function IncidentStream({ incidents, photos = {} }) {
               {label}
             </button>
           ))}
+
+          {/* What is on screen, as a list somebody can work down away from
+              this screen. Worst first, because that is the order it is worked
+              in and not the order it arrived in. */}
+          <button
+            type="button"
+            onClick={exportTriage}
+            disabled={!shown.length}
+            className="ml-auto flex items-center gap-1.5 rounded-full bg-dash-bg px-3 py-1.5 text-[0.75rem] font-semibold text-dash-muted transition-colors hover:text-dash-ink disabled:opacity-40"
+          >
+            <Download size={13} strokeWidth={2.5} />
+            Triage list
+          </button>
         </div>
       </header>
 

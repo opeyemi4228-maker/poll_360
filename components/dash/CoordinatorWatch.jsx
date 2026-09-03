@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Radio, ShieldAlert, Users } from "lucide-react";
+import { Download, MapPin, Radio, ShieldAlert, Users } from "lucide-react";
 
+import TargetList from "./TargetList";
 import { boundsOf } from "@/lib/bbox";
+import { download, stamped, toCsv } from "@/lib/csv";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -111,6 +113,63 @@ export default function CoordinatorWatch({ shapes, coordinators, summary, territ
     [coordinators, filter]
   );
 
+  /**
+   * ── THIS SCREEN'S ACTUAL JOB IS A LIST OF PEOPLE TO RING ─────────────────
+   * A watch board tells you eleven booths have not reported. What the shift
+   * supervisor needs is those eleven, on a phone, in the order worth calling —
+   * silent first, then the ones whose fix is a long way from the booth they
+   * are supposed to be at, because both are failures and only one of them
+   * knows it.
+   *
+   * The file deliberately carries no phone numbers. lib/coordinators.js keeps
+   * the full number off every screen on purpose and prints only the last four
+   * digits; a chase list that exported them would quietly undo that decision
+   * for the whole product. It carries the unit code and the name, which is
+   * what the appointment list is keyed by, and whoever is calling already has
+   * that list.
+   */
+  const chase = useMemo(
+    () =>
+      [...shown].sort((a, b) => {
+        if (a.filed !== b.filed) return a.filed ? 1 : -1;
+        const rank = { far: 0, near: 1, unmatched: 2, unknown: 3, matched: 4 };
+        return (rank[a.band] ?? 9) - (rank[b.band] ?? 9);
+      }),
+    [shown]
+  );
+
+  const exportChase = () =>
+    download(
+      stamped(filter === "silent" ? "chase-list" : `coordinators-${filter}`),
+      toCsv(chase, [
+        ["Polling unit", (row) => row.unitCode],
+        ["Name", (row) => row.name],
+        ["Account", (row) => row.kind],
+        ["Filed", (row) => (row.filed ? "yes" : "NO")],
+        ["Position", (row) => row.band],
+        ["Latitude", (row) => row.lat ?? ""],
+        ["Longitude", (row) => row.lon ?? ""],
+        ["Reported at", (row) => (row.at ? row.at.toISOString() : "")],
+        ["Last seen", (row) => (row.seenAt ? new Date(row.seenAt).toISOString() : "")],
+        ["Via", (row) => row.via ?? ""],
+      ])
+    );
+
+  /* Where the silence is concentrated. A state with thirty unreported booths
+     is a coverage problem, not thirty phone calls, and it belongs in the plan
+     rather than on the call sheet. */
+  const worstStates = useMemo(() => {
+    const silentBy = new Map();
+    for (const row of coordinators) {
+      if (row.filed || !row.stateCode) continue;
+      silentBy.set(row.stateCode, (silentBy.get(row.stateCode) ?? 0) + 1);
+    }
+    return [...silentBy.entries()]
+      .map(([code, silent]) => ({ code, silent }))
+      .sort((a, b) => b.silent - a.silent)
+      .slice(0, 6);
+  }, [coordinators]);
+
   /* A row whose unit code names no state we recognise has no coordinates, and
      is left off the map rather than drawn somewhere plausible. It stays in the
      list beside it, which is where the person actually is accounted for. */
@@ -142,7 +201,20 @@ export default function CoordinatorWatch({ shapes, coordinators, summary, territ
               {label}
             </button>
           ))}
-          <span className="figure ml-auto text-[0.75rem] text-white/45">
+          {/* ── THE WATCH BOARD'S OWN ACTION ────────────────────────────
+              The list on screen, as a file somebody can work down with a
+              handset. It follows the filter, so "Not reported" is the chase
+              list and "Away from unit" is the one to ring second. */}
+          <button
+            type="button"
+            onClick={exportChase}
+            disabled={!chase.length}
+            className="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[0.75rem] font-semibold text-white/70 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+          >
+            <Download size={13} strokeWidth={2.5} />
+            Call sheet
+          </button>
+          <span className="figure text-[0.75rem] text-white/45">
             {shown.length} of {coordinators.length}
           </span>
         </div>
@@ -279,6 +351,37 @@ export default function CoordinatorWatch({ shapes, coordinators, summary, territ
         </div>
       </div>
 
+      <div className="flex flex-col gap-3">
+      {/* ── WHERE THE SILENCE IS, AS A COVERAGE DECISION ──────────────────
+          Eleven unreported booths spread over eleven states is eleven phone
+          calls. Thirty in one state is not a phone call, it is a state that
+          was not staffed properly, and the answer to it is a plan rather than
+          a handset. So the concentration goes to the same campaign plan every
+          other screen writes into. */}
+      {worstStates.length > 0 && (
+        <section className="rounded-dash border border-dash-line bg-dash-card">
+          <header className="border-b border-dash-line px-4 py-3">
+            <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
+              Where the silence is
+            </h3>
+            <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+              The states holding the most booths that have not reported.
+            </p>
+          </header>
+          <TargetList
+            title="Worst reporting"
+            figure={formatNumber(worstStates.reduce((sum, row) => sum + row.silent, 0))}
+            unit={`booths silent across ${worstStates.length} state${worstStates.length === 1 ? "" : "s"}`}
+            note={worstStates
+              .map((row) => `${row.code} ${row.silent}`)
+              .join(" · ")}
+            paths={worstStates.map((row) => [row.code])}
+            reason={`Among the states with the most polling units not reporting (${worstStates[0]?.silent ?? 0} silent in ${worstStates[0]?.code ?? ""})`}
+            from="Coordinators"
+          />
+        </section>
+      )}
+
       {/* -------------------------------------------------------- the list */}
       <section className="flex min-h-0 flex-col rounded-dash border border-dash-line bg-dash-card">
         <header className="flex items-baseline justify-between gap-3 border-b border-dash-line px-4 py-3">
@@ -331,6 +434,7 @@ export default function CoordinatorWatch({ shapes, coordinators, summary, territ
           </ul>
         )}
       </section>
+      </div>
     </div>
   );
 }

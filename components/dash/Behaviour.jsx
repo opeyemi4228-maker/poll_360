@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { ChevronRight, TrendingDown, Users, Vote } from "lucide-react";
 
-import AddToPlan from "./AddToPlan";
 import { PARTY_FILL } from "./Charts";
+import TargetList from "./TargetList";
 import {
   ELECTIONS,
   GAPS,
@@ -180,15 +180,16 @@ export default function Behaviour({ shapes }) {
         </header>
 
         <div className="grid divide-y divide-dash-line md:grid-cols-3 md:divide-x md:divide-y-0">
-          <Target
+          <TargetList
             title="The biggest stay-at-home pools"
             figure={formatNumber(home.reduce((sum, row) => sum + row.stayed, 0))}
             unit="registered non-voters"
             note={`${home.map((row) => row.name).join(", ")} — the six states holding the most people who were entitled to vote in 2023 and did not.`}
             paths={home.map((row) => [row.code])}
             reason={`Among the six largest stay-at-home pools in 2023 (${formatNumber(home[0]?.stayed ?? 0)} in ${home[0]?.name} alone)`}
+            from="Behaviour"
           />
-          <Target
+          <TargetList
             title="The closest states that changed hands"
             figure={`${flips.length}`}
             unit={`flipped in 2023, tightest ${flips[0] ? formatShare(flips[0].margin) : "n/a"}`}
@@ -199,8 +200,9 @@ export default function Behaviour({ shapes }) {
             }
             paths={flips.map((row) => [row.code])}
             reason="Changed hands in 2023 on a narrow margin"
+            from="Behaviour"
           />
-          <Target
+          <TargetList
             title="Never changed hands"
             figure={`${loyal.length}`}
             unit="of 37 states"
@@ -211,6 +213,7 @@ export default function Behaviour({ shapes }) {
             }
             paths={loyal.map((row) => [row.code])}
             reason="Has never changed hands in the recorded elections"
+            from="Behaviour"
             quiet
           />
         </div>
@@ -597,42 +600,6 @@ function Scissors({ series }) {
           Voted
         </text>
       </svg>
-    </div>
-  );
-}
-
-/**
- * One target list: the claim, the arithmetic behind it, and the press that
- * turns it into work.
- *
- * `quiet` is for a list that is an argument *against* spending — the states
- * that never move. It goes in the plan just as readily, because "we are
- * defending these" is a decision somebody has to cost too, but it does not
- * get the colour that says opportunity.
- */
-function Target({ title, figure, unit, note, paths, reason, quiet }) {
-  return (
-    <div className="flex flex-col gap-2 p-4">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-        {title}
-      </p>
-      <p
-        className={cn(
-          "figure text-[1.5rem] leading-none font-bold tracking-[-0.02em]",
-          quiet ? "text-dash-muted" : "text-dash-ink"
-        )}
-      >
-        {figure}
-      </p>
-      <p className="text-[0.6875rem] text-dash-muted">{unit}</p>
-      <p className="flex-1 text-[0.75rem] leading-relaxed text-dash-muted">{note}</p>
-      <AddToPlan
-        paths={paths}
-        reason={reason}
-        from="Behaviour"
-        label={`Add ${paths.length} to plan`}
-        className="self-start"
-      />
     </div>
   );
 }

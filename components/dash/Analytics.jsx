@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 
+import AddToPlan from "./AddToPlan";
 import { PARTY_FILL } from "./Charts";
 import {
   FACTOR_ROWS,
@@ -160,6 +161,19 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
   );
   const outcome = useMemo(() => winCondition(projection), [projection]);
   const close = useMemo(() => battlegrounds(projection, 8), [projection]);
+
+  /* The assumptions, in one sentence, so a place added from this screen says
+     what was assumed when it was added. Without it "close" reads as a fact
+     about the country rather than a consequence of four sliders. */
+  const assumptions = useMemo(() => {
+    const moved = Object.entries(swing)
+      .filter(([, points]) => points !== 0)
+      .map(([party, points]) => `${party} ${points > 0 ? "+" : ""}${points}`);
+    return [
+      `turnout ×${Number(turnout).toFixed(2)}`,
+      moved.length ? `swing ${moved.join(", ")}` : "no swing applied",
+    ].join(", ");
+  }, [swing, turnout]);
   const zones = useMemo(() => byZone(projection), [projection]);
   const targets = useMemo(() => opportunities(projection, focus), [projection, focus]);
   const sensitivity = useMemo(() => turnoutSensitivity(swing, scope), [swing, scope]);
@@ -491,6 +505,24 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* ── A PROJECTION THAT ENDS IN A LIST OF PLACES ────────────────
+              These are the states this model says are inside eight points on
+              the assumptions currently set above. That is exactly the list a
+              campaign wants to work, and the assumptions travel with it into
+              the plan — because "close on these assumptions" is a different
+              claim from "close", and the person reading the plan next week
+              needs to know which one was made. */}
+          {close.length > 0 && (
+            <div className="mt-4 border-t border-dash-line pt-3">
+              <AddToPlan
+                paths={close.slice(0, 8).map((row) => [row.code])}
+                reason={`Within 8 points on the projection — ${assumptions}`}
+                from="Analytics"
+                label={`Add the ${Math.min(close.length, 8)} closest to plan`}
+              />
+            </div>
           )}
         </Panel>
 

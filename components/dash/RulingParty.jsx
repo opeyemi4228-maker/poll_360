@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, ChevronLeft, Info } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
+import TargetList from "./TargetList";
+import { parties as PRESIDENTIAL, states2023 } from "@/lib/election2023";
 import { councilsIn, coverage } from "@/lib/lga-control";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +32,34 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
   const [boundaries, setBoundaries] = useState(null); // { code, data } for one state
 
   const byCode = useMemo(() => new Map(rows.map((row) => [row.code, row])), [rows]);
+
+  /**
+   * ── WHERE THE STATE AND THE COUNTRY DISAGREE ─────────────────────────────
+   * A state whose governor's party did not carry it at the presidential is a
+   * split state, and it is the most useful thing on this screen for anybody
+   * planning: the machine that runs the state and the vote that came out of
+   * it are not the same machine. Those are the places where a governorship
+   * and a presidential campaign cannot be run as one operation, and where the
+   * local structure will not do the national party's work for it.
+   *
+   * Computed against the declared 2023 presidential result rather than
+   * asserted, so it moves when a governor defects and the map is redrawn.
+   */
+  const split = useMemo(() => {
+    const carried = new Map(
+      states2023.map((state) => {
+        const best = state.votes.reduce(
+          (top, votes, index) => (votes > (state.votes[top] ?? 0) ? index : top),
+          0
+        );
+        return [state.code, PRESIDENTIAL[best]?.id ?? null];
+      })
+    );
+
+    return rows
+      .filter((row) => carried.get(row.code) && row[which] !== carried.get(row.code))
+      .map((row) => ({ ...row, carriedBy: carried.get(row.code) }));
+  }, [rows, which]);
   const total = rows.length;
 
   const active = hovered ? byCode.get(hovered) : null;
@@ -463,6 +493,25 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
                 {active.rumoured.note}
               </p>
             )}
+          </section>
+        )}
+
+        {/* ── THE SCREEN'S OWN ACTION ───────────────────────────────────
+            A map of who holds what is a fact. The list of places where the
+            holder and the presidential winner disagree is a plan. */}
+        {split.length > 0 && (
+          <section className="rounded-dash border border-dash-line bg-dash-card">
+            <TargetList
+              title="Governor's party did not carry the state"
+              figure={`${split.length}`}
+              unit={`of ${rows.length} states are split`}
+              note={split
+                .map((row) => `${row.state} — ${row[which]} holds it, ${row.carriedBy} carried it`)
+                .join(" · ")}
+              paths={split.map((row) => [row.code])}
+              reason="The party holding the governorship is not the party that carried the state in 2023"
+              from="Ruling party"
+            />
           </section>
         )}
 
