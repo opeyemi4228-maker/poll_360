@@ -28,8 +28,12 @@ import { findEveryone, findPerson } from "../lib/people.js";
    different one, and every tab the room really has belongs here. */
 const room = {
   tabs: [
-    "results", "register", "turnout", "density", "watch", "alerts",
-    "coverage", "integrity", "analytics", "planning", "executive", "classify",
+    "results", "register", "turnout", "watch", "situations",
+    "coverage", "integrity", "operations", "timeline",
+    /* The analytical head is two dashboards now, not seven surfaces: the
+       brief, party ground, the ruling party, clusters and trends are all
+       tabs inside Election Analytics. */
+    "analytics", "planning",
     "board",
   ],
   path: [],
@@ -110,15 +114,17 @@ describe("driving the room", () => {
     for (const [said, tab] of [
       ["result kano", "results"],
       ["voter kano", "register"],
-      ["cluster kano", "density"],
-      ["incident kano", "alerts"],
+      /* Clusters is a tab inside Election Analytics now, so its words land
+         on the dashboard holding it rather than on a layer of its own. */
+      ["cluster kano", "analytics"],
+      ["incident kano", "situations"],
       ["turnout kano", "turnout"],
     ]) {
       assert.equal(drive(said, room).act.tab, tab, `"${said}" did not reach ${tab}`);
     }
   });
 
-  it("still answers to the names of the four surfaces that were merged away", () => {
+  it("still answers to the names of every surface that was merged away", () => {
     /* ── A MERGE MUST NOT COST SOMEBODY THEIR VOCABULARY ─────────────────
        Incidents, the polling-unit card, the result sheets and the board's
        neighbours were tabs of their own, and people have been saying those
@@ -127,9 +133,18 @@ describe("driving the room", () => {
        that quietly stops working is worse than one that never did, because
        nobody reports it — they just decide the assistant is unreliable. */
     for (const [said, tab] of [
-      ["the incidents", "alerts"],
-      ["the feed", "alerts"],
-      ["report stream", "alerts"],
+      ["the incidents", "situations"],
+      ["the feed", "situations"],
+      ["report stream", "situations"],
+      /* And the analytical head, which went from seven surfaces to two:
+         everything that ends in a finding is Election Analytics, everything
+         that ends in a spend is Strategic Planning. */
+      ["geographic intelligence", "analytics"],
+      ["party ground", "analytics"],
+      ["ruling party", "analytics"],
+      ["clusters", "analytics"],
+      ["trend detection", "analytics"],
+      ["sample size", "planning"],
       ["polling unit intelligence", "coverage"],
       ["the booth", "coverage"],
       ["the evidence", "integrity"],
@@ -174,24 +189,35 @@ describe("driving the room", () => {
        the question the screen exists to answer, and the screen answers it far
        better than a sentence would. */
     for (const [said, tab] of [
-      ["where do we stand", "executive"],
-      ["our position", "executive"],
-      ["strategic intelligence", "executive"],
-      ["where are we strong", "classify"],
-      ["where are we weak", "classify"],
-      ["battlegrounds", "classify"],
-      ["geographic intelligence", "classify"],
+      ["where do we stand", "analytics"],
+      ["our position", "analytics"],
+      ["strategic intelligence", "analytics"],
+      ["where are we strong", "analytics"],
+      ["where are we weak", "analytics"],
+      ["battlegrounds", "analytics"],
+      ["geographic intelligence", "analytics"],
+      /* And the planning half keeps its own door, because it ends in a
+         commitment rather than in a finding. */
+      ["where should we focus", "planning"],
+      ["resource allocation", "planning"],
+      ["grassroots strength", "planning"],
     ]) {
       assert.equal(drive(said, room).act.tab, tab, `"${said}" did not reach ${tab}`);
     }
   });
 
-  it("sends the three where-questions to the map and not to the brief", () => {
-    /* Strongholds, battlegrounds and opportunities are all questions about
-       *where*, and the map with its list beside it is the answer. Sending
-       them to the brief would answer a geographic question with a summary. */
-    for (const said of ["strongholds", "opportunities", "swing states"]) {
-      assert.equal(drive(said, room).act.tab, "classify", `"${said}" should open the map`);
+  it("splits the where-questions by whether they end in a finding or a spend", () => {
+    /* "Where are the strongholds" is a question about the country and ends in
+       a finding, so it opens the analysis. "Where are the opportunities" is
+       asked by somebody deciding where to send people and ends in a
+       commitment, so it opens the plan. The two screens are kept apart for
+       exactly that reason — see StrategicPlanning.jsx — and the vocabulary
+       has to make the same cut or the split is cosmetic. */
+    for (const said of ["strongholds", "swing states", "battlegrounds"]) {
+      assert.equal(drive(said, room).act.tab, "analytics", `"${said}" should open the analysis`);
+    }
+    for (const said of ["opportunities", "priorities", "resource allocation"]) {
+      assert.equal(drive(said, room).act.tab, "planning", `"${said}" should open the plan`);
     }
   });
 
@@ -199,7 +225,7 @@ describe("driving the room", () => {
     /* "Target" is on the brief's list and is also an ordinary English word.
        A sentence naming a state must still reach that state. */
     const order = drive("target kano", room);
-    assert.equal(order.act.tab, "executive");
+    assert.equal(order.act.tab, "planning");
     assert.equal(order.act.place.state.code, "KAN");
   });
 

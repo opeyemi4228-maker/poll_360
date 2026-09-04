@@ -40,8 +40,15 @@ import RoomTimeline from "./RoomTimeline";
 import RoomWatch from "./RoomWatch";
 import RoomGround from "./RoomGround";
 import RoomEvidence from "./RoomEvidence";
-import Executive, { useBrief } from "./Executive";
-import { CLASS_OF, CLASSES } from "@/lib/executive";
+import { useBrief } from "./Executive";
+/* ── THE TWO ANALYTICAL DASHBOARDS ─────────────────────────────────────────
+   Seven surfaces became one dashboard with six tabs, and planning kept a door
+   of its own. The halves they wrap — the brief, party ground, the ruling
+   party, the projection, the planning map, the sample — are unchanged and
+   still their own files; what these add is the tab bar over them and the
+   record behind it. See components/dash/ElectionAnalytics.jsx. */
+import ElectionAnalytics from "./ElectionAnalytics";
+import StrategicPlanning from "./StrategicPlanning";
 import SampleDesign from "./SampleDesign";
 import DivergencePanel from "./DivergencePanel";
 import Analytics from "./Analytics";
@@ -59,6 +66,8 @@ import { PARTY_FILL } from "./Charts";
 import { partyFill } from "@/lib/party-pattern";
 import { snapshot, parties, allParties } from "@/lib/replay";
 import { LEVELS } from "@/lib/alerts";
+/* What the whole record covers — 1999 to the last election held. */
+import { span } from "@/lib/record";
 import { normalise } from "@/lib/assistant";
 import { apportion, wardCount, liveRowsFrom, liveNodeFor } from "@/lib/drill";
 import { COMMERCIAL_CENTRES, coordinate, unproject } from "@/lib/geo";
@@ -143,7 +152,15 @@ export const MODES = [
              noticing a gap, an agent at that booth is a human being
              explaining it — and nobody could see both at once. See
              components/dash/RoomWatch.jsx. */
-          { value: "alerts", label: "Alerts & reports" },
+          /* ── ONE WORD, BECAUSE IT IS ONE QUESTION ─────────────────────
+             This was "Alerts & reports", which names the two sources rather
+             than the thing they are about. A machine noticing a booth has
+             gone quiet and an agent ringing in from that booth are not two
+             subjects — they are two ways of finding out about one situation,
+             and the room's question is only ever "what is going on, and
+             where". Naming the plumbing on the tab made a reader choose which
+             half they wanted before they knew what had happened. */
+          { value: "situations", label: "Situations" },
           /* When, as opposed to what. Nothing on it is scheduled: every time
              is a moment this product watched happen — see lib/timeline.js. */
           { value: "timeline", label: "Timeline" },
@@ -181,7 +198,10 @@ export const MODES = [
              any one booth. They were two tabs, which meant every finding on
              the first ended in a code the reader had to carry to the second
              by hand. See components/dash/RoomGround.jsx. */
-          { value: "coverage", label: "Coverage & booths" },
+          /* Named for the thing rather than for the measurement of it.
+             "Coverage" is what this screen computes; a booth is what a reader
+             is looking for, and every finding on it ends in one. */
+          { value: "coverage", label: "Booths" },
           /* Where a return is on the ladder between arriving and being
              allowed into a bulletin, and which rung it has stopped on. The
              one screen in this room that is about the desk rather than about
@@ -227,7 +247,7 @@ export const MODES = [
     groups: [
       {
         id: "strategy",
-        label: "Strategy",
+        label: "Analysis",
         /* ══════════════════════════════════════════════════════════════
            THE HEAD'S FRONT DOOR, AND WHY IT IS NOT THE PROJECTION
 
@@ -245,53 +265,26 @@ export const MODES = [
            map beside them draws the classification that call produced,
            so the two cannot drift apart.
            ══════════════════════════════════════════════════════════════ */
-        tabs: [
-          { value: "executive", label: "Strategic brief" },
-          /* The same brief as a map. Not a fifth magnitude layer: it draws a
-             class, not a quantity, which is why the fill, the heat field and
-             the ramp all have to know it is categorical. See CATEGORICAL in
-             components/dash/ScopeMap.jsx. */
-          { value: "classify", label: "Geographic intelligence" },
-        ],
+        tabs: [{ value: "analytics", label: "Election Analytics" }],
       },
       {
-        id: "ground",
-        label: "The record",
-        tabs: [
-          /* First, because it is the evidence the rest is argued from: a
-             projection with no history behind it is a preference with error
-             bars. Twenty-seven years of turnout is also the only thing in this
-             product that can tell an unusual result from an unfamiliar one. */
-          { value: "behaviour", label: "Trends" },
-          { value: "parties", label: "Parties" },
-          /* The same country by party, but for the governorships rather than
-             the presidential vote. In a narrowed room it becomes this seat and
-             the last election for it — see `tabGroups` below. */
-          { value: "ruling", label: "Ruling party" },
-          /* ── WHY CLUSTERS IS HERE AND NOT WITH THE LIVE MAP ──────────
-             It is the same map with a different thing on it, and that thing is
-             not tonight: it answers where the register is concentrated tightly
-             enough to matter operationally — where the queues, the pressure
-             and the risk will be — which is a question asked while a
-             deployment is being planned. Beside Results it was one press away
-             from the live count and it was pressed by accident. */
-          { value: "density", label: "Clusters" },
-        ],
-      },
-      {
-        id: "ahead",
-        label: "Ahead",
-        tabs: [
-          { value: "analytics", label: "Projection" },
-          { value: "planning", label: "Planning" },
-          /* ── A PLANNING TOOL INSIDE A LIVE ROOM, ON PURPOSE ──────────
-             The number it produces decides whether anything else here may be
-             said out loud: a projection is only a projection off a sample
-             drawn at random, at a size fixed beforehand. That arithmetic
-             belongs in front of the people who will be asked on the night
-             whether the room can call it. */
-          { value: "sample", label: "Sample" },
-        ],
+        id: "focus",
+        label: "Where to focus",
+        /* ══════════════════════════════════════════════════════════════
+           WHY PLANNING KEEPS A GROUP OF ITS OWN
+
+           Analysis ends in a finding, and a finding costs nothing to be
+           wrong about for an afternoon. Planning ends in a commitment:
+           agents deployed, money spent, a director told that these four
+           hundred booths are where the fortnight goes.
+
+           Folded into one dashboard the second quietly inherits the
+           authority of the first — a ranked list on an analytics screen
+           reads as a fact, and the identical list on a planning screen
+           reads as a decision somebody has to sign, which is what it is.
+           So they are two doors, and the wall between them is the point.
+           ══════════════════════════════════════════════════════════════ */
+        tabs: [{ value: "planning", label: "Strategic Planning" }],
       },
     ],
   },
@@ -346,7 +339,7 @@ const FIRST_OF = Object.fromEntries(
   MODES.map((mode) => [mode.id, mode.groups[0].tabs[0].value])
 );
 
-const MAP_LAYERS = new Set(["results", "register", "turnout", "density", "classify"]);
+const MAP_LAYERS = new Set(["results", "register", "turnout", "density"]);
 
 /**
  * Arriving here from the rail, pointed at one view.
@@ -365,7 +358,8 @@ const MAP_LAYERS = new Set(["results", "register", "turnout", "density", "classi
 const HASH_LAYERS = {
   "#overview": "pulse",
   "#command": "pulse",
-  "#alerts": "alerts",
+  "#situations": "situations",
+  "#alerts": "situations",
   "#timeline": "timeline",
   "#map": "results",
   "#coverage": "coverage",
@@ -381,9 +375,9 @@ const HASH_LAYERS = {
      outcome this table exists to prevent. */
   "#unit": "coverage",
   "#booth": "coverage",
-  "#incidents": "alerts",
-  "#stream": "alerts",
-  "#reports": "alerts",
+  "#incidents": "situations",
+  "#stream": "situations",
+  "#reports": "situations",
   "#declared": "integrity",
   "#integrity": "integrity",
   "#verification": "integrity",
@@ -392,32 +386,50 @@ const HASH_LAYERS = {
   "#evidence": "integrity",
   "#analytics": "analytics",
   "#planning": "planning",
-  "#sample": "sample",
-  /* ── THE STRATEGIC HEAD, AND THE NAMES THE RAIL USES FOR IT ────────────
-     Several names land on the same surface on purpose. The rail groups these
-     under Geography and Intelligence — two words for two audiences — and both
-     are asking for the classification map; "Strategic intelligence" and the
-     brief are likewise one screen with two names. A hash is a door, not a
-     taxonomy, and a door that turns out to be the room next to the one you
-     expected is much better than a door that opens on the map. */
-  "#executive": "executive",
-  "#strategy": "executive",
-  "#strategic": "executive",
-  "#classify": "classify",
-  "#geography": "classify",
-  "#geographic": "classify",
-  /* Geography's four tiers. All four are the same map at a different depth,
-     and the depth is set beside this — see HASH_LEVELS below. */
-  "#states": "classify",
-  "#lgas": "classify",
-  "#wards": "classify",
-  "#units": "classify",
-  /* Intelligence. Grassroots is the coordinators and their wards; community
-     reports are what the field files; trend detection is twenty-seven years
-     of it; anomalies are the screening. Each already had a room. */
-  "#grassroots": "watch",
-  "#community": "alerts",
-  "#trends": "behaviour",
+  "#sample": "planning",
+  /* ── THE ANALYTICAL HEAD, AND EVERY NAME THAT USED TO REACH A PART ─────
+     Seven surfaces became one dashboard with six tabs, and none of the old
+     names is dropped. The brief, the classified map, party ground, the ruling
+     party, clusters and trends were each a tab with a hash of its own, and
+     every one of those hashes has been written into a link, a bookmark or a
+     WhatsApp message. They all land on Election Analytics, which is holding
+     what the reader was looking for.
+
+     A hash is a door, not a taxonomy. A door that turns out to be the room
+     next to the one you expected is much better than one that opens on the
+     map, which is what a dead hash does. */
+  "#executive": "analytics",
+  "#strategy": "analytics",
+  "#strategic": "analytics",
+  "#overview": "analytics",
+  "#classify": "analytics",
+  "#geography": "analytics",
+  "#geographic": "analytics",
+  "#parties": "analytics",
+  "#candidates": "analytics",
+  "#ruling": "analytics",
+  "#historical": "analytics",
+  "#density": "analytics",
+  "#clusters": "analytics",
+  /* Geography's four tiers. All four are the same record at a different
+     depth, and the depth is set beside this — see HASH_LEVELS below. */
+  "#states": "analytics",
+  "#lgas": "analytics",
+  "#wards": "analytics",
+  "#units": "analytics",
+  /* Intelligence. Grassroots strength is a tab of Strategic Planning now,
+     because knowing how strong the organisation is where it claims to be
+     strong is a planning question and not an analytical one. Community
+     reports are what the field files; trend detection and anomaly screening
+     each already had a room. */
+  "#grassroots": "planning",
+  "#resources": "planning",
+  "#scenarios": "planning",
+  "#priorities": "planning",
+  "#community": "situations",
+  "#turnout-analytics": "analytics",
+  "#trends": "analytics",
+  "#behaviour": "analytics",
   "#anomalies": "integrity",
   /* ── THE DOOR /governors USED TO BE ────────────────────────────────────
      There were two routes to this screen: this tab, and a page of its own at
@@ -1467,6 +1479,11 @@ export default function SituationRoom({
   /* Who holds each state. Static for the life of the page: this is a matter of
      record plus a short list of settled defections, not something the night
      changes. See lib/governors.js for why there are two answers. */
+  /* What the record covers, for the one line on screen that has to say it.
+     Static for the life of the page: it is a fact about lib/record.js, not
+     about the night. */
+  const recordSpan = useMemo(() => span(), []);
+
   const governing = useMemo(
     () => ({
       rows: ruling(),
@@ -1536,11 +1553,11 @@ export default function SituationRoom({
          press did two different things and neither was the list of what is
          wrong. There is a screen for that — see lib/alerts.js — and every
          line on it carries a door to the surface holding its detail. */
-      onOpenAlerts={() => setLayer("alerts")}
+      onOpenAlerts={() => setLayer("situations")}
       subtitle={
         layer === "pulse"
           ? `${formatNumber(pulse.filed)} return${pulse.filed === 1 ? "" : "s"} in, ${formatNumber(pulse.silence.length)} booth${pulse.silence.length === 1 ? "" : "s"} not heard from`
-        : layer === "alerts"
+        : layer === "situations"
           ? escalations
             ? `${LEVELS[escalations.level].label}${escalations.level === "NORMAL" ? "" : ` · ${formatNumber(escalations.alerts.length)} above the line`}${incidentCount ? `, ${formatNumber(incidentCount)} from the field` : ""}`
             : "Nothing to raise"
@@ -1562,44 +1579,20 @@ export default function SituationRoom({
                 divergence?.ready ? `, ${formatNumber(divergence.places)} place${divergence.places === 1 ? "" : "s"} differing from the declaration` : ""
               }`
             : "Nothing filed yet to screen"
-        : layer === "sample"
-          ? "What a projection would have to be drawn from, and how far this deployment is from it"
-        : layer === "executive"
-          ? `${briefState.forParty ?? "This campaign"} in ${crumbs.at(-1).label} — what is counted, what is on record, what is modelled`
-        : layer === "classify"
-          ? /* The party is in the subtitle rather than only on the legend
-               because this is the one map in the room whose colours mean
-               something different depending on whose brief is open, and a
-               wall display is read by people who did not press anything. */
-            `${crumbs.at(-1).label} · how each place stands for ${briefState.forParty ?? "this campaign"}`
         : MAP_LAYERS.has(layer)
           ? `${crumbs.at(-1).label} · ${LABEL[layer]}`
           : layer === "watch"
             ? `${watchSummary.filed} of ${watchSummary.total} coordinators reporting`
+            /* ── THE TWO ANALYTICAL DASHBOARDS ──────────────────────────
+               Both subtitles name the ground and the campaign rather than the
+               dashboard, because the dashboard's name is already on the tab
+               and a wall display is read by people who did not press it. */
             : layer === "analytics"
-              ? `Projection under your assumptions, from the declared 2023 result${
-                  territory
-                    ? ` in ${territory.stateName ?? ground}`
-                    : scopeStates?.length
-                      ? ` in ${scopeStates.length === 1 ? rootLabel : `these ${scopeStates.length} states`}`
-                      : ""
-                }`
-              : layer === "behaviour"
-                ? "Seven presidential elections, 1999 to 2023, and every governorship since"
-              : layer === "parties"
+              ? `${briefState.forParty ?? "This campaign"} in ${crumbs.at(-1).label} · 1999 to ${recordSpan.lastLabel}`
+              : layer === "planning"
                 ? territory
-                  ? `One party at a time, across ${ground ?? territory.name}, down to a polling unit`
-                  : "One party at a time, across all 37 states, down to a polling unit"
-                : layer === "planning"
-                  ? territory
-                    ? `Choose what you can actually cover inside ${ground ?? territory.name}`
-                    : "Choose the territory you can actually cover"
-                : layer === "ruling"
-                  ? territory && seat
-                    ? seat.result?.votes
-                      ? `The last ${seat.raceLabel.toLowerCase()} here, and who holds it now`
-                      : `Who holds this seat now. The last result is on record; its figures are not`
-                    : `${governing.moves.length} of 36 states changed hands without an election`
+                  ? `Where to focus inside ${ground ?? territory.name}, and what covering it costs`
+                  : "Where to focus, and what covering it costs"
                   : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
       }
       aside={
@@ -1647,17 +1640,24 @@ export default function SituationRoom({
       {layer === "pulse" ? (
         <RoomPulse
           pulse={pulse}
+          /* ── ONE SET OF RAISED ALERTS, READ TWICE ─────────────────────
+             The same object the situations screen draws. The overview used to
+             re-derive its own headline figures from `integrity` and
+             `divergence`, which meant two screens counting the same findings
+             two ways — and the first time a room reads "3 impossible" here
+             and "4" there is the last time it believes either. */
+          alerts={escalations}
           incidents={incidents}
-          integrity={integrity}
-          divergence={divergence}
+          /* The country, because this screen is a map now. */
+          shapes={shapes}
           boardSource={boardSource}
           ground={ground ?? territory?.name ?? null}
-          /* Every figure on the overview is a door. A number somebody wants to
-             look into and cannot is a number they photograph and carry to
+          /* Every line on the overview is a door. A finding somebody wants to
+             look into and cannot is a finding they photograph and carry to
              another screen by hand. */
           onGo={setLayer}
         />
-      ) : layer === "alerts" ? (
+      ) : layer === "situations" ? (
         <RoomWatch
           alerts={escalations}
           incidents={incidents}
@@ -1696,99 +1696,56 @@ export default function SituationRoom({
           ground={ground ?? territory?.name ?? null}
           onGo={setLayer}
         />
-      ) : layer === "sample" ? (
-        <SampleDesign
-          /* The frame is the states on the board: their booths and their
-             registers. Narrowed rooms therefore size a sample of their own
-             ground rather than of a federation they cannot reach. */
-          states={states}
-          pulse={pulse}
-          ground={ground ?? territory?.name ?? null}
-        />
-      ) : layer === "executive" ? (
-        /* ── THE BRIEF, OVER WHATEVER THE ROOM IS STANDING ON ────────────
-            It takes no rows of its own: it is handed the same `rows` the map
-            is drawing, at whatever level the trail has reached, so drilling
-            into a state re-writes the whole brief for that state's local
-            governments. That is the point — a state director and a national
-            one want the same twelve figures about different ground. */
-        <Executive
-          state={briefState}
+      ) : layer === "analytics" ? (
+        /* ── SIX QUESTIONS, ONE DASHBOARD ────────────────────────────────
+           The brief, the classified map, turnout, the parties, any two
+           elections held against each other, and what has been moving. Every
+           one of them used to be a tab of its own in this head. See
+           components/dash/ElectionAnalytics.jsx for why they are not any
+           more, and lib/record.js for the record they read — 1999 to the
+           Osun governorship of August 2026. */
+        <ElectionAnalytics
+          brief={briefState}
           slots={slots}
           place={crumbs.at(-1).label}
+          shapes={shapes}
+          territory={territory}
+          ground={ground ?? territory?.name ?? null}
+          governing={{ ...governing, fct: FCT }}
           onOpen={(row) => {
-            /* Every row is a door, and the door leads to the map rather than
-               to another list: the next question after "which places" is
-               always "where are they". */
-            const shape = { code: row.code ?? undefined, name: row.name };
-            setLayer("classify");
-            select(shape);
+            /* Every row is a door, and the door leads to the map: the
+               question after "which places" is always "where are they". */
+            setPicked(row.code ?? row.key ?? row.name);
+            setLayer("results");
           }}
           onGo={setLayer}
           pathOf={(row) => planPathFor(row)}
         />
-      ) : layer === "parties" ? (
-        /* ── A PARTY'S SPREAD, INSIDE THE GROUND THAT IS BEING FOUGHT ────
-           This was national on purpose: a party's spread is a fact about the
-           party across the federation, not about whichever contest is open.
-           That reasoning holds for a room reading the whole country and fails
-           for one that holds seven local governments — for them the federal
-           picture is a true statement about somewhere else, and the question
-           they have is where this party is strong inside their own ground.
-           Unnarrowed rooms still get all 37. */
-        <PartyStrength shapes={shapes} territory={territory} ground={ground} />
-      ) : layer === "behaviour" ? (
-        /* No scope passed, deliberately, for the same reason PartyStrength
-           takes none: how a country has voted over seven elections is not a
-           question about whichever contest happens to be open. */
-        <Behaviour shapes={shapes} />
-      ) : layer === "analytics" ? (
-        <Analytics
-          /* ── THE CONTEST BEING READ, NOT THE PROJECT'S HEADLINE ──────────
-             This passed the project's `kind`, which is the contest a project
-             is named after and not the one on screen. An account pinned to
-             the senate inside a project titled for a governorship therefore
-             got the governorship's analytics — a different election, under
-             the right heading, with every figure correct.
-
-             And the ground rather than the project's scope, for the same
-             reason every other panel now takes it: a campaign in one state
-             does not want a projection over the six that project covers. */
+      ) : layer === "planning" ? (
+        /* ── AND THE OTHER HALF, DELIBERATELY BEHIND ITS OWN DOOR ────────
+           "Where should we focus" is not an analytical question, it is a
+           commitment: agents deployed and money spent. See the note over
+           its group in MODES. */
+        <StrategicPlanning
+          brief={briefState}
+          place={crumbs.at(-1).label}
+          shapes={shapes}
+          states={states}
+          pulse={pulse}
+          territory={territory}
+          ground={ground ?? territory?.name ?? null}
+          /* The ground rather than the project's scope: a campaign in one
+             state does not want a projection over the six a project covers. */
           scopeStates={territory?.stateCode ? [territory.stateCode] : scopeStates}
           race={racePinned ? race : (projects?.current?.kind ?? null)}
-          title={territory?.stateName ?? (projects?.current?.title ?? null)}
-          ground={ground ?? territory?.name ?? null}
-          /* True when the account's seat is smaller than the state these
-             figures are recorded at — every contest below a governorship. */
+          stateResults={stateResults}
           subState={Boolean(territory) && !["NATION", "STATE"].includes(territory.level)}
-          results={stateResults}
+          onOpen={(row) => {
+            setPicked(row.code ?? row.key ?? row.name);
+            setLayer("results");
+          }}
+          pathOf={(row) => planPathFor(row)}
         />
-      ) : layer === "planning" ? (
-        <PlanningMap shapes={shapes} territory={territory} ground={ground} />
-      ) : layer === "ruling" ? (
-        /* ── THE SAME TAB, TWO DIFFERENT QUESTIONS ────────────────────────
-           An unnarrowed room asks "who governs the country", and the answer
-           is a map of 37 states. A room that holds a ground asks "who holds
-           this seat, and what did it take last time", and the 37-state map
-           is a true answer to somebody else's question. The tab is renamed
-           to match — see MODES. */
-        territory && seat ? (
-          <SeatBrief
-            race={seat.race}
-            raceLabel={seat.raceLabel}
-            ground={ground ?? territory.name}
-            holders={seat.holders}
-            result={seat.result}
-          />
-        ) : (
-          <RulingParty
-            rows={governing.rows}
-            shapes={shapes}
-            fct={FCT}
-            seats={governing.seats}
-            moves={governing.moves}
-          />
-        )
       ) : layer === "watch" ? (
         <CoordinatorWatch
           shapes={shapes}
@@ -1993,25 +1950,24 @@ export default function SituationRoom({
                     note: describe(row, layer, slots),
                     fix: row.fix ?? null,
                     paint:
-                      /* ── A WARD IS CLASSIFIED THE WAY A STATE IS ───────
-                         Same five colours, same five words, at the two
-                         levels where somebody is actually deciding which
-                         booth to send a person to. Without this the
-                         classification map simply stopped existing below a
-                         local government — the tiles fell back to the
-                         magnitude ramp, which on this layer is the vote
-                         total, and a reader would have been looking at a
-                         completely different question in the same frame. */
-                      layer === "classify"
-                        ? {
-                            fill: CLASS_OF[row.class]?.fill ?? "var(--color-silent)",
-                            opacity: 1,
-                          }
-                        : layer !== "results"
-                          ? null
-                          : code
-                            ? { fill: partyFill(code, "unit", PARTY_FILL[code]), opacity: 1 }
-                            : { fill: "var(--color-silent)", opacity: 1 },
+                      /* ── A WARD IS COLOURED THE WAY A STATE IS ─────────
+                         Every layer on this frame is a magnitude except the
+                         result, and a magnitude gets the ramp. The result
+                         gets the party that carried it, in the same fill
+                         with the same hatch on LP as the choropleth two
+                         levels up, so a reader who has learnt the country's
+                         colours does not have to learn a second language to
+                         read a booth.
+
+                         The classification used to be painted here too. It
+                         has gone to Party ground, which draws it on its own
+                         map beside the share it is derived from — see
+                         components/dash/PartyStrength.jsx. */
+                      layer !== "results"
+                        ? null
+                        : code
+                          ? { fill: partyFill(code, "unit", PARTY_FILL[code]), opacity: 1 }
+                          : { fill: "var(--color-silent)", opacity: 1 },
                   };
                 })}
               />
@@ -2046,45 +2002,6 @@ export default function SituationRoom({
               </div>
             )}
           </div>
-
-          {/* ── THE ONE LAYER THAT NEEDS A KEY ──────────────────────────────
-              Every other layer on this map is self-describing: a party code is
-              written across each shape, and a magnitude ramp is one hue with a
-              figure beside it in the list. A classification is neither. Four
-              colours that mean "safe", "in play", "winnable" and "lost" cannot
-              be worked out from the map, and a reader who guesses at them
-              guesses wrong in the most expensive direction.
-
-              So the key is printed under the map, in words, with the party it
-              is about — and it is the same five rows the strategic brief
-              draws, out of the same call, so the two can never disagree. */}
-          {layer === "classify" && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-board-line px-4 py-2.5">
-              <span className="text-[0.625rem] font-bold tracking-[0.16em] text-white/40 uppercase">
-                {briefState.forParty ?? "This campaign"}
-              </span>
-              {CLASSES.map((item) => (
-                <span key={item.id} className="flex items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className="size-2.5 shrink-0 rounded-[2px]"
-                    style={{ background: item.fill }}
-                  />
-                  <span className="text-[0.6875rem] text-white/70">{item.label}</span>
-                  <span className="figure text-[0.6875rem] font-bold text-white tabular-nums">
-                    {briefState.brief.counts[item.id]}
-                  </span>
-                </span>
-              ))}
-              <button
-                type="button"
-                onClick={() => setLayer("executive")}
-                className="ml-auto rounded-dash-sm px-2 py-1 text-[0.6875rem] font-bold text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                Open the brief
-              </button>
-            </div>
-          )}
 
           {/* ── THE TELEMETRY STRIP ────────────────────────────────────────
               A readout along the foot of the instrument: what is on screen,

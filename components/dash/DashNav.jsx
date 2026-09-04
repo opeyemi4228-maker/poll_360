@@ -134,7 +134,7 @@ const SECTIONS = [
         label: "Situation room",
         icon: Users,
         capability: "gap:read",
-        /* ── DOORS INTO A ROOM THAT HAS THREE HEADS ──────────────────────
+        /* ── DOORS INTO A ROOM ORGANISED AROUND FOUR DASHBOARDS ─────────
            The room's own surfaces are local state rather than routes, and a
            hash is the only thing a link from out here can carry into one —
            see HASH_LAYERS in components/dash/SituationRoom.jsx. Six of them
@@ -153,11 +153,34 @@ const SECTIONS = [
            to one screen is one line that lights up wrong. Its old hash still
            lands there — see HASH_LAYERS. */
         children: [
-          { href: "/room#overview", label: "Command centre", icon: Activity, capability: "gap:read" },
+          /* ── THE FOUR DASHBOARDS, IN THE ORDER A NIGHT USES THEM ────────
+             Management opens the Command Center; the room works out of the
+             Situation Room; the desk lives in Results & Verification; and
+             every booth code anybody is read over the telephone goes to
+             Polling Unit 360. The lines beneath these are ways *into* those
+             four, not siblings of them. */
+          { href: "/room#command", label: "Command Center", icon: Gauge, capability: "gap:read" },
+          { href: "/room#map", label: "Situation Room", icon: Activity, capability: "gap:read" },
+          { href: "/room#operations", label: "Results & Verification", icon: ListChecks, capability: "results:verify" },
+          /* Lands on the booths screen, which is where the polling-unit card
+             currently lives — see RoomGround. The label is the name people
+             ask for; the hash is the door that actually opens it, and
+             HASH_LAYERS is the one place that mapping is decided. */
+          { href: "/room#unit", label: "Polling Unit 360", icon: MapPin, capability: "gap:read" },
+          /* ── AND THE TWO ANALYTICAL ONES ───────────────────────────────
+             The other head of the room. Election Analytics is six tabs over
+             one record — 1999 to the Osun governorship of August 2026 — and
+             Strategic Planning is deliberately its own door, because
+             "where should we focus" ends in agents deployed and money spent
+             rather than in a finding. See MODES in SituationRoom. */
+          { href: "/room#analytics", label: "Election Analytics", icon: BarChart3, capability: "gap:read" },
+          { href: "/room#planning", label: "Strategic Planning", icon: Target, capability: "gap:read" },
+
+          /* Sections of the two big ones, for somebody arriving pointed at a
+             part rather than at the whole. */
           { href: "/room#alerts", label: "Alerts & reports", icon: BellRing, capability: "gap:read" },
-          { href: "/room#coverage", label: "Coverage & booths", icon: Gauge, capability: "gap:read" },
-          { href: "/room#operations", label: "Results operations", icon: ListChecks, capability: "results:verify" },
-          { href: "/room#integrity", label: "Verification", icon: ShieldCheck, capability: "results:verify" },
+          { href: "/room#coverage", label: "States & booths", icon: MapPinned, capability: "gap:read" },
+          { href: "/room#integrity", label: "Verification & sheets", icon: ShieldCheck, capability: "results:verify" },
 
           /* ── THE FOUR TIERS, WHICH ARE ONE MAP AT FOUR DEPTHS ───────────
              Not four screens. The room's map is the same map whether it is
@@ -179,6 +202,7 @@ const SECTIONS = [
              weak, unknown — for whichever campaign the brief is written for.
              See lib/executive.js. */
           { href: "/room#geography", label: "Geographic intelligence", icon: Compass, group: "Geography", capability: "gap:read" },
+          { href: "/room#turnout-analytics", label: "Turnout analytics", icon: Users, group: "Geography", capability: "gap:read" },
 
           /* ── INTELLIGENCE, WHICH IS FOUR ROOMS THAT ALREADY EXISTED ─────
              Every line here opens a surface this product already had, under
@@ -199,6 +223,8 @@ const SECTIONS = [
              actually asking for, computed once so the map beside them cannot
              disagree. See components/dash/Executive.jsx. */
           { href: "/room#executive", label: "Strategic brief", icon: Target, group: "Intelligence", capability: "gap:read" },
+          { href: "/room#historical", label: "Historical results", icon: Captions, group: "Intelligence", capability: "gap:read" },
+          { href: "/room#priorities", label: "Where to focus", icon: Compass, group: "Intelligence", capability: "gap:read" },
         ],
       },
       {
