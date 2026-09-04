@@ -49,6 +49,7 @@
     "dotenv": "^17.4.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.12",
+    "globals": "^14.0.0",
     "postcss": "^8.5.23",
     "prisma": "^7.9.1",
     "tailwindcss": "^4.3.3"

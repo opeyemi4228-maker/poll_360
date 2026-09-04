@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { raiseAlerts, LEVELS, THRESHOLDS } from "../lib/alerts.js";
+import { raiseAlerts, watchBand, LEVELS, SEVERITY_ORDER, THRESHOLDS } from "../lib/alerts.js";
 
 /**
  * The warning system, pinned.
@@ -335,5 +335,115 @@ describe("every alert", () => {
   it("counts itself the same way the header does", () => {
     const summed = Object.values(raised.counts).reduce((sum, value) => sum + value, 0);
     assert.equal(summed, raised.alerts.length);
+  });
+});
+
+/**
+ * The watch console's picture band.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  THIS SUITE EXISTS BECAUSE THE SCREEN WENT DOWN
+ *
+ *  The band's arithmetic was written inside the component and it took the
+ *  alerts console out twice on the evening it shipped: once by reading what
+ *  `raiseAlerts` returns as an array — it is an object whose `alerts` key
+ *  holds the rows — and once by reading a variable that had been renamed
+ *  underneath it.
+ *
+ *  Neither could be caught by anything this repository runs. The build cannot
+ *  see them; no test here renders a client component and none ever will
+ *  without a DOM and a path-alias resolver. So the arithmetic moved into
+ *  lib/alerts.js and these tests hold it to the shape the room actually hands
+ *  it. The first test below is the outage, written down.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+describe("the watch console's band", () => {
+  it("takes what raiseAlerts actually returns, which is an object", () => {
+    /* The outage, exactly: the room passes this value straight through, and
+       anything that treats it as a list throws on the first render. */
+    const raised = raiseAlerts({ pulse: calm(), now: NOW });
+    assert.ok(!Array.isArray(raised), "raiseAlerts returns a report, not a list");
+    assert.ok(Array.isArray(raised.alerts), "and the rows are under .alerts");
+
+    const band = watchBand({ alerts: raised, incidents: [] });
+    assert.equal(band.level, "NORMAL");
+    assert.equal(band.raised, 0);
+  });
+
+  it("draws an empty room rather than throwing when it is handed nothing", () => {
+    /* A caller that has not been updated, or a room before the first refresh.
+       Every field a screen reads has to be present and safe. */
+    const band = watchBand();
+    assert.equal(band.raised, 0);
+    assert.equal(band.states, 0);
+    assert.equal(band.label, "Normal");
+    assert.deepEqual(band.raisedRows, []);
+    assert.equal(band.bySeverity.length, 3);
+  });
+
+  it("does not count Normal as a thing to look at", () => {
+    /* A quiet room raises one row, and that row says everything is fine.
+       Counting it would put a clear room at "1 thing to look at", which is
+       the fastest way to teach people to ignore the figure. */
+    const raised = raiseAlerts({ pulse: calm(), now: NOW });
+    assert.equal(raised.alerts.length, 1);
+    assert.equal(raised.alerts[0].level, "NORMAL");
+    assert.equal(watchBand({ alerts: raised }).raisedRows.length, 0);
+  });
+
+  it("adds both halves of the console into the one figure the arc draws", () => {
+    const incidents = [
+      { severity: "CRITICAL", stateCode: "KAN" },
+      { severity: "SERIOUS", stateCode: "KAN" },
+      { severity: "INFO", stateCode: "LAG" },
+    ];
+    const raised = raiseAlerts({
+      pulse: calm({ incidents: { total: 3, bySeverity: { CRITICAL: 1, SERIOUS: 1 } } }),
+      incidents,
+      now: NOW,
+    });
+
+    const band = watchBand({ alerts: raised, incidents });
+    assert.equal(band.reports, 3);
+    assert.equal(band.raised, band.raisedRows.length + 3);
+    assert.equal(band.needSomebody, 2, "critical and serious, not the noted one");
+  });
+
+  it("colours a state by the worst thing in it and counts everything in it", () => {
+    const incidents = [
+      { severity: "INFO", stateCode: "KAN" },
+      { severity: "CRITICAL", stateCode: "KAN" },
+      { severity: "SERIOUS", stateCode: "LAG" },
+    ];
+    const band = watchBand({ alerts: null, incidents });
+
+    assert.equal(band.byState.KAN.rank, 0, "critical outranks the noted one beside it");
+    assert.equal(band.byState.KAN.count, 2, "and both are still counted");
+    assert.equal(band.byState.LAG.rank, 1);
+    assert.equal(band.states, 2);
+  });
+
+  it("leaves a state with nothing reported out altogether", () => {
+    /* Absent, not zero. It is what lets the map leave it blank rather than
+       drawing it as a low number — the rule every map in this product
+       follows. */
+    const band = watchBand({ incidents: [{ severity: "INFO", stateCode: "KAN" }] });
+    assert.ok(!("LAG" in band.byState));
+  });
+
+  it("ignores a report with no state rather than inventing one for it", () => {
+    const band = watchBand({ incidents: [{ severity: "CRITICAL" }, { severity: "INFO", stateCode: "KAN" }] });
+    assert.equal(band.states, 1);
+    /* Still counted in the totals: it happened, it just cannot be drawn. */
+    assert.equal(band.reports, 2);
+  });
+
+  it("ranks every severity the console can be handed", () => {
+    /* The rank is an index into SEVERITY_ORDER and the component colours by
+       position, so a severity this file does not know would silently pick the
+       loudest colour. Anything unrecognised is clamped to the quietest. */
+    assert.deepEqual(SEVERITY_ORDER, ["CRITICAL", "SERIOUS", "INFO"]);
+    const band = watchBand({ incidents: [{ severity: "GOSSIP", stateCode: "KAN" }] });
+    assert.equal(band.byState.KAN.rank, 0);
   });
 });

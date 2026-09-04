@@ -6,7 +6,7 @@ import { BellRing, MapPin, Radio, ShieldAlert } from "lucide-react";
 import RoomAlerts from "./RoomAlerts";
 import IncidentStream from "./IncidentStream";
 import { Gauge, MiniMap, Panel, Waffle } from "./Figures";
-import { LEVELS } from "@/lib/alerts";
+import { watchBand } from "@/lib/alerts";
 import { cn, formatNumber } from "@/lib/utils";
 
 /**
@@ -52,7 +52,16 @@ const SEVERITY = [
 ];
 
 export default function RoomWatch({
-  alerts = [],
+  /* ── THIS IS AN ESCALATION REPORT, NOT A LIST ──────────────────────────
+     What lib/alerts.js returns is `{ at, alerts, dials, level, counts }` — an
+     object whose `alerts` key holds the rows. The name is unfortunate and it
+     is the name the whole room uses, so it is kept and unpacked rather than
+     renamed in one caller.
+
+     Nothing here unpacks it by hand any more. `watchBand` does, in a module a
+     test can call, because doing this arithmetic inside a render is what took
+     this screen down twice in one evening — see the note above it. */
+  alerts = null,
   incidents = [],
   photos = {},
   /* The national outline, so the band can draw where this is happening
@@ -62,43 +71,18 @@ export default function RoomWatch({
 }) {
   const [half, setHalf] = useState("alerts");
 
-  /* The room's own state in one word — the worst level anything on screen has
-     reached. Read from lib/alerts.js so this and the alert list can never
-     disagree about what "critical" means. */
-  const worst = alerts.reduce((rank, item) => Math.max(rank, LEVELS[item.level]?.rank ?? 0), 0);
-  const level = Object.values(LEVELS).find((item) => item.rank === worst) ?? null;
+  const band = watchBand({ alerts, incidents });
 
-  /* How much of the room is clear. The one figure this screen is about, so it
-     gets the one arc — see Gauge in components/dash/Figures.jsx. */
-  const raised = alerts.length + incidents.length;
-
-  const bySeverity = SEVERITY.map((item) => ({
-    ...item,
-    value: incidents.filter((row) => row.severity === item.id).length,
-  }));
-
-  /* ── WHERE, DRAWN RATHER THAN LISTED ──────────────────────────────────
-     A state is coloured by the worst thing reported in it and labelled with
-     how many. A state with nothing against it keeps the surface colour: an
-     absence, not a low number, which is the rule every map in this product
-     follows. */
-  const worstOf = {};
-  const howMany = {};
-  for (const item of incidents) {
-    if (!item.stateCode) continue;
-    const rank = item.severity === "CRITICAL" ? 0 : item.severity === "SERIOUS" ? 1 : 2;
-    worstOf[item.stateCode] = Math.min(worstOf[item.stateCode] ?? 2, rank);
-    howMany[item.stateCode] = (howMany[item.stateCode] ?? 0) + 1;
-  }
-
+  /* Rank is an index into SEVERITY_ORDER, loudest first, so the colours line
+     up with it by position and this file never repeats the severity names. */
   const fills = Object.fromEntries(
-    Object.entries(worstOf).map(([code, rank]) => [code, SEVERITY[rank].color])
+    Object.entries(band.byState).map(([code, item]) => [code, SEVERITY[item.rank].color])
   );
 
   const notes = Object.fromEntries(
-    Object.entries(howMany).map(([code, count]) => [
+    Object.entries(band.byState).map(([code, item]) => [
       code,
-      `${count} report${count === 1 ? "" : "s"}`,
+      `${item.count} report${item.count === 1 ? "" : "s"}`,
     ])
   );
 
@@ -108,10 +92,10 @@ export default function RoomWatch({
       <div className="grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)]">
         <Panel
           title="The room"
-          figure={level?.label ?? "Clear"}
+          figure={band.label}
           foot={
-            raised
-              ? `${formatNumber(alerts.length)} raised · ${formatNumber(incidents.length)} reported`
+            band.raised
+              ? `${formatNumber(band.raisedRows.length)} raised · ${formatNumber(band.reports)} reported`
               : "Nothing above the line"
           }
         >
@@ -119,25 +103,23 @@ export default function RoomWatch({
             /* Full and green is a clear room; it empties as things are raised.
                Drawn the way somebody hopes to find it, so a glance at a wall
                tells them whether to walk over. */
-            share={raised ? Math.max(6, 100 - Math.min(100, raised * 6)) : 100}
-            figure={raised ? formatNumber(raised) : "0"}
-            sub={raised === 1 ? "thing to look at" : "things to look at"}
-            tone={worst >= 3 ? "alert" : worst >= 2 ? "warn" : "good"}
+            share={band.raised ? Math.max(6, 100 - Math.min(100, band.raised * 6)) : 100}
+            figure={formatNumber(band.raised)}
+            sub={band.raised === 1 ? "thing to look at" : "things to look at"}
+            tone={band.rank >= 4 ? "alert" : band.rank >= 3 ? "warn" : "good"}
           />
         </Panel>
 
         <Panel
           title="Field reports by severity"
-          figure={formatNumber(incidents.length)}
+          figure={formatNumber(band.reports)}
           foot="Each cell is a percentage point of what has been reported, not one report."
         >
           {incidents.length ? (
             <Waffle
-              share={
-                ((bySeverity[0].value + bySeverity[1].value) / Math.max(incidents.length, 1)) * 100
-              }
-              tone={bySeverity[0].value ? "alert" : "warn"}
-              label={`${formatNumber(bySeverity[0].value + bySeverity[1].value)} need somebody`}
+              share={(band.needSomebody / Math.max(band.reports, 1)) * 100}
+              tone={band.bySeverity[0].count ? "alert" : "warn"}
+              label={`${formatNumber(band.needSomebody)} need somebody`}
             />
           ) : (
             <p className="text-[0.875rem] text-dash-muted">
@@ -148,7 +130,7 @@ export default function RoomWatch({
 
         <Panel
           title="Where"
-          figure={`${formatNumber(Object.keys(hot).length)} state${Object.keys(hot).length === 1 ? "" : "s"}`}
+          figure={`${formatNumber(band.states)} state${band.states === 1 ? "" : "s"}`}
           foot="Red is a critical report, amber a serious one. A state with nothing against it is left blank."
         >
           {shapes ? (
@@ -165,7 +147,7 @@ export default function RoomWatch({
           who stops using the second half. */}
       <div className="flex gap-1 rounded-dash border border-dash-line bg-dash-card p-1">
         {HALVES.map((item) => {
-          const count = item.id === "alerts" ? alerts.length : incidents.length;
+          const count = item.id === "alerts" ? band.raisedRows.length : band.reports;
           const active = half === item.id;
 
           return (

@@ -1163,7 +1163,14 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
              taps that missed. */
           onClick={(event) => {
             if (!openState) return;
-            if (countTap(openState.code, event) >= 3) dropState(openState.code);
+            /* `dropAt`, the same one every other tap site calls. This read
+               `dropState`, which has never existed: the one gesture this
+               handler was added to rescue — a third tap that lands on the
+               frame while boundaries are still loading — threw instead of
+               dropping the state, so the bug it was written to fix was still
+               a bug, and now a louder one. Caught by `no-undef`, which this
+               project turned on because of it. */
+            if (countTap(openState.code, event) >= 3) dropAt(openState.code);
           }}
         >
           {loading && (
