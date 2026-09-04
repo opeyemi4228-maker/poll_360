@@ -142,18 +142,22 @@ const SECTIONS = [
            and what belongs on it is the handful of surfaces somebody arrives
            looking for. The rest are one press away once you are inside.
 
-           Which six is decided by how somebody arrives, not by the room's own
-           ordering. "Alerts" is here because it is what a phone call sends
-           people to — "the room says forty-seven booths in Kano" — and
+           Which ones is decided by how somebody arrives, not by the room's own
+           ordering. "Alerts & reports" is here because it is what a phone call
+           sends people to — "the room says forty-seven booths in Kano" — and
            "Operations" because a verification desk opens the product at the
-           queue rather than at the country. */
+           queue rather than at the country.
+
+           "Incident feed" used to have a line of its own and no longer does:
+           the incidents are one half of "Alerts & reports" now, and two lines
+           to one screen is one line that lights up wrong. Its old hash still
+           lands there — see HASH_LAYERS. */
         children: [
           { href: "/room#overview", label: "Command centre", icon: Activity, capability: "gap:read" },
-          { href: "/room#alerts", label: "Alerts", icon: BellRing, capability: "gap:read" },
-          { href: "/room#coverage", label: "Coverage", icon: Gauge, capability: "gap:read" },
+          { href: "/room#alerts", label: "Alerts & reports", icon: BellRing, capability: "gap:read" },
+          { href: "/room#coverage", label: "Coverage & booths", icon: Gauge, capability: "gap:read" },
           { href: "/room#operations", label: "Results operations", icon: ListChecks, capability: "results:verify" },
-          { href: "/room#incidents", label: "Incident feed", icon: ShieldAlert, capability: "incidents:read" },
-          { href: "/room#integrity", label: "Integrity", icon: ShieldCheck, capability: "results:verify" },
+          { href: "/room#integrity", label: "Verification", icon: ShieldCheck, capability: "results:verify" },
 
           /* ── THE FOUR TIERS, WHICH ARE ONE MAP AT FOUR DEPTHS ───────────
              Not four screens. The room's map is the same map whether it is

@@ -27,17 +27,22 @@ import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
 import CoordinatorWatch from "./CoordinatorWatch";
 import RoomPulse from "./RoomPulse";
-import RoomCoverage from "./RoomCoverage";
-import RoomIntegrity from "./RoomIntegrity";
 import RoomOperations from "./RoomOperations";
-import RoomAlerts from "./RoomAlerts";
 import RoomTimeline from "./RoomTimeline";
-import UnitIntel from "./UnitIntel";
+/* ── THE THREE MERGED CONSOLES ─────────────────────────────────────────────
+   Each wraps two surfaces that were tabs of their own and had no business
+   being apart: alerts with the field reports that explain them, coverage with
+   the booth card every one of its findings ends at, and the verification
+   checks with the evidence that decides what to do about them. The halves
+   they wrap are unchanged and still their own files; what these add is the
+   band of pictures across the top and the fact that the two are on one
+   screen. */
+import RoomWatch from "./RoomWatch";
+import RoomGround from "./RoomGround";
+import RoomEvidence from "./RoomEvidence";
 import Executive, { useBrief } from "./Executive";
 import { CLASS_OF, CLASSES } from "@/lib/executive";
 import SampleDesign from "./SampleDesign";
-import DataQuality from "./DataQuality";
-import IncidentStream from "./IncidentStream";
 import DivergencePanel from "./DivergencePanel";
 import Analytics from "./Analytics";
 import ElectionSwitcher from "./ElectionSwitcher";
@@ -45,8 +50,6 @@ import PartyStrength from "./PartyStrength";
 import Behaviour from "./Behaviour";
 import PlanningMap from "./PlanningMap";
 import RulingParty from "./RulingParty";
-import Whiteboard from "./Whiteboard";
-import { RoomVoiceProvider } from "./RoomVoice";
 import LiveRefresh from "./LiveRefresh";
 import RaceSwitcher from "./RaceSwitcher";
 import GroundBanner from "./GroundBanner";
@@ -57,7 +60,6 @@ import { partyFill } from "@/lib/party-pattern";
 import { snapshot, parties, allParties } from "@/lib/replay";
 import { LEVELS } from "@/lib/alerts";
 import { normalise } from "@/lib/assistant";
-import { board as boardStore, buildCard } from "@/lib/whiteboard";
 import { apportion, wardCount, liveRowsFrom, liveNodeFor } from "@/lib/drill";
 import { COMMERCIAL_CENTRES, coordinate, unproject } from "@/lib/geo";
 import { ruling, seatsBy, crossedFloor, FCT } from "@/lib/governors";
@@ -133,10 +135,15 @@ export const MODES = [
              and that answer used to be a tour of four tabs. It is one screen
              now, and the map is one press away where it always was. */
           { value: "pulse", label: "Command centre" },
-          /* Everything above the line, in one list, with the threshold each
-             one was raised against printed beside it. The room's own state in
-             one word lives here and nowhere else — see lib/alerts.js. */
-          { value: "alerts", label: "Alerts" },
+          /* ── ALERTS AND FIELD REPORTS, WHICH WERE ONE QUESTION ────────
+             What this product noticed and what a person standing in a field
+             noticed were two tabs, and the wall between them ran through the
+             middle of "is anything wrong right now". The two halves
+             corroborate each other — a silence threshold is a machine
+             noticing a gap, an agent at that booth is a human being
+             explaining it — and nobody could see both at once. See
+             components/dash/RoomWatch.jsx. */
+          { value: "alerts", label: "Alerts & reports" },
           /* When, as opposed to what. Nothing on it is scheduled: every time
              is a moment this product watched happen — see lib/timeline.js. */
           { value: "timeline", label: "Timeline" },
@@ -168,10 +175,13 @@ export const MODES = [
         id: "count",
         label: "The count",
         tabs: [
-          /* From a plan to a checked figure, and everything that fell out
-             between them. This is the reporting-progress screen: state, local
-             government, ward, booth. */
-          { value: "coverage", label: "Coverage" },
+          /* ── HOW MUCH IS IN, AND THE BOOTH THAT ANSWER ENDS AT ────────
+             From a plan to a checked figure, and everything that fell out
+             between them — and, on the same screen, everything known about
+             any one booth. They were two tabs, which meant every finding on
+             the first ended in a code the reader had to carry to the second
+             by hand. See components/dash/RoomGround.jsx. */
+          { value: "coverage", label: "Coverage & booths" },
           /* Where a return is on the ladder between arriving and being
              allowed into a bulletin, and which rung it has stopped on. The
              one screen in this room that is about the desk rather than about
@@ -186,34 +196,26 @@ export const MODES = [
              finding than either half alone, and nobody could see both at once
              while they were two tabs. They are one surface now — see
              components/dash/RoomIntegrity.jsx. */
+          /* ── THE FINDING AND THE EVIDENCE FOR IT, TOGETHER ────────────
+             "Verification" asked whether a return's figures can be true.
+             "Result sheets" asked what the return arrived carrying. Split
+             across two tabs, neither could decide anything: a failed sum with
+             no photograph is a return nobody can check, and the same failed
+             sum with a clear photograph is a five-minute desk job. Identical
+             on the first screen, opposite instructions, and the thing that
+             told them apart was on the other tab. See
+             components/dash/RoomEvidence.jsx. */
           { value: "integrity", label: "Verification" },
-          /* What arrived with each return — the boxes, the photograph, the
-             position, the signatures — as opposed to what it said. */
-          { value: "quality", label: "Result sheets" },
         ],
       },
       {
         id: "field",
         label: "The field",
-        /* People, events, and one booth at a time. None of the three fits in
-           a choropleth, which is why none of them is a layer on the map. */
-        tabs: [
-          { value: "stream", label: "Incidents" },
-          { value: "watch", label: "Coordinators" },
-          /* Every other surface in this room ends in a booth code. This is
-             where a booth code goes — see components/dash/UnitIntel.jsx. */
-          { value: "unit", label: "Polling unit" },
-        ],
-      },
-      {
-        id: "kept",
-        label: "Kept",
-        /* ── WHY THE BOARD IS ITS OWN GROUP ──────────────────────────────
-           It is not one more view of the night. It is the only surface here
-           that holds several places at once and the only one somebody else
-           fills in for you, so it belongs beside the others rather than among
-           them. A group of one is honest about that. */
-        tabs: [{ value: "board", label: "Board" }],
+        /* People and events. Neither fits in a choropleth, which is why
+           neither is a layer on the map. The booth card that used to sit here
+           has gone to Coverage, where every finding that ends in a booth code
+           actually is. */
+        tabs: [{ value: "watch", label: "Coordinators" }],
       },
     ],
   },
@@ -368,17 +370,29 @@ const HASH_LAYERS = {
   "#map": "results",
   "#coverage": "coverage",
   "#operations": "operations",
-  "#unit": "unit",
-  "#incidents": "stream",
   "#coordinators": "watch",
-  /* Kept, and pointed at the merged console: links to #declared exist in the
-     wild and out-of-date bookmark should not land on the map. */
+  /* ── THE MERGED CONSOLES, AND EVERY NAME THAT USED TO REACH A HALF ──────
+     Four surfaces became two, and none of the old names is dropped. A link,
+     a bookmark or a WhatsApp message carrying #unit, #incidents, #evidence or
+     #declared was written when those were tabs of their own; each now lands
+     on the console that swallowed it, which is the screen holding what the
+     reader was looking for. A dead hash falls through to the map, and
+     arriving at a map when you asked for the incident feed is the one
+     outcome this table exists to prevent. */
+  "#unit": "coverage",
+  "#booth": "coverage",
+  "#incidents": "alerts",
+  "#stream": "alerts",
+  "#reports": "alerts",
   "#declared": "integrity",
   "#integrity": "integrity",
+  "#verification": "integrity",
+  "#quality": "integrity",
+  "#sheets": "integrity",
+  "#evidence": "integrity",
   "#analytics": "analytics",
   "#planning": "planning",
   "#sample": "sample",
-  "#evidence": "quality",
   /* ── THE STRATEGIC HEAD, AND THE NAMES THE RAIL USES FOR IT ────────────
      Several names land on the same surface on purpose. The rail groups these
      under Geography and Intelligence — two words for two audiences — and both
@@ -402,7 +416,7 @@ const HASH_LAYERS = {
      reports are what the field files; trend detection is twenty-seven years
      of it; anomalies are the screening. Each already had a room. */
   "#grassroots": "watch",
-  "#community": "stream",
+  "#community": "alerts",
   "#trends": "behaviour",
   "#anomalies": "integrity",
   /* ── THE DOOR /governors USED TO BE ────────────────────────────────────
@@ -447,23 +461,6 @@ function subscribeHash(onChange) {
 
 const readHash = () => window.location.hash;
 const noHash = () => "";
-
-/* How much the board will hold before the oldest starts falling off. */
-const BOARD_LIMIT = 24;
-
-/**
- * Whether two cards say the same thing.
- *
- * Identity is what a card is *about*, not when it was made: a reference is
- * the page it quotes, and everything else is a kind and a place. Two cards
- * that would draw identically are the same card however they got there.
- */
-function sameCard(a, b) {
-  if (a.kind !== b.kind) return false;
-  if (a.kind === "web") return a.subtitle === b.subtitle;
-  if (a.kind === "answer") return a.text === b.text;
-  return a.stateCode === b.stateCode && a.lga === b.lga && a.ward === b.ward;
-}
 
 /**
  * What the map is drawing, said in words on the screen itself.
@@ -722,42 +719,6 @@ export default function SituationRoom({
   const [cursor, setCursor] = useState(board.opening);
   const [reduced, setReduced] = useState(false);
 
-  /**
-   * What is on the board.
-   *
-   * ── WHY IT IS SAFE TO READ STORAGE WHILE RENDERING ─────────────────────
-   * The stored board is read once, in the initialiser, which on the server
-   * returns nothing and in the browser returns whatever was left up. Those
-   * two disagree, and that is normally how a hydration mismatch is made.
-   * It cannot make one here, because the room always opens on Results and
-   * nothing below draws a card until somebody asks for the board. Reading it
-   * in an effect instead would re-render the whole room a frame after every
-   * load to no purpose.
-   */
-  /**
-   * The board, as it stands.
-   *
-   * ── WHY IT STARTS EMPTY AND FILLS A MOMENT LATER ─────────────────────────
-   * It used to read what was on the board while rendering. Local storage does
-   * not exist on the server, so the page was built saying "nothing on the
-   * board yet" and then hydrated on a machine that had four cards on it. The
-   * two disagree, and React is entitled to throw away the markup and start
-   * again when they do.
-   *
-   * So the first paint matches what the server sent, always, and what was on
-   * the board is put back immediately afterwards. The functional update is
-   * not decoration: if somebody managed to pin something in that gap, the
-   * thing they just asked for wins over the thing they left there yesterday.
-   */
-  const [cards, setCards] = useState([]);
-
-  useEffect(() => {
-    const restore = setTimeout(() => {
-      const kept = boardStore.load();
-      if (kept?.length) setCards((current) => (current.length ? current : kept));
-    }, 0);
-    return () => clearTimeout(restore);
-  }, []);
 
   /**
    * A place named out loud that we could hear but could not yet place.
@@ -1444,208 +1405,20 @@ export default function SituationRoom({
   const pickedRow = picked ? rows.find((row) => (row.key ?? row.name) === picked) : null;
 
   /* ════════════════════════════════════════════════════════════════════════
-     WHAT POLL360 AI IS ALLOWED TO DO IN HERE
+  /* ── THE ASSISTANT'S HANDS, AND THE BOARD THEY WROTE ON, ARE OFF ────────
+     What stood here was `run` — the switch the assistant handed an intention
+     to, the one place that knew how to move this room by voice — together
+     with `goTo`, the board's card list, and the `voice` object that carried
+     all of it down to components/dash/Assistant.jsx.
 
-     The assistant works out what was asked for and hands the intention over.
-     Everything about how this room actually moves stays here, where the map,
-     the levels and the board already live. Each of these hands back either
-     nothing, meaning it did as it was told and the assistant should say what
-     it planned to say, or a sentence, meaning the room knows something the
-     assistant does not and that sentence should be said instead.
-     ════════════════════════════════════════════════════════════════════════ */
+     Withdrawn together because they were one feature. The board was where
+     the assistant put things; without the assistant it was a tab somebody
+     filled in by hand, which is not what it was for. lib/whiteboard.js,
+     components/dash/Whiteboard.jsx and Assistant.jsx are all intact on disk,
+     and nothing here has been rewritten around their absence — restoring
+     them is putting this block back and re-adding the two lines named in
+     components/dash/TopShell.jsx. */
 
-  /** Put a board up, and remember it for next time. */
-  const keepCards = useCallback((next) => {
-    setCards(next);
-    boardStore.keep(next);
-  }, []);
-
-  /**
-   * Move the map to a named place.
-   *
-   * A state can always be reached. A local government can be reached at once
-   * if its state is already open and its names have loaded, and otherwise is
-   * held until they do. A ward is reached by number, because wards are
-   * numbered rather than named everywhere in this dataset.
-   */
-  const goTo = useCallback(
-    (place) => {
-      if (!place?.state) return null;
-
-      const target = inScope.find((row) => row.code === place.state.code);
-      if (!target) {
-        return `${place.state.name} is not in this election, so there is nothing to show you there.`;
-      }
-
-      const head = { code: target.code, name: target.name };
-      const openHere = state?.code === target.code;
-
-      /* ── A DRILL IS ONLY WORTH HOLDING IF SOMETHING IS COMING ────────────
-         The pending name is spent when a boundary file lands, and a boundary
-         file only lands when the state changes. Setting one while already
-         standing in the state therefore parks a name that nothing will ever
-         come to collect, and it would then be spent on the next state
-         visited, sending the map somewhere nobody asked for minutes later.
-         So it is only ever set on the way into a state we are not in. */
-      if (place.lga) {
-        const match = openHere ? lgaRows.find((row) => row.name === place.lga) : null;
-        if (match) {
-          if (place.ward) {
-            setPath([head, { name: match.name }, { name: `Ward ${String(place.ward).padStart(2, "0")}` }]);
-          } else {
-            setPath([head, { name: match.name }]);
-          }
-          setPicked(null);
-          return null;
-        }
-
-        if (openHere) {
-          return lgaRows.length
-            ? `I cannot find ${place.lga} in ${target.name}.`
-            : `${target.name} is still drawing. Ask me again in a moment.`;
-        }
-
-        pendingDrill.current = normalise(place.lga);
-        setPath([head]);
-        setPicked(null);
-        return null;
-      }
-
-      /* Heard but not yet placeable: go to the state, and finish the drill
-         when its names arrive. */
-      if (place.pendingLga && !openHere) pendingDrill.current = normalise(place.pendingLga);
-
-      /* A ward with no local government named means the one already open. */
-      if (place.ward && openHere && lga) {
-        setPath([head, lga, { name: `Ward ${String(place.ward).padStart(2, "0")}` }]);
-        setPicked(null);
-        return null;
-      }
-
-      setPath([head]);
-      setPicked(null);
-      return null;
-    },
-    [inScope, state, lga, lgaRows]
-  );
-
-  const run = useCallback(
-    (act) => {
-      switch (act.do) {
-        /* ------------------------------------------------------- the map */
-        case "place":
-          return goTo(act.place);
-
-        case "up": {
-          if (path.length <= (pinned ? 1 : 0)) {
-            return pinned
-              ? `This election is only fought in ${rootLabel}, so there is nowhere above it to go.`
-              : "You are already looking at the whole country.";
-          }
-          const next = path.slice(0, -1);
-          setPath(next);
-          setPicked(null);
-          return `${next.length ? next.at(-1).name : rootLabel}.`;
-        }
-
-        case "root": {
-          if (pinned) {
-            return `This election is only fought in ${rootLabel}, so that is as far out as it goes.`;
-          }
-          setPath([]);
-          setPicked(null);
-          return null;
-        }
-
-        /* ---------------------------------------------------- the screens */
-        case "tab": {
-          if (act.place) {
-            const objection = goTo(act.place);
-            if (objection) return objection;
-          }
-          setLayer(act.tab);
-          return null;
-        }
-
-        /* ----------------------------------------------------- the board */
-        case "pin": {
-          const card = buildCard(act.card, { path });
-
-          /* ── THE SAME THING DOES NOT GO UP TWICE ─────────────────────────
-             The board now fills itself from what the room is saying, and a
-             room says "Kano" more than once. Without this, a five-minute
-             argument about two states leaves forty identical cards and the
-             board becomes the least useful surface in the product. Saying it
-             again is not a request for a second copy of it. */
-          if (cards.some((existing) => sameCard(existing, card))) return null;
-
-          /* ── AND THE BOARD HAS A CEILING ─────────────────────────────────
-             Anything that fills itself needs a limit, or a long night ends
-             with a scroll nobody reads. The oldest goes when the newest
-             arrives, which is the right end to lose: what was just named is
-             what the room is talking about. */
-          const next = [...cards, card].slice(-BOARD_LIMIT);
-          keepCards(next);
-
-          /* Putting something up and not being shown it is the one thing
-             that would make somebody stop trusting the instruction. But a
-             card that went up because the room happened to mention a place
-             is not an instruction, and hijacking the screen for it would be
-             the assistant interrupting a conversation it was not part of. */
-          if (!act.quiet) setLayer("board");
-          return null;
-        }
-
-        case "clear": {
-          if (!cards.length) return "The board is already empty.";
-          keepCards([]);
-          return null;
-        }
-
-        case "erase": {
-          if (!cards.length) return "There is nothing on the board to take off.";
-          /* Named kind if one was named, otherwise the most recent thing put
-             up, which is what "take that off" means every time. */
-          const index = act.kind
-            ? cards.map((card) => card.kind).lastIndexOf(act.kind)
-            : cards.length - 1;
-          if (index < 0) return `There is no ${act.kind} on the board.`;
-          keepCards(cards.filter((_, at) => at !== index));
-          return null;
-        }
-
-        case "save": {
-          if (!cards.length) return "There is nothing on the board to save yet.";
-          const title = boardStore.save(act.name, cards);
-          return `Saved as ${title}.`;
-        }
-
-        case "restore": {
-          const entry = boardStore.open(act.name);
-          if (!entry) return `I cannot find a board called ${act.name}.`;
-          keepCards(entry.cards);
-          setLayer("board");
-          return `${entry.name} is up, ${entry.cards.length} card${entry.cards.length === 1 ? "" : "s"}.`;
-        }
-
-        default:
-          return null;
-      }
-    },
-    [goTo, path, pinned, rootLabel, cards, keepCards]
-  );
-
-  const voice = useMemo(
-    () => ({
-      tabs: TABS.map((item) => item.value),
-      path,
-      /* Only the names actually loaded. Claiming to know places we have not
-         fetched is how an assistant ends up silently going nowhere. */
-      lgas: lgaRows.map((row) => row.name),
-      run,
-    }),
-    [path, lgaRows, run]
-  );
 
   /**
    * Everything the alarm should make a noise about.
@@ -1711,7 +1484,6 @@ export default function SituationRoom({
       (MODES.find((item) => item.id === mode) ?? MODES[0]).groups.map((group) => ({
         ...group,
         tabs: group.tabs.map((tab) => {
-          if (tab.value === "board" && cards.length) return { ...tab, badge: cards.length };
           /* ── A TAB NAMED FOR WHAT IS UNDER IT ────────────────────────
              "Ruling party" is the national map's name. In a narrowed room
              the same tab holds this seat and the last election for it, and
@@ -1721,7 +1493,7 @@ export default function SituationRoom({
           return tab;
         }),
       })),
-    [cards.length, territory, mode]
+    [territory, mode]
   );
 
   /* ── WHAT EACH HEAD IS CARRYING, ON THE HEAD ITSELF ────────────────────
@@ -1742,9 +1514,6 @@ export default function SituationRoom({
   );
 
   return (
-    /* The assistant rides with the chrome, so it is inside this. Everything it
-       is allowed to do in this room is the object above, and nothing else. */
-    <RoomVoiceProvider value={voice}>
     <TopShell
       user={user}
       tabs={TABS}
@@ -1773,7 +1542,7 @@ export default function SituationRoom({
           ? `${formatNumber(pulse.filed)} return${pulse.filed === 1 ? "" : "s"} in, ${formatNumber(pulse.silence.length)} booth${pulse.silence.length === 1 ? "" : "s"} not heard from`
         : layer === "alerts"
           ? escalations
-            ? `${LEVELS[escalations.level].label}${escalations.level === "NORMAL" ? "" : ` · ${formatNumber(escalations.alerts.length)} above the line`}`
+            ? `${LEVELS[escalations.level].label}${escalations.level === "NORMAL" ? "" : ` · ${formatNumber(escalations.alerts.length)} above the line`}${incidentCount ? `, ${formatNumber(incidentCount)} from the field` : ""}`
             : "Nothing to raise"
         : layer === "timeline"
           ? timeline?.quietFor != null
@@ -1783,10 +1552,10 @@ export default function SituationRoom({
           ? operations
             ? `${formatNumber(operations.kpis.received)} received, ${formatNumber(operations.kpis.pending)} still to be checked`
             : "Nothing has arrived"
-        : layer === "unit"
-          ? unit ?? "Everything this room holds about one polling unit"
         : layer === "coverage"
-          ? "From a plan to a checked figure, and everything that fell out between them"
+          ? unit
+            ? `${unit} · and how much of the ground is in`
+            : "From a plan to a checked figure, and any booth it ends at"
         : layer === "integrity"
           ? integrity.screened
             ? `${formatNumber(integrity.screened)} screened, ${formatNumber(integrity.flags.length)} finding${integrity.flags.length === 1 ? "" : "s"}${
@@ -1795,8 +1564,6 @@ export default function SituationRoom({
             : "Nothing filed yet to screen"
         : layer === "sample"
           ? "What a projection would have to be drawn from, and how far this deployment is from it"
-        : layer === "quality"
-          ? "What each return arrived carrying, and what this product does not hold"
         : layer === "executive"
           ? `${briefState.forParty ?? "This campaign"} in ${crumbs.at(-1).label} — what is counted, what is on record, what is modelled`
         : layer === "classify"
@@ -1807,10 +1574,6 @@ export default function SituationRoom({
             `${crumbs.at(-1).label} · how each place stands for ${briefState.forParty ?? "this campaign"}`
         : MAP_LAYERS.has(layer)
           ? `${crumbs.at(-1).label} · ${LABEL[layer]}`
-          : layer === "board"
-            ? cards.length
-              ? `${cards.length} thing${cards.length === 1 ? "" : "s"} Poll360 AI is holding for you`
-              : "Tell Poll360 AI what to keep in front of you"
           : layer === "watch"
             ? `${watchSummary.filed} of ${watchSummary.total} coordinators reporting`
             : layer === "analytics"
@@ -1895,7 +1658,13 @@ export default function SituationRoom({
           onGo={setLayer}
         />
       ) : layer === "alerts" ? (
-        <RoomAlerts alerts={escalations} onGo={setLayer} />
+        <RoomWatch
+          alerts={escalations}
+          incidents={incidents}
+          photos={photos}
+          shapes={shapes}
+          onGo={setLayer}
+        />
       ) : layer === "timeline" ? (
         <RoomTimeline timeline={timeline} onGo={setLayer} />
       ) : layer === "operations" ? (
@@ -1907,16 +1676,24 @@ export default function SituationRoom({
              everything else about it. */
           onUnit={openUnit}
         />
-      ) : layer === "unit" ? (
-        <UnitIntel cards={unitCards} unitCode={unit} onPick={setUnit} onGo={setLayer} />
       ) : layer === "coverage" ? (
-        <RoomCoverage pulse={pulse} ground={ground ?? territory?.name ?? null} onGo={setLayer} />
+        <RoomGround
+          pulse={pulse}
+          unitCards={unitCards}
+          unitCode={unit}
+          onUnit={setUnit}
+          shapes={shapes}
+          ground={ground ?? territory?.name ?? null}
+          onGo={setLayer}
+        />
       ) : layer === "integrity" ? (
-        <RoomIntegrity
+        <RoomEvidence
           integrity={integrity}
-          sheets={sheetFindings}
+          sheetFindings={sheetFindings}
+          sheetReads={sheetReads}
           pulse={pulse}
           divergence={divergence}
+          ground={ground ?? territory?.name ?? null}
           onGo={setLayer}
         />
       ) : layer === "sample" ? (
@@ -1928,8 +1705,6 @@ export default function SituationRoom({
           pulse={pulse}
           ground={ground ?? territory?.name ?? null}
         />
-      ) : layer === "quality" ? (
-        <DataQuality pulse={pulse} sheets={sheetReads} ground={ground ?? territory?.name ?? null} />
       ) : layer === "executive" ? (
         /* ── THE BRIEF, OVER WHATEVER THE ROOM IS STANDING ON ────────────
             It takes no rows of its own: it is handed the same `rows` the map
@@ -1951,14 +1726,6 @@ export default function SituationRoom({
           }}
           onGo={setLayer}
           pathOf={(row) => planPathFor(row)}
-        />
-      ) : layer === "board" ? (
-        <Whiteboard
-          shapes={shapes}
-          cards={cards}
-          onErase={(id) => keepCards(cards.filter((card) => card.id !== id))}
-          onClear={() => keepCards([])}
-          onRestore={keepCards}
         />
       ) : layer === "parties" ? (
         /* ── A PARTY'S SPREAD, INSIDE THE GROUND THAT IS BEING FOUGHT ────
@@ -2030,34 +1797,6 @@ export default function SituationRoom({
           territory={territory}
           ground={ground}
         />
-      ) : layer === "stream" ? (
-        <div className="grid gap-3 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[minmax(0,1fr)_21rem]">
-          <IncidentStream incidents={incidents} photos={photos} />
-          <div className="flex flex-col gap-3 xl:min-h-0 xl:overflow-y-auto">
-            <div className="rounded-dash border border-dash-line bg-dash-card p-4">
-              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-                Coordinators reporting
-              </p>
-              <p className="figure mt-1.5 text-[1.75rem] leading-none font-bold text-dash-ink">
-                {formatNumber(watchSummary.filed)}
-                <span className="text-[1rem] text-dash-muted">/{formatNumber(watchSummary.total)}</span>
-              </p>
-              <p className="mt-1.5 text-[0.75rem] text-dash-muted">
-                {formatNumber(watchSummary.silent)} have not reported
-              </p>
-            </div>
-            <div className="rounded-dash border border-dash-line bg-dash-card p-4">
-              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-                How a report gets here
-              </p>
-              <ol className="mt-2.5 space-y-2 text-[0.8125rem] leading-relaxed text-dash-muted">
-                <li>1. A coordinator files it from the booth, with a photo if there is one.</li>
-                <li>2. The narrative is encrypted before it is stored.</li>
-                <li>3. It appears here within seconds, decrypted only for this room.</li>
-              </ol>
-            </div>
-          </div>
-        </div>
       ) : (
       <>
       {/* --------------------------------------------------------- metrics
@@ -2468,7 +2207,6 @@ export default function SituationRoom({
       </>
       )}
     </TopShell>
-    </RoomVoiceProvider>
   );
 }
 

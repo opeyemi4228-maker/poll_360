@@ -1,5 +1,4 @@
 import DashRail from "./DashRail";
-import Assistant from "./Assistant";
 import ElectionSwitcher from "./ElectionSwitcher";
 import DashDrawer from "./DashDrawer";
 import { currentElection, listElections } from "@/lib/election-scope";
@@ -24,17 +23,6 @@ import { ROLES } from "@/lib/roles";
    again regardless: a hidden button is a courtesy, not a permission. */
 const MAY_CREATE = new Set(["SUPER_ADMIN", "SITUATION_ROOM"]);
 
-/**
- * The rail's remembered width, applied before anything is drawn.
- *
- * Small enough to be inline, and deliberately not a module: it has to run
- * during parse, ahead of the first paint, or the page appears with the rail
- * open and then shuts it, which is the flicker this replaces. It only ever
- * writes one attribute, and it swallows its own errors because a browser with
- * storage switched off should still get a dashboard.
- */
-const RAIL_SCRIPT = `try{if(localStorage.getItem('poll360:rail-collapsed')==='1')document.documentElement.dataset.rail='collapsed'}catch(e){}`;
-
 export default async function DashLayout({ user, title, lead, actions, screen = null, children }) {
   const role = ROLES[user.role] ?? ROLES.VIEWER;
 
@@ -45,8 +33,11 @@ export default async function DashLayout({ user, title, lead, actions, screen = 
 
   return (
     <div className="min-h-screen bg-dash-bg">
-      {/* Authored in this file, no user input reaches it. */}
-      <script dangerouslySetInnerHTML={{ __html: RAIL_SCRIPT }} />
+      {/* The rail's remembered width arrives on <html> from the inline script
+          in app/layout.js, before any of this is drawn. It used to sit here,
+          which put it inside a component: a soft navigation re-renders this
+          tree in the browser, and a <script> React creates in the browser is
+          never run. Only the root layout is always parsed as document HTML. */}
 
       <DashRail user={user} />
 
@@ -100,15 +91,12 @@ export default async function DashLayout({ user, title, lead, actions, screen = 
         </main>
       </div>
 
-      {/* ── THE ASSISTANT BELONGS ON EVERY DASHBOARD ──────────────────────
-          It was mounted in the other shell only, so the situation room and
-          the WhatsApp desk had it and the administrator, the broadcast desk,
-          the coordinator and the divergence room did not. The point of an
-          assistant that can explain any figure in the product is that it is
-          there wherever a figure is, and the person most likely to meet a
-          word they do not recognise is the one on their first shift at a
-          desk, not the analyst in the situation room. */}
-      <Assistant tab={screen ?? "results"} />
+      {/* ── THE ASSISTANT IS OFF ──────────────────────────────────────────
+          It used to mount here so that every dashboard had it, not just the
+          situation room. It is withdrawn for now rather than deleted —
+          components/dash/Assistant.jsx is intact and restoring it is this
+          line plus the matching one in components/dash/TopShell.jsx, where
+          the reasoning is written out. */}
     </div>
   );
 }

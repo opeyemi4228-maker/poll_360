@@ -28,13 +28,22 @@ import { findEveryone, findPerson } from "../lib/people.js";
    different one, and every tab the room really has belongs here. */
 const room = {
   tabs: [
-    "results", "register", "turnout", "density", "watch", "stream",
-    "analytics", "planning", "executive", "classify", "board",
+    "results", "register", "turnout", "density", "watch", "alerts",
+    "coverage", "integrity", "analytics", "planning", "executive", "classify",
+    "board",
   ],
   path: [],
   lgas: [],
   tab: "results",
 };
+
+/* ── THE BOARD IS WITHDRAWN FROM THE ROOM, NOT FROM THIS MODULE ────────────
+   The situation room no longer has a board tab and no longer acts on a pin,
+   a clear or a save — see components/dash/SituationRoom.jsx, where the whole
+   block is commented out rather than deleted. lib/commands.js still parses
+   all of it, and these tests still hold it to that on purpose: they are the
+   guarantee that turning the board back on is putting a component back and
+   not re-deriving how a sentence becomes a pin. */
 const board = { ...room, tab: "board" };
 
 describe("hearing the name", () => {
@@ -102,8 +111,30 @@ describe("driving the room", () => {
       ["result kano", "results"],
       ["voter kano", "register"],
       ["cluster kano", "density"],
-      ["incident kano", "stream"],
+      ["incident kano", "alerts"],
       ["turnout kano", "turnout"],
+    ]) {
+      assert.equal(drive(said, room).act.tab, tab, `"${said}" did not reach ${tab}`);
+    }
+  });
+
+  it("still answers to the names of the four surfaces that were merged away", () => {
+    /* ── A MERGE MUST NOT COST SOMEBODY THEIR VOCABULARY ─────────────────
+       Incidents, the polling-unit card, the result sheets and the board's
+       neighbours were tabs of their own, and people have been saying those
+       words for months. Four screens became two; the words all still work,
+       and each lands on the console now holding what was asked for. A phrase
+       that quietly stops working is worse than one that never did, because
+       nobody reports it — they just decide the assistant is unreliable. */
+    for (const [said, tab] of [
+      ["the incidents", "alerts"],
+      ["the feed", "alerts"],
+      ["report stream", "alerts"],
+      ["polling unit intelligence", "coverage"],
+      ["the booth", "coverage"],
+      ["the evidence", "integrity"],
+      ["data quality", "integrity"],
+      ["result sheets", "integrity"],
     ]) {
       assert.equal(drive(said, room).act.tab, tab, `"${said}" did not reach ${tab}`);
     }

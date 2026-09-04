@@ -9,7 +9,6 @@ import AlarmBell from "./AlarmBell";
 import DashSearch from "./DashSearch";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { ROLES } from "@/lib/roles";
-import Assistant from "./Assistant";
 import { cn } from "@/lib/utils";
 
 /**
@@ -33,6 +32,14 @@ export default function TopShell({
   tabGroups = null,
   active,
   onTab,
+  /* ── THE TWO HEADS OF THE ROOM ────────────────────────────────────────
+     Optional, and where they are absent this bar is exactly what it was. A
+     dashboard with one job passes no modes and gets one row of tabs; the
+     situation room passes two and the tabs below become that mode's tabs.
+     See the note above the switch itself for why this level exists. */
+  modes = null,
+  mode = null,
+  onMode,
   greeting,
   subtitle,
   children,
@@ -110,14 +117,85 @@ export default function TopShell({
             </span>
           </Link>
 
+          {/* ── THE BROADHEAD SWITCH ─────────────────────────────────────
+              Two buttons, above everything else, and deliberately the only
+              control in this bar drawn at full contrast.
+
+              The room does two jobs that share a project, a contest and a
+              ground and share almost nothing else. Monitoring is what is
+              happening in the next ten minutes, read by somebody with a phone
+              in their hand. Analytics is what happened over twenty-seven years
+              and what is likely to happen next, read by somebody with a
+              spreadsheet open. Presented as one flat row of tabs they compete:
+              the person watching a count that has stalled should not be one
+              slip away from a projection, and the analyst should not have to
+              scroll past nine live tabs to reach a swing model.
+
+              So the two are separated at the top and everything else hangs
+              underneath whichever one is chosen. It is one press to cross
+              between them and never more than one, because on a night where
+              somebody has to reach a screen inside a live broadcast, a surface
+              two clicks deep is a surface nobody uses. */}
+          {modes && (
+            <div
+              role="group"
+              aria-label="What this room is doing"
+              className="flex shrink-0 items-center rounded-full border border-dash-line bg-dash-bg p-1"
+            >
+              {modes.map((item) => {
+                const Icon = item.icon;
+                const on = mode === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => onMode?.(item.id)}
+                    aria-pressed={on}
+                    title={item.why}
+                    className={cn(
+                      "inline-flex h-9 items-center gap-2 rounded-full px-3 text-[0.8125rem] font-bold whitespace-nowrap transition-colors lg:px-4",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+                      on
+                        ? "bg-dash-ink text-white shadow-sm"
+                        : "text-dash-muted hover:text-dash-ink"
+                    )}
+                  >
+                    {Icon && <Icon size={15} strokeWidth={2.5} className="shrink-0" />}
+                    {/* The label goes before the icon does. A two-letter room
+                        is unreadable; an icon on its own at least keeps the
+                        press target where the eye last saw it. */}
+                    <span className="hidden sm:inline">{item.label}</span>
+                    {item.badge ? (
+                      <span
+                        className={cn(
+                          "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] font-bold tabular-nums",
+                          on ? "bg-white text-dash-ink" : "bg-brand-red text-white"
+                        )}
+                      >
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* One rounded track with the active tab a solid block inside it, so
               the set reads as a single control. Where groups are supplied they
               are separated by a hairline rather than by a gap: a gap at this
               size reads as three controls, a rule reads as one control with
               structure, which is what it is. */}
+          {/* ── THE TRACK SCROLLS RATHER THAN BREAKING THE ROW ────────────
+              The monitoring head carries thirteen surfaces, and thirteen pills
+              plus the head switch plus the account is wider than a 1440 laptop.
+              The row used to be `shrink-0`, which meant it pushed the controls
+              off the right-hand edge instead of giving way. It scrolls now:
+              every tab is still one press, the bar is still one line, and on a
+              wall display there is nothing to scroll because it all fits. */}
           <nav
             aria-label="Dashboards"
-            className="mx-auto hidden shrink-0 items-center rounded-full border border-dash-line bg-dash-bg p-1 xl:flex"
+            className="mx-auto hidden min-w-0 items-center overflow-x-auto rounded-full border border-dash-line bg-dash-bg p-1 xl:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {(tabGroups ?? [{ id: "all", tabs }]).map((group, index) => (
               <span key={group.id} className="flex items-center">
@@ -308,10 +386,15 @@ export default function TopShell({
         {children}
       </main>
 
-      {/* Rides with the shell so every dashboard has the same assistant, and it
-          is told which surface is open so "what am I looking at" answers about
-          the screen in front of the person asking. */}
-      <Assistant tab={active} />
+      {/* ── THE ASSISTANT IS OFF ──────────────────────────────────────────
+          Withdrawn deliberately, not deleted: components/dash/Assistant.jsx
+          and the RoomVoice context it drives are both intact, and putting it
+          back is this line and the matching one in DashLayout. It is off
+          because a floating assistant on every dashboard is a second way to
+          reach every screen, and the screens themselves are being rebuilt
+          around pictures rather than prose — a talking window that answers in
+          sentences is the wrong shape for a room that is trying to stop
+          reading like a script. */}
     </div>
   );
 }
