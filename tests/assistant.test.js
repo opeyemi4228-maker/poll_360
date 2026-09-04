@@ -21,8 +21,16 @@ import { findEveryone, findPerson } from "../lib/people.js";
  * ══════════════════════════════════════════════════════════════════════════
  */
 
+/* The surfaces this stand-in room is holding. It is a whitelist, and that is
+   load-bearing: a tab the room does not have comes back as a `route` act —
+   go to /room first, then open it — rather than as a `tab` act carrying a
+   place. So a surface missing from this list is not a smaller test, it is a
+   different one, and every tab the room really has belongs here. */
 const room = {
-  tabs: ["results", "register", "turnout", "density", "watch", "stream", "analytics", "planning", "board"],
+  tabs: [
+    "results", "register", "turnout", "density", "watch", "stream",
+    "analytics", "planning", "executive", "classify", "board",
+  ],
   path: [],
   lgas: [],
   tab: "results",
@@ -128,6 +136,40 @@ describe("driving the room", () => {
     assert.equal(drive("clear the board", board).act.do, "clear");
     assert.equal(drive("save this as kano brief", board).act.do, "save");
     assert.equal(drive("save this as kano brief", board).act.name, "kano brief");
+  });
+
+  it("reaches the two strategic surfaces by the question, not by their names", () => {
+    /* Nobody walks into a room and says "open the strategic brief". They ask
+       the question the screen exists to answer, and the screen answers it far
+       better than a sentence would. */
+    for (const [said, tab] of [
+      ["where do we stand", "executive"],
+      ["our position", "executive"],
+      ["strategic intelligence", "executive"],
+      ["where are we strong", "classify"],
+      ["where are we weak", "classify"],
+      ["battlegrounds", "classify"],
+      ["geographic intelligence", "classify"],
+    ]) {
+      assert.equal(drive(said, room).act.tab, tab, `"${said}" did not reach ${tab}`);
+    }
+  });
+
+  it("sends the three where-questions to the map and not to the brief", () => {
+    /* Strongholds, battlegrounds and opportunities are all questions about
+       *where*, and the map with its list beside it is the answer. Sending
+       them to the brief would answer a geographic question with a summary. */
+    for (const said of ["strongholds", "opportunities", "swing states"]) {
+      assert.equal(drive(said, room).act.tab, "classify", `"${said}" should open the map`);
+    }
+  });
+
+  it("does not let a strategic word steal a place name", () => {
+    /* "Target" is on the brief's list and is also an ordinary English word.
+       A sentence naming a state must still reach that state. */
+    const order = drive("target kano", room);
+    assert.equal(order.act.tab, "executive");
+    assert.equal(order.act.place.state.code, "KAN");
   });
 
   it("only looks things up when plainly asked to", () => {

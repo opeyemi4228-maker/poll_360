@@ -218,6 +218,44 @@
      is still legible before a single return has landed. */
   --color-silent: oklch(24% 0.012 266.6);
 
+  /* ── HOW A PLACE STANDS FOR ONE CAMPAIGN ───────────────────────────
+     Stronghold, competitive, opportunity, weak — the four classes the
+     strategic brief and the geographic-intelligence map both draw. See
+     CLASSES in lib/executive.js, which is the one definition of what
+     they mean; these are only their colours.
+
+     One set, not two. The party palette above carries a board step and
+     a dashboard step because parties are drawn on both surfaces at very
+     different sizes; these four are drawn by the map and the brief in
+     the same lightness band that PARTY_FILL already uses for both, so a
+     second set would only be a second thing to keep in step.
+
+     This is NOT a party palette and must never be read as one. It is a
+     status ramp, and it is the ramp red-green colour blindness damages
+     worst:
+
+       · Stronghold sits at 70% lightness and weak at 50%. Twenty points
+         apart tells those two apart by lightness alone, which is what a
+         protanope, a deuteranope and a tired projector all have left
+         once the hue is gone. That pair is the one that matters — it is
+         the difference between "safe" and "lost".
+       · Stronghold and opportunity are four points apart and will NOT
+         separate reliably under deuteranopia. Stated rather than
+         smoothed over: the gamut has no room to fix it without
+         collapsing something else, and the relief is the one this file
+         already documents for NDC against APC — nothing anywhere
+         relies on the fill alone. Every surface drawing these also
+         prints the class in words and carries its own dot.
+
+     Deliberately off the hues the parties hold: PDP's green is 142 and
+     stronghold is 150, and the two are never on the same map at once in
+     any case — the classification layer replaces the result layer, it
+     does not sit on top of it. */
+  --color-class-stronghold: oklch(70% 0.16 150);
+  --color-class-competitive: oklch(84% 0.15 95);
+  --color-class-opportunity: oklch(66% 0.17 55);
+  --color-class-weak: oklch(50% 0.2 20);
+
   /* ---- Status: reserved, and never reused as a series ----------- */
   --color-live: oklch(58.1% 0.233 20.1); /* the red, pulsing */
   --color-verified: oklch(72% 0.11 200); /* checked by a human above */

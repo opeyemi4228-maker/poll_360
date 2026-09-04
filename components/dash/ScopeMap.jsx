@@ -7,6 +7,7 @@ import HeatLayer from "./HeatLayer";
 import { coordinate, unproject } from "@/lib/geo";
 
 import { PARTY_FILL } from "./Charts";
+import { CLASS_OF } from "@/lib/executive";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { leaderOf } from "@/lib/drill";
 import { parties, allParties } from "@/lib/election2023";
@@ -109,7 +110,7 @@ export default function ScopeMap({
   }, [level, shapes]);
 
   const extent = useMemo(() => {
-    if (layer === "results") return [0, 0];
+    if (CATEGORICAL.has(layer)) return [0, 0];
     const values = rows.map((row) => magnitude(row, layer));
     return [Math.min(...values), Math.max(...values)];
   }, [rows, layer]);
@@ -411,13 +412,19 @@ export default function ScopeMap({
             : null;
 
         const fill =
-          layer === "results"
-            ? code === null
-              ? (held ? PARTY_FILL[held] : "var(--color-silent)")
-              : partyFill(code, "scope", PARTY_FILL[code])
-            : row
-              ? `url(#scope-dots-${stepIndex(magnitude(row, layer), extent)})`
-              : "var(--color-silent)";
+          layer === "classify"
+            ? /* One campaign's standing here, from lib/executive.js. A row
+                 with no class on it has not been through the brief — which
+                 happens for the instant between a level change and the next
+                 render — and silence is the only honest fill for it. */
+              (CLASS_OF[row?.class]?.fill ?? "var(--color-silent)")
+            : layer === "results"
+              ? code === null
+                ? (held ? PARTY_FILL[held] : "var(--color-silent)")
+                : partyFill(code, "scope", PARTY_FILL[code])
+              : row
+                ? `url(#scope-dots-${stepIndex(magnitude(row, layer), extent)})`
+                : "var(--color-silent)";
 
         /* Stroke is in user units, and those differ once a frame is cropped, so it scales with the frame or a small state gets a cage. */
         const unit = frame.width / 1000;
@@ -844,10 +851,27 @@ export const LABEL = {
   register: "register reporting",
   turnout: "turnout so far",
   density: "votes per reporting unit",
+  classify: "how each place stands",
 };
+
+/**
+ * The layers that draw a category rather than a quantity.
+ *
+ * ── WHY THIS SET EXISTS AND IS NOT JUST `layer !== "results"` ──────────────
+ * Three separate things in this file branched on "is this the results layer":
+ * the colour ramp, the density field, and the extent that scales them. Adding
+ * a second categorical layer would have meant finding all three and getting
+ * all three right, and missing one of them is silent — a classification map
+ * with a heat field over it looks plausible and is meaningless, because there
+ * is no quantity under it to be dense in.
+ *
+ * So the question each of those three is really asking is named once, here.
+ */
+export const CATEGORICAL = new Set(["results", "classify"]);
 
 /** The figure a callout carries: short enough to read at a glance from across a room. */
 function calloutValue(row, layer, slots = allParties) {
+  if (layer === "classify") return CLASS_OF[row.class]?.label ?? "Unknown";
   if (layer === "turnout") return formatShare(row.turnout ?? 0);
   if (layer === "register") return formatNumber(row.registered ?? 0);
   if (layer === "density") return formatNumber(row.density ?? 0);
@@ -859,6 +883,10 @@ export function magnitude(row, layer) {
   if (layer === "register") return row.registered ?? 0;
   if (layer === "turnout") return row.turnout ?? 0;
   if (layer === "density") return row.density ?? 0;
+  /* A classification has no magnitude. Callers that size something by this —
+     the heat field, the Google pins — are already kept off the categorical
+     layers, and the vote total is the honest answer for anything else that
+     asks how big a place is. */
   return row.total ?? 0;
 }
 
@@ -869,6 +897,16 @@ export function describe(row, layer, slots = allParties) {
   if (row && row.reported === false) {
     const holder = holderOf(row);
     return holder ? `No returns yet · ${holder} hold it` : "No returns yet";
+  }
+  /* The class in words, then the margin that put it in that class. A reader
+     who cannot separate the green from the orange still gets the answer, and
+     a reader who can still gets the arithmetic behind it. */
+  if (layer === "classify") {
+    const meta = CLASS_OF[row?.class];
+    if (!meta) return "Not classified";
+    if (row.margin === null || row.margin === undefined) return meta.label;
+    const by = `${formatShare(Math.abs(row.margin))}`;
+    return `${meta.label} · ${row.margin >= 0 ? "ahead" : "behind"} by ${by}`;
   }
   if (layer === "register")
     return `${formatNumber(row.registered ?? 0)} of ${formatNumber(row.fullRegister ?? row.registered ?? 0)} reporting`;
@@ -916,7 +954,7 @@ function holderOf(row) {
  * nearly equal, which is the opposite of what a density field is for.
  */
 export function heatPointsFor({ shapes, rows, layer }) {
-  if (!shapes || layer === "results") return [];
+  if (!shapes || CATEGORICAL.has(layer)) return [];
   const shown = shapes.paths ?? shapes.states ?? [];
   const byKey = new Map(rows.map((row) => [row.key ?? row.name, row]));
   const ceiling = Math.max(...rows.map((row) => magnitude(row, layer)), 1);

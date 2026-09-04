@@ -4,21 +4,41 @@ import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   BarChart3,
+  BellRing,
+  Building2,
+  Captions,
+  Compass,
+  Database,
   FileText,
   Gauge,
+  HeartPulse,
   Inbox,
   KeyRound,
   Landmark,
+  ListChecks,
+  Map,
+  MapPin,
   MapPinned,
   MessageSquare,
+  MessagesSquare,
+  Plug,
   Radio,
   Scale,
   ScrollText,
+  Settings,
   ShieldAlert,
+  ShieldCheck,
+  Sprout,
+  Target,
+  TrendingUp,
   Upload,
   UserRoundCheck,
   Users,
+  UsersRound,
+  Webhook,
+  Zap,
 } from "lucide-react";
 
 import { can, mayOpen } from "@/lib/roles";
@@ -114,17 +134,87 @@ const SECTIONS = [
         label: "Situation room",
         icon: Users,
         capability: "gap:read",
+        /* ── DOORS INTO A ROOM THAT HAS THREE HEADS ──────────────────────
+           The room's own surfaces are local state rather than routes, and a
+           hash is the only thing a link from out here can carry into one —
+           see HASH_LAYERS in components/dash/SituationRoom.jsx. Six of them
+           are listed rather than twenty-two: this is a rail, not a site map,
+           and what belongs on it is the handful of surfaces somebody arrives
+           looking for. The rest are one press away once you are inside.
+
+           Which six is decided by how somebody arrives, not by the room's own
+           ordering. "Alerts" is here because it is what a phone call sends
+           people to — "the room says forty-seven booths in Kano" — and
+           "Operations" because a verification desk opens the product at the
+           queue rather than at the country. */
         children: [
+          { href: "/room#overview", label: "Command centre", icon: Activity, capability: "gap:read" },
+          { href: "/room#alerts", label: "Alerts", icon: BellRing, capability: "gap:read" },
+          { href: "/room#coverage", label: "Coverage", icon: Gauge, capability: "gap:read" },
+          { href: "/room#operations", label: "Results operations", icon: ListChecks, capability: "results:verify" },
           { href: "/room#incidents", label: "Incident feed", icon: ShieldAlert, capability: "incidents:read" },
+          { href: "/room#integrity", label: "Integrity", icon: ShieldCheck, capability: "results:verify" },
+
+          /* ── THE FOUR TIERS, WHICH ARE ONE MAP AT FOUR DEPTHS ───────────
+             Not four screens. The room's map is the same map whether it is
+             drawing 37 states or the booths of one ward, and these set how
+             deep it opens — see HASH_LEVELS in SituationRoom. The depth is a
+             request rather than an instruction, because a ward belongs to a
+             local government belongs to a state and a link cannot invent
+             which: the room grants as much of it as the ground already on
+             screen supports and stops there. So "Wards" from the country
+             lands on the country, and from inside Kaduna lands on Kaduna's.
+             That is the honest behaviour and the breadcrumb says where you
+             actually are. */
+          { href: "/room#states", label: "States", icon: Map, group: "Geography", capability: "gap:read" },
+          { href: "/room#lgas", label: "LGAs", icon: Landmark, group: "Geography", capability: "gap:read" },
+          { href: "/room#wards", label: "Wards", icon: MapPinned, group: "Geography", capability: "gap:read" },
+          { href: "/room#units", label: "Polling units", icon: MapPin, group: "Geography", capability: "gap:read" },
+          /* The fifth is not a tier. It is the classification laid over
+             whichever tier is open — stronghold, competitive, opportunity,
+             weak, unknown — for whichever campaign the brief is written for.
+             See lib/executive.js. */
+          { href: "/room#geography", label: "Geographic intelligence", icon: Compass, group: "Geography", capability: "gap:read" },
+
+          /* ── INTELLIGENCE, WHICH IS FOUR ROOMS THAT ALREADY EXISTED ─────
+             Every line here opens a surface this product already had, under
+             the name the person looking for it would use. Grassroots strength
+             is the coordinators and the wards they hold; community reports
+             are what the field files; trend detection is twenty-seven years
+             of turnout and volatility; anomaly detection is the screening
+             every return goes through. Naming them is the whole change: a
+             ward organiser does not go looking for a tab called
+             "Coordinators" when what they want is to know how strong the
+             ground is. */
+          { href: "/room#grassroots", label: "Grassroots strength", icon: Sprout, group: "Intelligence", capability: "gap:read" },
+          { href: "/room#community", label: "Community reports", icon: MessagesSquare, group: "Intelligence", capability: "incidents:read" },
+          { href: "/room#trends", label: "Trend detection", icon: TrendingUp, group: "Intelligence", capability: "gap:read" },
+          { href: "/room#anomalies", label: "Anomaly detection", icon: ShieldAlert, group: "Intelligence", capability: "results:verify" },
+          /* The one surface in this cluster that is new: the twelve figures
+             a candidate, a political director or a director-general is
+             actually asking for, computed once so the map beside them cannot
+             disagree. See components/dash/Executive.jsx. */
+          { href: "/room#executive", label: "Strategic brief", icon: Target, group: "Intelligence", capability: "gap:read" },
         ],
       },
       {
         href: "/broadcast",
-        label: "Broadcast desk",
+        label: "Broadcast",
         icon: Radio,
         capability: "broadcast:render",
+        /* ── DOORS INTO AN ARM WITH SIX HEADS ────────────────────────────
+           The same arrangement as the situation room above: the surfaces are
+           local state rather than routes, and a hash is the only thing a link
+           from out here can carry in — see HASH_LAYERS in
+           components/dash/BroadcastRoom.jsx. Five of twenty-eight are listed,
+           because this is a rail and not a site map, and what belongs on it is
+           the handful somebody arrives looking for. */
         children: [
-          { href: "/broadcast#analysis", label: "Analysis", icon: BarChart3, capability: "broadcast:render" },
+          { href: "/broadcast#centre", label: "Command centre", icon: Activity, capability: "broadcast:render" },
+          { href: "/broadcast#results", label: "Live results", icon: BarChart3, capability: "broadcast:render" },
+          { href: "/broadcast#ticker", label: "Ticker", icon: Captions, capability: "broadcast:draft" },
+          { href: "/broadcast#breaking", label: "Breaking", icon: Zap, capability: "broadcast:draft" },
+          { href: "/broadcast#approvals", label: "Approvals", icon: ShieldCheck, capability: "broadcast:clear" },
         ],
       },
       {
@@ -148,6 +238,37 @@ const SECTIONS = [
        count, no agent and no incident. A line with no capability is readable
        by every signed-in role, which is the point. */
     items: [{ href: "/governors", label: "Who governs", icon: Landmark }],
+  },
+  {
+    id: "system",
+    label: "System",
+    /* ── WHY EIGHT LINES HERE DO NOT REPEAT THE MISTAKE AT THE TOP ────────
+       The note at the head of this file is about thirteen lines of identical
+       weight, four of which were headings inside one page. These are eight
+       separate routes, each with its own guard and its own answer, and they
+       are not siblings of the rooms above: everything above is about running
+       an election, and every line here is about the machine running it. That
+       is a real boundary, so it gets a real group.
+
+       It is also the last group on purpose. Nobody arrives at 7am to read
+       the audit trail; they arrive to work the count, and this is where you
+       go when something is wrong with the thing doing the counting.
+
+       Every line is held by `system:read`, which today is the super
+       administrator alone — see lib/roles.js. Everything else in the rail
+       filters itself away for a role that lacks the grant, and so does this:
+       a broadcast desk's rail ends at "Who governs" and never learns the
+       group exists. */
+    items: [
+      { href: "/admin/users", label: "Users & roles", icon: UsersRound, capability: "system:read" },
+      { href: "/admin/organisations", label: "Organisations", icon: Building2, capability: "system:read" },
+      { href: "/admin/sources", label: "Data sources", icon: Database, capability: "system:read" },
+      { href: "/admin/integrations", label: "Integrations", icon: Plug, capability: "system:read" },
+      { href: "/admin/audit", label: "Audit logs", icon: ScrollText, capability: "system:read" },
+      { href: "/admin/health", label: "System health", icon: HeartPulse, capability: "system:read" },
+      { href: "/admin/api", label: "API & webhooks", icon: Webhook, capability: "system:read" },
+      { href: "/admin/settings", label: "Settings", icon: Settings, capability: "system:read" },
+    ],
   },
 ];
 
@@ -285,11 +406,35 @@ export default function DashNav({ role, rail = false }) {
                         rail && "rail-collapsed:hidden"
                       )}
                     >
-                      {children.map((child) => {
+                      {children.map((child, index) => {
                         const reading = hash === `#${child.href.split("#")[1]}`;
+                        /* ── A KICKER INSIDE THE NESTED LIST ──────────────
+                           The situation room is one page holding twenty-odd
+                           surfaces, and the handful worth arriving at
+                           directly is now more than a handful: the count,
+                           the four geographic tiers, and the intelligence
+                           surfaces are three different questions and a reader
+                           scanning sixteen identical lines for one of them is
+                           reading a list, not navigating.
+
+                           So a child may name the cluster it opens, and the
+                           first child of each cluster prints it. Only where a
+                           parent actually has clusters — every other room's
+                           children carry no `group` and this renders
+                           nothing, which is why the six rooms above did not
+                           have to change. */
+                        const kicker =
+                          child.group && child.group !== children[index - 1]?.group
+                            ? child.group
+                            : null;
 
                         return (
                           <li key={child.href}>
+                            {kicker && (
+                              <span className="mt-2.5 mb-1 block px-2.5 text-[0.5625rem] font-bold tracking-[0.16em] text-white/30 uppercase">
+                                {kicker}
+                              </span>
+                            )}
                             <Link
                               href={child.href}
                               aria-current={reading ? "true" : undefined}
