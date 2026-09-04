@@ -37,7 +37,7 @@ import RoomTimeline from "./RoomTimeline";
    they wrap are unchanged and still their own files; what these add is the
    band of pictures across the top and the fact that the two are on one
    screen. */
-import RoomWatch from "./RoomWatch";
+import RoomSituations from "./RoomSituations";
 import RoomGround from "./RoomGround";
 import RoomEvidence from "./RoomEvidence";
 import { useBrief } from "./Executive";
@@ -151,7 +151,7 @@ export const MODES = [
              corroborate each other — a silence threshold is a machine
              noticing a gap, an agent at that booth is a human being
              explaining it — and nobody could see both at once. See
-             components/dash/RoomWatch.jsx. */
+             components/dash/RoomSituations.jsx. */
           /* ── ONE WORD, BECAUSE IT IS ONE QUESTION ─────────────────────
              This was "Alerts & reports", which names the two sources rather
              than the thing they are about. A machine noticing a booth has
@@ -1658,7 +1658,7 @@ export default function SituationRoom({
           onGo={setLayer}
         />
       ) : layer === "situations" ? (
-        <RoomWatch
+        <RoomSituations
           alerts={escalations}
           incidents={incidents}
           photos={photos}

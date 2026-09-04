@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Bell, Repeat, Volume2, VolumeX } from "lucide-react";
 
+import { createSpeaker, newArrivals } from "@/lib/alarm";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,9 +18,12 @@ import { cn } from "@/lib/utils";
  * and nine minutes is the difference between a booth being closed early and a
  * booth having been closed early.
  *
- * So an incident makes a noise, and the noise carries its own severity: three
- * urgent tones for CRITICAL, two for SERIOUS, one soft one for INFO. Somebody
- * across the room can tell how bad it is without turning round.
+ * So an incident makes a noise, and the noise is the SITUATION voice — low,
+ * falling, with a warble — because everything this bell watches was filed by a
+ * person standing somewhere. Its severity sets the loudness and the number of
+ * pulses, so somebody across the room can tell how bad it is without turning
+ * round, and can tell it apart from the attention alarm without being taught.
+ * See lib/alarm.js.
  *
  * ── AND WHY IT CAN BE SILENCED ─────────────────────────────────────────────
  * An alarm nobody can turn off is an alarm somebody unplugs the speakers to
@@ -34,16 +38,25 @@ import { cn } from "@/lib/utils";
  * ───────────────────────────────────────────────────────────────────────────
  */
 const REHEARSAL_SECONDS = 20;
-const MUTED = "poll360:alarm-muted";
+const MUTED = "poll360:alarm-muted:SITUATION";
 
-/* Tones per severity. Frequencies are far enough apart to be told apart across
-   a room, and low enough not to be shrill on a cheap wall-mounted speaker. */
-const PATTERN = {
-  CRITICAL: { beeps: 3, frequency: 880, gap: 0.18, length: 0.13, volume: 0.32 },
-  SERIOUS: { beeps: 2, frequency: 660, gap: 0.2, length: 0.13, volume: 0.26 },
-  INFO: { beeps: 1, frequency: 494, gap: 0, length: 0.16, volume: 0.16 },
-};
-
+/**
+ * ══════════════════════════════════════════════════════════════════════════
+ *  THE BELL SPEAKS WITH THE ROOM'S VOICE, NOT ITS OWN
+ *
+ *  This component used to synthesise its own three-tone pattern. That made a
+ *  third sound in a product whose whole claim is that it has exactly two —
+ *  rising and bright when the product noticed something, falling and rough
+ *  when a person in a field reported something — and a third sound is a third
+ *  thing to learn, which in practice means none of them gets learnt.
+ *
+ *  The bell watches the incident feed, so everything it announces is a
+ *  SITUATION. It plays that voice, at the severity of the worst thing in the
+ *  batch, out of lib/alarm.js. The mute is the same key the Situations
+ *  dashboard writes, so silencing the alarm in one place silences it in both
+ *  — which is what somebody pressing "mute" believes they are doing.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
 const TONE = {
   CRITICAL: "bg-red-500",
   SERIOUS: "bg-amber-500",
@@ -66,7 +79,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
      are not going to wait for a real report to come in. */
   const [rehearsing, setRehearsing] = useState(false);
 
-  const audioRef = useRef(null);
+  const speaker = useRef(null);
   /* Which incidents this tab has already announced. Seeded on the first render
      with everything that was already on the page: those are history, and a room
      opening the dashboard at 9pm must not be greeted by forty alarms. */
@@ -90,81 +103,27 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
 
   /* ------------------------------------------------------------ the sound */
 
-  const context = useCallback(() => {
-    if (typeof window === "undefined") return null;
-    const Ctor = window.AudioContext ?? window.webkitAudioContext;
-    if (!Ctor) return null;
-    if (!audioRef.current) audioRef.current = new Ctor();
-    return audioRef.current;
+  /* One speaker, built on mount rather than lazily during render: React may
+     call a render twice, and the second call would find a speaker it did not
+     make. There is no Web Audio on the server in any case. */
+  useEffect(() => {
+    speaker.current = createSpeaker();
+    return () => {
+      speaker.current?.close();
+      speaker.current = null;
+    };
   }, []);
 
-  /**
-   * One alarm, shaped by severity.
-   *
-   * Every tone is ramped up and down rather than switched on and off: a square
-   * wave that starts at full amplitude clicks, and a click on a wall speaker at
-   * 1am sounds like a fault rather than a warning.
-   */
-  const sound = useCallback(
-    async (severity) => {
-      const ctx = context();
-      if (!ctx) return;
+  /** Everything this bell announces came from a person in a field. */
+  const sound = useCallback(async (severity) => {
+    const played = await speaker.current?.play("SITUATION", severity);
+    setBlocked(played === false);
+  }, []);
 
-      /* ── resume() IS ASYNCHRONOUS ──────────────────────────────────────
-         The first version called resume() and then read ctx.state on the very
-         next line. That state has not changed yet, it is still "suspended", so the guard below fired every time, set `blocked`, and returned
-         without ever playing a note. The alarm could not sound even once.
-
-         Awaiting it lets the context actually reach "running" before we
-         decide whether the browser is holding us. */
-      if (ctx.state === "suspended") {
-        try {
-          await ctx.resume();
-        } catch {
-          /* Rejected outright: no gesture yet. */
-        }
-        if (ctx.state !== "running") {
-          setBlocked(true);
-          return;
-        }
-      }
-
-      /* We got through, so any previous "blocked" notice is stale. */
-      setBlocked(false);
-      setBlocked(false);
-
-      const pattern = PATTERN[severity] ?? PATTERN.INFO;
-      const start = ctx.currentTime + 0.01;
-
-      for (let index = 0; index < pattern.beeps; index += 1) {
-        const at = start + index * (pattern.length + pattern.gap);
-        const oscillator = ctx.createOscillator();
-        const gain = ctx.createGain();
-
-        oscillator.type = "triangle";
-        oscillator.frequency.setValueAtTime(pattern.frequency, at);
-
-        gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(pattern.volume, at + 0.012);
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + pattern.length);
-
-        oscillator.connect(gain).connect(ctx.destination);
-        oscillator.start(at);
-        oscillator.stop(at + pattern.length + 0.02);
-      }
-    },
-    [context]
-  );
-
-  /** Arm the audio context on the first real interaction, per the autoplay rules. */
+  /** Arm the context on a real gesture, per the autoplay rules. */
   const arm = useCallback(() => {
-    const ctx = context();
-    if (!ctx) return;
-    ctx.resume().then(
-      () => setBlocked(ctx.state !== "running"),
-      () => setBlocked(true)
-    );
-  }, [context]);
+    speaker.current?.arm().then((ready) => setBlocked(!ready));
+  }, []);
 
   useEffect(() => {
     const onFirstGesture = () => arm();
@@ -187,29 +146,16 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
    * and however many times the page re-renders.
    */
   useEffect(() => {
-    if (announced.current === null) {
-      announced.current = new Set(incidents.map((item) => item.id));
-      return;
-    }
+    const seen = newArrivals(incidents, announced.current);
+    announced.current = seen.seen;
 
-    const fresh = incidents.filter((item) => !announced.current.has(item.id));
-    if (!fresh.length) return;
+    /* The first look is silent: everything on the page then is history, and a
+       room opening the dashboard at 9pm must not be met by forty alarms. */
+    if (seen.first || !seen.fresh.length) return;
 
-    for (const item of fresh) announced.current.add(item.id);
-
-    setUnread((count) => count + fresh.length);
+    setUnread((count) => count + seen.fresh.length);
     setFlashing(true);
-
-    if (!mutedRef.current) {
-      /* The worst one in the batch sets the tone. Two arriving together should
-         sound like the more serious of the two, not like two info pips. */
-      const worst = fresh.some((item) => item.severity === "CRITICAL")
-        ? "CRITICAL"
-        : fresh.some((item) => item.severity === "SERIOUS")
-          ? "SERIOUS"
-          : "INFO";
-      sound(worst);
-    }
+    if (!mutedRef.current) sound(seen.level);
   }, [incidents, sound]);
 
   useEffect(() => {
