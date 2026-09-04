@@ -59,7 +59,7 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
  *  it, which is worth more than a plausible shape.
  * ══════════════════════════════════════════════════════════════════════════
  */
-export default function StateAnalytics({ scopeStates = [], title = null, raceLabel = "Governorship" }) {
+export default function StateAnalytics({ scopeStates = [], title = null, raceLabel = "Governorship", results = {} }) {
   const rows = useMemo(() => {
     const held = new Map(ruling().map((row) => [row.code, row]));
     const zoneOf = {};
@@ -77,8 +77,22 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
         const seat = held.get(code) ?? null;
 
         /* The last time this state elected a governor, as declared. Real
-           totals with a source on them, not a projection of anything. */
-        const last = OFF_CYCLE.find((row) => row.code === code) ?? null;
+           totals with a source on them, not a projection of anything.
+
+           ── TWO PLACES HOLD THIS, AND ONLY ONE WAS BEING ASKED ──────────
+           lib/offcycle.js carries the eight contests fought outside the
+           general cycle. It is not the only declaration this product has
+           transcribed: Adamawa's 2023 governorship is in lib/adamawa.js, in
+           full, with its register and its source — and this screen announced
+           "no governorship result loaded for Adamawa" and rested every figure
+           on the presidential vote instead.
+
+           `results` is resolved on the server by lib/seats.js, which is the
+           one function that answers "the last election for this contest on
+           this ground", and shaped like an off-cycle row so this screen reads
+           one kind of thing however it was sourced. The off-cycle table stays
+           as the fallback for the states it covers. */
+        const last = results[code] ?? OFF_CYCLE.find((row) => row.code === code) ?? null;
         const lastTotal = last
           ? Object.values(last.votes).reduce((sum, value) => sum + value, 0)
           : 0;
@@ -87,7 +101,18 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
         return {
           last,
           lastTotal,
-          lastTurnout: last ? (lastTotal / state.registered) * 100 : null,
+          /* ── AGAINST THE REGISTER THAT ELECTION WAS RUN ON ──────────────
+             `state.registered` is the presidential register, which is the only
+             one this product held until a governorship declaration arrived
+             carrying its own. Adamawa's differ by 88,000 — 2,196,566 against
+             2,108,855 — and dividing a governorship's votes by the
+             presidential register produced 39.3% beside a note stating the
+             declared turnout was 39.90%. Two turnouts for one election, four
+             lines apart. The declaration's own register wins where there is
+             one; the presidential figure stands in where there is not, which
+             is every off-cycle row. */
+          lastRegister: last?.registered ?? state.registered,
+          lastTurnout: last ? (lastTotal / (last.registered ?? state.registered)) * 100 : null,
           /* ── TWO RECORDS OF THE SAME EVENT, CHECKED AGAINST EACH OTHER ──
              The governors table and the off-cycle results table both carry
              the date a state last elected a governor, and they were written
@@ -123,7 +148,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
         };
       })
       .filter(Boolean);
-  }, [scopeStates]);
+  }, [scopeStates, results]);
 
   const floor = useMemo(() => crossedFloor(), []);
   const seats = useMemo(() => seatsBy("current"), []);
@@ -391,7 +416,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
                       icon={Users}
                       label="Turnout"
                       value={formatShare(row.lastTurnout)}
-                      foot={`of ${formatNumber(row.registered)} registered`}
+                      foot={`of ${formatNumber(row.lastRegister ?? row.registered)} registered`}
                     />
                     <Figure
                       icon={Split}

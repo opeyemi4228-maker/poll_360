@@ -148,7 +148,27 @@ export default function LoginForm() {
 
       <SubmitButton />
 
+      {/* ── THE OTHER FRONT DOOR ────────────────────────────────────────────
+          This form signs in the rooms: the situation room, the newsroom, the
+          administrator. Polling unit coordinators are a different population in
+          a different table with a different session, and they sign in at
+          /agent/login — which nothing linked to, so a coordinator who reached
+          this page had no way through it and no way of knowing that.
+
+          It is first, above "request access", because on polling morning the
+          person on this page who cannot get in is far more likely to be an
+          agent standing at a booth than a newsroom without a credential. */}
       <div className="mt-8 border-t border-ink-200 pt-6">
+        <p className="text-[0.8125rem] leading-relaxed text-content-muted">
+          Filing from a polling unit? Coordinators sign in on their own page, not this one.
+        </p>
+        <Button href="/agent/login" variant="outline" size="md" full className="mt-4">
+          Coordinator sign in
+          <ArrowRight size={15} strokeWidth={3} />
+        </Button>
+      </div>
+
+      <div className="mt-6 border-t border-ink-200 pt-6">
         <p className="text-[0.8125rem] leading-relaxed text-content-muted">
           No account yet? Poll360 logins are issued to named people by the room they work for, a
           situation room, a newsroom or an observer mission. Ask yours, or ask us.

@@ -111,7 +111,7 @@ export async function switchElection(formData) {
  *
  * ── OPEN TO ANYBODY SIGNED IN, LIKE SWITCHING PROJECT ──────────────────────
  * It changes what is drawn and nothing else. Nothing is written, nothing is
- * counted differently, and the five contests are equally readable by whoever
+ * counted differently, and every contest is equally readable by whoever
  * may read the room at all — so this is gated on being signed in and on the
  * position existing, which `chooseRace` checks before it writes the cookie.
  *

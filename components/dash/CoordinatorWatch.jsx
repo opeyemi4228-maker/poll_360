@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapPin, Radio, ShieldAlert, Users } from "lucide-react";
 
+import { boundsOf } from "@/lib/bbox";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -44,9 +45,57 @@ const TONE = {
   unknown: "transparent",
 };
 
-export default function CoordinatorWatch({ shapes, coordinators, summary }) {
+export default function CoordinatorWatch({ shapes, coordinators, summary, territory = null, ground = null }) {
   const [hovered, setHovered] = useState(null);
   const [filter, setFilter] = useState("all");
+
+  /* ── THE COUNTRY, OR THE GROUND ─────────────────────────────────────────
+     Every agent this room may see stands inside its ground, so drawing the
+     other 36 states is drawing 36 places from which no dot will ever appear —
+     and squeezing the ones that will into a corner of the frame. The outline
+     narrows with the watch, and the window narrows to the outline.
+
+     ── AND BELOW A STATE, THE GROUND'S OWN PLACES ────────────────────────
+     A senatorial district is seven local governments, not a state, and every
+     other panel in this room draws exactly those seven. Drawing the whole
+     state here would put two thirds of the outline outside the ground and
+     invite somebody to read a dot's position against a border that is not
+     theirs. The boundary file is fetched the same way the other maps fetch
+     it, and until it lands the state's own outline stands in — which is the
+     right place, drawn one level too wide, for about a second. */
+  const [boundaries, setBoundaries] = useState(null);
+  const wanted = territory?.stateCode ?? null;
+
+  useEffect(() => {
+    if (!wanted || !territory?.lgaNames?.length) return undefined;
+    let live = true;
+    fetch(`/geo/lga/${wanted}.json`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => live && setBoundaries({ code: wanted, data }))
+      .catch(() => live && setBoundaries({ code: wanted, data: null }));
+    return () => {
+      live = false;
+    };
+  }, [wanted, territory]);
+
+  const land = useMemo(() => {
+    if (!territory?.stateCode) return shapes.states;
+
+    const held = boundaries?.code === territory.stateCode ? boundaries.data : null;
+    if (held?.lgas && territory.lgaNames?.length) {
+      return held.lgas.filter((row) => territory.lgaNames.includes(row.name));
+    }
+
+    return shapes.states.filter((row) => row.code === territory.stateCode);
+  }, [shapes, territory, boundaries]);
+
+  const frame = useMemo(
+    () =>
+      land.length && territory?.stateCode
+        ? boundsOf(land.map((row) => row.d))
+        : { viewBox: `0 0 ${shapes.width} ${shapes.height}` },
+    [land, territory, shapes]
+  );
 
   const shown = useMemo(
     () =>
@@ -70,9 +119,9 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
   const active = hovered ? coordinators.find((row) => row.id === hovered) : null;
 
   return (
-    <div className="grid gap-3 xl:h-[calc(100vh-12.5rem)] xl:grid-cols-[minmax(0,1fr)_21rem]">
+    <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start">
       {/* --------------------------------------------------------- the map */}
-      <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:min-h-0">
+      <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-board-line px-4 py-2.5">
           {[
             ["all", "Everyone"],
@@ -100,11 +149,11 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
 
         <div className="relative min-h-0 flex-1 p-1.5">
           <svg
-            viewBox={`0 0 ${shapes.width} ${shapes.height}`}
+            viewBox={frame.viewBox}
             className="h-full w-full"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label={`${coordinators.length} polling unit coordinators. ${summary.located} have reported a position. The same list appears beside this map.`}
+            aria-label={`${coordinators.length} polling unit coordinators in ${ground ?? "Nigeria"}. ${summary.located} have reported a position. The same list appears beside this map.`}
             onPointerLeave={() => setHovered(null)}
           >
             <defs>
@@ -127,9 +176,12 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
                 land from the ground behind it, and at this weight they read
                 across a room without competing with the markers, which are
                 the data. */}
-            {shapes.states.map((shape) => (
+            {land.map((shape) => (
               <path
-                key={shape.code}
+                /* A state carries a code and a local government does not, and
+                   this map now draws either. Named or coded, both are unique
+                   within what is drawn. */
+                key={shape.code ?? shape.name}
                 d={shape.d}
                 fill="var(--color-silent)"
                 stroke="rgba(255,255,255,0.55)"
@@ -236,8 +288,8 @@ export default function CoordinatorWatch({ shapes, coordinators, summary }) {
 
         {shown.length === 0 ? (
           <p className="px-4 py-8 text-center text-[0.875rem] leading-relaxed text-dash-muted">
-            No coordinators match this filter. Accounts are created by an administrator and tied to
-            one polling unit each.
+            No coordinators match this filter{ground ? ` in ${ground}` : ""}. Accounts are created
+            by an administrator and tied to one polling unit each.
           </p>
         ) : (
           <ul className="min-h-0 flex-1 divide-y divide-dash-line overflow-y-auto">

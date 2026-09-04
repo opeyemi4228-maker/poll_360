@@ -1,8 +1,11 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ArrowRight, Eye, EyeOff, Loader2, TriangleAlert } from "lucide-react";
+
+import Field, { fieldInput as input } from "./Field";
+import UnitPicker from "./UnitPicker";
 
 /**
  * The coordinator's sign-in and sign-up form.
@@ -21,7 +24,7 @@ import { ArrowRight, Eye, EyeOff, Loader2, TriangleAlert } from "lucide-react";
  * obvious slip. They are not the gate. The server repeats every one of them.
  * ───────────────────────────────────────────────────────────────────────────
  */
-export default function AgentAuthForm({ action, mode = "signin", initial = {} }) {
+export default function AgentAuthForm({ action, mode = "signin", initial = {}, places = [] }) {
   const joining = mode === "join";
   const [state, submit] = useActionState(action, {});
   const [visible, setVisible] = useState(false);
@@ -91,27 +94,7 @@ export default function AgentAuthForm({ action, mode = "signin", initial = {} })
             )}
           </Field>
 
-          <Field
-            label="Your polling unit code"
-            hint="Printed at the top of the result sheet"
-            error={errors.unitCode}
-            name="unitCode"
-          >
-            {(id) => (
-              <input
-                id={id}
-                name="unitCode"
-                type="text"
-                inputMode="numeric"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                defaultValue={values.unitCode ?? ""}
-                placeholder="01/01/04/006"
-                className={`${input(errors.unitCode)} figure`}
-              />
-            )}
-          </Field>
+          <UnitPicker places={places} values={values} errors={errors} />
         </>
       ) : (
         <Field label="Phone number or email" error={errors.contact} name="contact">
@@ -164,32 +147,6 @@ export default function AgentAuthForm({ action, mode = "signin", initial = {} })
 
       <Submit joining={joining} />
     </form>
-  );
-}
-
-const input = (error) =>
-  [
-    "h-14 w-full rounded-dash-sm border-2 bg-white px-4 text-[1.0625rem] text-ink-950",
-    "placeholder:text-ink-400 focus:outline-none",
-    error ? "border-red-500" : "border-ink-300 focus:border-ink-950",
-  ].join(" ");
-
-function Field({ label, hint, error, name, children }) {
-  const id = useId();
-  return (
-    <div>
-      <label htmlFor={id} className="flex items-baseline justify-between gap-3">
-        <span className="text-[0.9375rem] font-bold text-ink-950">{label}</span>
-        {hint && <span className="text-[0.8125rem] text-content-subtle">{hint}</span>}
-      </label>
-      <div className="mt-2">{children(id)}</div>
-      {error && (
-        <p id={`${name}-error`} className="mt-2 flex gap-2 text-[0.875rem] text-red-700">
-          <TriangleAlert size={14} strokeWidth={2.5} className="mt-0.5 shrink-0" />
-          {error}
-        </p>
-      )}
-    </div>
   );
 }
 

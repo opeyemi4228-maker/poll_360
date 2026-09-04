@@ -33,8 +33,8 @@ export default function ApprovalQueue({ waiting = [] }) {
       <div className="border-l-2 border-dash-line bg-dash-bg px-4 py-3.5">
         <p className="text-[0.875rem] leading-relaxed text-dash-muted">
           Nobody is waiting. Coordinators who sign up at{" "}
-          <span className="figure text-dash-ink">/join</span> appear here, and can file nothing at
-          all until somebody approves them.
+          <span className="figure text-dash-ink">/agent/join</span> appear here, and can file
+          nothing at all until somebody approves them.
         </p>
       </div>
     );
@@ -114,6 +114,7 @@ function Applicant({ person }) {
               scopeError ? "border-red-500" : "border-dash-line focus:border-dash-ink"
             )}
           />
+          <Where person={person} />
         </div>
 
         <form action={approve} className="shrink-0">
@@ -135,6 +136,44 @@ function Applicant({ person }) {
         </p>
       )}
     </li>
+  );
+}
+
+/**
+ * The nine digits, said in words.
+ *
+ * ── TWO KINDS OF NAME, AND THEY ARE NOT PRINTED ALIKE ──────────────────────
+ * The state and the local government are read off the code itself, against
+ * lists this product ships. They are facts about the number in the box beside
+ * them, and they move when it is corrected.
+ *
+ * The ward and the booth are whatever the applicant wrote, because nobody here
+ * holds INEC's ward or polling unit names. They are marked as their words, in
+ * quotation marks, and set apart from the two above — an unchecked name
+ * printed as though it came from the register is worse than no name at all,
+ * because it reads as confirmation of the very digits it was typed beside.
+ *
+ * ── AND WHY THE FIRST TWO ARE NOT DERIVED IN THE BROWSER ───────────────────
+ * They arrive already worked out. The local government names come off disk,
+ * which is a thing only the server can do, and it is the same reason the
+ * waiting time above is computed there.
+ */
+function Where({ person }) {
+  const placed = [person.stateName, person.lgaName].filter(Boolean);
+  const written = [person.wardName, person.unitName].filter(Boolean);
+
+  if (!placed.length && !written.length) return null;
+
+  return (
+    <p className="mt-1.5 max-w-[26rem] text-[0.8125rem] leading-relaxed text-dash-muted">
+      {placed.length > 0 && <span className="text-dash-ink">{placed.join(" · ")}</span>}
+      {written.length > 0 && (
+        <>
+          {placed.length > 0 && " — "}
+          they wrote {written.map((name) => `“${name}”`).join(", ")}
+        </>
+      )}
+    </p>
   );
 }
 

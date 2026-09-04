@@ -74,7 +74,7 @@ const PROFILE = [
  * below never share a hook order and neither can be rendered conditionally
  * inside the other.
  */
-export default function Analytics({ scopeStates = [], race = null, title = null }) {
+export default function Analytics({ scopeStates = [], race = null, title = null, ground = null, subState = false, results = {} }) {
   /**
    * ── A STATE CONTEST GETS A DIFFERENT SCREEN, NOT A NARROWER ONE ──────────
    * Scoping the presidential projection to one state made every figure on it
@@ -89,11 +89,39 @@ export default function Analytics({ scopeStates = [], race = null, title = null 
    */
   if (scopeStates?.length && race && race !== "PRESIDENTIAL") {
     return (
-      <StateAnalytics
-        scopeStates={scopeStates}
-        title={title}
-        raceLabel={raceFor(race)?.label ?? "State contest"}
-      />
+      <>
+        {/* ── AND WHEN THE SEAT IS NARROWER THAN THE FIGURES ───────────────
+            Everything this screen is built from is recorded at state level:
+            the register, the declared presidential vote, who holds the
+            governorship and under which party. That is exactly the right
+            grain for a governorship and exactly the wrong grain for a
+            senatorial district, a federal constituency or a council — and
+            the difference is invisible, because every number would still be
+            real, still be sourced, and still be about somewhere else.
+
+            The screen is not withheld: a campaign in Adamawa Central does
+            want to know how Adamawa behaves. It is labelled, once, at the
+            top, so nobody reads a state figure as their seat's. */}
+        {subState && ground && (
+          <p className="mb-4 flex gap-3 rounded-dash border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-[0.875rem] leading-relaxed text-dash-ink">
+            <AlertTriangle size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-amber-600" />
+            <span>
+              Every figure below is <strong>{title ?? "the state"}</strong>&rsquo;s, not{" "}
+              <strong>{ground}</strong>&rsquo;s. Nothing under a state is recorded for these
+              measures — the register, the declared vote and who holds the governorship are all
+              published at state level — so this is the behaviour of the state your seat sits in,
+              and it is the closest thing to your seat that exists. What is known about the seat
+              itself is on the <strong>The seat</strong> tab.
+            </span>
+          </p>
+        )}
+        <StateAnalytics
+          scopeStates={scopeStates}
+          title={title}
+          raceLabel={raceFor(race)?.label ?? "State contest"}
+          results={results}
+        />
+      </>
     );
   }
 

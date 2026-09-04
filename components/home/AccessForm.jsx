@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { ArrowRight, Check, Loader2, TriangleAlert } from "lucide-react";
 
 import Button from "@/components/ui/Button";
+import TerritoryPicker from "@/components/access/TerritoryPicker";
 import { requestAccess } from "@/app/actions/access";
 
 /**
@@ -27,7 +28,7 @@ const KINDS = [
   ["other", "Something else"],
 ];
 
-export default function AccessForm() {
+export default function AccessForm({ places = [], races = [] }) {
   const [state, formAction] = useActionState(requestAccess, {});
   const ids = useId();
 
@@ -127,13 +128,35 @@ export default function AccessForm() {
         )}
       </fieldset>
 
+      {/* ── WHAT YOU ARE COVERING, CHOSEN RATHER THAN DESCRIBED ────────────
+          This was one text box that said "Which election", and what came back
+          was prose: "the governorship in Edo, and maybe Ondo". Nobody could
+          issue an account from that without writing back to ask, and the
+          account that was eventually issued had no recorded relationship to
+          what had been asked for.
+
+          It is now the two questions an account is actually made of — which
+          of the day's contests, and which piece of Nigeria — answered from
+          the same tables the approval screen issues against. The free text
+          survives underneath as "anything else", where prose belongs. */}
+      <div className="mt-7">
+        <TerritoryPicker
+          places={places}
+          races={races}
+          race={values.race}
+          territory={values.territory}
+          errors={errors}
+          tone="dark"
+        />
+      </div>
+
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
         <Field
-          id={`${ids}-election`}
+          id={`${ids}-when`}
           name="election"
-          label="Which election"
+          label="When it votes"
           hint="optional"
-          placeholder="Presidential, February 2027"
+          placeholder="February 2027"
           defaultValue={values.election}
         />
         <Field

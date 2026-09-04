@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Target, TrendingDown, TrendingUp } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
+import PartyBreakdown from "./PartyBreakdown";
 import { boundsOf } from "@/lib/bbox";
 import { apportion, unitCount, wardCount } from "@/lib/drill";
 import { allParties, states2023 } from "@/lib/election2023";
@@ -40,10 +41,29 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
    supplies the hue; only the lightness moves. */
 const RAMP = [0.14, 0.3, 0.5, 0.72, 1];
 
-export default function PartyStrength({ shapes }) {
+/* The same parties in their board hues rather than their white-sheet ones.
+   PARTY_FILL is stepped for a white panel and goes muddy on near-black; these
+   are the tokens the dark board already uses everywhere else. */
+const PARTY_TOKEN = Object.fromEntries(allParties.map((item) => [item.id, item.token]));
+
+export default function PartyStrength({ shapes, territory = null, ground = null }) {
   const [party, setParty] = useState("APC");
-  const [path, setPath] = useState([]);
+  /* A room that holds a ground opens inside it. There is no country above a
+     senatorial district that this account may read, so there is nowhere to
+     zoom out to and the trail starts at the state. */
+  const [path, setPath] = useState(() =>
+    territory?.stateCode
+      ? [{ code: territory.stateCode, name: territory.stateName ?? territory.name }]
+      : []
+  );
   const [boundaries, setBoundaries] = useState(null);
+
+  /* The one place inside the current level the reader has asked about. It
+     carries every party's figure, not just the chosen one: "how strong are we
+     in this polling unit" is nearly always followed by "and who took it", and
+     a screen that can answer the first and not the second sends the reader to
+     another tab and loses their place. */
+  const [picked, setPicked] = useState(null);
 
   /**
    * ── ALWAYS THE WHOLE FEDERATION, WHATEVER PROJECT IS OPEN ────────────────
@@ -59,9 +79,23 @@ export default function PartyStrength({ shapes }) {
    * different and far less useful question, and it does it silently: the
    * screen would look complete while showing one state.
    *
-   * So this one ignores scope by design, and says so on the trail.
+   * So this one ignores the PROJECT's scope by design, and says so on the
+   * trail.
+   *
+   * ── AND WHY AN ACCOUNT'S GROUND IS THE ONE EXCEPTION ─────────────────────
+   * The reasoning above is about a project — a contest being run — and it does
+   * not survive being applied to an account that may not read the rest of the
+   * country. "Where is this party strong" is still the question, but for a
+   * campaign holding seven local governments the useful answer is inside those
+   * seven, and the federal map is a screen full of places they cannot file
+   * from and will never be asked about. A ground is not a scope: it is the
+   * limit of what this account is permitted to see, and no screen gets to
+   * ignore it on the grounds of being more interesting.
    */
-  const inScope = states2023;
+  const inScope = useMemo(
+    () => (territory?.stateCode ? states2023.filter((row) => row.code === territory.stateCode) : states2023),
+    [territory]
+  );
 
   const [state, lga, ward] = path;
   const level = ["nation", "state", "lga", "ward"][path.length];
@@ -94,14 +128,25 @@ export default function PartyStrength({ shapes }) {
 
   const lgaRows = useMemo(() => {
     if (!stateRow || !lgaShapes?.lgas) return [];
-    return apportion({
+
+    /* ── DIVIDED ACROSS THE STATE, THEN NARROWED ─────────────────────────
+       `apportion` splits the parent's total across whatever names it is given.
+       Handing it only the ground's seven splits the whole state's votes across
+       seven local governments, and the summary above the map then reads the
+       state's 731,140 as the district's. Split over all 21, then keep the
+       seven — see the same note in SituationRoom. */
+    const all = apportion({
       names: lgaShapes.lgas.map((row) => row.name),
       votes: stateRow.votes,
       booths: stateRow.booths,
       registered: stateRow.registered,
       parentKey: stateRow.code,
     });
-  }, [stateRow, lgaShapes]);
+
+    return territory?.lgaNames?.length
+      ? all.filter((row) => territory.lgaNames.includes(row.name))
+      : all;
+  }, [stateRow, lgaShapes, territory]);
 
   const wardRows = useMemo(() => {
     if (!lga) return [];
@@ -152,6 +197,10 @@ export default function PartyStrength({ shapes }) {
           key: row.key ?? row.name,
           name: row.name,
           votes: mine,
+          /* Every party's figure for this place, so the panel beside the map
+             can open the whole contest without re-deriving it. */
+          all: row.votes ?? [],
+          turnout: row.turnout ?? 0,
           total,
           share: total ? (mine / total) * 100 : 0,
           registered: row.registered ?? 0,
@@ -171,6 +220,20 @@ export default function PartyStrength({ shapes }) {
     return {
       votes: mine,
       total,
+      /* Every party across this level, so the panel can open the whole
+         contest for the place being looked at and not only for a child of
+         it. Summed from the children rather than read off the parent so it
+         is the same arithmetic at every level, including the country. */
+      all: children.reduce(
+        (sum, row) => sum.map((value, at) => value + (row.all?.[at] ?? 0)),
+        allParties.map(() => 0)
+      ),
+      registered: children.reduce((sum, row) => sum + (row.registered ?? 0), 0),
+      booths: children.reduce((sum, row) => sum + (row.booths ?? 0), 0),
+      turnout: (() => {
+        const register = children.reduce((sum, row) => sum + (row.registered ?? 0), 0);
+        return register ? (total / register) * 100 : 0;
+      })(),
       share: total ? (mine / total) * 100 : 0,
       won: children.filter((row) => row.won).length,
       quarter: children.filter((row) => row.share >= 25).length,
@@ -195,16 +258,29 @@ export default function PartyStrength({ shapes }) {
       .sort((a, b) => b.share - a.share);
   }, [level, inScope, index]);
 
-  /* ------------------------------------------------------------- the trail */
+  /* ------------------------------------------------------------- the trail
+     A narrowed room's trail starts at its own ground, and its root goes back
+     to the ground rather than to the country: "Nigeria" on a trail an account
+     may not open is a control that looks like "start again" and lands on
+     thirty-six states of nothing. */
+  const home = territory?.stateCode
+    ? { code: territory.stateCode, name: territory.stateName ?? territory.name }
+    : null;
+
   const crumbs = [
-    { label: "Nigeria", go: () => setPath([]) },
-    state && { label: state.name, go: () => setPath([state]) },
+    home
+      ? { label: ground ?? territory.name, go: () => setPath([home]) }
+      : { label: "Nigeria", go: () => setPath([]) },
+    !home && state && { label: state.name, go: () => setPath([state]) },
     lga && { label: lga.name, go: () => setPath([state, lga]) },
     ward && { label: ward.name, go: () => setPath([state, lga, ward]) },
   ].filter(Boolean);
 
   const drill = useCallback(
     (row) => {
+      /* A pick belongs to the level it was made in. Carrying it down would
+         leave the panel describing a ward while the map draws its units. */
+      setPicked(null);
       if (level === "nation") setPath([{ code: row.key, name: row.name }]);
       else if (level === "state") setPath([state, { name: row.name }]);
       else if (level === "lga") setPath([state, lga, { name: row.name }]);
@@ -212,89 +288,60 @@ export default function PartyStrength({ shapes }) {
     [level, state, lga]
   );
 
+  /* Tapping a place asks about it; tapping the same place again asks about the
+     level as a whole, which is what the panel shows with nothing picked. */
+  const pick = useCallback(
+    (row) => setPicked((current) => (current?.key === row.key ? null : row)),
+    []
+  );
+
+  const pickedRow = picked ? children.find((row) => row.key === picked.key) ?? null : null;
+
+  /* The shapes follow the rows: a panel ranking three local governments beside
+     a map drawing twenty-one is two answers to one question. */
   const mapShapes =
-    level === "nation" ? shapes : level === "state" && lgaShapes ? { paths: lgaShapes.lgas } : null;
+    level === "nation"
+      ? /* The country, or the one state of it this account may read. Drawing
+           all 37 outlines beside a panel listing one is two answers to one
+           question, and the one that is drawn is the wrong one. */
+        territory?.stateCode
+        ? { ...shapes, states: shapes.states.filter((row) => row.code === territory.stateCode) }
+        : shapes
+      : level === "state" && lgaShapes
+        ? {
+            paths: territory?.lgaNames?.length
+              ? lgaShapes.lgas.filter((row) => territory.lgaNames.includes(row.name))
+              : lgaShapes.lgas,
+          }
+        : null;
 
   const strongest = children[0];
   const weakest = children[children.length - 1];
+
+  /* What the darkest step on the ramp means here. The same figure the map
+     divides by, so the legend cannot drift from the shapes it explains. */
+  const topShare = Math.max(...children.map((row) => row.share), 1);
   const apportioned = level !== "nation";
 
   return (
     <div className="space-y-3">
-      {/* ───────────────────────────────────────────────────── the selector */}
-      {/* ── ONE PARTY AT A TIME, AND SAY WHICH ─────────────────────────────
-          A picker that allowed several at once would put the screen straight
-          back to colouring by whoever leads, which is the thing this screen
-          exists not to do. Comparison is done by switching, which keeps the
-          scale and the place fixed and moves only the party — the only way to
-          see a difference honestly. */}
-      <div className="flex flex-wrap items-center gap-2 rounded-dash border border-dash-line bg-dash-card p-2">
-        <span className="px-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-          Party
-        </span>
-        {allParties.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setParty(item.id)}
-            aria-pressed={party === item.id}
-            className={cn(
-              "flex items-center gap-2 rounded-full border px-3.5 py-2 text-[0.8125rem] font-bold transition-colors",
-              party === item.id
-                ? "border-transparent text-white"
-                : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
-            )}
-            style={party === item.id ? { background: PARTY_FILL[item.id] ?? "var(--color-dash-ink)" } : undefined}
-          >
-            <span
-              aria-hidden="true"
-              className="size-2.5 shrink-0 rounded-full"
-              style={{
-                background: party === item.id ? "rgba(255,255,255,0.9)" : PARTY_FILL[item.id] ?? "var(--color-dash-muted)",
-              }}
-            />
-            {item.id}
-          </button>
-        ))}
-        <span className="ml-auto hidden truncate px-2 text-[0.75rem] text-dash-muted lg:block">
-          {allParties.find((item) => item.id === party)?.name}
-        </span>
-      </div>
+      {/* ── THE MAP IS THE FIRST THING ON THE PAGE ────────────────────────
+          It used to be the third: a party picker, then four figure cards, then
+          the map — about eleven rem of chrome above the only object on the
+          screen anybody came here to look at, which on a 1080p wall display
+          left the country in the bottom half of its own dashboard.
 
-      {/* ──────────────────────────────────────────────────────── the figures */}
-      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric
-          icon={Target}
-          label={`${party} share`}
-          value={formatShare(scope.share)}
-          foot={`${formatNumber(scope.votes)} of ${formatNumber(scope.total)} in ${crumbs.at(-1).label}`}
-          tint={PARTY_FILL[party]}
-        />
-        <Metric
-          icon={TrendingUp}
-          label={`${childWord(level)}s led`}
-          value={`${scope.won}`}
-          foot={`of ${scope.places}${scope.quarter ? ` · ${scope.quarter} above a quarter` : ""}`}
-        />
-        <Metric
-          icon={MapPin}
-          label="Strongest"
-          value={strongest?.name ?? "n/a"}
-          foot={strongest ? formatShare(strongest.share) : ""}
-          small
-        />
-        <Metric
-          icon={TrendingDown}
-          label="Weakest"
-          value={weakest?.name ?? "n/a"}
-          foot={weakest ? formatShare(weakest.share) : ""}
-          small
-        />
-      </div>
-
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_23rem]">
+          Both of those things belong to the map rather than above it. The
+          picker is the map's control *and* its legend, so it now lives in the
+          map's own header, where a reader looking at a colour is already
+          looking. The figures describe whatever the map is showing, so they
+          moved beside it and scroll with the rest of the reading. */}
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-start">
         {/* ───────────────────────────────────────────────────────── the map */}
-        <div className="on-board flex min-h-[30rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board">
+        {/* Pinned under the bar, at the height of what is left of the screen,
+            so the column beside it scrolls without ever taking the map with
+            it. `--dash-top` is the bar's measured height. See TopShell. */}
+        <div className="on-board flex min-h-[30rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
           <nav
             aria-label="Where you are"
             className="flex flex-wrap items-center gap-1 border-b border-board-line px-4 py-2.5"
@@ -314,9 +361,47 @@ export default function PartyStrength({ shapes }) {
                 </button>
               </span>
             ))}
-            <span className="ml-auto figure text-[0.75rem] text-white/45">
-              {party} share, darkest is strongest
-            </span>
+
+            {/* ── ONE PARTY AT A TIME, AND SAY WHICH ───────────────────────
+                A picker that allowed several at once would put the screen
+                straight back to colouring by whoever leads, which is the thing
+                this screen exists not to do. Comparison is done by switching,
+                which keeps the scale and the place fixed and moves only the
+                party — the only way to see a difference honestly. */}
+            <div className="ml-auto flex flex-wrap items-center gap-1">
+              {allParties.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setParty(item.id)}
+                  aria-pressed={party === item.id}
+                  title={item.name}
+                  className={cn(
+                    "figure flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.75rem] font-bold transition-colors",
+                    party === item.id
+                      ? "text-white"
+                      : "text-white/50 hover:bg-white/10 hover:text-white"
+                  )}
+                  style={
+                    party === item.id
+                      ? { background: PARTY_TOKEN[item.id] ?? "var(--color-red-500)" }
+                      : undefined
+                  }
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-2 shrink-0 rounded-full"
+                    style={{
+                      background:
+                        party === item.id
+                          ? "rgba(255,255,255,0.92)"
+                          : PARTY_TOKEN[item.id] ?? "var(--color-silent)",
+                    }}
+                  />
+                  {item.id}
+                </button>
+              ))}
+            </div>
           </nav>
 
           <div className="relative min-h-0 flex-1 p-2">
@@ -341,10 +426,15 @@ export default function PartyStrength({ shapes }) {
                   <button
                     key={row.key}
                     type="button"
-                    onClick={() => level === "lga" && drill(row)}
+                    /* Above the floor a tap goes down a level; at the floor
+                       there is nowhere further to go, so it opens the unit's
+                       own ballot in the panel instead of doing nothing. */
+                    onClick={() => (level === "lga" ? drill(row) : pick(row))}
                     className={cn(
-                      "rounded-dash-sm border border-board-line p-3 text-left",
-                      level === "lga" ? "cursor-pointer hover:border-white" : "cursor-default"
+                      "cursor-pointer rounded-dash-sm border p-3 text-left transition-colors",
+                      pickedRow?.key === row.key
+                        ? "border-white bg-white/10"
+                        : "border-board-line hover:border-white/60"
                     )}
                   >
                     <p className="truncate text-[0.8125rem] font-bold text-white">{row.name}</p>
@@ -359,23 +449,132 @@ export default function PartyStrength({ shapes }) {
               </div>
             )}
           </div>
+
+          {/* ── THE LEGEND, ON THE INSTRUMENT ──────────────────────────────
+              The ramp is relative: the darkest step is whatever the strongest
+              place in view holds, because a national ramp fixed at 0–100%
+              renders every local government inside a state the same shade.
+              That is the right choice and it is unreadable unpublished — a
+              reader cannot tell 4% from 40% without the breaks printed. So
+              they are printed, and they move when the scope does. */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-board-line px-4 py-2.5">
+            <span className="shrink-0 text-[0.5625rem] font-semibold tracking-[0.14em] text-white/35 uppercase">
+              {party} share
+            </span>
+            <div className="flex items-center gap-2">
+              {RAMP.map((step, at) => (
+                <span key={step} className="flex items-center gap-1">
+                  <span
+                    aria-hidden="true"
+                    className="size-3 rounded-[2px]"
+                    style={{
+                      background: PARTY_TOKEN[party] ?? "#ffffff",
+                      opacity: Math.max(0.12, step),
+                    }}
+                  />
+                  <span className="figure text-[0.625rem] text-white/45 tabular-nums">
+                    {formatShare(step * topShare)}
+                  </span>
+                </span>
+              ))}
+            </div>
+            <span className="figure ml-auto text-[0.625rem] text-white/35">
+              {pickedRow
+                ? `${pickedRow.name} · ${formatShare(pickedRow.share)}`
+                : `Tap a ${childWord(level)}`}
+            </span>
+          </div>
         </div>
 
         {/* ────────────────────────────────────────────── the ranked column */}
-        <div className="flex flex-col gap-3 xl:min-h-0 xl:overflow-y-auto">
+        {/* Ordinary page flow: this is the column the scroll is for. */}
+        <div className="flex flex-col gap-3">
+          {/* ── THE FIGURES, BESIDE WHAT THEY DESCRIBE ────────────────────
+              Two by two rather than a four-across band over the map. They
+              answer "how is this party doing here", which is a question about
+              the thing on the left, so they belong next to it. */}
+          <div className="grid grid-cols-2 gap-2.5">
+            <Metric
+              icon={Target}
+              label={`${party} share`}
+              value={formatShare(scope.share)}
+              foot={`${formatNumber(scope.votes)} of ${formatNumber(scope.total)}`}
+              tint={PARTY_FILL[party]}
+            />
+            <Metric
+              icon={TrendingUp}
+              label={`${childWord(level)}s led`}
+              value={`${scope.won}`}
+              foot={`of ${scope.places}${scope.quarter ? ` · ${scope.quarter} above a quarter` : ""}`}
+            />
+            <Metric
+              icon={MapPin}
+              label="Strongest"
+              value={strongest?.name ?? "n/a"}
+              foot={strongest ? formatShare(strongest.share) : ""}
+              small
+            />
+            <Metric
+              icon={TrendingDown}
+              label="Weakest"
+              value={weakest?.name ?? "n/a"}
+              foot={weakest ? formatShare(weakest.share) : ""}
+              small
+            />
+          </div>
+
+          {/* ── THE WHOLE CONTEST, WHEREVER YOU ARE STANDING ──────────────
+              One party at a time is the right way to read strength and the
+              wrong way to read a place: "we took 31% of this polling unit" is
+              only half a fact until you know whether that was first or fourth.
+              So the full ballot for the place in front of the reader sits
+              here — the picked one if there is one, the level itself if not —
+              and it goes all the way down to a single polling unit. */}
+          <PartyBreakdown
+            /* The 2023 declared record, whose vote arrays are positional over
+               exactly these five slots. Nothing wider exists to pass. */
+            slots={allParties}
+            place={pickedRow?.name ?? crumbs.at(-1).label}
+            /* ── A GROUND IS NOT A STATE, EVEN WHEN IT SITS INSIDE ONE ────
+               The word under the place name says what kind of thing it is, and
+               "State" over "Adamawa Central" is wrong twice: the name is a
+               senatorial district, and the figures beneath it are now the
+               district's rather than the state's. The account's own ground
+               names itself. */
+            level={
+              pickedRow
+                ? childWord(level)
+                : territory && level === "state"
+                  ? GROUND_WORD[territory.level] ?? "Ground"
+                  : levelWord(level)
+            }
+            row={{
+              votes: pickedRow?.all ?? scope.all,
+              registered: pickedRow?.registered ?? scope.registered,
+              turnout: pickedRow?.turnout ?? scope.turnout,
+              booths: pickedRow?.booths ?? scope.booths,
+            }}
+          />
+
           <Panel
             title={`${party} by ${childWord(level)}`}
             foot={`${children.length} ${childWord(level)}${children.length === 1 ? "" : "s"}`}
           >
             <ul className="space-y-2.5">
-              {children.slice(0, 40).map((row) => (
+              {/* ── EVERY ROW, NOT THE FIRST FORTY ────────────────────────
+                  This was capped at 40, which is invisible at national level,
+                  where there are 37 states, and quietly wrong one level down:
+                  Kano has 44 local governments and four of them were simply
+                  not in the list. A ranking that silently ends early is worse
+                  than a long list, because nothing on screen says it ended. */}
+              {children.map((row) => (
                 <li key={row.key}>
                   <button
                     type="button"
-                    onClick={() => level !== "ward" && drill(row)}
+                    onClick={() => (level === "ward" ? pick(row) : drill(row))}
                     className={cn(
-                      "w-full text-left",
-                      level !== "ward" && "cursor-pointer hover:opacity-80"
+                      "w-full cursor-pointer rounded-dash-sm text-left transition-opacity hover:opacity-80",
+                      pickedRow?.key === row.key && "ring-2 ring-dash-ink ring-offset-2"
                     )}
                   >
                     <div className="flex items-baseline justify-between gap-2">
@@ -471,6 +670,24 @@ export default function PartyStrength({ shapes }) {
 const childWord = (level) =>
   level === "nation" ? "state" : level === "state" ? "local government" : level === "lga" ? "ward" : "polling unit";
 
+/** What the reader is standing *in*, as opposed to what they can open. */
+/* What an account's own ground is called, for the card above the map. */
+const GROUND_WORD = {
+  STATE: "State",
+  SENATORIAL: "Senatorial district",
+  FEDERAL: "Federal constituency",
+  LGA: "Local government",
+};
+
+const levelWord = (level) =>
+  level === "nation"
+    ? "Federation"
+    : level === "state"
+      ? "State"
+      : level === "lga"
+        ? "Local government"
+        : "Ward";
+
 /**
  * One party's share, on a map.
  *
@@ -484,10 +701,15 @@ function ShareMap({ shapes, level, rows, party, onOpen }) {
      every render would re-measure every path on every pointer move. */
   const list = useMemo(() => shapes.paths ?? shapes.states ?? [], [shapes]);
 
+  /* Cropped to what is drawn at every level, not only below the country. A
+     room narrowed to one state drew that state inside an outline of Nigeria,
+     which is a map of the right place at a twentieth of the size the panel
+     could give it. With all 37 on screen the box around them is the canvas,
+     so a national reader sees no change. */
   const frame = useMemo(() => {
-    if (level === "nation") return `0 0 ${shapes.width} ${shapes.height}`;
+    if (!list.length) return `0 0 ${shapes.width} ${shapes.height}`;
     return boundsOf(list.map((shape) => shape.d)).viewBox;
-  }, [level, shapes, list]);
+  }, [shapes, list]);
 
   const top = Math.max(...rows.map((row) => row.share), 1);
 
@@ -503,7 +725,10 @@ function ShareMap({ shapes, level, rows, party, onOpen }) {
           <path
             key={shape.code ?? shape.name}
             d={shape.d}
-            fill={row ? (PARTY_FILL[party] ?? "#ffffff") : "var(--color-board-raised)"}
+            /* The board hue, not the white-sheet one: PARTY_FILL is stepped
+               dark for a white panel, and dark-on-near-black at 14% opacity is
+               indistinguishable from empty. */
+            fill={row ? (PARTY_TOKEN[party] ?? "#ffffff") : "var(--color-board-raised)"}
             fillOpacity={row ? Math.max(0.12, opacity) : 1}
             stroke="var(--color-board)"
             strokeWidth={0.9}

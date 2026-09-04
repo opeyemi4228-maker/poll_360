@@ -96,7 +96,10 @@ export default function AppShell() {
     };
 
     navigator.serviceWorker
-      .register("/sw.js")
+      /* Carries the build id, so a deploy is a new script to the browser and
+         actually installs. Without it the worker below is byte-identical
+         every time and a device that has visited once never updates again. */
+      .register(`/sw.js?v=${process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}`)
       .then((reg) => {
         registration = reg;
         if (reg.waiting && navigator.serviceWorker.controller) setWaiting(reg.waiting);

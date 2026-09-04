@@ -5,9 +5,11 @@ import DashLayout from "@/components/dash/DashLayout";
 import { Card, StatCard } from "@/components/dash/DashCard";
 import Sparkline from "@/components/dash/Sparkline";
 import BroadcastAnalysis from "@/components/dash/BroadcastAnalysis";
+import ShareGraphic from "@/components/dash/ShareGraphic";
 import Button from "@/components/ui/Button";
-import { requireUser } from "@/lib/guard";
-import { currentElection, currentRace } from "@/lib/election-scope";
+import { viewing } from "@/lib/viewing";
+import GroundBanner from "@/components/dash/GroundBanner";
+import { lgasOf } from "@/lib/constituencies";
 import { RACES, raceLabel } from "@/lib/races";
 import { results } from "@/lib/db";
 import { states2023, DECLARED } from "@/lib/election2023";
@@ -36,18 +38,23 @@ export const dynamic = "force-dynamic";
  *      than a live ticker that can only be watched.
  */
 export default async function BroadcastPage() {
-  const user = await requireUser("/broadcast");
+  /* The desk, the project, the contest being covered, and the ground this
+     account may read. A studio switching between the presidential and the
+     governorship is switching between two counts, not filtering one — and a
+     studio issued one senatorial district is not offered the switch at all.
+     See lib/viewing.js. */
+  const { user, project, race, territory, ground, pinned, unresolved } = await viewing("/broadcast");
 
-  const project = await currentElection();
-  /* The contest being covered. A studio switching between the presidential and
-     the governorship is switching between two counts, not filtering one. */
-  const race = await currentRace(project);
+  /* Named rather than counted: "7 local governments" is a number, and the
+     names are what somebody checks the ground against. */
+  const lgaNames = territory ? lgasOf(territory).map((row) => row.name) : [];
 
-  /* What each of the day's five contests holds, so the control below can show
-     it and an empty screen can say which paper it is empty for. */
-  const byRace = project ? await results.countByRace(project.id) : {};
-  const tally = await results.tally(project?.id, race);
-  const ourRows = await results.counted(project?.id, race);
+  /* What each of the day's contests holds inside this desk's ground, so the
+     control below can show it and an empty screen can say which paper it is
+     empty for. */
+  const byRace = project ? await results.countByRace(project.id, territory) : {};
+  const tally = await results.tally(project?.id, race, territory);
+  const ourRows = await results.counted(project?.id, race, territory);
 
   /* Our agents' returns, folded up by state so the analysis surface can put
      them beside the declared figure for the same place. */
@@ -76,6 +83,10 @@ export default async function BroadcastPage() {
             race={race}
             races={RACES.map((row) => ({ id: row.id, label: row.label }))}
             filed={byRace}
+            /* An account issued for one contest over one district does not
+               switch between counts — see components/dash/RaceSwitcher. */
+            pinned={pinned}
+            ground={ground}
           />
           <Button href="/#board" variant="dashOutline" size="sm">
             <Tv size={15} strokeWidth={2.5} />
@@ -88,6 +99,13 @@ export default async function BroadcastPage() {
         </>
       }
     >
+      <GroundBanner
+        territory={territory}
+        ground={ground}
+        unresolved={unresolved}
+        lgaNames={lgaNames}
+      />
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           icon={Gauge}
@@ -120,6 +138,15 @@ export default async function BroadcastPage() {
           somebody to find it by scrolling. */}
       <div id="analysis" className="mt-6 scroll-mt-24">
         <BroadcastAnalysis declared={states2023} ours={ours} shapes={nation} />
+      </div>
+
+      {/* ── WHAT GOES OUT BETWEEN BULLETINS ────────────────────────────────
+          The audience is on a phone and the count has moved. Without this the
+          desk photographs its own wall board, and that picture — no coverage
+          figure, no timestamp, nothing saying it is a parallel count — is what
+          circulates. This makes the picture from the same figures. */}
+      <div id="post" className="mt-6 scroll-mt-24">
+        <ShareGraphic race={race} />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">

@@ -35,6 +35,20 @@ export default function PartyBreakdown({
   coverage,
   level,
   compact = false,
+  /**
+   * ── WHO IS ON THIS PAPER ───────────────────────────────────────────────
+   * The party list used to be hard-coded to the presidential four plus a
+   * bucket, because that is the shape of the 2023 declared record. On a live
+   * count it was wrong and quietly so: an agent files eighteen parties off
+   * the sheet in front of them — ADC, APM, NDC, SDP, YPP and the rest — and
+   * this card folded every one of them into a grey line called "other".
+   * A party that stood, and whose votes we hold by name, is named.
+   *
+   * So the list comes from the board's own ballot. It falls back to the four
+   * only where the caller genuinely has nothing else: the 2023 replay, whose
+   * vote arrays are positional over exactly those five slots.
+   */
+  slots,
   /* ── WHOSE NAME GOES UNDER THE PARTY ──────────────────────────────────
      The candidate names in lib/election2023 are the 2023 presidential ones.
      Printed under a governorship they are simply wrong: a room looking at the
@@ -44,7 +58,7 @@ export default function PartyBreakdown({
      everywhere else the party stands on its own. */
   candidates = true,
 }) {
-  const all = [...parties, others];
+  const all = slots?.length ? slots : [...parties, others];
 
   const ranked = all
     .map((party, index) => ({
@@ -56,6 +70,17 @@ export default function PartyBreakdown({
     .sort((a, b) => (a.id === "OTH" ? 1 : b.id === "OTH" ? -1 : b.votes - a.votes));
 
   const total = ranked.reduce((sum, party) => sum + party.votes, 0);
+
+  /* ── EVERY PARTY THAT POLLED, AND A LINE FOR THE ONES THAT DID NOT ──────
+     Eighteen rows of which twelve are zero is not a fuller picture, it is the
+     same picture with the interesting part pushed off the screen. So the
+     parties that took votes here get a row each, by name, and the ones that
+     took none are named on one line underneath — named, not counted away,
+     because "ADC stood here and got nothing" is a fact somebody may need and
+     "other" never was. */
+  const polled = ranked.filter((party) => party.votes > 0);
+  const silent = ranked.filter((party) => party.votes === 0);
+  const shown = polled.length ? polled : ranked.slice(0, 1);
   const top = ranked[0];
   const second = ranked[1];
   const lead = top && second ? top.votes - second.votes : 0;
@@ -87,7 +112,7 @@ export default function PartyBreakdown({
   }
 
   return (
-    <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
+    <section className="@container overflow-hidden rounded-dash border border-dash-line bg-dash-card">
       {/* ------------------------------------------------------------ head */}
       <header className="border-b border-dash-line px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
@@ -141,7 +166,7 @@ export default function PartyBreakdown({
 
       {/* ----------------------------------------------------- every party */}
       <ul className={cn("divide-y divide-dash-line", compact && "text-[0.8125rem]")}>
-        {ranked.map((party, index) => {
+        {shown.map((party, index) => {
           const share = total ? (party.votes / total) * 100 : 0;
           return (
             <li key={party.id} className="px-4 py-3">
@@ -186,8 +211,22 @@ export default function PartyBreakdown({
         })}
       </ul>
 
+      {silent.length > 0 && (
+        <p className="border-t border-dash-line px-4 py-2.5 text-[0.6875rem] leading-relaxed text-dash-muted">
+          <span className="font-semibold text-dash-ink">No votes recorded here:</span>{" "}
+          {silent.map((party) => party.id).join(", ")}.
+        </p>
+      )}
+
       {/* ------------------------------------------------- the arithmetic */}
-      <dl className="grid grid-cols-2 gap-px border-t border-dash-line bg-dash-line sm:grid-cols-4">
+      {/* ── FOUR ACROSS ONLY WHERE FOUR FIT ──────────────────────────────
+          This was `sm:grid-cols-4`, which asks the *viewport* whether there is
+          room and then draws four columns inside a 21rem panel on a 1600px
+          screen. Each cell got about five and a half rem, and the national
+          register — 89,284,124 — printed as "89,284,1". A truncated total is
+          not a smaller total, it is a wrong one. The question is how wide this
+          card is, not how wide the screen is, so it is asked of the container. */}
+      <dl className="grid grid-cols-2 gap-px border-t border-dash-line bg-dash-line @md:grid-cols-4">
         <Cell label="Votes" value={formatNumber(total)} />
         <Cell label="Register" value={formatNumber(row.registered ?? 0)} />
         <Cell label="Turnout" value={formatShare(row.turnout ?? 0)} />

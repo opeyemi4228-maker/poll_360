@@ -3,10 +3,12 @@ import { AlertTriangle, Gauge, Scale, ShieldAlert, Users } from "lucide-react";
 
 import { PartyBars, CoverageBar } from "@/components/dash/Charts";
 import SituationRoom from "@/components/dash/SituationRoom";
-import { currentElection, currentRace, listElections } from "@/lib/election-scope";
+import { listElections } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
-import { requireUser } from "@/lib/guard";
-import { RACES } from "@/lib/races";
+import { viewing } from "@/lib/viewing";
+import { lgasOf, resolveTerritory } from "@/lib/constituencies";
+import { holdersOf, lastResultFor } from "@/lib/seats";
+import { RACES, raceLabel } from "@/lib/races";
 import { results, incidents, media, declared } from "@/lib/db";
 import { watch } from "@/lib/watch";
 import { gapReport } from "@/lib/gap-report";
@@ -36,16 +38,17 @@ export const dynamic = "force-dynamic";
  * ───────────────────────────────────────────────────────────────────────────
  */
 export default async function RoomPage() {
-  const user = await requireUser("/room");
+  /* ── WHO, WHAT, AND OVER WHAT GROUND, IN ONE CALL ───────────────────────
+     The account, the project, which of the day's contests is on the wall, and
+     the piece of Nigeria this room may read. The last of those is threaded
+     into every query below rather than filtered out of the answers: a board
+     built from the country and then narrowed is a board whose totals were
+     right for somebody else. See lib/viewing.js. */
+  const { user, project, race, territory, ground, pinned, unresolved } = await viewing("/room");
 
-  const [project, allProjects] = await Promise.all([currentElection(), listElections()]);
+  const allProjects = await listElections();
 
-  /* Which of the day's contests is on the wall. A project holds five and they
-     are five separate counts, so this is as much a part of "what am I looking
-     at" as the project is — and it decides which returns the board is built
-     from. */
-  const race = await currentRace(project);
-  const filedByRace = project ? await results.countByRace(project.id) : {};
+  const filedByRace = project ? await results.countByRace(project.id, territory) : {};
   const filed = filedByRace[race] ?? 0;
 
   /* ── ONE WAIT, NOT THREE ────────────────────────────────────────────────
@@ -59,8 +62,8 @@ export default async function RoomPage() {
      Only the photographs have to wait, because they are fetched by the ids
      of the incidents above and cannot be asked for until those are known. */
   const [rawFeed, coordinators, divergence, declaredRows] = await Promise.all([
-    incidents.recent(40, project?.id),
-    watch.coordinators(project?.id, race),
+    incidents.recent(40, project?.id, territory),
+    watch.coordinators(project?.id, race, territory),
     /* The same function /gap builds its whole screen from. Two assemblers
        would mean the headline on this wall could disagree with the list on the
        drill-down, and the first time a room reads "3 impossible" here and
@@ -68,11 +71,11 @@ export default async function RoomPage() {
     /* The position matters: a night is several counts, not one, and holding
        our presidential returns against a governorship declaration compares two
        different contests. `defaultRace` reads it off the project. */
-    gapReport(project?.id, race),
+    gapReport(project?.id, race, territory),
     /* What the commission declared for this project. It is what a board with
        no returns of its own has to draw, and it joins the same wait rather
        than adding a fifth round trip. */
-    declared.all(project?.id, race),
+    declared.all(project?.id, race, territory),
   ]);
 
   /* ── THREE THINGS A MAP CAN BE, AND THEY ARE NOT INTERCHANGEABLE ─────────
@@ -95,7 +98,7 @@ export default async function RoomPage() {
      out again by the screen, so the room can say so out loud. */
   const board =
     project && !project.isDemo && filed > 0
-      ? await liveBoard({ electionId: project.id, race })
+      ? await liveBoard({ electionId: project.id, race, territory })
       : buildBoard(project, declaredRows);
 
   /* The drill-down reads this instead of apportioning a state's total across
@@ -103,7 +106,7 @@ export default async function RoomPage() {
      is nothing underneath a declared state figure to show. */
   const tree =
     project && !project.isDemo && filed > 0
-      ? await liveTree({ electionId: project.id, race })
+      ? await liveTree({ electionId: project.id, race, territory })
       : null;
 
   const feed = rawFeed.map((item) => ({
@@ -151,6 +154,84 @@ export default async function RoomPage() {
       photos={photoMap}
       incidentCount={feed.length}
       scopeStates={project?.scopeStates ?? []}
+      /* ── THE ACCOUNT'S OWN GROUND, WHICH IS NOT THE PROJECT'S ──────────
+         `scopeStates` is what the contest covers; this is what this room may
+         read of it. A project may run the governorship in six states while
+         the newsroom looking at it holds one, and the map has to be the
+         second. Handed down already resolved — its local governments named —
+         because resolving one reads from disk. */
+      territory={
+        territory && {
+          level: territory.level,
+          name: territory.name,
+          stateCode: territory.stateCode,
+          /* The state's name, not only its code. Panels that have to say
+             whose figures they are showing were printing the project's title
+             instead — "Every figure below is Adamawa State, 2023's" where they
+             meant "Adamawa's". */
+          stateName: territory.stateName,
+          stateNumber: territory.stateNumber,
+          lgas: territory.lgas,
+          /* The names as well as the codes, because the boundary files are
+             keyed by name and turning "18/03" back into "Chikun" rests on an
+             alphabetical assumption that lives in lib/lga-names.js. Making it
+             twice, once of them in a browser, is how the map and the figures
+             come to disagree about which places these are. */
+          lgaNames: lgasOf(territory).map((row) => row.name),
+          shared: territory.shared ?? null,
+        }
+      }
+      ground={ground}
+      racePinned={pinned}
+      territoryUnresolved={unresolved}
+      /* ── THE SEAT THIS ROOM IS ABOUT ──────────────────────────────────
+         Who holds this ground in this contest, and what the last election
+         for it came to. Read on the server because the seat tables reach
+         lib/lga-names.js, which reads from disk — the same reason the local
+         government names above are resolved here. A room that is narrowed
+         shows this where an unnarrowed one shows the national ruling-party
+         map: 37 states is the right answer to a question a senatorial
+         campaign is not asking. */
+      seat={{
+        race,
+        raceLabel: raceLabel(race),
+        holders: holdersOf({ race, territory }),
+        result: lastResultFor({ race, territory }),
+      }}
+      /* ── THE LAST GOVERNORSHIP IN THE STATES ON SCREEN ─────────────────
+         The analytics screen's baseline. It read lib/offcycle.js alone, which
+         holds the eight contests fought outside the general cycle — so for
+         Adamawa, whose 2023 declaration this product has transcribed in full,
+         it announced "no governorship result loaded" and rested every figure
+         on the presidential vote instead. Two modules holding the same fact
+         and only one of them consulted.
+
+         Resolved here, from lib/seats.js, which is the one place that answers
+         "the last election for this contest on this ground" — and shaped the
+         way lib/offcycle.js shapes a row, so the screen reads one kind of
+         thing however it was sourced. */
+      stateResults={Object.fromEntries(
+        (territory?.stateCode ? [territory.stateNumber] : []).flatMap((number) => {
+          const whole = resolveTerritory(`STATE:${number}`);
+          const last = whole && lastResultFor({ race: "GOVERNORSHIP", territory: whole });
+          if (!last?.votes) return [];
+          return [[
+            whole.stateCode,
+            {
+              code: whole.stateCode,
+              state: whole.name,
+              votesOn: last.votesOn,
+              winner: last.party,
+              candidate: last.candidate,
+              votes: last.votes,
+              /* The register that election was actually run on, which is not
+                 the presidential one: Adamawa's differ by 88,000. */
+              registered: last.registered ?? null,
+              source: last.source,
+            },
+          ]];
+        })
+      )}
       divergence={divergence}
       liveTree={tree}
       race={race}

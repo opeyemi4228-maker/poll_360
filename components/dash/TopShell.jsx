@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 
@@ -49,6 +49,31 @@ export default function TopShell({
   const [menu, setMenu] = useState(false);
   const role = ROLES[user.role] ?? ROLES.VIEWER;
 
+  /**
+   * ── HOW TALL THE BAR IS, MEASURED ────────────────────────────────────────
+   * Every dashboard under this shell pins its map below the bar, and a pinned
+   * thing needs to know exactly what it is pinned under. The bar is not one
+   * height: it is 4.5rem on a wide screen and carries a second row of tabs
+   * below xl, and it changes again if a browser is zoomed. A constant would be
+   * right on one screen and wrong on the rest — the map would either float in
+   * a gap or slide under the bar it is supposed to sit below.
+   *
+   * So it is measured and published as `--dash-top`, and the maps are written
+   * against that. The fallback in each of those rules is the wide-screen
+   * height, which is what the first paint gets before the observer reports.
+   */
+  const bar = useRef(null);
+  const [top, setTop] = useState(0);
+
+  useEffect(() => {
+    const node = bar.current;
+    if (!node || typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => setTop(node.offsetHeight));
+    observer.observe(node);
+    setTop(node.offsetHeight);
+    return () => observer.disconnect();
+  }, []);
+
   const initials = user.name
     .split(" ")
     .map((part) => part[0])
@@ -56,7 +81,7 @@ export default function TopShell({
     .join("");
 
   return (
-    <div className="min-h-screen bg-dash-bg">
+    <div className="min-h-screen bg-dash-bg" style={top ? { "--dash-top": `${top}px` } : undefined}>
       {/* ------------------------------------------------------------ bar */}
       {/* ── HOW THE WIDTH IS SPENT ────────────────────────────────────────
           Three blocks, and only the middle one is elastic: the brand and the
@@ -73,7 +98,7 @@ export default function TopShell({
           in the menu, which is where you look to check who you are signed in
           as anyway.
           ─────────────────────────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-40 border-b border-dash-line bg-dash-card">
+      <header ref={bar} className="sticky top-0 z-40 border-b border-dash-line bg-dash-card">
         <div className="flex h-18 items-center gap-3 px-4 lg:px-6">
           <Link
             href="/"

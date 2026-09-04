@@ -18,6 +18,8 @@ import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
 import { currentElection, currentRace } from "@/lib/election-scope";
 import { raceLabel, RACES } from "@/lib/races";
+import { allPlaces, resolveTerritory } from "@/lib/constituencies";
+import { describeTerritory } from "@/lib/territory";
 import { results, incidents, audit, accessRequests, users, sheetReads } from "@/lib/db";
 import { integrityOf } from "@/lib/anomalies";
 import { coordinators } from "@/lib/coordinators";
@@ -98,6 +100,12 @@ export default async function AdminPage() {
     project ? sheetReads.recent(project.id, 12) : [],
     project ? sheetReads.summary(project.id) : {},
   ]);
+
+  /* The state, district and local government tables, for the account form
+     below. Read off disk rather than queried, and cheap enough to do on every
+     load of this page — see lib/constituencies.js for why it is not imported
+     into the browser instead. */
+  const places = allPlaces();
 
   const counted = Object.values(tally.totals).reduce((a, b) => a + b, 0);
   const disputed = filed.filter((row) => row.status === "DISPUTED").length;
@@ -565,7 +573,10 @@ export default async function AdminPage() {
           subtitle="The password is shown once and never stored in readable form"
           action={<KeyRound size={16} className="shrink-0 text-dash-muted" />}
         >
-          <IssueAccountForm />
+          <IssueAccountForm
+            places={places}
+            races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+          />
         </Card>
       </div>
 
@@ -576,21 +587,47 @@ export default async function AdminPage() {
             merely waiting. */}
         <IntegrityPanel report={integrity} />
 
-        <Card title="Access requests" action={<Inbox size={16} className="text-dash-muted" />}>
+        {/* ── A PREVIEW, AND A DOOR ────────────────────────────────────────
+            This card used to be the whole of the access queue: five rows that
+            could be read and not acted on, while the form that actually
+            issues an account sat elsewhere and had never heard of them. The
+            queue is a page now. What stays here is the count, the newest few,
+            and what each one asked to cover — because the ground is the half
+            of a request that decides whether it is urgent. */}
+        <Card
+          title="Access requests"
+          subtitle={requests.length ? "Newest first. The queue is at /admin/requests." : undefined}
+          action={<Inbox size={16} className="text-dash-muted" />}
+        >
           {requests.length === 0 ? (
             <Empty>Nothing yet.</Empty>
           ) : (
-            <ul className="space-y-4">
-              {requests.map((request) => (
-                <li key={request.id}>
-                  <p className="text-[0.875rem] font-bold text-dash-ink">{request.organisation}</p>
-                  <p className="mt-0.5 text-[0.8125rem] wrap-break-word text-dash-muted">
-                    {request.name} · {request.email}
-                    {request.units ? ` · ${formatNumber(request.units)} booths` : ""}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="space-y-4">
+                {requests.map((request) => {
+                  const place = request.territory ? resolveTerritory(request.territory) : null;
+
+                  return (
+                    <li key={request.id}>
+                      <p className="text-[0.875rem] font-bold text-dash-ink">{request.organisation}</p>
+                      <p className="mt-0.5 text-[0.8125rem] wrap-break-word text-dash-muted">
+                        {request.name} · {request.email}
+                        {request.units ? ` · ${formatNumber(request.units)} booths` : ""}
+                      </p>
+                      {place && (
+                        <p className="mt-0.5 text-[0.8125rem] text-dash-ink">
+                          {raceLabel(request.race)} · {describeTerritory(place)}
+                        </p>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              <Button href="/admin/requests" variant="dashOutline" size="md" className="mt-5">
+                Work the queue
+              </Button>
+            </>
           )}
         </Card>
 

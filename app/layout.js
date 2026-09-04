@@ -173,8 +173,40 @@ export default function RootLayout({ children }) {
             document, the fonts and the things that must exist on every page. */}
         {children}
 
-        {/* Service worker, update offer, install offer, offline notice. Renders
-            nothing at all until one of them has something to say. */}
+        {/* ── REGISTERING THE WORKER FROM THE DOCUMENT, NOT FROM REACT ─────
+            This used to live entirely inside AppShell, and in a production
+            build AppShell's chunk was never loaded by any route: the page
+            hydrated, eleven chunks arrived, and /sw.js was never requested at
+            all. So the product shipped with its offline support, its install
+            prompt and its update notice quietly switched off, and nothing said
+            so, because a worker that is never registered raises no error.
+
+            Registration is now four lines in the document. It cannot be
+            deferred, code-split away or lost behind a component that fails to
+            mount, and it runs before hydration rather than after it, which is
+            also when you want it. AppShell keeps the parts that are genuinely
+            interface: the update offer, the install offer, the offline notice.
+
+            The build id rides along, so each deploy is a distinct script to
+            the browser and the worker names its caches after itself. Without
+            it the file is byte-identical forever and a device that has visited
+            once never takes another version. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              process.env.NODE_ENV === "production"
+                ? `if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/sw.js?v=${
+                    process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"
+                  }').catch(function(){})})}`
+                : /* In development the worker serves chunks from before the
+                     last edit and the page dies on a missing module factory,
+                     so it is removed rather than installed. */
+                  `if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister()})})}`,
+          }}
+        />
+
+        {/* Update offer, install offer, offline notice. Renders nothing at all
+            until one of them has something to say. */}
         <AppShell />
 
         <script

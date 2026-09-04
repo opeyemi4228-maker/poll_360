@@ -16,10 +16,15 @@
     "_comment:test": "node's own runner, so there is no test dependency to install, keep current or audit. That matters more than usual for software that has to build on somebody else's machine on the morning of an election.",
     "test": "node --test tests/*.test.js",
     "account:create": "node scripts/create-account.mjs",
+    "_comment:build:constituencies": "The 109 senatorial districts and 360 federal constituencies, joined to the 774 local governments we draw. Run after editing scripts/sources/nigeria-lga-districts.sql or the alias table; it refuses to write anything unless every local government lands in exactly one senatorial district.",
+    "build:constituencies": "node scripts/build-constituencies.mjs",
     "build:map": "node scripts/build-map.mjs",
     "build:icons": "node scripts/build-icons.mjs",
     "seed:demo": "node scripts/seed-demo.mjs",
     "seed:election": "node scripts/seed-election.mjs",
+    "_comment:seed:adamawa": "One state, four campaigns. Creates the Adamawa project, loads the declared figures lib/adamawa.js holds, and issues four accounts pinned to a governorship, a senatorial district, a federal constituency and a local government. Prints their passwords once. Runs a dry run without --commit.",
+    "seed:adamawa": "node --env-file=.env.local scripts/seed-adamawa.mjs",
+    "verify:board": "node --env-file=.env.local scripts/verify-board.mjs",
     "demo:retire": "node --env-file=.env.local scripts/retire-demo-accounts.mjs"
   },
   "dependencies": {

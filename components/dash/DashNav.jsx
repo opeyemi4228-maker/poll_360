@@ -7,6 +7,7 @@ import {
   BarChart3,
   FileText,
   Gauge,
+  Inbox,
   KeyRound,
   Landmark,
   MapPinned,
@@ -71,6 +72,16 @@ const SECTIONS = [
         href: "/admin/coordinators",
         label: "Coordinators",
         icon: UserRoundCheck,
+        capability: "accounts:issue",
+      },
+      /* The other queue. It had none: requests arrived from the home page into
+         a five-row card on the overview that could be read and not acted on,
+         so the act of issuing an account had no relationship to the act of
+         asking for one. */
+      {
+        href: "/admin/requests",
+        label: "Access requests",
+        icon: Inbox,
         capability: "accounts:issue",
       },
     ],

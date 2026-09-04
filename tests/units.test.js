@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isUnitCode, parseUnitCode } from "../lib/units.js";
+import { isUnitCode, parseUnitCode, unitCodeFromParts, STATES } from "../lib/units.js";
 import { keyAt } from "../lib/declared.js";
 
 /**
@@ -129,5 +129,89 @@ describe("rolling a code up to a level", () => {
   it("puts two units in the same ward under the same ward key", () => {
     assert.equal(keyAt("01/01/04/006", "WARD"), keyAt("01/01/04/019", "WARD"));
     assert.notEqual(keyAt("01/01/04/006", "WARD"), keyAt("01/01/05/006", "WARD"));
+  });
+});
+
+/**
+ * The other direction: four answers from a form, back into one key.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  The sign-up form asks an agent for their state, local government, ward and
+ *  unit separately, and this is what turns those four into the address every
+ *  return they ever file will hang from. It is the only place in the product
+ *  that builds a code rather than reading one, which makes it the only place
+ *  a code can be built wrong.
+ *
+ *  The failure it exists to prevent is not an exception. It is a code that
+ *  parses perfectly and names nowhere: ward 00, or a state number nobody has.
+ *  Nothing downstream would object to either.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+describe("building a code from what somebody chose", () => {
+  it("pads every part to the width the register uses", () => {
+    assert.equal(unitCodeFromParts({ state: "1", lga: "1", ward: "4", unit: "6" }), "01/01/04/006");
+  });
+
+  it("comes out where parseUnitCode goes in", () => {
+    const built = unitCodeFromParts({ state: "24", lga: "13", ward: "06", unit: "012" });
+    assert.equal(built, parseUnitCode("24/13/06/012").code);
+  });
+
+  it("refuses a part that was left empty", () => {
+    assert.equal(unitCodeFromParts({ state: "24", lga: "13", ward: "", unit: "012" }), null);
+    assert.equal(unitCodeFromParts({ state: "24", lga: "13", ward: "06", unit: "" }), null);
+    assert.equal(unitCodeFromParts({ state: "", lga: "13", ward: "06", unit: "012" }), null);
+    assert.equal(unitCodeFromParts({ state: "24", lga: "", ward: "06", unit: "012" }), null);
+  });
+
+  /* An empty box that became 00 was the bug this guard is for. It produces a
+     nine-digit code that reads as a real one and points at no booth. */
+  it("refuses a zero, which is an empty box and not a place", () => {
+    assert.equal(unitCodeFromParts({ state: "24", lga: "13", ward: "00", unit: "012" }), null);
+    assert.equal(unitCodeFromParts({ state: "24", lga: "13", ward: "06", unit: "000" }), null);
+    assert.equal(unitCodeFromParts({ state: "00", lga: "13", ward: "06", unit: "012" }), null);
+  });
+
+  it("refuses a state number that names no state", () => {
+    assert.equal(unitCodeFromParts({ state: "38", lga: "01", ward: "01", unit: "001" }), null);
+    assert.equal(unitCodeFromParts({ state: "99", lga: "01", ward: "01", unit: "001" }), null);
+  });
+
+  it("refuses a part too long to be that part", () => {
+    assert.equal(unitCodeFromParts({ state: "241", lga: "13", ward: "06", unit: "012" }), null);
+    assert.equal(unitCodeFromParts({ state: "24", lga: "13", ward: "066", unit: "012" }), null);
+    assert.equal(unitCodeFromParts({ state: "24", lga: "13", ward: "06", unit: "0121" }), null);
+  });
+
+  it("takes a part however the form punctuated it", () => {
+    assert.equal(unitCodeFromParts({ state: " 24 ", lga: "13", ward: "06", unit: "012" }), "24/13/06/012");
+  });
+});
+
+/**
+ * The state table the picker offers.
+ *
+ * A sign-up form shows these by name and sends the number beside them, so an
+ * ordering that drifted here would attach every return from one state to
+ * another — silently, because the wrong number is still a valid code.
+ */
+describe("the states a form can offer", () => {
+  it("holds all 37, numbered 01 upwards with no gaps", () => {
+    assert.equal(STATES.length, 37);
+    STATES.forEach((state, index) => {
+      assert.equal(state.number, String(index + 1).padStart(2, "0"));
+    });
+  });
+
+  it("agrees with what parseUnitCode reads back out of a code", () => {
+    for (const state of STATES) {
+      const at = parseUnitCode(`${state.number}/01/01/001`);
+      assert.equal(at.stateName, state.name, `state ${state.number} disagrees with the parser`);
+    }
+  });
+
+  it("names every state once, and gives each a short code", () => {
+    assert.equal(new Set(STATES.map((state) => state.name)).size, 37);
+    assert.equal(STATES.filter((state) => state.code).length, 37);
   });
 });
