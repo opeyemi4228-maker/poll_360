@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Crosshair, Map as MapIcon, Sprout, Target } from "lucide-react";
+import { Crosshair, Map as MapIcon, Sprout, Target, Users } from "lucide-react";
 
 import AddToPlan from "./AddToPlan";
 import PlanningMap from "./PlanningMap";
+import PartyGround from "./PartyGround";
 import SampleDesign from "./SampleDesign";
 import Analytics from "./Analytics";
 import { Gauge, Meter, MiniMap, Panel, Ranked, Readout } from "./Figures";
@@ -45,6 +46,15 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
 
 const TABS = [
   { id: "priorities", label: "Priorities", icon: Target },
+  /* ── PARTY STRENGTH, WHICH IS A PLANNING QUESTION ──────────────────────
+     Where a party's members actually are, from a state down to one polling
+     unit, out of the party's own register — see lib/members.js.
+
+     It is here rather than under Election Analytics on purpose. "How did this
+     state vote" is analysis. "How many of our people are in this ward, and is
+     that enough to work it" is a decision about where to send somebody, and
+     it belongs beside the priorities and the resources it competes with. */
+  { id: "party", label: "Party strength", icon: Users },
   { id: "ground", label: "Grassroots", icon: Sprout },
   { id: "map", label: "Resources", icon: MapIcon },
   { id: "scenarios", label: "Scenarios", icon: Crosshair },
@@ -110,6 +120,8 @@ export default function StrategicPlanning({
           pathOf={pathOf}
         />
       )}
+
+      {tab === "party" && <PartyGround shapes={shapes} />}
 
       {tab === "ground" && <Grassroots pulse={pulse} shapes={shapes} brief={brief} ground={ground} />}
 
