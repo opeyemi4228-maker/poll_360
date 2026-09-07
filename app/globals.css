@@ -251,6 +251,28 @@
      stronghold is 150, and the two are never on the same map at once in
      any case — the classification layer replaces the result layer, it
      does not sit on top of it. */
+  /* ── HOW MANY OF OUR PEOPLE ARE HERE ───────────────────────────────
+     Five bands for party membership, weakest first — see STRENGTH in
+     lib/members.js, which is the one definition of what each means.
+
+     NOT the classification ramp below. That one grades a place by how a
+     contest stands there; this grades it by how much of an organisation
+     the party actually has in it, and the two are drawn on different
+     screens about different things. Given a separate ramp on purpose, so
+     a reader who has learnt one is not misled into reading the other by
+     the same colours.
+
+     One hue, five steps of lightness, because this is a quantity with an
+     inherent order and an ordered thing gets a ramp. The exception is
+     "under ten", which is not a low quantity but a place with no
+     organisation in it at all: it wears the warning colour, because it is
+     the band a campaign asked to be able to find at a glance. */
+  --color-strength-bare: oklch(72% 0.15 55);
+  --color-strength-thin: oklch(84% 0.05 255);
+  --color-strength-below: oklch(70% 0.09 255);
+  --color-strength-above: oklch(56% 0.13 255);
+  --color-strength-heavy: oklch(42% 0.16 258);
+
   --color-class-stronghold: oklch(70% 0.16 150);
   --color-class-competitive: oklch(84% 0.15 95);
   --color-class-opportunity: oklch(66% 0.17 55);

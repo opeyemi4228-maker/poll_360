@@ -3,12 +3,17 @@ import { describe, it } from "node:test";
 
 import {
   AGE_BANDS,
+  BARE_MEMBERS,
+  CANDIDATES,
+  STRENGTH_OF,
   PARTIES,
   TIERS,
   childrenOf,
   coverage,
   coveredStates,
   demographicsAt,
+  ratioAt,
+  strengthBand,
   membersAt,
   qualityOf,
   registerFor,
@@ -321,5 +326,93 @@ describe("who the members are", () => {
 
   it("gives a party with no register no breakdown", () => {
     assert.equal(demographicsAt("APC", "SOK", []), null);
+  });
+});
+
+describe("how strong is strong", () => {
+  it("measures a place against the even split of its own tier", () => {
+    /* ── WHY NOT A FIXED PERCENTAGE ──────────────────────────────────────
+       A state has 23 local governments, so an even split is 4.3% and nothing
+       ever reaches 10%: on a fixed rule every local government in Nigeria is
+       weak. A ward with four booths splits 25% each, so every booth in it is
+       strong. The same number means opposite things one tier apart. */
+    const even = 100 / 23;
+
+    assert.equal(strengthBand(5000, even * 2.5, 23), "HEAVY");
+    assert.equal(strengthBand(5000, even * 1.5, 23), "ABOVE");
+    assert.equal(strengthBand(5000, even * 0.8, 23), "BELOW");
+    assert.equal(strengthBand(5000, even * 0.3, 23), "THIN");
+
+    /* The identical share, one tier down among four siblings, is thin. */
+    assert.equal(strengthBand(5000, even * 2.5, 4), "THIN");
+  });
+
+  it("calls anything under ten members bare, however large its share", () => {
+    /* Eight members out of twenty is 40% and reads as a stronghold. It is
+       eight people. This is the band a campaign asked to find at a glance. */
+    assert.equal(strengthBand(BARE_MEMBERS - 1, 90, 2), "BARE");
+    assert.equal(strengthBand(BARE_MEMBERS - 1, 0.1, 500), "BARE");
+    /* Ten members is not bare. The share here is a quarter of the even split
+       among 500 siblings (0.2%), so it lands thin on its own merits. */
+    assert.equal(strengthBand(BARE_MEMBERS, 0.05, 500), "THIN", "ten is not bare");
+  });
+
+  it("has no band for a place nobody has counted", () => {
+    assert.equal(strengthBand(null, 0, 10), null);
+  });
+
+  it("gives every band a colour and a reason", () => {
+    for (const id of ["BARE", "THIN", "BELOW", "ABOVE", "HEAVY"]) {
+      assert.ok(STRENGTH_OF[id], `${id} is not defined`);
+      assert.ok(STRENGTH_OF[id].fill.startsWith("var("));
+      assert.ok(STRENGTH_OF[id].why.length > 0);
+    }
+  });
+});
+
+describe("the register against a candidate's vote", () => {
+  it("measures ADC members against Atiku's vote in Sokoto", () => {
+    const seen = ratioAt("ADC", "SOK", "PDP", []);
+    assert.equal(seen.known, true);
+    assert.equal(seen.candidate.name, "Atiku Abubakar");
+    assert.equal(seen.votes, 288_679);
+    assert.equal(seen.members, 66_474);
+    assert.ok(seen.ratio > 22 && seen.ratio < 24);
+  });
+
+  it("offers the voting-age numerator beside the whole register", () => {
+    /* 1,900 of the register cannot lawfully vote. A ratio quoted against a
+       candidate's vote is being used to reason about votes, so the reader
+       needs both figures and needs to see which one a number came from. */
+    const seen = ratioAt("ADC", "SOK", "PDP", []);
+    assert.equal(seen.votingAge, 66_474 - 1_900);
+    assert.ok(seen.votingAgeRatio < seen.ratio);
+  });
+
+  it("refuses to produce one below a state", () => {
+    /* Members go to a polling unit; published votes stop at the state. A
+       ratio needs both, so it stops where the scarcer half stops — the only
+       way to go deeper is to invent the denominator. */
+    const seen = ratioAt("ADC", "SOK", "PDP", ["Binji"]);
+    assert.equal(seen.known, false);
+    assert.equal(seen.why, "below-state");
+    assert.equal(seen.ratio, undefined);
+    /* The half that IS known is still returned, so a screen can show it. */
+    assert.ok(seen.members > 0);
+  });
+
+  it("names every candidate a ratio can be measured against", () => {
+    const names = CANDIDATES.map((row) => row.name);
+    assert.ok(names.includes("Atiku Abubakar"));
+    assert.ok(names.includes("Bola Tinubu"));
+    /* Never the bucket: "14 other candidates" is not somebody to compare a
+       register against. */
+    assert.ok(!CANDIDATES.some((row) => row.id === "OTH"));
+  });
+
+  it("says so when the party has no register at all", () => {
+    const seen = ratioAt("APC", "SOK", "PDP", []);
+    assert.equal(seen.known, false);
+    assert.equal(seen.why, "no-register");
   });
 });

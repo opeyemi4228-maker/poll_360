@@ -8,8 +8,13 @@ import { boundsOf } from "@/lib/bbox";
 import { PARTY_FILL } from "./Charts";
 import {
   AGE_BANDS,
+  CANDIDATES,
+  ratioAt,
+  STRENGTH,
+  STRENGTH_OF,
   TIER_LABEL,
   demographicsAt,
+  strengthBand,
   childTier,
   childrenOf,
   coverage,
@@ -67,7 +72,33 @@ const OFFERED = [
   { id: "NNPP", name: "New Nigeria Peoples Party" },
 ];
 
+/* ══════════════════════════════════════════════════════════════════════════
+   WHAT A PLAN IS BEING DRAWN ON
+
+   Two different things can be planned against and they answer different
+   questions:
+
+     REGISTER  how many of our people are in this place. An organisation.
+     RESULT    how the place actually voted. Demonstrated support.
+
+   A campaign wants both and wants them apart, because a ward thick with
+   members that has never voted for you is a completely different job from one
+   that voted for you and where you have nobody. Choosing BOTH shows the ratio
+   between them, which is the only figure that says which of the two you are
+   looking at.
+   ══════════════════════════════════════════════════════════════════════════ */
+const BASIS = [
+  { id: "register", label: "Party register", what: "How many of our people are here." },
+  { id: "result", label: "Last election", what: "How the place actually voted." },
+  { id: "both", label: "Both", what: "The register measured against the vote." },
+];
+
 export default function PartyGround({ shapes = null }) {
+  const [basis, setBasis] = useState("register");
+  /* Whose vote the register is measured against when both are shown. Atiku
+     Abubakar by default only because the PDP carried Sokoto in 2023; it is a
+     picker, not an opinion. */
+  const [against, setAgainst] = useState("PDP");
   const [party, setParty] = useState("ADC");
   const [stateCode, setStateCode] = useState("SOK");
   const [path, setPath] = useState([]);
@@ -91,6 +122,10 @@ export default function PartyGround({ shapes = null }) {
   const members = membersAt(party, stateCode, path);
   const votes = votesAt(party, stateCode, path);
   const covered = coveredStates(party);
+  const ratio = useMemo(
+    () => (basis === "register" ? null : ratioAt(party, stateCode, against, path)),
+    [basis, party, stateCode, against, path]
+  );
 
   /* Which tier the map is drawing. `path` is [] at the country, [lga] inside a
      state, [lga, ward] inside a local government. The state itself is fixed by
@@ -201,6 +236,52 @@ export default function PartyGround({ shapes = null }) {
             })}
           </div>
         </div>
+
+        {/* ── WHAT TO PLAN ON ────────────────────────────────────────────
+            Three states, not a checkbox pair: "both" is its own thing, because
+            it does not draw two datasets at once — it draws the ratio between
+            them, which is a third figure neither half has on its own. */}
+        <div
+          role="group"
+          aria-label="What to plan on"
+          className="flex items-center rounded-full border border-dash-line bg-dash-bg p-1"
+        >
+          {BASIS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setBasis(item.id)}
+              aria-pressed={basis === item.id}
+              title={item.what}
+              className={cn(
+                "rounded-full px-3 py-1 text-[0.75rem] font-bold whitespace-nowrap transition-colors",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+                basis === item.id ? "bg-dash-ink text-white" : "text-dash-muted hover:text-dash-ink"
+              )}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {basis !== "register" && (
+          <label className="flex items-center gap-2">
+            <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              Against
+            </span>
+            <select
+              value={against}
+              onChange={(event) => setAgainst(event.target.value)}
+              className="rounded-dash-sm border border-dash-line bg-dash-bg px-2 py-1 text-[0.8125rem] font-semibold text-dash-ink"
+            >
+              {CANDIDATES.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.name} ({row.party})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <p className="ml-auto text-[0.75rem] text-dash-muted">
           {held.length === 1
@@ -352,8 +433,7 @@ export default function PartyGround({ shapes = null }) {
                   <Choropleth
                     shapes={lgaShapes}
                     byName={byName}
-                    biggest={biggest}
-                    fill={fill}
+                    siblings={rows.length}
                     hovered={hovered}
                     onHover={setHovered}
                     onOpen={(name) => setPath([name])}
@@ -381,12 +461,13 @@ export default function PartyGround({ shapes = null }) {
                       value: row.members,
                       note: `${formatNumber(row.members)} members · ${formatShare(row.share)} of ${path[path.length - 1]}`,
                       fix: null,
+                      /* The same five bands the choropleth uses, so a
+                         reader who learnt the key on the state map does not
+                         have to learn it again inside a ward. */
                       paint: {
-                        fill,
-                        /* Opacity carries the magnitude, so one party colour
-                           reads as a ramp without inventing a second hue for a
-                           party that already has one. */
-                        opacity: 0.25 + 0.75 * (row.members / (biggest || 1)),
+                        fill: STRENGTH_OF[strengthBand(row.members, row.share, rows.length)]?.fill
+                          ?? "var(--color-silent)",
+                        opacity: 1,
                       },
                     }))}
                   />
@@ -399,8 +480,34 @@ export default function PartyGround({ shapes = null }) {
                 )}
               </div>
 
-              {/* The one figure the map is about, on the map, so a reader
-                  looking at the shape never has to look away to read it. */}
+              {/* ── THE KEY, AND THE FIGURE THE MAP IS ABOUT ────────────
+                  A banded map without a key is a map of colours nobody can
+                  read. Every band carries its own count of places, so the key
+                  is also the answer to "how many of these are weak". */}
+              {!atNation && rows.length > 0 && (
+                <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-board-line px-5 py-2.5">
+                  {STRENGTH.map((band) => {
+                    const count = rows.filter(
+                      (row) => strengthBand(row.members, row.share, rows.length) === band.id
+                    ).length;
+                    if (!count) return null;
+                    return (
+                      <li key={band.id} className="flex items-center gap-1.5" title={band.why}>
+                        <span
+                          aria-hidden="true"
+                          className="size-2.5 shrink-0 rounded-[2px]"
+                          style={{ background: band.fill }}
+                        />
+                        <span className="text-[0.6875rem] text-white/55">{band.label}</span>
+                        <span className="figure text-[0.6875rem] font-bold text-white tabular-nums">
+                          {count}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
               <footer className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-board-line px-5 py-2.5">
                 <span className="text-[0.75rem] text-white/55">
                   {crumbs[crumbs.length - 1].label}
@@ -434,6 +541,7 @@ export default function PartyGround({ shapes = null }) {
                   {rows.map((row) => {
                     const canDrill = path.length < 3;
                     const Tag = canDrill ? "button" : "div";
+                    const band = strengthBand(row.members, row.share, rows.length);
                     return (
                       <li key={row.name}>
                         <Tag
@@ -453,7 +561,10 @@ export default function PartyGround({ shapes = null }) {
                             <span aria-hidden="true" className="mt-1 block h-1.5 rounded-full bg-dash-bg">
                               <span
                                 className="block h-full rounded-full transition-[width] duration-500"
-                                style={{ width: `${(row.members / biggest) * 100}%`, background: fill }}
+                                style={{
+                                  width: `${(row.members / biggest) * 100}%`,
+                                  background: STRENGTH_OF[band]?.fill ?? fill,
+                                }}
                               />
                             </span>
                           </span>
@@ -461,8 +572,9 @@ export default function PartyGround({ shapes = null }) {
                             <span className="figure block text-[0.9375rem] font-bold text-dash-ink tabular-nums">
                               {formatNumber(row.members)}
                             </span>
-                            <span className="figure block text-[0.6875rem] text-dash-muted tabular-nums">
-                              {formatShare(row.share)}
+                            <span className="block text-[0.6875rem] text-dash-muted">
+                              <span className="figure tabular-nums">{formatShare(row.share)}</span>
+                              {band ? ` · ${STRENGTH_OF[band].label.toLowerCase()}` : ""}
                             </span>
                           </span>
                           {canDrill && <ChevronRight size={15} className="shrink-0 text-dash-muted" />}
@@ -473,6 +585,8 @@ export default function PartyGround({ shapes = null }) {
                 </ul>
               )}
             </section>
+
+            {ratio && <RatioPanel ratio={ratio} party={party} state={register.state} path={path} />}
 
             {quality && quality.notes.length > 0 && (
               <section className="overflow-hidden rounded-dash border border-amber-200 bg-amber-50">
@@ -593,7 +707,7 @@ function Nation({ shapes, covered, fill, held, onOpen }) {
  * hue, so a reader who has learnt this screen is about the ADC does not have
  * to learn a separate colour language to read its strength.
  */
-function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen }) {
+function Choropleth({ shapes, byName, siblings, hovered, onHover, onOpen }) {
   const frame = useMemo(
     () => (shapes?.lgas?.length ? boundsOf(shapes.lgas.map((row) => row.d)) : null),
     [shapes]
@@ -620,7 +734,7 @@ function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen })
     >
       {shapes.lgas.map((shape) => {
         const row = byName.get(shape.name);
-        const strength = row ? row.members / (biggest || 1) : 0;
+        const band = row ? strengthBand(row.members, row.share, siblings) : null;
         const active = hovered === shape.name;
 
         return (
@@ -633,11 +747,15 @@ function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen })
           >
             <path
               d={shape.d}
-              fill={row ? fill : "var(--color-silent)"}
-              /* Opacity carries the count. Never below a quarter, so a local
-                 government with one member is still visibly a place rather
-                 than a hole in the state. */
-              fillOpacity={row ? 0.25 + 0.75 * strength : 1}
+              /* ── BANDED, NOT A SMOOTH RAMP ────────────────────────────
+                 One hue at varying opacity draws a smooth gradient, and a
+                 gradient answers "which is bigger" while hiding the question
+                 a campaign actually asks: which of these places has an
+                 organisation in it and which has nine people. Five named
+                 bands, each its own step, and the one below ten members
+                 wears the warning colour so it is findable at a glance
+                 rather than by reading twenty-three numbers. */
+              fill={band ? STRENGTH_OF[band].fill : "var(--color-silent)"}
               stroke={active ? "#ffffff" : "var(--color-board)"}
               strokeWidth={(active ? 2.6 : 1.1) * unit}
               strokeLinejoin="round"
@@ -657,12 +775,17 @@ function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen })
                 dominantBaseline="middle"
                 className="pointer-events-none select-none"
                 style={{
-                  fontSize: frame.width * 0.032,
-                  fontWeight: 700,
+                  /* ── SMALL, BECAUSE THE FRAME IS SMALL ──────────────
+                     3.2% of the frame was chosen against a 1000-unit national
+                     canvas. Cropped to one state the frame is 240 units wide
+                     and the same fraction is a name three times the size of
+                     the place it names. */
+                  fontSize: frame.width * 0.019,
+                  fontWeight: 600,
                   fill: "#ffffff",
                   paintOrder: "stroke",
-                  stroke: "rgba(0,0,0,0.5)",
-                  strokeWidth: frame.width * 0.008,
+                  stroke: "rgba(0,0,0,0.55)",
+                  strokeWidth: frame.width * 0.005,
                   strokeLinejoin: "round",
                 }}
               >
@@ -869,6 +992,130 @@ function MemberCard({ name, kind, parent, members, share, demographics, pointer,
           counted per ward and per local government.
         </p>
       )}
+    </div>
+  );
+}
+
+
+/**
+ * The register measured against a candidate's vote.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  A RATIO OF ORGANISATION TO SUPPORT, AND NOT A FORECAST
+ *
+ *  66,474 ADC members in a state where Atiku Abubakar took 288,679 votes is a
+ *  register 23% the size of that vote. That is a useful thing to know and it
+ *  is not a prediction of anything: a register does not become votes, 1,900 of
+ *  those people cannot lawfully cast one, and the rest may not turn out or may
+ *  vote for somebody else.
+ *
+ *  So the panel prints both numerators — the whole register and the part of it
+ *  old enough to vote — because a reader using this to reason about votes
+ *  needs to see which figure a percentage came from. And it says in words what
+ *  the ratio is, so nobody reads it as a share of the vote the party won.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+function RatioPanel({ ratio, party, state, path }) {
+  if (!ratio.known) {
+    return (
+      <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
+        <header className="border-b border-dash-line px-4 py-3">
+          <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
+            Register against the vote
+          </h3>
+        </header>
+        <div className="px-4 py-4">
+          {ratio.why === "below-state" ? (
+            <>
+              <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
+                <strong className="font-semibold text-dash-ink">
+                  Not available below a state.
+                </strong>{" "}
+                The register goes down to a polling unit; published votes stop at the state. A ratio
+                needs both, so it stops where the scarcer half stops.
+              </p>
+              {ratio.members !== null && (
+                <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] text-dash-ink">
+                  What is known here:{" "}
+                  <strong className="figure font-bold">{formatNumber(ratio.members)}</strong>{" "}
+                  {party} members in {path[path.length - 1]}.
+                </p>
+              )}
+              <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
+                The only way to show one would be to divide the state&rsquo;s votes among its wards,
+                which produces a denominator nobody counted and a ratio that looks like arithmetic.
+              </p>
+            </>
+          ) : ratio.why === "no-register" ? (
+            <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
+              No {party} register has been imported, so there is no numerator.
+            </p>
+          ) : (
+            <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
+              That candidate&rsquo;s vote is not broken out for {state}.
+            </p>
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
+      <header className="border-b border-dash-line px-4 py-3">
+        <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
+          Register against the vote
+        </h3>
+        <p className="mt-0.5 text-[0.75rem] text-dash-muted">
+          {party} members per 100 votes for {ratio.candidate.name}
+        </p>
+      </header>
+
+      <div className="px-4 py-4">
+        <p className="figure text-[2.25rem] leading-none font-bold tracking-[-0.04em] text-dash-ink tabular-nums">
+          {formatShare(ratio.ratio)}
+        </p>
+        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-muted">
+          The register is {formatShare(ratio.ratio)} the size of the vote{" "}
+          {ratio.candidate.name} took in {state}.
+        </p>
+
+        {/* Both numerators, because a reader reasoning about votes needs to
+            see which one a percentage came from. */}
+        <dl className="mt-3.5 space-y-2 border-t border-dash-line pt-3">
+          <Row label={`${party} members`} value={formatNumber(ratio.members)} />
+          <Row
+            label="Of them, old enough to vote"
+            value={formatNumber(ratio.votingAge)}
+            sub={`${formatShare(ratio.votingAgeRatio)} of the vote`}
+          />
+          <Row
+            label={`${ratio.candidate.name}'s vote`}
+            value={formatNumber(ratio.votes)}
+            sub={`${formatShare(ratio.share)} of the state`}
+          />
+        </dl>
+
+        <p className="mt-3 border-t border-dash-line pt-2.5 text-[0.75rem] leading-relaxed text-dash-muted">
+          A measure of organisation against demonstrated support.{" "}
+          <strong className="font-semibold text-dash-ink">Not a forecast</strong> — a register does
+          not become votes, and these are two different people counted two different ways.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Row({ label, value, sub }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="text-[0.8125rem] text-dash-muted">
+        {label}
+        {sub && <span className="mt-0.5 block text-[0.6875rem] text-dash-muted/70">{sub}</span>}
+      </dt>
+      <dd className="figure shrink-0 text-[0.9375rem] font-bold text-dash-ink tabular-nums">
+        {value}
+      </dd>
     </div>
   );
 }
