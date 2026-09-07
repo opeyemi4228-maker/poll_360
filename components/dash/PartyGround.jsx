@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronRight, Loader2, Users, Vote } from "lucide-react";
 
 import UnitMap from "./UnitMap";
-import { Panel } from "./Figures";
+import { boundsOf } from "@/lib/bbox";
 import { PARTY_FILL } from "./Charts";
 import {
   TIER_LABEL,
@@ -130,19 +130,6 @@ export default function PartyGround({ shapes = null }) {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ══════════════════════════════════════════════ what this screen is for */}
-      <section className="rounded-dash border-l-4 border-l-dash-ink bg-dash-card px-5 py-4">
-        <h1 className="font-display text-[1.125rem] leading-tight font-extrabold tracking-[-0.02em] text-dash-ink">
-          Where a party actually is
-        </h1>
-        <p className="mt-1.5 max-w-2xl text-[0.875rem] leading-relaxed text-dash-muted">
-          Members from the party&rsquo;s own register, and votes from the published result, from the
-          whole country down to a single polling unit.{" "}
-          <strong className="font-semibold text-dash-ink">They are never added together</strong> — a
-          member filled in a form, a vote was counted, and one is not a forecast of the other.
-        </p>
-      </section>
-
       {/* ───────────────────────────────────────────────────────── the choosers */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-dash border border-dash-line bg-dash-card px-4 py-3">
         <div className="flex items-center gap-2">
@@ -229,57 +216,41 @@ export default function PartyGround({ shapes = null }) {
           </nav>
 
           {/* ═══════════════════════════════════════════════════════ the two figures */}
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Panel
-              title={`${party} members here`}
-              figure={members === null ? "—" : formatNumber(members)}
-              foot={path.length === 0 ? `The whole ${register.state} register.` : `In ${path[path.length - 1]}.`}
-            >
-              <p className="flex items-center gap-2 text-[0.8125rem] text-dash-muted">
-                <Users size={14} strokeWidth={2.5} className="shrink-0" />
-                People who filled in a membership form. Not a vote, and not a promise of one.
-              </p>
-            </Panel>
+          {/* ── ONE STATEMENT EACH, NOT TWO ─────────────────────────────────
+              These were two panels that each said their point twice: once as
+              a body and once again as a footnote underneath it. Two sentences
+              saying the same thing read as two facts, and a reader spends a
+              beat working out which is which before discovering they are the
+              same. One figure, one line under it, nothing else. */}
+          <div className="grid gap-3 rounded-dash border border-dash-line bg-dash-card p-4 sm:grid-cols-2">
+            <Figure
+              icon={Users}
+              label={`${party} members`}
+              value={members === null ? "—" : formatNumber(members)}
+              says={
+                members === null
+                  ? "No register imported for this party."
+                  : path.length === 0
+                    ? `Across the whole ${register.state} register.`
+                    : `In ${path[path.length - 1]}.`
+              }
+            />
 
-            <Panel
-              title={`${party} votes here`}
-              figure={votes.known ? formatNumber(votes.votes) : "—"}
-              foot={
+            <Figure
+              icon={votes.known ? Vote : AlertTriangle}
+              label={`${party} votes`}
+              value={votes.known ? formatNumber(votes.votes) : "—"}
+              muted={!votes.known}
+              says={
                 votes.known
                   ? `${formatShare(votes.share)} of the ${formatNumber(votes.of)} cast, 2023 presidential.`
                   : votes.why === "below-state"
-                    ? "No published vote exists below a state."
+                    ? `No Nigerian election publishes a vote below the state, so there is none to show. Dividing ${register.state}'s total among its wards would look precise and be invented.`
                     : votes.why === "in-other"
-                      ? `${party} is inside the "other" column of the 2023 state table.`
-                      : "Not held."
+                      ? `Inside the "other" column of the 2023 state table — ${formatNumber(votes.bucket)} votes shared with every minor party.`
+                      : "Not held for this place."
               }
-            >
-              {votes.known ? (
-                <p className="flex items-center gap-2 text-[0.8125rem] text-dash-muted">
-                  <Vote size={14} strokeWidth={2.5} className="shrink-0" />
-                  Marks on ballots, counted and declared.
-                </p>
-              ) : (
-                <p className="flex items-start gap-2 text-[0.8125rem] leading-relaxed text-dash-muted">
-                  <AlertTriangle size={14} strokeWidth={2.5} className="mt-0.5 shrink-0" />
-                  {votes.why === "below-state" ? (
-                    <>
-                      No Nigerian election publishes a vote table below the state, so this is not a
-                      figure that exists to be looked up. Dividing {register.state}&rsquo;s total
-                      among its wards would look precise and be invented.
-                    </>
-                  ) : votes.why === "in-other" ? (
-                    <>
-                      The 2023 state table has four parties and one bucket. {party} contested and its
-                      vote is inside that bucket — {formatNumber(votes.bucket)} votes shared with
-                      every other minor party.
-                    </>
-                  ) : (
-                    <>Not held for this place.</>
-                  )}
-                </p>
-              )}
-            </Panel>
+            />
           </div>
 
           {/* ══════════════════════════════════════════════════════════ the map */}
@@ -502,7 +473,7 @@ function Nation({ shapes, covered, fill, held, onOpen }) {
   return (
     <svg
       viewBox={`0 0 ${shapes.width} ${shapes.height}`}
-      className="h-[26rem] w-full"
+      className="h-full w-full"
       role="img"
       aria-label="Nigeria. States covered by a membership register are coloured; press one to open it."
     >
@@ -553,25 +524,53 @@ function Nation({ shapes, covered, fill, held, onOpen }) {
 /**
  * One state's local governments, in their real shapes, on a member ramp.
  *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  THE FRAME IS CROPPED TO WHAT IS DRAWN, AND THIS IS NOT A DETAIL
+ *
+ *  The boundary files carry the NATIONAL projection: every local government in
+ *  the country is positioned on one 1000x812 canvas so that a state drawn from
+ *  its own file lands in the same place it occupies on a map of Nigeria.
+ *
+ *  Rendered with that canvas as the viewBox, Sokoto is 5.5% of the frame — a
+ *  smudge in the top-left corner with 94% empty board around it. That is
+ *  exactly what it looked like, and it is the same trap ScopeMap documents:
+ *  an uncropped Lagos is 1/178th of the picture.
+ *
+ *  So the window is the bounding box of the paths actually being drawn, which
+ *  makes the state as large as the panel can hold it without distorting it.
+ *  Everything sized in user units — the type, the strokes — is scaled to that
+ *  cropped width rather than to a constant, because a 13px label is right on a
+ *  1000-unit canvas and enormous on a 223-unit one.
+ * ══════════════════════════════════════════════════════════════════════════
+ *
  * The ramp is the party's own colour at varying opacity rather than a second
- * hue, so a reader who has learnt that this screen is about the ADC does not
- * have to learn a separate colour language to read its strength.
+ * hue, so a reader who has learnt this screen is about the ADC does not have
+ * to learn a separate colour language to read its strength.
  */
 function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen }) {
-  if (!shapes?.lgas?.length) {
+  const frame = useMemo(
+    () => (shapes?.lgas?.length ? boundsOf(shapes.lgas.map((row) => row.d)) : null),
+    [shapes]
+  );
+
+  if (!shapes?.lgas?.length || !frame) {
     return (
-      <p className="py-16 text-center text-[0.875rem] text-white/50">
+      <p className="flex h-full items-center justify-center px-6 text-center text-[0.875rem] text-white/50">
         No local government boundaries are published for this state.
       </p>
     );
   }
 
+  /* One user unit at this crop. Strokes and type are multiples of it, so they
+     look identical whether the frame holds Kano or Bayelsa. */
+  const unit = frame.width / 1000;
+
   return (
     <svg
-      viewBox={`0 0 ${shapes.width} ${shapes.height}`}
-      className="h-[26rem] w-full"
+      viewBox={frame.viewBox}
+      className="h-full w-full"
       role="img"
-      aria-label="Local governments, shaded by how many party members are in each. The same figures are listed below."
+      aria-label="Local governments, shaded by how many party members are in each. The same figures are listed beside the map."
     >
       {shapes.lgas.map((shape) => {
         const row = byName.get(shape.name);
@@ -589,16 +588,21 @@ function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen })
             <path
               d={shape.d}
               fill={row ? fill : "var(--color-silent)"}
+              /* Opacity carries the count. Never below a quarter, so a local
+                 government with one member is still visibly a place rather
+                 than a hole in the state. */
               fillOpacity={row ? 0.25 + 0.75 * strength : 1}
               stroke={active ? "#ffffff" : "var(--color-board)"}
-              strokeWidth={active ? 2.4 : 1}
+              strokeWidth={(active ? 2.6 : 1.1) * unit}
               strokeLinejoin="round"
-              className="transition-[stroke-width]"
+              style={{ opacity: hovered && !active ? 0.55 : 1 }}
+              className="transition-opacity duration-150"
             >
               <title>
                 {`${shape.name}${row ? `, ${row.members.toLocaleString("en-NG")} members` : ", none recorded"}`}
               </title>
             </path>
+
             {shape.at && (
               <text
                 x={shape.at[0]}
@@ -607,12 +611,12 @@ function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen })
                 dominantBaseline="middle"
                 className="pointer-events-none select-none"
                 style={{
-                  fontSize: 13,
+                  fontSize: frame.width * 0.032,
                   fontWeight: 700,
                   fill: "#ffffff",
                   paintOrder: "stroke",
-                  stroke: "rgba(0,0,0,0.45)",
-                  strokeWidth: 3,
+                  stroke: "rgba(0,0,0,0.5)",
+                  strokeWidth: frame.width * 0.008,
                   strokeLinejoin: "round",
                 }}
               >
@@ -623,6 +627,39 @@ function Choropleth({ shapes, byName, biggest, fill, hovered, onHover, onOpen })
         );
       })}
     </svg>
+  );
+}
+
+/**
+ * One figure, with the single line that qualifies it.
+ *
+ * `muted` is for a figure that is absent rather than small — a dash where no
+ * data exists. It is drawn quieter than a real number so a reader scanning the
+ * strip does not stop on it as though it were a measurement.
+ */
+function Figure({ icon: Icon, label, value, says, muted = false }) {
+  return (
+    <div className="flex gap-3">
+      <Icon
+        size={16}
+        strokeWidth={2.25}
+        className={cn("mt-1 shrink-0", muted ? "text-dash-muted" : "text-dash-ink")}
+      />
+      <div className="min-w-0">
+        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          {label}
+        </p>
+        <p
+          className={cn(
+            "figure mt-0.5 text-[1.75rem] leading-none font-bold tracking-[-0.03em] tabular-nums",
+            muted ? "text-dash-muted" : "text-dash-ink"
+          )}
+        >
+          {value}
+        </p>
+        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-muted">{says}</p>
+      </div>
+    </div>
   );
 }
 
