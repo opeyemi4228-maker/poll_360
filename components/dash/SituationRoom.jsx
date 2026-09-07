@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import {
   Activity,
   AlertTriangle,
+  Target,
   ChevronRight,
   Gauge,
   LineChart,
   Loader2,
+  Clock,
   MapPin,
+  ShieldCheck,
   Percent,
   Store,
   TrendingDown,
@@ -19,15 +22,13 @@ import {
 
 import TopShell from "./TopShell";
 import { useGreeting } from "./useGreeting";
-import ScopeMap, { CATEGORICAL, LABEL, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
+import ScopeMap, { CATEGORICAL, LABEL, PARTY_LAYERS, bandsFor, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
 import GoogleLayer, { googleAvailable } from "./GoogleLayer";
 import TargetList from "./TargetList";
 import UnitMap, { latLon } from "./UnitMap";
 import ScopePanel from "./ScopePanel";
 import PartyBreakdown from "./PartyBreakdown";
 import CoordinatorWatch from "./CoordinatorWatch";
-import RoomPulse from "./RoomPulse";
-import RoomOperations from "./RoomOperations";
 import RoomTimeline from "./RoomTimeline";
 /* ── THE THREE MERGED CONSOLES ─────────────────────────────────────────────
    Each wraps two surfaces that were tabs of their own and had no business
@@ -38,7 +39,10 @@ import RoomTimeline from "./RoomTimeline";
    band of pictures across the top and the fact that the two are on one
    screen. */
 import RoomSituations from "./RoomSituations";
-import RoomGround from "./RoomGround";
+import { CommandBrief, CommandLedger } from "./CommandDashboard";
+import RoomBooth from "./RoomBooth";
+import { placeIn, under } from "@/lib/reporting-board";
+import { clockLabel } from "@/lib/pulse";
 import RoomEvidence from "./RoomEvidence";
 import { useBrief } from "./Executive";
 /* ── THE TWO ANALYTICAL DASHBOARDS ─────────────────────────────────────────
@@ -136,14 +140,31 @@ export const MODES = [
       {
         id: "now",
         label: "Command",
+        /* ── THE FRONT DOOR, AND THE MAP BESIDE IT ───────────────────────
+           Command is first because it is the only surface that answers the
+           question the people in this room are actually in it to ask — are
+           *we* winning — and being first is also what makes it the screen the
+           room lands on, because `FIRST_OF` reads the first tab of the first
+           group. See components/dash/CommandDashboard.jsx.
+
+           The three map layers sit beside it rather than in a group of their
+           own. They are one map with three things drawn on it, and the map is
+           what Command's own figures are a summary of: a room reading "18 of
+           24 states" reaches for Results in the same movement, and a group
+           boundary between them was a wall through one thought. The level and
+           the layer stay independent — changing layer keeps your place, and
+           changing place keeps your layer. */
         tabs: [
-          /* ── THE LANDING SURFACE, AND WHY IT IS NOT THE MAP ──────────
-             The map answers "what does the country look like". It does not
-             answer the question the person running the room has every twenty
-             minutes — is this working, has anything moved, what is on fire —
-             and that answer used to be a tour of four tabs. It is one screen
-             now, and the map is one press away where it always was. */
-          { value: "pulse", label: "Command centre" },
+          { value: "command", label: "Command" },
+          { value: "results", label: "Results" },
+          { value: "register", label: "Voters" },
+          { value: "turnout", label: "Turnout" },
+        ],
+      },
+      {
+        id: "watchfloor",
+        label: "Situation",
+        tabs: [
           /* ── ALERTS AND FIELD REPORTS, WHICH WERE ONE QUESTION ────────
              What this product noticed and what a person standing in a field
              noticed were two tabs, and the wall between them ran through the
@@ -151,71 +172,37 @@ export const MODES = [
              corroborate each other — a silence threshold is a machine
              noticing a gap, an agent at that booth is a human being
              explaining it — and nobody could see both at once. See
-             components/dash/RoomSituations.jsx. */
-          /* ── ONE WORD, BECAUSE IT IS ONE QUESTION ─────────────────────
-             This was "Alerts & reports", which names the two sources rather
-             than the thing they are about. A machine noticing a booth has
-             gone quiet and an agent ringing in from that booth are not two
-             subjects — they are two ways of finding out about one situation,
-             and the room's question is only ever "what is going on, and
-             where". Naming the plumbing on the tab made a reader choose which
-             half they wanted before they knew what had happened. */
-          { value: "situations", label: "Situations" },
+             components/dash/RoomSituations.jsx.
+
+             Singular, because it is one question. "Situations" named the
+             plumbing; a room asks what the situation is. */
+          { value: "situations", label: "Situation" },
           /* When, as opposed to what. Nothing on it is scheduled: every time
              is a moment this product watched happen — see lib/timeline.js. */
           { value: "timeline", label: "Timeline" },
         ],
       },
       {
-        id: "map",
-        label: "Live election map",
-        /* ── THREE TABS, ONE MAP ─────────────────────────────────────────
-           These are not three screens. They are one map with three things
-           drawn on it, and they are tabs rather than a dropdown for the
-           reason every control in this room is: on a desk where somebody has
-           to reach a layer inside a live bulletin, a layer two clicks deep is
-           a layer that does not get used.
-
-           The level and the layer are independent. Voters and Turnout each
-           drill on their own terms and show their own statistics; changing
-           layer keeps your place and changing place keeps your layer.
-
-           Clusters was the fourth and has gone to Analytics: it is drawn on
-           this same map and it is not about tonight — see there. */
-        tabs: [
-          { value: "results", label: "Results" },
-          { value: "register", label: "Voters" },
-          { value: "turnout", label: "Turnout" },
-        ],
-      },
-      {
         id: "count",
-        label: "The count",
+        label: "Booth",
         tabs: [
-          /* ── HOW MUCH IS IN, AND THE BOOTH THAT ANSWER ENDS AT ────────
-             From a plan to a checked figure, and everything that fell out
-             between them — and, on the same screen, everything known about
-             any one booth. They were two tabs, which meant every finding on
-             the first ended in a code the reader had to carry to the second
-             by hand. See components/dash/RoomGround.jsx. */
-          /* Named for the thing rather than for the measurement of it.
-             "Coverage" is what this screen computes; a booth is what a reader
-             is looking for, and every finding on it ends in one. */
-          { value: "coverage", label: "Booths" },
-          /* Where a return is on the ladder between arriving and being
-             allowed into a bulletin, and which rung it has stopped on. The
-             one screen in this room that is about the desk rather than about
-             the country — see lib/operations.js. */
-          { value: "operations", label: "Operations" },
-          /* ── ONE CONSOLE, THREE QUESTIONS ────────────────────────────
-             "Declared" was a tab of its own beside this one, and the split
-             was the wrong one: a room asking whether a return can be true and
-             a room asking whether it matches the announcement is the same
-             room at the same moment. A booth that fails its own arithmetic
-             *and* sits in a ward declared differently is a far stronger
-             finding than either half alone, and nobody could see both at once
-             while they were two tabs. They are one surface now — see
-             components/dash/RoomIntegrity.jsx. */
+          /* ══════════════════════════════════════════════════════════════
+             BOOTHS AND OPERATIONS WERE ONE QUESTION ASKED FROM TWO ENDS
+
+             "Booths" asked how much of the ground had spoken and drew the
+             places that had not. "Operations" asked where a return had
+             stopped on the ladder between arriving and being allowed into a
+             bulletin. Both are the same sentence — this booth has not
+             produced a usable figure yet — read once from the geography and
+             once from the desk, and split across two tabs neither could
+             finish it.
+
+             One screen now — see components/dash/RoomBooth.jsx. It renders
+             through the map frame below rather than carrying a map of its
+             own, so the country it draws drills state, local government,
+             ward, booth on exactly the machinery the other map layers use.
+             ══════════════════════════════════════════════════════════════ */
+          { value: "booth", label: "Booth" },
           /* ── THE FINDING AND THE EVIDENCE FOR IT, TOGETHER ────────────
              "Verification" asked whether a return's figures can be true.
              "Result sheets" asked what the return arrived carrying. Split
@@ -228,15 +215,16 @@ export const MODES = [
           { value: "integrity", label: "Verification" },
         ],
       },
-      {
-        id: "field",
-        label: "The field",
-        /* People and events. Neither fits in a choropleth, which is why
-           neither is a layer on the map. The booth card that used to sit here
-           has gone to Coverage, where every finding that ends in a booth code
-           actually is. */
-        tabs: [{ value: "watch", label: "Coordinators" }],
-      },
+      /* ── COORDINATORS IS NOT A TAB IN THIS HEAD ─────────────────────
+         It was a fourth group of one. The Election Monitor is specified as
+         three: Command, Results, Voters, Turnout · Situation, Timeline ·
+         Booth, Verification. A fourth group holding a single tab made the row
+         longer without making the night's questions clearer.
+
+         The screen itself is not gone — `watch` is still a layer and
+         /room#coordinators and #grassroots still open it, so every link ever
+         shared still lands. It simply does not spend a slot on the one row a
+         room reads under a bulletin. */
     ],
   },
   {
@@ -339,7 +327,31 @@ const FIRST_OF = Object.fromEntries(
   MODES.map((mode) => [mode.id, mode.groups[0].tabs[0].value])
 );
 
-const MAP_LAYERS = new Set(["results", "register", "turnout", "density"]);
+/* ── WHAT RENDERS THROUGH THE MAP FRAME ────────────────────────────────────
+   Not "which tabs sit in the map group" — that is a different question and
+   the two are deliberately not the same set. Booth lives under The count,
+   because that is the question it answers, and it draws through this frame
+   because the thing it most needs is the one asset in this room that already
+   drills a state into its local governments, a local government into its
+   wards, and a ward into its booths. Giving it a map of its own would have
+   meant a second map to keep in step with the first, and the second one
+   would always have been the one nobody remembered to fix. */
+/* ── COMMAND DRAWS THROUGH THIS FRAME TOO ──────────────────────────────────
+   It was a branch of its own carrying a second, static map of the country.
+   That map could not drill: clicking a state did nothing, and the room already
+   owns a map that goes state, local government, ward, polling unit. Two maps
+   in one room is two maps to keep in step, and the one that could not drill
+   was the wrong one to keep. Command is a map layer now — it draws "who
+   leads", exactly as Results does — with the command panels above the frame. */
+/* ── COMMAND DRAWS ON THIS FRAME, BUT NOT FROM THIS BOARD ─────────────────
+   It needs the drill — state, local government, ward, polling unit — and this
+   frame is the one asset in the room that has it. What it must not inherit is
+   the frame's *data*: `board` is the 2023 replay whenever the open project is
+   a demonstration, and a live campaign's figures beside a replay's map is two
+   elections in one screen.
+
+   So the frame is shared and the board is swapped. See `activeBoard` below. */
+const MAP_LAYERS = new Set(["command", "results", "register", "turnout", "density", "booth"]);
 
 /**
  * Arriving here from the rail, pointed at one view.
@@ -356,15 +368,36 @@ const MAP_LAYERS = new Set(["results", "register", "turnout", "density"]);
  * with the last thing somebody pressed.
  */
 const HASH_LAYERS = {
-  "#overview": "pulse",
-  "#command": "pulse",
+  /* ── THE COMMAND CENTRE'S NAMES OUTLIVE THE COMMAND CENTRE ─────────────
+     That screen is gone. The links to it are not: they are in bookmarks, in
+     the sidebar, and in WhatsApp messages somebody sent last week. Each one
+     lands on the screen holding what it was being followed to find: the old
+     overview names on Booth, which is the room's front door now, and
+     "#command" on the Command dashboard that took the name back. Deleting
+     the entries instead would have dropped every one of them onto the map. */
+  "#overview": "booth",
+  "#command": "command",
+  "#pulse": "booth",
   "#situations": "situations",
   "#alerts": "situations",
   "#timeline": "timeline",
   "#map": "results",
-  "#coverage": "coverage",
-  "#operations": "operations",
-  "#coordinators": "watch",
+  /* Booths and Operations were two tabs and are one screen. Both names, and
+     both of their old anchors, still arrive at it. */
+  "#coverage": "booth",
+  "#operations": "booth",
+  "#pipeline": "booth",
+  /* ── THE COORDINATOR WATCH NO LONGER HAS A TAB ────────────────────────
+     The Election Monitor is three groups now and Coordinators is not one of
+     them. This hash is in the rail, in bookmarks and in messages sent last
+     week, so it keeps a door: Booth is where it lands, because "who has filed
+     and who has not, by place" is the question the coordinator watch was
+     mostly opened to answer.
+
+     The `watch` layer is still rendered further down this file and is now
+     reachable by nothing. It is left standing rather than deleted because
+     restoring its tab is one line and deleting a screen is not. */
+  "#coordinators": "booth",
   /* ── THE MERGED CONSOLES, AND EVERY NAME THAT USED TO REACH A HALF ──────
      Four surfaces became two, and none of the old names is dropped. A link,
      a bookmark or a WhatsApp message carrying #unit, #incidents, #evidence or
@@ -373,8 +406,8 @@ const HASH_LAYERS = {
      reader was looking for. A dead hash falls through to the map, and
      arriving at a map when you asked for the incident feed is the one
      outcome this table exists to prevent. */
-  "#unit": "coverage",
-  "#booth": "coverage",
+  "#unit": "booth",
+  "#booth": "booth",
   "#incidents": "situations",
   "#stream": "situations",
   "#reports": "situations",
@@ -401,7 +434,17 @@ const HASH_LAYERS = {
   "#executive": "analytics",
   "#strategy": "analytics",
   "#strategic": "analytics",
-  "#overview": "analytics",
+  /* ── "#overview" IS NOT LISTED HERE, AND THAT IS THE FIX ───────────────
+     It was, and it was also listed at the top of this table. Two identical
+     keys in one object literal is not two doors, it is one: the later wins
+     silently. So the sidebar's own "Overview" link — /room#overview, in
+     components/dash/DashNav.jsx — had been landing on the analytics
+     dashboard rather than on the room's front door, and nothing anywhere
+     said so, because a duplicate key is not an error in JavaScript.
+
+     The name belongs to the room's landing screen, which is where the link
+     that carries it is trying to go. Analytics keeps every name that is
+     actually its own. */
   "#classify": "analytics",
   "#geography": "analytics",
   "#geographic": "analytics",
@@ -431,20 +474,40 @@ const HASH_LAYERS = {
   "#trends": "analytics",
   "#behaviour": "analytics",
   "#anomalies": "integrity",
-  /* ── THE DOOR /governors USED TO BE ────────────────────────────────────
-     There were two routes to this screen: this tab, and a page of its own at
-     /governors that rendered the same component from the same three functions.
-     Two doors onto one room is not a convenience, it is a maintenance
-     liability and a place where the product can start disagreeing with itself
-     — the second copy is the one nobody remembers to change.
+  /* ══════════════════════════════════════════════════════════════════════
+     THE DOOR /governors USED TO BE, AND WHY IT LED NOWHERE
 
-     The tab is the survivor, because the standing governorship map is read
-     beside the count rather than instead of it, and only the room carries the
-     count. /governors now redirects here, so every link ever shared still
-     arrives at the right screen. */
-  "#governs": "ruling",
-  "#governors": "ruling",
-  "#ruling": "ruling",
+     There were two routes to the standing governorship map: a tab in this
+     room, and a page of its own at /governors rendering the same component
+     from the same three functions. The tab was made the survivor and
+     /governors was pointed at it — and then the tab itself was folded into
+     Election Analytics, where components/dash/RulingParty.jsx is rendered
+     today. These three names were never moved with it.
+
+     They pointed at "ruling", which has not been a layer since. There is no
+     branch for it in the render below, so it fell through to the map: every
+     account that can open the room — a super administrator, a situation room —
+     pressed "Who governs" in the sidebar, was redirected here by
+     app/governors/page.jsx, and arrived at a map of the count instead. The
+     accounts that *cannot* open the room were served the page correctly, so
+     the break was invisible to exactly the people least likely to report it.
+
+     Nothing announced it. A hash naming a layer that does not exist is not an
+     error, it is a silent fallthrough, which is the failure mode this whole
+     table was written to prevent — see the note at its head.
+
+     "#ruling" was also declared twice in this object, here and in the
+     analytics block above. Two identical keys in one object literal is not
+     two doors: the later wins silently, so the correct entry above was being
+     overwritten by this one. The correct entry stays; these do not.
+
+     "#command" is declared once, up with the other names from the era this
+     room called its landing screen a command centre. It was here as well,
+     with the same value — harmless today, and the same trap: the day one of
+     the two is changed, the other silently wins.
+     ══════════════════════════════════════════════════════════════════════ */
+  "#governs": "analytics",
+  "#governors": "analytics",
 };
 
 /**
@@ -494,10 +557,29 @@ const TICK = 220;
 export default function SituationRoom({
   user,
   board,
+  /* ── WHOSE ROOM THIS IS ─────────────────────────────────────────────────
+     Built on the server (lib/principal.js) because it reads the environment,
+     which a browser cannot. Every figure on the command dashboard is computed
+     for this party; a room that reported a share without saying whose would
+     one day have it read as the leader's. */
+  principal = null,
+  /* The whole command dashboard, built on the server from the live count and
+     never from the replay — see the note above `commandBoard` in
+     app/room/page.jsx. Null where no project is open. */
+  command = null,
+  /* The share the last presidential election was won on, from the 2023
+     declared record. Passed rather than written into the component, so the
+     benchmark cannot drift from the record it came from. */
+  benchmark = null,
   shapes,
   states,
   incidents = [],
   incidentCount,
+  /* Who has not sent their result, rolled up down the whole country on the
+     server — see lib/reporting.js. Indexed by the same place names the map's
+     trail is built from, so the Booth layer can colour any level without a
+     second fetch and without a vocabulary of its own. */
+  booth = null,
   coordinators = [],
   watchSummary = { total: 0, filed: 0, located: 0, far: 0, silent: 0 },
   photos = {},
@@ -600,7 +682,12 @@ export default function SituationRoom({
      a map is on the screen, and every route into this component — a tab, a
      hash, the search, the assistant, the alarm bell — would have had to
      remember to update both. There is one, and the switch reads it. */
-  const [layer, setLayer] = useState("pulse");
+  /* ── WHERE THE ROOM OPENS ────────────────────────────────────────────
+     Booth, because it is the screen with the most to act on when somebody
+     first sits down: what has not reported, and what has and is stuck. The
+     command centre used to land here and it was a tour of figures every one
+     of which lived on a screen of its own. */
+  const [layer, setLayer] = useState("booth");
   const mode = MODE_OF[layer] ?? MODES[0].id;
 
   /* ── WHICH BOOTH THE INTELLIGENCE CARD IS SHOWING ───────────────────────
@@ -621,7 +708,12 @@ export default function SituationRoom({
      steps over to check a stalled count and comes back has not finished with
      the projection they were on. Adjusted during render, which is React's
      documented way to react to a changed value. */
-  const [recent, setRecent] = useState(() => ({ ...FIRST_OF, [MODE_OF.pulse]: "pulse" }));
+  /* `FIRST_OF` alone. This carried `{ [MODE_OF.pulse]: "pulse" }` to force the
+     monitor head onto its command centre, and "pulse" stopped being a tab in
+     an earlier pass — so `MODE_OF.pulse` was `undefined` and the override
+     wrote a key literally named "undefined". Command is the first tab of the
+     first group now, which is what `FIRST_OF` means. */
+  const [recent, setRecent] = useState(() => ({ ...FIRST_OF }));
   if (recent[mode] !== layer) setRecent({ ...recent, [mode]: layer });
 
   /* Adjusted during render when the hash changes, which is React's documented
@@ -764,22 +856,51 @@ export default function SituationRoom({
     return () => clearTimeout(timer);
   }, [reduced, cursor, board.events.length]);
 
-  const view = useMemo(() => snapshot(board, cursor), [board, cursor]);
+  /* ══════════════════════════════════════════════════════════════════════
+     WHICH BOARD THE ROOM IS READING
+
+     Every tab but one reads `board`, which is the replay on a demonstration
+     project and the live count otherwise. Command always reads the live count
+     — built on the server and handed down whole, see `commandBoard` in
+     app/room/page.jsx — because it reports a named campaign's own standing
+     and must never report the 2023 replay's figures as that campaign's.
+
+     The cursor goes with it. `cursor` is the replay's scrubber, which a live
+     count has no use for: there is nothing to play back, only everything
+     filed so far, so Command sits at the end of its own events.
+     ══════════════════════════════════════════════════════════════════════ */
+  const onCommand = layer === "command" && Boolean(command?.board);
+  const activeBoard = onCommand ? command.board : board;
+  const activeCursor = onCommand ? command.board.events.length : cursor;
+
+  const view = useMemo(
+    () => snapshot(activeBoard, activeCursor),
+    [activeBoard, activeCursor]
+  );
+
+  /* The spread is computed on the server now, off the live board rather than
+     off `view` — see `commandSpread` in app/room/page.jsx. Computing it here
+     would have read whichever board the room happens to be drawing, which on
+     a demonstration project is the 2023 replay. */
+  const spread = command?.spread ?? null;
 
   /* What this board's vote arrays mean, position by position. A governorship
      board carries the parties that actually contested it — Accord won Osun and
      APGA won Anambra, and neither is one of the presidential four — so every
      screen that turns a position back into a party name has to read this and
      not the fixed list. See lib/replay.js and ScopeMap.partyCode. */
-  const slots = board.parties ?? allParties;
+  const slots = activeBoard.parties ?? allParties;
 
   /* The places a return has just landed in, the last handful of batches.
      Drives the expanding rings on the map, which is the only thing on the
      screen that answers "where is it coming from right now". */
   const pulsing = useMemo(() => {
-    const recent = board.events.slice(Math.max(0, cursor - 4), cursor);
-    return new Set(recent.map((event) => board.states[event.state]?.code).filter(Boolean));
-  }, [board, cursor]);
+    const recent = activeBoard.events.slice(Math.max(0, activeCursor - 4), activeCursor);
+    /* `activeBoard`, not `board`: an event's `state` is an index into the
+       board it came from, and reading it against a different board is how a
+       return lands on the wrong shape. */
+    return new Set(recent.map((event) => activeBoard.states[event.state]?.code).filter(Boolean));
+  }, [activeBoard, activeCursor]);
 
   /* -------------------------------------------------------- the boundaries
      What arrives is stamped with the state it was fetched for, and whether the
@@ -1022,6 +1143,16 @@ export default function SituationRoom({
   const counts =
     level === "nation" ? nationRows : level === "state" ? lgaRows : level === "lga" ? wardRows : unitRows;
 
+  /* The trail as plain names, which is the key the booth rollup is indexed
+     by. `path` carries objects because the map needs a code for the state to
+     fetch boundaries with; this is the same journey said the other way. */
+  const boothPath = useMemo(() => path.map((step) => step.name).filter(Boolean), [path]);
+
+  /* Where this level stands, as one row: the figure the metrics strip and the
+     readout under the map both print, so they cannot disagree. */
+  const boothHere = useMemo(() => placeIn(booth, boothPath), [booth, boothPath]);
+
+
   /* ══════════════════════════════════════════════════════════════════════
      ONE CAMPAIGN'S STANDING, COMPUTED ONCE FOR BOTH THINGS THAT DRAW IT
 
@@ -1043,11 +1174,36 @@ export default function SituationRoom({
     /* `class` and `margin` are added, nothing is replaced: every layer other
        than this one reads the same row it always did, and the two new fields
        are simply not looked at. */
+    /* ── AND WHO HAS ACTUALLY SPOKEN, AT WHATEVER LEVEL THIS IS ─────────
+       Keyed by name, because that is what the flat index is keyed by and
+       what the trail below holds — see lib/reporting.js. A place the roster has
+       never heard of gets nothing rather than a zero: `reporting` stays
+       undefined, and the map leaves it blank, which is the whole distinction
+       between a booth we are waiting on and a booth we never staffed. */
+    const spoken = new Map(
+      under(booth, boothPath).map((place) => [place.name, place])
+    );
+
+    /* `class`, `margin` and the reporting fields are added, nothing is
+       replaced: every other layer reads the same row it always did and simply
+       does not look at them. */
     return counts.map((row) => {
       const place = intel.get(row.key ?? row.code ?? row.name);
-      return place ? { ...row, class: place.class, margin: place.margin } : row;
+      const spoke = spoken.get(row.name);
+      const merged = place ? { ...row, class: place.class, margin: place.margin } : { ...row };
+      return spoke
+        ? {
+            ...merged,
+            reporting: spoke.reporting,
+            assignedBooths: spoke.assigned,
+            filedBooths: spoke.filed,
+            silentBooths: spoke.silent,
+            stuckBooths: spoke.stuck,
+            verifiedBooths: spoke.verified,
+          }
+        : merged;
     });
-  }, [counts, briefState.brief]);
+  }, [counts, briefState.brief, booth, boothPath]);
 
   /* ------------------------------------------------------------- the search
      Every state, always, plus the local governments of whichever state is
@@ -1282,6 +1438,11 @@ export default function SituationRoom({
       paths: biggest.map(path),
     };
   }, [rows, layer, level, state, lga, ward, planPathFor]);
+
+  /* The legend's bands, from the same array the shapes are filled from — see
+     `bandsFor` in ScopeMap. Null on every layer whose scale is relative,
+     because a key on a scale that moves would be a key that lies. */
+  const bands = bandsFor(layer);
 
   const heatPoints = useMemo(
     () => (mapShapes ? heatPointsFor({ shapes: mapShapes, rows, layer }) : []),
@@ -1565,14 +1726,17 @@ export default function SituationRoom({
           ? timeline?.quietFor != null
             ? `Quiet for ${Math.round(timeline.quietFor)} minute${Math.round(timeline.quietFor) === 1 ? "" : "s"}`
             : "Nothing has happened yet today"
-        : layer === "operations"
-          ? operations
-            ? `${formatNumber(operations.kpis.received)} received, ${formatNumber(operations.kpis.pending)} still to be checked`
-            : "Nothing has arrived"
-        : layer === "coverage"
-          ? unit
-            ? `${unit} · and how much of the ground is in`
-            : "From a plan to a checked figure, and any booth it ends at"
+        /* ── BOTH HALVES OF THE MERGED SCREEN, IN ONE LINE ──────────────
+           A wall display is read by people who did not press the tab, so the
+           subtitle has to carry the finding rather than the screen's name.
+           Silent and stuck are named separately because they are separate
+           phone calls: one to a coordinator, one to our own desk. */
+        : layer === "booth"
+          ? boothHere?.assigned
+            ? `${formatNumber(boothHere.filed)} of ${formatNumber(boothHere.assigned)} booths in${
+                boothHere.silent ? `, ${formatNumber(boothHere.silent)} silent` : ""
+              }${boothHere.stuck ? `, ${formatNumber(boothHere.stuck)} stuck at a desk` : ""}`
+            : "Nobody has been assigned a booth in this scope"
         : layer === "integrity"
           ? integrity.screened
             ? `${formatNumber(integrity.screened)} screened, ${formatNumber(integrity.flags.length)} finding${integrity.flags.length === 1 ? "" : "s"}${
@@ -1637,27 +1801,17 @@ export default function SituationRoom({
         lgaNames={territory?.lgaNames ?? []}
       />
 
-      {layer === "pulse" ? (
-        <RoomPulse
-          pulse={pulse}
-          /* ── ONE SET OF RAISED ALERTS, READ TWICE ─────────────────────
-             The same object the situations screen draws. The overview used to
-             re-derive its own headline figures from `integrity` and
-             `divergence`, which meant two screens counting the same findings
-             two ways — and the first time a room reads "3 impossible" here
-             and "4" there is the last time it believes either. */
-          alerts={escalations}
-          incidents={incidents}
-          /* The country, because this screen is a map now. */
-          shapes={shapes}
-          boardSource={boardSource}
-          ground={ground ?? territory?.name ?? null}
-          /* Every line on the overview is a door. A finding somebody wants to
-             look into and cannot is a finding they photograph and carry to
-             another screen by hand. */
-          onGo={setLayer}
-        />
-      ) : layer === "situations" ? (
+      {/* ── THE COMMAND CENTRE IS NOT HERE ANY MORE ──────────────────────
+          It was the first branch of this chain and the room's landing
+          surface, and it was a tour: every figure on it was the headline of
+          a screen that already existed, restated. Removing it cost the room
+          nothing it did not have somewhere better, and it took a whole
+          screen's worth of figures out of the business of agreeing with the
+          screens they were copied from.
+
+          Booth is the front door now, and it draws through the map frame at
+          the bottom of this chain rather than as a branch of its own. */}
+      {layer === "situations" ? (
         <RoomSituations
           alerts={escalations}
           incidents={incidents}
@@ -1667,25 +1821,10 @@ export default function SituationRoom({
         />
       ) : layer === "timeline" ? (
         <RoomTimeline timeline={timeline} onGo={setLayer} />
-      ) : layer === "operations" ? (
-        <RoomOperations
-          operations={operations}
-          onGo={setLayer}
-          /* A booth code in the stuck list is the one thing on that screen
-             somebody wants to open, so it opens — into the card that holds
-             everything else about it. */
-          onUnit={openUnit}
-        />
-      ) : layer === "coverage" ? (
-        <RoomGround
-          pulse={pulse}
-          unitCards={unitCards}
-          unitCode={unit}
-          onUnit={setUnit}
-          shapes={shapes}
-          ground={ground ?? territory?.name ?? null}
-          onGo={setLayer}
-        />
+      /* Booths and Operations were two branches here. They are one screen
+         now, and it renders through the map frame below — see the note on
+         MAP_LAYERS — because the thing it most needed was the drill this
+         room already had. */
       ) : layer === "integrity" ? (
         <RoomEvidence
           integrity={integrity}
@@ -1693,8 +1832,16 @@ export default function SituationRoom({
           sheetReads={sheetReads}
           pulse={pulse}
           divergence={divergence}
+          /* Where the questionable returns are. This screen answers "where"
+             the way every other one in the room does, off the booth codes the
+             findings already carry. */
+          shapes={shapes}
           ground={ground ?? territory?.name ?? null}
           onGo={setLayer}
+          /* Every row in the verification queue is a booth code, and a booth
+             code is the one thing on that screen somebody wants to open. It
+             opens, into the card holding everything else known about it. */
+          onUnit={openUnit}
         />
       ) : layer === "analytics" ? (
         /* ── SIX QUESTIONS, ONE DASHBOARD ────────────────────────────────
@@ -1762,7 +1909,7 @@ export default function SituationRoom({
           winning, because that is the Results dashboard's job and duplicating
           it here would make three copies of one screen. */}
       <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        {metricsFor({ layer, level, scope, rows, view, trend, incidentCount, place: crumbs.at(-1).label }).map(
+        {metricsFor({ layer, level, scope, rows, view, trend, incidentCount, place: crumbs.at(-1).label, here: boothHere, pulse, principal, spread, benchmark }).map(
           (metric) => (
             <Metric key={metric.label} {...metric} />
           )
@@ -1873,6 +2020,52 @@ export default function SituationRoom({
           </nav>
 
           <div className="relative min-h-0 flex-1 p-1.5">
+            {/* ── WHAT THE COLOURS MEAN, ON THE MAP ITSELF ────────────────
+                A ramp with no key is decoration: a reader can see that one
+                ward is lighter than another and cannot say whether that is
+                the difference between 5% and 15% or between 5% and 95%.
+
+                It sits on the map rather than in the panel beside it because
+                that is where the question is asked — somebody looking at a
+                dark ward is looking at the map, and a key eighteen inches
+                away is a key they will not cross the screen for. Bottom left,
+                over the sea, which is the one part of this frame no state is
+                ever drawn in. */}
+            {bands && (
+              <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-dash-sm bg-board/85 px-3 py-2.5 backdrop-blur-sm">
+                <p className="text-[0.625rem] font-bold tracking-[0.1em] text-white/55 uppercase">
+                  Share of booths reported
+                </p>
+                <div className="mt-1.5 flex items-end gap-[2px]">
+                  {bands.map((band) => (
+                    <span key={band.index} className="flex flex-col items-center gap-1">
+                      <span
+                        className="block h-3 w-4 rounded-[1px]"
+                        style={{ background: band.colour }}
+                        title={`${band.from}% to ${band.to}%`}
+                      />
+                      {/* Every other tick, or ten labels under forty pixels
+                          of swatch collide into a grey smear. */}
+                      <span className="figure text-[0.5625rem] leading-none text-white/45 tabular-nums">
+                        {band.index % 2 === 0 ? band.from : ""}
+                      </span>
+                    </span>
+                  ))}
+                  <span className="figure ml-1 self-start text-[0.625rem] leading-none text-white/55 tabular-nums">
+                    100%
+                  </span>
+                </div>
+                <p className="mt-1.5 flex items-center gap-1.5 text-[0.625rem] text-white/45">
+                  <span
+                    aria-hidden="true"
+                    className="block size-2.5 rounded-[1px]"
+                    style={{ background: "var(--color-silent)" }}
+                  />
+                  Nobody assigned here
+                </p>
+              </div>
+            )}
+
             {loading && (
               <p className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-board/80 text-[0.875rem] text-white/60">
                 <Loader2 size={16} className="animate-spin" />
@@ -1901,7 +2094,7 @@ export default function SituationRoom({
                 onHover={setHovered}
                 onOpen={select}
                 incidentsByPlace={incidentsByPlace}
-                pulsing={level === "nation" && layer === "results" ? pulsing : null}
+                pulsing={level === "nation" && PARTY_LAYERS.has(layer) ? pulsing : null}
                 heat={heat && !CATEGORICAL.has(layer)}
                 heatTint={
                   layer === "turnout"
@@ -1941,7 +2134,7 @@ export default function SituationRoom({
                      Every other layer is a magnitude, and a magnitude gets
                      the single-hue ramp rather than a party colour it has
                      nothing to do with. */
-                  const code = layer === "results" ? partyCode(row, slots) : null;
+                  const code = PARTY_LAYERS.has(layer) ? partyCode(row, slots) : null;
 
                   return {
                     key: row.key ?? row.name,
@@ -1963,7 +2156,7 @@ export default function SituationRoom({
                          has gone to Party ground, which draws it on its own
                          map beside the share it is derived from — see
                          components/dash/PartyStrength.jsx. */
-                      layer !== "results"
+                      !PARTY_LAYERS.has(layer)
                         ? null
                         : code
                           ? { fill: partyFill(code, "unit", PARTY_FILL[code]), opacity: 1 }
@@ -2059,8 +2252,53 @@ export default function SituationRoom({
 
         {/* Ordinary flow: this column is what the page scroll is for now. */}
         <div className="flex flex-col gap-4">
-          {/* The contest, in full, for whatever is selected, every party,
-              not just the one that is winning. */}
+          {/* ══════════════════════════════════════════════════════════════
+              WHAT SITS BESIDE THE MAP DEPENDS ON WHAT THE MAP IS ASKING
+
+              Every other layer here is about the count, so the column beside
+              it is the contest in full. Booth is not about the count — it is
+              about which booths have not produced one — and a party
+              breakdown beside it would be answering a question nobody on
+              that screen is asking, while the list they came for sat below
+              the fold.
+
+              So the column swaps. The map keeps its place, its size and its
+              drill; only the thing being read next to it changes.
+              ══════════════════════════════════════════════════════════════ */}
+          {layer === "booth" ? (
+            <RoomBooth
+              here={boothHere}
+              places={rows}
+              path={boothPath}
+              level={level}
+              childWord={childWord(level)}
+              operations={operations}
+              pulse={pulse}
+              ground={ground ?? territory?.name ?? null}
+              /* Drills rather than merely selecting: somebody pressing a
+                 place on the behind list is asking to go there, and one
+                 press should take them. */
+              onOpen={(row) => drill(row)}
+              onUnit={openUnit}
+              onGo={setLayer}
+            />
+          ) : onCommand && principal ? (
+            /* ── OUR COLUMN, NOT THE STANDINGS ────────────────────────────
+               PartyBreakdown answers "who is winning here" for whatever place
+               is selected. Command answers "where do we stand", which is a
+               different column, and showing both would be the room arguing
+               with itself in two panels a hand's width apart. */
+            <CommandBrief
+              principal={principal}
+              spread={command.spread}
+              benchmark={benchmark}
+              standings={view.standings}
+              ballot={slots}
+              total={view.total}
+              margin={view.margin}
+              isDemoProject={command.isDemoProject}
+            />
+          ) : (
           <PartyBreakdown
             /* Only a presidential project has presidential candidates. */
             candidates={projects?.current?.kind === "PRESIDENTIAL"}
@@ -2082,7 +2320,13 @@ export default function SituationRoom({
             }
             coverage={level === "nation" && !pickedRow ? view.coverage : undefined}
           />
+          )}
 
+          {/* The places under this one, whatever the layer. It reads the
+              layer's own sentence for each row — see `describe` in
+              components/dash/ScopeMap.jsx — so on Booth it lists "12 of 20
+              filed · 8 silent" rather than a party and a vote total, and it
+              stays the way you drill one level deeper. */}
           <ScopePanel
             title={titleFor(level)}
             rows={rows}
@@ -2121,6 +2365,29 @@ export default function SituationRoom({
           />
         </div>
       </div>
+
+      {/* ── THE COMMAND BAND, UNDER THE MAP ────────────────────────────────
+          Full width rather than squeezed into the column beside the map: the
+          returns feed, the states nearest a quarter and the state table are
+          all lists somebody reads across, and a list read across in a third
+          of the screen is a list of truncated rows.
+
+          Under the map rather than over it, so the map stays the largest
+          object on the screen. An earlier version put all of this above the
+          frame and pushed the map off the bottom, which is the opposite of
+          what a wall display is for. */}
+      {onCommand && principal && (
+        <CommandLedger
+          className="mt-5"
+          principal={principal}
+          spread={command.spread}
+          ticker={view.ticker}
+          ballot={slots}
+          byState={view.byState}
+          standings={view.standings}
+          total={view.total}
+        />
+      )}
       </>
       )}
     </TopShell>
@@ -2190,9 +2457,97 @@ function Metric({ icon: Icon, label, value, foot, spark, tone = "ink", small = f
  * ahead. Sharing one metric row across all four is what made three of them
  * look like weaker copies of the first.
  */
-function metricsFor({ layer, level, scope, rows, view, trend, incidentCount, place }) {
+function metricsFor({
+  layer,
+  level,
+  scope,
+  rows,
+  view,
+  trend,
+  incidentCount,
+  place,
+  here = null,
+  pulse = null,
+  /* Whose room this is, where our party stands against section 134, and what
+     won last time. Passed in rather than read from a module because this
+     helper is pure: given the same figures it must produce the same strip,
+     and a newsroom with no principal gets the leader instead. */
+  principal = null,
+  spread = null,
+  benchmark = null,
+}) {
   const most = (key) => [...rows].sort((a, b) => (b[key] ?? 0) - (a[key] ?? 0))[0];
   const least = (key) => [...rows].sort((a, b) => (a[key] ?? 0) - (b[key] ?? 0))[0];
+
+  /* ══════════════════════════════════════════════════════════════════════
+     BOOTH: FOUR FACTS THE BAR BESIDE THE MAP CANNOT CARRY
+
+     This strip used to be four counts — reporting, checked, silent, stuck —
+     and the panel beside the map is now a bar showing exactly those four as
+     bands of one whole. Four tiles restating four bands is not emphasis; it
+     is eight numbers where there are four facts, and the first time a tile
+     and a band disagree after some future narrowing, a desk stops trusting
+     both.
+
+     So the two surfaces divide the work by *kind* rather than by subject. The
+     bar carries the counts, because a count is what you press to filter. This
+     strip carries the three things a count cannot say — a rate, a duration
+     and a place — plus the one headline percentage the panel deliberately
+     does not print.
+     ══════════════════════════════════════════════════════════════════════ */
+  if (layer === "booth") {
+    const thinnest = [...rows]
+      .filter((row) => (row.silentBooths ?? 0) > 0)
+      .sort((a, b) => (b.silentBooths ?? 0) - (a.silentBooths ?? 0))[0];
+
+    const quietFor = pulse?.clocks?.quietMinutes ?? null;
+
+    return [
+      {
+        icon: Gauge,
+        label: "Booths reporting",
+        value: here?.reporting == null ? "—" : formatShare(here.reporting),
+        foot: here?.assigned
+          ? `${formatNumber(here.filed)} of ${formatNumber(here.assigned)} we hold`
+          : "Nobody assigned in this scope",
+        spark: trend,
+      },
+      {
+        icon: ShieldCheck,
+        label: "Of that, checked",
+        /* A rate, not a count: how much of what arrived is actually usable in
+           a bulletin. The bar shows how many; this shows how well. */
+        value: here?.through == null ? "—" : formatShare(here.through),
+        foot: here?.filed
+          ? `${formatNumber(here.verified)} of ${formatNumber(here.filed)} that arrived`
+          : "Nothing has arrived yet",
+      },
+      {
+        icon: Clock,
+        /* A duration. The one measure on this screen that says whether the
+           night is live or has stalled, and no count anywhere can say it: a
+           room at 94% that has heard nothing for fifty minutes is in a
+           different situation from one at 94% still filling. */
+        label: "Since the last return",
+        value: quietFor == null ? "—" : clockLabel(quietFor),
+        foot: quietFor == null ? "Nothing filed yet" : quietFor > 45 ? "The count has stalled" : "Still arriving",
+        tone: quietFor != null && quietFor > 45 ? "warn" : undefined,
+      },
+      {
+        icon: MapPin,
+        /* A place, not a number. "8 silent" is on the bar; the question that
+           follows it is always *where*, and that answer lives nowhere else. */
+        /* Not "Thinnest state": the tile holds one place, and the level
+           word pluralises. This reads correctly at every depth. */
+        label: "Where it is thinnest",
+        value: thinnest?.name ?? "—",
+        foot: thinnest
+          ? `${formatNumber(thinnest.silentBooths)} silent of ${formatNumber(thinnest.assignedBooths ?? 0)}`
+          : "Nothing is behind here",
+        small: true,
+      },
+    ];
+  }
 
   if (layer === "register") {
     const top = most("registered");
@@ -2230,28 +2585,76 @@ function metricsFor({ layer, level, scope, rows, view, trend, incidentCount, pla
   return [
     { icon: Gauge, label: "Booths counted", value: formatShare(view.coverage), foot: `${formatNumber(view.unitsReported)} of ${formatNumber(view.booths)}`, spark: trend },
     { icon: Vote, label: "Votes counted", value: formatNumber(level === "nation" ? view.total : scope.votes), foot: place },
-    /* ── NOBODY LEADS A COUNT THAT HAS NOT STARTED ────────────────────────
-       This read the top of the standings whatever was in them, and with every
-       party on zero the sort still had a first row: a room with nothing filed
-       and nothing declared printed "LEADING — APC — by 0%". That is a claim
-       about an election, made from an empty table, on the largest type on the
-       screen. It is now a dash until a vote exists to lead by. */
+    /* ══════════════════════════════════════════════════════════════════
+       OUR SHARE, WHERE "LEADING" USED TO BE
+
+       This tile printed the leading party and its margin. In a campaign's
+       situation room that is somebody else's headline most of the night, and
+       it is the one figure on the strip nobody in the room needed: the board
+       is two feet away and says the same thing in colour.
+
+       What a campaign watches is its own share climbing, against the share
+       that actually won last time — 36.6% in 2023 — and how many states it
+       has a quarter of, because that is the half of section 134 no total can
+       show. Both come from lib/spread.js, computed once for the whole room
+       and read here and on Command, so the strip and the dashboard cannot
+       disagree.
+
+       ── AND IT IS STILL A DASH UNTIL A VOTE EXISTS ────────────────────────
+       The old tile read the top of the standings whatever was in them, so a
+       room with nothing filed printed "LEADING — APC — by 0%": a claim about
+       an election, made from an empty table, in the largest type on screen.
+       That guard is kept.
+       ══════════════════════════════════════════════════════════════════ */
     ...(() => {
       const counted = view.standings.reduce((sum, row) => sum + (row.votes ?? 0), 0);
+      if (!spread || !principal) {
+        /* No principal configured — a newsroom rather than a campaign. The
+           leader is the right headline for them, so it stays. */
+        return [
+          {
+            icon: TrendingUp,
+            label: "Leading",
+            value: counted ? (view.leader?.id ?? "n/a") : "—",
+            foot: counted
+              ? view.standings[1]
+                ? `by ${formatShare(view.standings[0].share - view.standings[1].share)}`
+                : ""
+              : "Nothing counted here yet",
+          },
+        ];
+      }
+
       return [
         {
           icon: TrendingUp,
-          label: "Leading",
-          value: counted ? (view.leader?.id ?? "n/a") : "—",
+          label: `${principal.party} share`,
+          value: counted ? formatShare(spread.share) : "—",
           foot: counted
-            ? view.standings[1]
-              ? `by ${formatShare(view.standings[0].share - view.standings[1].share)}`
-              : ""
+            ? benchmark != null
+              ? `${formatShare(benchmark)} won in 2023`
+              : `${formatNumber(spread.votes)} votes`
             : "Nothing counted here yet",
+        },
+        {
+          icon: Target,
+          label: "States at a quarter",
+          value: counted ? `${spread.quarterStates}/${spread.statesRequired}` : "—",
+          foot: counted
+            ? spread.clearsSpread
+              ? "Clears the spread test"
+              : `${spread.statesShort} short · ${spread.statesWon} led outright`
+            : "The other half of winning",
         },
       ];
     })(),
-    { icon: AlertTriangle, label: "Incidents", value: formatNumber(incidentCount ?? 0), foot: incidentCount ? "Open now" : "Nothing flagged", tone: incidentCount ? "red" : "ink" },
+    /* ── INCIDENTS ARE NOT A FIGURE ON THIS STRIP ──────────────────────
+       The count of open reports sat here on every tab. It is the wrong shape
+       for the strip: the other tiles are the count, and "3 incidents" is a
+       queue of things somebody has to read, not a measurement of the
+       election. It has a screen of its own — Situation — with the severity,
+       the place, the photograph and the alarm, and the tab carries the count
+       when there is one to carry. */
   ];
 }
 
@@ -2259,7 +2662,15 @@ function metricsFor({ layer, level, scope, rows, view, trend, incidentCount, pla
  * The panel under the list, which is also the layer's own.
  */
 function SidePanel({ layer, level, rows, view, onHover }) {
-  if (layer === "results") {
+  /* ── NOTHING FROM THIS PANEL ON COMMAND ────────────────────────────────
+     It draws the national standings and the register/turnout arithmetic under
+     them. Both are already answered on Command — the parties in its own
+     column, the coverage on the strip at the top of the room — and a screen
+     that says the same thing twice, a hand's width apart, teaches a reader
+     that one of the two is the real one and they have to work out which. */
+  if (layer === "command") return null;
+
+  if (PARTY_LAYERS.has(layer)) {
     if (level !== "nation") return null;
     return (
       <Section title="Standings">
