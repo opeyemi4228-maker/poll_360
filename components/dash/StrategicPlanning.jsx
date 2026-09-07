@@ -34,8 +34,10 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
  *
  * ── THE FIVE QUESTIONS, IN THE ORDER THEY GET ASKED ────────────────────────
  *   Priorities    which states, local governments, wards and booths, ranked
+ *   Party Spread  where a party's members actually are, on a map you walk
+ *                 down from the country to one polling unit
  *   Ground        how strong we actually are where we say we are strong
- *   Resources     what covering that costs, and whether it can be afforded
+ *   Deployment    what covering that costs, and whether it can be afforded
  *   Scenarios     what changes if turnout moves, or if we move these places
  *   Target        what we are aiming at, and how far off it we are
  *
@@ -54,9 +56,15 @@ const TABS = [
      state vote" is analysis. "How many of our people are in this ward, and is
      that enough to work it" is a decision about where to send somebody, and
      it belongs beside the priorities and the resources it competes with. */
-  { id: "party", label: "Party strength", icon: Users },
+  { id: "party", label: "Party Spread", icon: Users },
   { id: "ground", label: "Grassroots", icon: Sprout },
-  { id: "map", label: "Resources", icon: MapIcon },
+  /* ── WHAT WAS CALLED "RESOURCES" ──────────────────────────────────────
+     Named for what it actually is. It is the deployment map — choose the
+     ground you can cover, then find out whether the deployment you just drew
+     is big enough for a projection to be quoted off. "Resources" said
+     nothing about either half, and the name was taken by the party spread,
+     which is the screen people were coming to this head to find. */
+  { id: "map", label: "Deployment", icon: MapIcon },
   { id: "scenarios", label: "Scenarios", icon: Crosshair },
 ];
 
