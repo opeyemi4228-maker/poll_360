@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  AGE_BANDS,
   PARTIES,
   TIERS,
   childrenOf,
   coverage,
   coveredStates,
+  demographicsAt,
   membersAt,
   qualityOf,
   registerFor,
@@ -262,5 +264,62 @@ describe("what is wrong with the register", () => {
     const rank = { SERIOUS: 2, INFO: 1 };
     const ranks = found.notes.map((note) => rank[note.severity]);
     assert.deepEqual(ranks, [...ranks].sort((a, b) => b - a));
+  });
+});
+
+describe("who the members are", () => {
+  it("splits by gender and age at a state, a local government and a ward", () => {
+    const state = demographicsAt("ADC", "SOK", []);
+    assert.equal(state.total, 66_474);
+    assert.equal(state.men + state.women, state.total);
+
+    const lga = childrenOf("ADC", "SOK", [])[0];
+    const inLga = demographicsAt("ADC", "SOK", [lga.name]);
+    assert.equal(inLga.total, lga.members, "the breakdown must reach the count on the map");
+
+    const ward = childrenOf("ADC", "SOK", [lga.name])[0];
+    const inWard = demographicsAt("ADC", "SOK", [lga.name, ward.name]);
+    assert.ok(inWard, "a ward has a breakdown");
+    assert.equal(inWard.total, ward.members);
+  });
+
+  it("has no breakdown for a polling unit, and says null rather than zeroes", () => {
+    /* ── AN ABSENT CHART AND AN EMPTY ONE LOOK ALIKE ─────────────────────
+       Seven counters across 7,433 booths is a large file to answer a question
+       nobody asks of one booth. So the register holds a count there and no
+       split, and this returns null so the card can say which — a row of
+       zeroes would read as a booth whose members have no ages. */
+    const lga = childrenOf("ADC", "SOK", [])[0];
+    const ward = childrenOf("ADC", "SOK", [lga.name])[0];
+    const unit = childrenOf("ADC", "SOK", [lga.name, ward.name])[0];
+
+    assert.ok(membersAt("ADC", "SOK", [lga.name, ward.name, unit.name]) > 0);
+    assert.equal(demographicsAt("ADC", "SOK", [lga.name, ward.name, unit.name]), null);
+  });
+
+  it("adds every band up to the people counted there", () => {
+    for (const path of [[], ["Binji"]]) {
+      const seen = demographicsAt("ADC", "SOK", path);
+      const fromBands = seen.bands.reduce((sum, band) => sum + band.count, 0);
+      assert.equal(fromBands, seen.total, `bands do not reach the total at ${JSON.stringify(path)}`);
+      assert.ok(Math.abs(seen.menShare + seen.womenShare - 100) < 0.001);
+    }
+  });
+
+  it("keeps under-eighteen out of the bands that can vote", () => {
+    /* It is not another slice of the electorate, it is the count of people who
+       cannot lawfully cast a vote. A card that draws it beside "26 to 35"
+       invites a campaign to plan votes it does not have. */
+    const under = AGE_BANDS.find((band) => band.id === "u18");
+    assert.equal(under.canVote, false);
+    assert.ok(AGE_BANDS.filter((band) => band.canVote).length === 4);
+
+    const seen = demographicsAt("ADC", "SOK", []);
+    assert.equal(seen.cannotVote, 1_900);
+    assert.equal(seen.votingAge, seen.total - 1_900);
+  });
+
+  it("gives a party with no register no breakdown", () => {
+    assert.equal(demographicsAt("APC", "SOK", []), null);
   });
 });

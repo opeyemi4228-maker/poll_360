@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, Loader2, Users, Vote } from "lucide-react";
 
 import UnitMap from "./UnitMap";
 import { boundsOf } from "@/lib/bbox";
 import { PARTY_FILL } from "./Charts";
 import {
+  AGE_BANDS,
   TIER_LABEL,
+  demographicsAt,
   childTier,
   childrenOf,
   coverage,
@@ -70,6 +72,10 @@ export default function PartyGround({ shapes = null }) {
   const [stateCode, setStateCode] = useState("SOK");
   const [path, setPath] = useState([]);
   const [hovered, setHovered] = useState(null);
+  /* Where the pointer is inside the map frame, so the card can sit beside it
+     rather than under it. Held here rather than in the map components because
+     both tiers draw the same card. */
+  const [pointer, setPointer] = useState(null);
 
   /* The local government outlines for whichever state is open. Fetched the
      same way and from the same files the room's own map uses, and stamped with
@@ -118,6 +124,25 @@ export default function PartyGround({ shapes = null }) {
       go: () => { setAtNation(false); setPath(path.slice(0, index + 1)); },
     })),
   ];
+
+  /* ── WHAT THE HOVER CARD IS ABOUT ─────────────────────────────────────
+     The place under the pointer, at whatever tier is drawn, with its own
+     breakdown. Computed here so both the choropleth and the lattice hand the
+     same card the same shape, and so the lookup happens once per hover rather
+     than once per shape on the map. */
+  const under = useMemo(() => {
+    if (!hovered) return null;
+    const row = byName.get(hovered);
+    const deep = [...path, hovered];
+    return {
+      name: hovered,
+      kind: TIER_LABEL[childTier(path)],
+      parent: path.length ? path[path.length - 1] : (register?.state ?? null),
+      members: row?.members ?? null,
+      share: row?.share ?? null,
+      demographics: demographicsAt(party, stateCode, deep),
+    };
+  }, [hovered, byName, path, party, stateCode, register]);
 
   /* The outline the lattice tiers are drawn inside: the local government when
      showing its wards, and the same one when showing a ward's booths, because
@@ -281,7 +306,22 @@ export default function PartyGround({ shapes = null }) {
                 </p>
               </header>
 
-              <div className="relative min-h-0 flex-1 p-2">
+              <div
+                className="relative min-h-0 flex-1 p-2"
+                onPointerMove={(event) => {
+                  const box = event.currentTarget.getBoundingClientRect();
+                  setPointer({
+                    x: event.clientX - box.left,
+                    y: event.clientY - box.top,
+                    width: box.width,
+                    height: box.height,
+                  });
+                }}
+                onPointerLeave={() => {
+                  setPointer(null);
+                  setHovered(null);
+                }}
+              >
                 {loading && !atNation && path.length === 0 && (
                   <p className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-board/80 text-[0.875rem] text-white/60">
                     <Loader2 size={16} className="animate-spin" />
@@ -350,6 +390,12 @@ export default function PartyGround({ shapes = null }) {
                       },
                     }))}
                   />
+                )}
+
+                {/* Beside the pointer, never under it, and flipped to the other
+                    side where it would run off an edge. */}
+                {under && pointer && !atNation && (
+                  <MemberCard {...under} pointer={pointer} fill={fill} />
                 )}
               </div>
 
@@ -659,6 +705,170 @@ function Figure({ icon: Icon, label, value, says, muted = false }) {
         </p>
         <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-muted">{says}</p>
       </div>
+    </div>
+  );
+}
+
+
+/* ══════════════════════════════════════════════════════════════ the hover card */
+
+/**
+ * Who the members in one place are, beside the pointer.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  WHY A CARD AND NOT A COLUMN OF FIGURES BESIDE THE MAP
+ *
+ *  The question this answers is asked *of a particular place*, while the
+ *  pointer is on it. A panel beside the map showing the same breakdown for
+ *  whatever is selected makes a reader move their eyes off the shape they are
+ *  interrogating, find the panel, and come back — for every one of twenty-three
+ *  local governments in turn. The card is the answer where the question was
+ *  asked, and it is the same arrangement the deployment map uses.
+ * ══════════════════════════════════════════════════════════════════════════
+ *
+ * ── UNDER 18 IS DRAWN APART FROM THE OTHER BANDS ───────────────────────────
+ * It is not another slice of the electorate. It is the count of people on this
+ * register who cannot lawfully vote, and putting it in a row with "26 to 35"
+ * invites exactly the reading that makes a campaign plan votes it does not
+ * have. So it sits under the bands, in its own line, named for what it means.
+ */
+function MemberCard({ name, kind, parent, members, share, demographics, pointer, fill }) {
+  const WIDTH = 248;
+  const GAP = 18;
+
+  /* Measured rather than written down: the card is shorter where a register
+     holds no breakdown, and a constant would go on flipping it as though it
+     were the full height. Same reason the deployment card measures itself. */
+  const card = useRef(null);
+  const [height, setHeight] = useState(300);
+
+  useLayoutEffect(() => {
+    const box = card.current?.getBoundingClientRect();
+    if (box && Math.abs(box.height - height) > 1) setHeight(box.height);
+  }, [height, name, demographics]);
+
+  const flipX = pointer.x + GAP + WIDTH > pointer.width;
+  const flipY = pointer.y + GAP + height > pointer.height;
+
+  return (
+    <div
+      ref={card}
+      aria-hidden="true"
+      className="pointer-events-none absolute z-20 w-62 overflow-hidden rounded-dash border border-white/15 bg-board/95 shadow-e3 backdrop-blur-sm"
+      style={{
+        left: flipX ? pointer.x - GAP - WIDTH : pointer.x + GAP,
+        top: flipY ? Math.max(0, pointer.y - GAP - height) : pointer.y + GAP,
+      }}
+    >
+      <header className="border-b border-white/10 px-3 py-2">
+        <p className="truncate font-display text-[0.875rem] font-extrabold text-white">{name}</p>
+        <p className="mt-0.5 truncate text-[0.6875rem] text-white/45">
+          {kind}
+          {parent ? ` · ${parent}` : ""}
+        </p>
+      </header>
+
+      <div className="px-3 py-2.5">
+        <p className="flex items-baseline justify-between gap-3">
+          <span className="text-[0.6875rem] text-white/55">Members</span>
+          <span className="figure text-[1.25rem] leading-none font-bold text-white tabular-nums">
+            {members === null ? "—" : formatNumber(members)}
+          </span>
+        </p>
+        {share !== null && share !== undefined && (
+          <p className="mt-1 text-right text-[0.6875rem] text-white/40">
+            {formatShare(share)} of {parent ?? "the state"}
+          </p>
+        )}
+      </div>
+
+      {demographics ? (
+        <>
+          {/* ── MEN AND WOMEN, AS ONE BAR ────────────────────────────────
+              Two counts that must reach the whole, so they are two ends of
+              one bar rather than two numbers a reader adds up themselves. */}
+          <div className="border-t border-white/10 px-3 py-2.5">
+            <p className="flex items-baseline justify-between gap-2 text-[0.6875rem]">
+              <span className="text-white/55">
+                Men <span className="figure font-bold text-white">{formatNumber(demographics.men)}</span>
+              </span>
+              <span className="text-white/55">
+                <span className="figure font-bold text-white">{formatNumber(demographics.women)}</span> Women
+              </span>
+            </p>
+            <span aria-hidden="true" className="mt-1.5 flex h-2 overflow-hidden rounded-full bg-white/10">
+              <span className="h-full" style={{ width: `${demographics.menShare}%`, background: fill }} />
+              <span
+                className="h-full"
+                style={{ width: `${demographics.womenShare}%`, background: "rgba(255,255,255,0.45)" }}
+              />
+            </span>
+            <p className="mt-1 flex justify-between text-[0.625rem] text-white/40">
+              <span>{formatShare(demographics.menShare)}</span>
+              <span>{formatShare(demographics.womenShare)}</span>
+            </p>
+          </div>
+
+          {/* ── THE AGE BANDS ────────────────────────────────────────────
+              Only the four that can vote. Bars scaled to the biggest of the
+              four so the shape of the age profile is readable, with the
+              figure printed beside each — nobody should have to measure a bar
+              against an axis that is not there. */}
+          <div className="border-t border-white/10 px-3 py-2.5">
+            <p className="text-[0.625rem] font-semibold tracking-[0.08em] text-white/40 uppercase">
+              Age
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {demographics.bands
+                .filter((band) => band.canVote)
+                .map((band) => {
+                  const ceiling = Math.max(
+                    ...demographics.bands.filter((row) => row.canVote).map((row) => row.count),
+                    1
+                  );
+                  return (
+                    <li key={band.id} className="flex items-center gap-2">
+                      <span className="figure w-11 shrink-0 text-[0.6875rem] text-white/55 tabular-nums">
+                        {band.short}
+                      </span>
+                      <span aria-hidden="true" className="h-1.5 flex-1 rounded-full bg-white/10">
+                        <span
+                          className="block h-full rounded-full"
+                          style={{ width: `${(band.count / ceiling) * 100}%`, background: fill }}
+                        />
+                      </span>
+                      <span className="figure w-10 shrink-0 text-right text-[0.6875rem] font-bold text-white tabular-nums">
+                        {formatNumber(band.count)}
+                      </span>
+                    </li>
+                  );
+                })}
+            </ul>
+
+            <p className="mt-2 flex items-baseline justify-between gap-2 border-t border-white/10 pt-2 text-[0.6875rem]">
+              <span className="text-white/55">Over 50</span>
+              <span className="figure font-bold text-white tabular-nums">
+                {formatNumber(demographics.over50)} · {formatShare(demographics.over50Share)}
+              </span>
+            </p>
+
+            {/* Apart from the bands, because it is not one. */}
+            {demographics.cannotVote > 0 && (
+              <p className="mt-1.5 flex items-baseline justify-between gap-2 text-[0.6875rem]">
+                <span className="text-amber-300/80">Under 18, cannot vote</span>
+                <span className="figure font-bold text-amber-300 tabular-nums">
+                  {formatNumber(demographics.cannotVote)}
+                </span>
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="border-t border-white/10 px-3 py-2.5 text-[0.6875rem] leading-relaxed text-white/45">
+          The register holds a count for this booth and no breakdown of it. Gender and age are
+          counted per ward and per local government.
+        </p>
+      )}
     </div>
   );
 }

@@ -90,8 +90,14 @@ def parse(pdf_path, lgas):
 
     lga = ward = None
     tree = collections.defaultdict(lambda: collections.defaultdict(collections.Counter))
+    # Gender and age are counted at two levels, keyed by the tier they belong
+    # to: a local government name, and an (lga, ward) pair. Not at polling-unit
+    # level — 7,433 units times seven counters is a large file to answer a
+    # question nobody asks of one booth, and the booth's own total is there.
     gender = collections.defaultdict(collections.Counter)
     ages = collections.defaultdict(collections.Counter)
+    ward_gender = collections.defaultdict(collections.Counter)
+    ward_ages = collections.defaultdict(collections.Counter)
     nins = collections.Counter()
     phones = collections.Counter()
     outside = collections.Counter()
@@ -153,19 +159,23 @@ def parse(pdf_path, lgas):
                     total += 1
                     if not unit:
                         no_unit += 1
-                    tree[key][ward or "(not stated)"][unit or "(not stated)"] += 1
+                    ward_key = ward or "(not stated)"
+                    tree[key][ward_key][unit or "(not stated)"] += 1
                     gender[key][sex.lower()] += 1
+                    ward_gender[(key, ward_key)][sex.lower()] += 1
 
                     years = int(age)
                     if years < 18:
                         minors += 1
-                    ages[key][
+                    band = (
                         "u18" if years < 18
                         else "18_25" if years < 26
                         else "26_35" if years < 36
                         else "36_50" if years < 51
                         else "o50"
-                    ] += 1
+                    )
+                    ages[key][band] += 1
+                    ward_ages[(key, ward_key)][band] += 1
 
                     nins[nin] += 1
                     phones[phone] += 1
@@ -181,7 +191,7 @@ def parse(pdf_path, lgas):
         "underEighteen": minors,
         "outsideState": dict(outside),
     }
-    return tree, gender, ages, quality, total
+    return tree, gender, ages, ward_gender, ward_ages, quality, total
 
 
 def main():
@@ -197,7 +207,7 @@ def main():
     if not lgas:
         sys.exit(f"No local government list for {args.state}. Add one to STATES in this script.")
 
-    tree, gender, ages, quality, total = parse(args.pdf, lgas)
+    tree, gender, ages, ward_gender, ward_ages, quality, total = parse(args.pdf, lgas)
 
     payload = {
         "party": args.party,
@@ -206,7 +216,14 @@ def main():
         "members": total,
         "lgas": {
             name: {
-                "wards": {ward: dict(units) for ward, units in wards.items()},
+                "wards": {
+                    ward: {
+                        "units": dict(units),
+                        "gender": dict(ward_gender[(name, ward)]),
+                        "ages": dict(ward_ages[(name, ward)]),
+                    }
+                    for ward, units in wards.items()
+                },
                 "gender": dict(gender[name]),
                 "ages": dict(ages[name]),
             }
