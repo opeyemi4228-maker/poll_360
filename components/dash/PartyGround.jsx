@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronRight, Loader2, Users, Vote } from "lucide-react";
 
 import UnitMap from "./UnitMap";
+import { Meter } from "./Figures";
 import { boundsOf } from "@/lib/bbox";
 import { PARTY_FILL } from "./Charts";
 import {
@@ -520,6 +521,12 @@ export default function PartyGround({ shapes = null }) {
 
             {/* ═════════════════════════════════════════ the list beside the map */}
             <div className="flex min-w-0 flex-col gap-3">
+            {/* ── THE RATIO SITS ABOVE THE LIST ──────────────────────────
+                It is the answer this screen is being opened for once a plan
+                is being drawn on both halves, and the list under it is how
+                you move to the next place. Answer first, navigation second. */}
+            {ratio && <RatioPanel ratio={ratio} party={party} state={register.state} path={path} />}
+
             <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
               <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-dash-line px-5 py-3.5">
                 <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
@@ -586,32 +593,10 @@ export default function PartyGround({ shapes = null }) {
               )}
             </section>
 
-            {ratio && <RatioPanel ratio={ratio} party={party} state={register.state} path={path} />}
-
             {quality && quality.notes.length > 0 && (
-              <section className="overflow-hidden rounded-dash border border-amber-200 bg-amber-50">
-                <header className="flex items-baseline justify-between gap-3 border-b border-amber-200 px-4 py-3">
-                  <h3 className="font-display text-[0.875rem] font-extrabold text-amber-900">
-                    About this register
-                  </h3>
-                  <span className="figure text-[0.75rem] font-bold text-amber-900 tabular-nums">
-                    {formatNumber(quality.votingAge)} of voting age
-                  </span>
-                </header>
-                <ul className="divide-y divide-amber-200/70">
-                  {quality.notes.map((note) => (
-                    <li key={note.id} className="px-4 py-2.5">
-                      <p className="text-[0.8125rem] leading-snug font-semibold text-amber-900">{note.says}</p>
-                      <p className="mt-0.5 text-[0.75rem] leading-relaxed text-amber-800">{note.why}</p>
-                    </li>
-                  ))}
-                </ul>
-                <footer className="border-t border-amber-200 px-4 py-2.5 text-[0.75rem] leading-relaxed text-amber-800">
-                  None of these is an accusation. A repeated identification number is far more often
-                  a typing error at registration than anything else.
-                </footer>
-              </section>
+              <QualityPanel quality={quality} />
             )}
+
             </div>
           </div>
         </>
@@ -1016,68 +1001,38 @@ function MemberCard({ name, kind, parent, members, share, demographics, pointer,
  * ══════════════════════════════════════════════════════════════════════════
  */
 function RatioPanel({ ratio, party, state, path }) {
+  const here = path.length ? path[path.length - 1] : state;
+
   if (!ratio.known) {
+    /* ── AN ABSENCE IN A SENTENCE, NOT A PARAGRAPH ────────────────────────
+       Three of these ran to four sentences apiece. A reader who has hit a
+       wall wants to know which wall and what they still have, and the long
+       version of that is a wall of its own. */
+    const why =
+      ratio.why === "below-lga"
+        ? "Wards in this register do not match INEC's, so no vote can be apportioned to them."
+        : ratio.why === "below-state"
+          ? "No vote is published below a state."
+          : ratio.why === "no-register"
+            ? `No ${party} register imported.`
+            : "That candidate's vote is not broken out here.";
+
     return (
       <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
-        <header className="border-b border-dash-line px-4 py-3">
+        <header className="flex items-baseline justify-between gap-3 border-b border-dash-line px-4 py-3">
           <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
-            Register against the vote
+            Register vs vote
           </h3>
+          <span className="rounded-full bg-dash-bg px-2 py-0.5 text-[0.625rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+            Not held
+          </span>
         </header>
-        <div className="px-4 py-4">
-          {ratio.why === "below-lga" ? (
-            <>
-              <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
-                <strong className="font-semibold text-dash-ink">
-                  Not offered below a local government.
-                </strong>{" "}
-                A state&rsquo;s votes can be apportioned across its 23 local governments because
-                those are real places with INEC&rsquo;s own names. Wards are not: this
-                register&rsquo;s ward field is free text, and even folded it is coarser than
-                INEC&rsquo;s ward list.
-              </p>
-              {ratio.members !== null && (
-                <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] text-dash-ink">
-                  What is real here:{" "}
-                  <strong className="figure font-bold">{formatNumber(ratio.members)}</strong>{" "}
-                  {party} members in {path[path.length - 1]}.
-                </p>
-              )}
-              <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
-                Splitting a state&rsquo;s votes across wards that do not match any ward list gives a
-                denominator with no relationship to a real place — it put one ward at eleven hundred
-                per cent before this stopped.
-              </p>
-            </>
-          ) : ratio.why === "below-state" ? (
-            <>
-              <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
-                <strong className="font-semibold text-dash-ink">
-                  Not available below a state.
-                </strong>{" "}
-                The register goes down to a polling unit; published votes stop at the state. A ratio
-                needs both, so it stops where the scarcer half stops.
-              </p>
-              {ratio.members !== null && (
-                <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] text-dash-ink">
-                  What is known here:{" "}
-                  <strong className="figure font-bold">{formatNumber(ratio.members)}</strong>{" "}
-                  {party} members in {path[path.length - 1]}.
-                </p>
-              )}
-              <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
-                The only way to show one would be to divide the state&rsquo;s votes among its wards,
-                which produces a denominator nobody counted and a ratio that looks like arithmetic.
-              </p>
-            </>
-          ) : ratio.why === "no-register" ? (
-            <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
-              No {party} register has been imported, so there is no numerator.
-            </p>
-          ) : (
-            <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
-              That candidate&rsquo;s vote is not broken out for {state}.
-            </p>
+        <div className="px-4 py-3.5">
+          <p className="text-[0.8125rem] leading-snug text-dash-muted">{why}</p>
+          {ratio.members !== null && ratio.members !== undefined && (
+            <dl className="mt-3 border-t border-dash-line pt-3">
+              <Row label={`${party} members here`} value={formatNumber(ratio.members)} />
+            </dl>
           )}
         </div>
       </section>
@@ -1086,93 +1041,123 @@ function RatioPanel({ ratio, party, state, path }) {
 
   return (
     <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
-      <header className="border-b border-dash-line px-4 py-3">
-        <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
-          Register against the vote
-        </h3>
-        <p className="mt-0.5 text-[0.75rem] text-dash-muted">
-          {party} members per 100 votes for {ratio.candidate.name}
-        </p>
-      </header>
-
-      <div className="px-4 py-4">
-        {/* ── COUNTED OR MODELLED, ON THE FIGURE ────────────────────────
-            Not in a footnote. A reader who takes an apportioned vote for a
-            counted one will quote it as a fact, and the badge is the only
-            thing standing between those two readings. */}
-        <p
+      <header className="flex items-baseline justify-between gap-3 border-b border-dash-line px-4 py-3">
+        <div className="min-w-0">
+          <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
+            Register vs vote
+          </h3>
+          <p className="mt-0.5 truncate text-[0.75rem] text-dash-muted">
+            {party} per 100 {ratio.candidate.name.split(" ").pop()} votes · {here}
+          </p>
+        </div>
+        {/* ── COUNTED OR MODELLED, ON THE PANEL ───────────────────────────
+            A reader who takes an apportioned vote for a counted one will
+            quote it as a fact. It is a badge rather than a sentence because
+            a sentence at the foot is a sentence nobody reads. */}
+        <span
           className={cn(
-            "inline-block rounded-full px-2 py-0.5 text-[0.625rem] font-bold tracking-[0.08em] uppercase",
+            "shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold tracking-[0.08em] uppercase",
             ratio.estimated ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"
           )}
         >
           {ratio.estimated ? "Estimated" : "Counted"}
-        </p>
+        </span>
+      </header>
 
-        <p className="figure mt-2 text-[2.25rem] leading-none font-bold tracking-[-0.04em] text-dash-ink tabular-nums">
+      <div className="px-4 py-3.5">
+        {/* The figure, and the bar that puts it on a scale. Nothing restates
+            it in words: the header already says what it is a ratio of. */}
+        <p className="figure text-[2.5rem] leading-none font-bold tracking-[-0.04em] text-dash-ink tabular-nums">
           {formatShare(ratio.ratio)}
         </p>
-        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-muted">
-          {ratio.estimated ? (
-            <>
-              The register here is {formatShare(ratio.ratio)} the size of the vote{" "}
-              {ratio.candidate.name} would have taken in {path[path.length - 1]} if the state&rsquo;s
-              declared total is apportioned across its local governments.
-            </>
-          ) : (
-            <>
-              The register is {formatShare(ratio.ratio)} the size of the vote{" "}
-              {ratio.candidate.name} took in {state}.
-            </>
-          )}
-        </p>
+        <Meter share={Math.min(100, ratio.ratio)} className="mt-2.5" height={6} />
 
-        {/* Both numerators, because a reader reasoning about votes needs to
-            see which one a percentage came from. */}
-        <dl className="mt-3.5 space-y-2 border-t border-dash-line pt-3">
+        <dl className="mt-3.5 space-y-1.5 border-t border-dash-line pt-3">
           <Row label={`${party} members`} value={formatNumber(ratio.members)} />
           {ratio.votingAge !== null && (
-            <Row
-              label="Of them, old enough to vote"
-              value={formatNumber(ratio.votingAge)}
-              sub={`${formatShare(ratio.votingAgeRatio)} of the vote`}
-            />
+            <Row label="Voting age" value={formatNumber(ratio.votingAge)} />
           )}
           <Row
-            label={`${ratio.candidate.name}'s vote`}
+            label={`${ratio.candidate.name.split(" ").pop()}, ${here}`}
             value={`${ratio.estimated ? "~" : ""}${formatNumber(ratio.votes)}`}
-            sub={
-              ratio.estimated
-                ? `${formatShare(ratio.share)} of the votes apportioned here`
-                : `${formatShare(ratio.share)} of the state`
-            }
           />
         </dl>
 
-        <p className="mt-3 border-t border-dash-line pt-2.5 text-[0.75rem] leading-relaxed text-dash-muted">
-          A measure of organisation against demonstrated support.{" "}
-          <strong className="font-semibold text-dash-ink">Not a forecast</strong> — a register does
-          not become votes, and these are two different people counted two different ways.
-          {ratio.estimated
-            ? " The vote here is the state's declared total apportioned across its local governments; the parts always add back to the declared figure and never change between refreshes."
-            : ""}
+        <p className="mt-3 border-t border-dash-line pt-2.5 text-[0.75rem] leading-snug text-dash-muted">
+          Organisation against support. <strong className="text-dash-ink">Not a forecast.</strong>
         </p>
       </div>
     </section>
   );
 }
 
-function Row({ label, value, sub }) {
+function Row({ label, value }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[0.8125rem] text-dash-muted">
-        {label}
-        {sub && <span className="mt-0.5 block text-[0.6875rem] text-dash-muted/70">{sub}</span>}
-      </dt>
+      <dt className="truncate text-[0.8125rem] text-dash-muted">{label}</dt>
       <dd className="figure shrink-0 text-[0.9375rem] font-bold text-dash-ink tabular-nums">
         {value}
       </dd>
     </div>
+  );
+}
+
+
+/**
+ * What is wrong with the register.
+ *
+ * ── THE CLAIM IS ALWAYS VISIBLE; THE REASONING IS ONE PRESS AWAY ───────────
+ * Five findings each carrying an explanation is ten lines of prose in a column
+ * four hundred pixels wide, and a reader skims all of it. The count and the
+ * claim are what somebody needs at a glance — "1,900 members are under
+ * eighteen" is the whole finding — and why that matters is what they want the
+ * moment they stop and take one seriously.
+ */
+function QualityPanel({ quality }) {
+  const [open, setOpen] = useState(null);
+
+  return (
+    <section className="overflow-hidden rounded-dash border border-amber-200 bg-amber-50">
+      <header className="flex items-baseline justify-between gap-3 border-b border-amber-200 px-4 py-3">
+        <h3 className="font-display text-[0.875rem] font-extrabold text-amber-900">
+          About this register
+        </h3>
+        <span className="figure text-[0.75rem] font-bold text-amber-900 tabular-nums">
+          {formatNumber(quality.votingAge)} of voting age
+        </span>
+      </header>
+
+      <ul className="divide-y divide-amber-200/70">
+        {quality.notes.map((note) => (
+          <li key={note.id}>
+            <button
+              type="button"
+              onClick={() => setOpen(open === note.id ? null : note.id)}
+              aria-expanded={open === note.id}
+              className="w-full px-4 py-2 text-left transition-colors hover:bg-amber-100/60"
+            >
+              <span className="flex items-baseline gap-2">
+                <span className="flex-1 text-[0.8125rem] leading-snug text-amber-900">
+                  {note.says}
+                </span>
+                <ChevronRight
+                  size={13}
+                  className={cn(
+                    "mt-0.5 shrink-0 text-amber-700 transition-transform",
+                    open === note.id && "rotate-90"
+                  )}
+                />
+              </span>
+              {open === note.id && (
+                <span className="mt-1.5 block text-[0.75rem] leading-relaxed text-amber-800">
+                  {note.why}
+                </span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -1181,26 +1166,19 @@ function NoRegister({ party, votes, state }) {
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card px-6 py-12 text-center">
       <Users size={24} strokeWidth={2} className="mx-auto text-dash-muted" />
-      <p className="mt-3 text-[1rem] font-bold text-dash-ink">
-        No {party} membership register has been imported
-      </p>
-      <p className="mx-auto mt-2 max-w-prose text-[0.875rem] leading-relaxed text-dash-muted">
-        That is not the same as the {party} having no members here — it means nobody has counted them
-        into this product. The figure is left blank rather than drawn at nought, because a zero on
-        this screen would be read as a rival who is not there.
-      </p>
-      <p className="mx-auto mt-3 max-w-prose text-[0.8125rem] leading-relaxed text-dash-muted">
-        A register arrives as a PDF and is imported by{" "}
-        <span className="figure">scripts/import-register.py</span>, which keeps the counts and
-        discards every name, telephone number and identification number in it.
+      <p className="mt-3 text-[1rem] font-bold text-dash-ink">No {party} register imported</p>
+      {/* One sentence, and it is the one that matters: this is an absence of
+          counting, not an absence of members. A blank here read as "they have
+          nobody" is a rival a campaign stops watching. */}
+      <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-dash-muted">
+        Nobody has counted them into this product. That is not the same as the {party} having no
+        members here, so the figure is blank rather than nought.
       </p>
 
       {votes.known && (
         <p className="mt-5 border-t border-dash-line pt-4 text-[0.875rem] text-dash-ink">
-          What is known: {party} took{" "}
-          <strong className="figure font-bold">{formatNumber(votes.votes)}</strong> votes in {state} at
-          the 2023 presidential election — {formatShare(votes.share)} of the{" "}
-          {formatNumber(votes.of)} cast.
+          <strong className="figure font-bold">{formatNumber(votes.votes)}</strong> votes in {state},
+          2023 — {formatShare(votes.share)} of those cast.
         </p>
       )}
     </section>
