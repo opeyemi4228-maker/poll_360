@@ -22,7 +22,7 @@ import {
 
 import TopShell from "./TopShell";
 import { useGreeting } from "./useGreeting";
-import ScopeMap, { CATEGORICAL, LABEL, PARTY_LAYERS, bandsFor, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
+import ScopeMap, { CATEGORICAL, LABEL, PARTY_LAYERS, legendFor, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
 import GoogleLayer, { googleAvailable } from "./GoogleLayer";
 import TargetList from "./TargetList";
 import UnitMap, { latLon } from "./UnitMap";
@@ -70,6 +70,8 @@ import { PARTY_FILL } from "./Charts";
 import { partyFill } from "@/lib/party-pattern";
 import { snapshot, parties, allParties } from "@/lib/replay";
 import { LEVELS } from "@/lib/alerts";
+import { rememberViewCookie } from "@/lib/last-view";
+import { LANDING } from "@/lib/room-views";
 /* What the whole record covers — 1999 to the last election held. */
 import { span } from "@/lib/record";
 import { normalise } from "@/lib/assistant";
@@ -78,6 +80,8 @@ import { COMMERCIAL_CENTRES, coordinate, unproject } from "@/lib/geo";
 import { ruling, seatsBy, crossedFloor, FCT } from "@/lib/governors";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import PartyMark from "./PartyMark";
+import { partyLogo } from "@/lib/party-register";
 
 /**
  * The situation room.
@@ -256,6 +260,22 @@ export const MODES = [
         tabs: [{ value: "analytics", label: "Election Analytics" }],
       },
       {
+        id: "ground",
+        label: "The ground",
+        /* ── WHERE THE PEOPLE ARE, BEFORE ANYBODY VOTES ─────────────────
+           Registered voters per polling unit, drilling the country into
+           states, a state into its local governments, a ward into its booths
+           — the same frame every other map layer uses, so the drill is the
+           one the room already knows.
+
+           It answers the question a deployment is planned from and a queue is
+           predicted from: where is the register concentrated tightly enough
+           to matter, and where is it spread so thin that covering it costs
+           more agents per vote than anywhere else. Both ends are the finding;
+           the ramp is read from either direction. */
+        tabs: [{ value: "clusters", label: "Clusters" }],
+      },
+      {
         id: "focus",
         label: "Where to focus",
         /* ══════════════════════════════════════════════════════════════
@@ -351,7 +371,36 @@ const FIRST_OF = Object.fromEntries(
    elections in one screen.
 
    So the frame is shared and the board is swapped. See `activeBoard` below. */
-const MAP_LAYERS = new Set(["command", "results", "register", "turnout", "density", "booth"]);
+const MAP_LAYERS = new Set(["command", "results", "register", "turnout", "density", "booth", "clusters"]);
+
+/**
+ * The layers that get no heat field.
+ *
+ * ── A HEAT FIELD UNDER A PERCENTAGE IS TWO SCALES ARGUING ──────────────────
+ * The field is a density: it blooms where the quantity is concentrated, which
+ * is the right second reading for a register or a vote total, where "a lot,
+ * here" is a real fact about the ground.
+ *
+ * Booth draws a completion percentage on a pinned scale, and a percentage has
+ * no density — a ward that is 90% reported is not "more" than a state that is
+ * 90% reported, it is the same fraction of a smaller thing. Bloomed anyway,
+ * the field made big places look further along than small ones, which is the
+ * exact misreading the pinned decile scale was introduced to stop. Two scales
+ * on one map, disagreeing, and the louder one wins.
+ *
+ * Turnout is here for the same reason and always was — see the note by the
+ * toggle below, which said so while the code did it anyway.
+ *
+ * Clusters is here because it is already a density: voters per polling unit is
+ * concentration, drawn as the fill. Blooming a second density field over the
+ * top of it draws the same fact twice in two encodings that do not agree at
+ * the edges, and the brighter one wins.
+ */
+const NO_HEAT = new Set(["booth", "turnout", "clusters"]);
+
+/** 1,240 -> "1.2k". The legend's labels are sixteen pixels wide. */
+const compact = (value) =>
+  value >= 1000 ? `${Math.round(value / 100) / 10}k` : String(Math.round(value ?? 0));
 
 /**
  * Arriving here from the rail, pointed at one view.
@@ -452,8 +501,9 @@ const HASH_LAYERS = {
   "#candidates": "analytics",
   "#ruling": "analytics",
   "#historical": "analytics",
-  "#density": "analytics",
-  "#clusters": "analytics",
+  /* Clusters is a map layer again and has its own entries below — see
+     "#clusters" there. These two pointed at the analytics head from the
+     period when the layer had no tab of its own. */
   /* Geography's four tiers. All four are the same record at a different
      depth, and the depth is set beside this — see HASH_LEVELS below. */
   "#states": "analytics",
@@ -466,6 +516,8 @@ const HASH_LAYERS = {
      reports are what the field files; trend detection and anomaly screening
      each already had a room. */
   "#grassroots": "planning",
+  "#clusters": "clusters",
+  "#density": "clusters",
   "#resources": "planning",
   "#scenarios": "planning",
   "#priorities": "planning",
@@ -529,6 +581,18 @@ const HASH_LEVELS = {
   "#units": 3,
 };
 
+/* ── THE READER THAT USED TO STAND HERE ────────────────────────────────────
+   A `useSyncExternalStore` pair read the remembered view out of local storage
+   after hydration, plus a PENDING sentinel to tell "the server has not looked"
+   apart from "nothing was stored" — a distinction that existed only because
+   the server genuinely could not look.
+
+   It can now. The view arrives as a prop, already validated, and is the
+   component's initial state. The store, the sentinel and the subscribe-to-
+   nothing stub all existed to work around a value the server could not see,
+   and none of them has anything left to do. See lib/last-view.js.
+   ─────────────────────────────────────────────────────────────────────────── */
+
 function subscribeHash(onChange) {
   window.addEventListener("hashchange", onChange);
   return () => window.removeEventListener("hashchange", onChange);
@@ -579,6 +643,11 @@ export default function SituationRoom({
      server — see lib/reporting.js. Indexed by the same place names the map's
      trail is built from, so the Booth layer can colour any level without a
      second fetch and without a vocabulary of its own. */
+  /* Which dashboard to open on, decided on the server from the cookie the
+     room writes — see lib/last-view.js. Arriving as a prop is the whole
+     point: the first paint is already the right screen, so there is no moment
+     where the wrong one is on the wall. */
+  initialView = LANDING,
   booth = null,
   coordinators = [],
   watchSummary = { total: 0, filed: 0, located: 0, far: 0, silent: 0 },
@@ -683,11 +752,11 @@ export default function SituationRoom({
      hash, the search, the assistant, the alarm bell — would have had to
      remember to update both. There is one, and the switch reads it. */
   /* ── WHERE THE ROOM OPENS ────────────────────────────────────────────
-     Booth, because it is the screen with the most to act on when somebody
-     first sits down: what has not reported, and what has and is stuck. The
-     command centre used to land here and it was a tour of figures every one
-     of which lived on a screen of its own. */
-  const [layer, setLayer] = useState("booth");
+     Whatever the server settled on: the view this reader was last on, or the
+     landing screen when there is nothing to remember. Both arrive as one
+     already-validated prop, so this component has no opinion about either and
+     nothing here can disagree with what was rendered. */
+  const [layer, setLayer] = useState(initialView);
   const mode = MODE_OF[layer] ?? MODES[0].id;
 
   /* ── WHICH BOOTH THE INTELLIGENCE CARD IS SHOWING ───────────────────────
@@ -724,6 +793,29 @@ export default function SituationRoom({
      fires no hash event at all, is caught by the same comparison. */
   const hash = useSyncExternalStore(subscribeHash, readHash, noHash);
   const [seenHash, setSeenHash] = useState("");
+
+  /* ══════════════════════════════════════════════════════════════════════
+     COMING BACK TO WHERE YOU WERE
+
+     Nothing is restored here any more, because there is nothing left to
+     restore: the server already rendered the remembered view. What used to
+     stand here read local storage after the first paint and then corrected
+     the screen, which is why every reload showed the front door for a moment
+     first. A correction that happens after paint is a flash, however fast it
+     is, and this room is read across a room.
+
+     All that remains is the write. On every change rather than on unload: a
+     tab closed by a crash, a kernel panic or a pulled power lead never fires
+     an unload handler, and those are precisely the reloads this exists for.
+     ══════════════════════════════════════════════════════════════════════ */
+  useEffect(() => {
+    /* The unit card is a place somebody is reading and is remembered like any
+       other. Writing is the "update an external system" case an effect is
+       actually for, and a failed write costs nothing but the front door. */
+    rememberViewCookie(layer);
+  }, [layer]);
+
+
 
   /**
    * The states this contest is fought in.
@@ -1408,7 +1500,7 @@ export default function SituationRoom({
       };
     }
 
-    if (layer === "density") {
+  if (layer === "density") {
       const worst = take([...named].sort((a, b) => (b.density ?? 0) - (a.density ?? 0)));
       return {
         title: "Where the queues will be",
@@ -1442,10 +1534,13 @@ export default function SituationRoom({
   /* The legend's bands, from the same array the shapes are filled from — see
      `bandsFor` in ScopeMap. Null on every layer whose scale is relative,
      because a key on a scale that moves would be a key that lies. */
-  const bands = bandsFor(layer);
+  const bands = useMemo(() => legendFor(layer, rows), [layer, rows]);
 
   const heatPoints = useMemo(
-    () => (mapShapes ? heatPointsFor({ shapes: mapShapes, rows, layer }) : []),
+    /* Not computed at all where it is not drawn: this walks every row on
+       every render of the map, and a field nobody will see is the most
+       expensive thing on a wall display refreshing all night. */
+    () => (mapShapes && !NO_HEAT.has(layer) ? heatPointsFor({ shapes: mapShapes, rows, layer }) : []),
     [mapShapes, rows, layer]
   );
 
@@ -1820,7 +1915,26 @@ export default function SituationRoom({
           onGo={setLayer}
         />
       ) : layer === "timeline" ? (
-        <RoomTimeline timeline={timeline} onGo={setLayer} />
+        <RoomTimeline
+          timeline={timeline}
+          onGo={setLayer}
+          /* ── A PLACE NAMED ON THE CLOCK IS A PLACE SOMEBODY WANTS TO OPEN ──
+             The timeline names the states a phase's returns came from. Each
+             one is a door: it takes the map to that state, on the results
+             layer, from where the room's own drill goes on to the local
+             government, the ward and the polling unit. The timeline does not
+             need a drill of its own — it needs to hand the room a place, and
+             the room already knows what to do with one. */
+          onPlace={(name) => {
+            const found = states.find(
+              (row) => row.name.toLowerCase() === String(name).toLowerCase()
+            );
+            if (!found) return;
+            setPicked(null);
+            setPath([{ code: found.code, name: found.name }]);
+            setLayer("results");
+          }}
+        />
       /* Booths and Operations were two branches here. They are one screen
          now, and it renders through the map frame below — see the note on
          MAP_LAYERS — because the thing it most needed was the drill this
@@ -1887,11 +2001,6 @@ export default function SituationRoom({
           race={racePinned ? race : (projects?.current?.kind ?? null)}
           stateResults={stateResults}
           subState={Boolean(territory) && !["NATION", "STATE"].includes(territory.level)}
-          onOpen={(row) => {
-            setPicked(row.code ?? row.key ?? row.name);
-            setLayer("results");
-          }}
-          pathOf={(row) => planPathFor(row)}
         />
       ) : layer === "watch" ? (
         <CoordinatorWatch
@@ -1988,7 +2097,7 @@ export default function SituationRoom({
                       draws its own, tuned to what that dashboard is about —
                       and turnout gets none at all, there or here, because a
                       rate has no density. See components/dash/GoogleLayer. */}
-                  {activeBasemap === "board" && (
+                  {activeBasemap === "board" && !NO_HEAT.has(layer) && (
                     <MapToggle on={heat} onClick={() => setHeat((was) => !was)}>
                       Heat
                     </MapToggle>
@@ -2034,7 +2143,7 @@ export default function SituationRoom({
             {bands && (
               <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-dash-sm bg-board/85 px-3 py-2.5 backdrop-blur-sm">
                 <p className="text-[0.625rem] font-bold tracking-[0.1em] text-white/55 uppercase">
-                  Share of booths reported
+                  {LABEL[layer] ?? "Scale"}
                 </p>
                 <div className="mt-1.5 flex items-end gap-[2px]">
                   {bands.map((band) => (
@@ -2042,27 +2151,50 @@ export default function SituationRoom({
                       <span
                         className="block h-3 w-4 rounded-[1px]"
                         style={{ background: band.colour }}
-                        title={`${band.from}% to ${band.to}%`}
+                        title={
+                          band.unit === "%"
+                            ? `${band.from}% to ${band.to}%`
+                            : band.to == null
+                              ? `${formatNumber(band.from)} and above`
+                              : `${formatNumber(band.from)} to ${formatNumber(band.to)}`
+                        }
                       />
-                      {/* Every other tick, or ten labels under forty pixels
-                          of swatch collide into a grey smear. */}
+                      {/* Every other tick: ten labels under forty pixels of
+                          swatch collide into a grey smear. */}
                       <span className="figure text-[0.5625rem] leading-none text-white/45 tabular-nums">
-                        {band.index % 2 === 0 ? band.from : ""}
+                        {band.index % 2 === 0
+                          ? band.unit === "%"
+                            ? band.from
+                            : compact(band.from)
+                          : ""}
                       </span>
                     </span>
                   ))}
                   <span className="figure ml-1 self-start text-[0.625rem] leading-none text-white/55 tabular-nums">
-                    100%
+                    {bands[0]?.unit === "%" ? "100%" : "high"}
                   </span>
                 </div>
-                <p className="mt-1.5 flex items-center gap-1.5 text-[0.625rem] text-white/45">
-                  <span
-                    aria-hidden="true"
-                    className="block size-2.5 rounded-[1px]"
-                    style={{ background: "var(--color-silent)" }}
-                  />
-                  Nobody assigned here
-                </p>
+
+                {/* ── WHAT AN EQUAL STEP OF COLOUR IS WORTH ──────────────
+                    On a ranked scale it is not an equal step of quantity, and
+                    a reader who assumes otherwise will misread the map by a
+                    factor. Said once, plainly, under the key. */}
+                {bands[0]?.unit !== "%" && (
+                  <p className="mt-1 text-[0.5625rem] leading-tight text-white/40">
+                    Ranked: each band holds about a tenth of the places on screen.
+                  </p>
+                )}
+
+                {layer === "booth" && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-[0.625rem] text-white/45">
+                    <span
+                      aria-hidden="true"
+                      className="block size-2.5 rounded-[1px]"
+                      style={{ background: "var(--color-silent)" }}
+                    />
+                    Nobody assigned here
+                  </p>
+                )}
               </div>
             )}
 
@@ -2095,7 +2227,7 @@ export default function SituationRoom({
                 onOpen={select}
                 incidentsByPlace={incidentsByPlace}
                 pulsing={level === "nation" && PARTY_LAYERS.has(layer) ? pulsing : null}
-                heat={heat && !CATEGORICAL.has(layer)}
+                heat={heat && !CATEGORICAL.has(layer) && !NO_HEAT.has(layer)}
                 heatTint={
                   layer === "turnout"
                     ? "var(--color-emerald-400)"
@@ -2297,6 +2429,7 @@ export default function SituationRoom({
               total={view.total}
               margin={view.margin}
               isDemoProject={command.isDemoProject}
+              awaiting={command.awaiting}
             />
           ) : (
           <PartyBreakdown
@@ -2570,6 +2703,54 @@ function metricsFor({
     ];
   }
 
+  if (layer === "clusters") {
+    /* Both ends, because both are the finding. The tightest place is where the
+       queues and the pressure will be; the thinnest is where covering the
+       ground costs the most agents per vote. A screen naming only the densest
+       answers half the question a deployment is planned from.
+
+       Ranked by `magnitude` rather than by a row key: clusters is derived from
+       two fields — the register and the full booth count — and is not stored
+       on a row, so sorting on `row.clusters` would sort on undefined and
+       return whichever place happened to be first. */
+    const rank = (dir) =>
+      [...rows].sort(
+        (a, b) => dir * (magnitude(b, "clusters") - magnitude(a, "clusters"))
+      )[0];
+    const packed = rank(1);
+    const spread = rank(-1);
+    const perUnit = scope.booths ? Math.round((scope.registered ?? 0) / scope.booths) : 0;
+
+    return [
+      {
+        icon: Users,
+        label: "Voters per unit",
+        value: formatNumber(perUnit),
+        foot: `Across ${place}`,
+      },
+      {
+        icon: TrendingUp,
+        label: "Most packed",
+        value: packed?.name ?? "n/a",
+        foot: packed ? `${formatNumber(magnitude(packed, "clusters"))} per unit` : "",
+        small: true,
+      },
+      {
+        icon: TrendingDown,
+        label: "Most spread",
+        value: spread?.name ?? "n/a",
+        foot: spread ? `${formatNumber(magnitude(spread, "clusters"))} per unit` : "",
+        small: true,
+      },
+      {
+        icon: MapPin,
+        label: "Polling units",
+        value: formatNumber(scope.booths ?? 0),
+        foot: `${formatNumber(scope.registered ?? 0)} registered`,
+      },
+    ];
+  }
+
   if (layer === "density") {
     const dense = most("density");
     const sparse = least("density");
@@ -2677,8 +2858,15 @@ function SidePanel({ layer, level, rows, view, onHover }) {
         <ul className="space-y-3">
           {view.standings.map((party) => (
             <li key={party.id}>
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="figure text-[0.8125rem] font-bold text-dash-ink">{party.id}</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <PartyMark id={party.id} size={20} title={Boolean(partyLogo(party.id))} />
+                  {!partyLogo(party.id) && (
+                    <span className="figure text-[0.8125rem] font-bold text-dash-ink">
+                      {party.id}
+                    </span>
+                  )}
+                </span>
                 <span className="figure text-[0.8125rem] font-bold text-dash-ink tabular-nums">
                   {formatShare(party.share)}
                 </span>
@@ -2691,6 +2879,34 @@ function SidePanel({ layer, level, rows, view, onHover }) {
               </div>
             </li>
           ))}
+        </ul>
+      </Section>
+    );
+  }
+
+  if (layer === "clusters") {
+    /* The panel beside a ramp exists so a reader can find a place by name
+       instead of hunting for its colour on the map. */
+    return (
+      <Section title="Most packed" foot="Registered voters per polling unit">
+        <ul className="space-y-2">
+          {[...rows]
+            .sort((a, b) => magnitude(b, "clusters") - magnitude(a, "clusters"))
+            .slice(0, 12)
+            .map((row) => (
+              <li
+                key={row.key ?? row.name}
+                onPointerEnter={() => onHover?.(row.key ?? row.name)}
+                className="flex items-baseline gap-2.5"
+              >
+                <span className="min-w-0 truncate text-[0.8125rem] font-semibold text-dash-ink">
+                  {row.name}
+                </span>
+                <span className="figure ml-auto shrink-0 text-[0.8125rem] text-dash-muted tabular-nums">
+                  {formatNumber(magnitude(row, "clusters"))}
+                </span>
+              </li>
+            ))}
         </ul>
       </Section>
     );
