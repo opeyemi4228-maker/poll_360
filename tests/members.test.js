@@ -53,7 +53,11 @@ describe("what has actually been imported", () => {
     assert.equal(held.state, "Sokoto");
     assert.equal(held.members, 66_474);
     assert.equal(held.lgas, 23, "Sokoto has 23 local governments");
-    assert.ok(held.wards > 1500);
+    /* Fewer ward names than the raw register held, because its spellings are
+       folded — see "the register's own ward names" below. Still far more than
+       INEC's 244, which is why no vote estimate is offered below a local
+       government. */
+    assert.ok(held.wards > 1000 && held.wards < 1568);
     assert.ok(held.units > 7000);
   });
 
@@ -389,15 +393,48 @@ describe("the register against a candidate's vote", () => {
     assert.ok(seen.votingAgeRatio < seen.ratio);
   });
 
-  it("refuses to produce one below a state", () => {
-    /* Members go to a polling unit; published votes stop at the state. A
-       ratio needs both, so it stops where the scarcer half stops — the only
-       way to go deeper is to invent the denominator. */
-    const seen = ratioAt("ADC", "SOK", "PDP", ["Binji"]);
+  it("marks the state figure counted and a local government estimated", () => {
+    /* ── THE DISTINCTION THE WHOLE PANEL RESTS ON ────────────────────────
+       Nothing is published below a state, so a local government's vote is the
+       declared state total apportioned across its 23 real local governments —
+       the same thing every map in this room does, under the doctrine at the
+       head of lib/drill.js. Real at the state, modelled beneath it, and the
+       flag says which so no screen can draw one as the other. */
+    assert.equal(ratioAt("ADC", "SOK", "PDP", []).estimated, false);
+    assert.equal(ratioAt("ADC", "SOK", "PDP", ["Binji"]).estimated, true);
+  });
+
+  it("apportions a local government so the parts add back to the declared vote", () => {
+    /* An estimate that does not sum to the figure it came from is not an
+       estimate, it is a different number. */
+    const state = ratioAt("ADC", "SOK", "PDP", []);
+    const parts = childrenOf("ADC", "SOK", []).reduce(
+      (sum, lga) => sum + ratioAt("ADC", "SOK", "PDP", [lga.name]).votes,
+      0
+    );
+    assert.equal(parts, state.votes);
+  });
+
+  it("is the same estimate every time it is asked", () => {
+    /* Seeded by place name. A figure that moved between refreshes would be
+       worse than no figure. */
+    const once = ratioAt("ADC", "SOK", "PDP", ["Binji"]).votes;
+    const twice = ratioAt("ADC", "SOK", "PDP", ["Binji"]).votes;
+    assert.equal(once, twice);
+  });
+
+  it("refuses to go below a local government", () => {
+    /* ── WHY THE FLOOR IS HERE AND NOT AT THE STATE ──────────────────────
+       23 local governments are real places whose names match INEC's, so a
+       split across them is defensible. Wards are not: the register's ward
+       field is free text, Sokoto South alone arrives 95 ways, and even folded
+       it is coarser than INEC's list. Splitting a state's votes across wards
+       that match no ward list produced a ward at 1,191% before this guard. */
+    const seen = ratioAt("ADC", "SOK", "PDP", ["Binji", "Maikulki"]);
     assert.equal(seen.known, false);
-    assert.equal(seen.why, "below-state");
+    assert.equal(seen.why, "below-lga");
     assert.equal(seen.ratio, undefined);
-    /* The half that IS known is still returned, so a screen can show it. */
+    /* The half that IS real at that depth is still returned. */
     assert.ok(seen.members > 0);
   });
 
@@ -414,5 +451,37 @@ describe("the register against a candidate's vote", () => {
     const seen = ratioAt("APC", "SOK", "PDP", []);
     assert.equal(seen.known, false);
     assert.equal(seen.why, "no-register");
+  });
+});
+
+describe("the register's own ward names", () => {
+  it("folds the spellings of one ward into one place", () => {
+    /* ── A CORRECTNESS PROBLEM, NOT A COSMETIC ONE ───────────────────────
+       Sokoto South has eleven wards and the raw register writes them 95 ways:
+       GAGI A, Gagi 'A', Gagi "A", GaGi A. Left alone, one ward's members are
+       split across five rows and every per-ward share is computed against a
+       denominator that does not exist. */
+    const found = qualityOf("ADC", "SOK");
+    const note = found.notes.find((item) => item.id === "ward-spellings");
+    assert.ok(note, "the folding is not reported");
+    assert.ok(note.count > 300, "several hundred spellings were folded");
+
+    /* Sokoto South is materially smaller than the 95 it arrived as. */
+    const wards = childrenOf("ADC", "SOK", ["Sokoto South"]);
+    assert.ok(wards.length < 95, `Sokoto South still has ${wards.length} ward names`);
+  });
+
+  it("does not merge two wards that are genuinely different", () => {
+    /* "Gagi A" and "Gagi B" are two wards. Only case, quotes and repeated
+       spaces are folded; a bare "Gagi" is left alone, because which of the
+       three was meant is not knowable and guessing moves real people. */
+    const wards = childrenOf("ADC", "SOK", ["Sokoto South"]).map((row) => row.name.toUpperCase());
+    const gagis = wards.filter((name) => name.startsWith("GAGI"));
+    assert.ok(gagis.length > 1, "the Gagi wards were collapsed into one");
+  });
+
+  it("keeps the total untouched by the folding", () => {
+    /* Merging names must move nobody. */
+    assert.equal(membersAt("ADC", "SOK"), 66_474);
   });
 });

@@ -1025,7 +1025,31 @@ function RatioPanel({ ratio, party, state, path }) {
           </h3>
         </header>
         <div className="px-4 py-4">
-          {ratio.why === "below-state" ? (
+          {ratio.why === "below-lga" ? (
+            <>
+              <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
+                <strong className="font-semibold text-dash-ink">
+                  Not offered below a local government.
+                </strong>{" "}
+                A state&rsquo;s votes can be apportioned across its 23 local governments because
+                those are real places with INEC&rsquo;s own names. Wards are not: this
+                register&rsquo;s ward field is free text, and even folded it is coarser than
+                INEC&rsquo;s ward list.
+              </p>
+              {ratio.members !== null && (
+                <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] text-dash-ink">
+                  What is real here:{" "}
+                  <strong className="figure font-bold">{formatNumber(ratio.members)}</strong>{" "}
+                  {party} members in {path[path.length - 1]}.
+                </p>
+              )}
+              <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
+                Splitting a state&rsquo;s votes across wards that do not match any ward list gives a
+                denominator with no relationship to a real place — it put one ward at eleven hundred
+                per cent before this stopped.
+              </p>
+            </>
+          ) : ratio.why === "below-state" ? (
             <>
               <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
                 <strong className="font-semibold text-dash-ink">
@@ -1072,27 +1096,56 @@ function RatioPanel({ ratio, party, state, path }) {
       </header>
 
       <div className="px-4 py-4">
-        <p className="figure text-[2.25rem] leading-none font-bold tracking-[-0.04em] text-dash-ink tabular-nums">
+        {/* ── COUNTED OR MODELLED, ON THE FIGURE ────────────────────────
+            Not in a footnote. A reader who takes an apportioned vote for a
+            counted one will quote it as a fact, and the badge is the only
+            thing standing between those two readings. */}
+        <p
+          className={cn(
+            "inline-block rounded-full px-2 py-0.5 text-[0.625rem] font-bold tracking-[0.08em] uppercase",
+            ratio.estimated ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"
+          )}
+        >
+          {ratio.estimated ? "Estimated" : "Counted"}
+        </p>
+
+        <p className="figure mt-2 text-[2.25rem] leading-none font-bold tracking-[-0.04em] text-dash-ink tabular-nums">
           {formatShare(ratio.ratio)}
         </p>
         <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-muted">
-          The register is {formatShare(ratio.ratio)} the size of the vote{" "}
-          {ratio.candidate.name} took in {state}.
+          {ratio.estimated ? (
+            <>
+              The register here is {formatShare(ratio.ratio)} the size of the vote{" "}
+              {ratio.candidate.name} would have taken in {path[path.length - 1]} if the state&rsquo;s
+              declared total is apportioned across its local governments.
+            </>
+          ) : (
+            <>
+              The register is {formatShare(ratio.ratio)} the size of the vote{" "}
+              {ratio.candidate.name} took in {state}.
+            </>
+          )}
         </p>
 
         {/* Both numerators, because a reader reasoning about votes needs to
             see which one a percentage came from. */}
         <dl className="mt-3.5 space-y-2 border-t border-dash-line pt-3">
           <Row label={`${party} members`} value={formatNumber(ratio.members)} />
-          <Row
-            label="Of them, old enough to vote"
-            value={formatNumber(ratio.votingAge)}
-            sub={`${formatShare(ratio.votingAgeRatio)} of the vote`}
-          />
+          {ratio.votingAge !== null && (
+            <Row
+              label="Of them, old enough to vote"
+              value={formatNumber(ratio.votingAge)}
+              sub={`${formatShare(ratio.votingAgeRatio)} of the vote`}
+            />
+          )}
           <Row
             label={`${ratio.candidate.name}'s vote`}
-            value={formatNumber(ratio.votes)}
-            sub={`${formatShare(ratio.share)} of the state`}
+            value={`${ratio.estimated ? "~" : ""}${formatNumber(ratio.votes)}`}
+            sub={
+              ratio.estimated
+                ? `${formatShare(ratio.share)} of the votes apportioned here`
+                : `${formatShare(ratio.share)} of the state`
+            }
           />
         </dl>
 
@@ -1100,6 +1153,9 @@ function RatioPanel({ ratio, party, state, path }) {
           A measure of organisation against demonstrated support.{" "}
           <strong className="font-semibold text-dash-ink">Not a forecast</strong> — a register does
           not become votes, and these are two different people counted two different ways.
+          {ratio.estimated
+            ? " The vote here is the state's declared total apportioned across its local governments; the parts always add back to the declared figure and never change between refreshes."
+            : ""}
         </p>
       </div>
     </section>

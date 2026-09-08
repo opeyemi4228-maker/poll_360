@@ -65,6 +65,35 @@ import sys
 
 HEADER = {"#", "Full Name", "Gender", "Age", "Phone", "NIN", "Polling Unit", "Occupation"}
 
+
+def tidy(name):
+    """
+    One ward, written one way.
+
+    ── THE REGISTER'S WARD FIELD IS NOT A WARD LIST ────────────────────────
+    Sokoto has 244 wards. The raw register holds 1,568 distinct strings for
+    them, because the same ward is typed a dozen ways by a dozen people:
+
+        GAGI A · Gagi A · Gagi 'A' · Gagi "A" · GaGi A
+
+    Left alone that is not a cosmetic problem, it is a correctness one. Every
+    variant becomes its own row, one ward's members are split across five of
+    them, and any figure computed per ward — a share, a ratio, a ranking — is
+    computed against a denominator that does not exist.
+
+    So case, quotation marks and repeated spaces are folded away. Nothing else
+    is: "Gagi A" and "Gagi B" are two different wards and stay two, and a bare
+    "Gagi" is not merged into either, because which of the three was meant is
+    not something this script can know and guessing would move real people
+    into a ward they are not in.
+    """
+    if not name:
+        return ""
+    cleaned = name.replace("\u2018", "").replace("\u2019", "").replace("\u201c", "").replace("\u201d", "")
+    cleaned = cleaned.replace("'", "").replace('"', "")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned.upper()
+
 # The 23 local governments of Sokoto State. Used to catch rows filed under a
 # local government somewhere else entirely, which the source register has two
 # of. Add a state here to import one.
@@ -79,7 +108,7 @@ STATES = {
 
 
 def parse(pdf_path, lgas):
-    """Read the register into counts. Returns (tree, gender, ages, quality)."""
+    """Read the register into counts, one tuple of tallies per tier."""
     try:
         from pypdf import PdfReader
     except ImportError:
@@ -101,6 +130,9 @@ def parse(pdf_path, lgas):
     nins = collections.Counter()
     phones = collections.Counter()
     outside = collections.Counter()
+    # Every spelling each tidied ward name arrived as, so the output can show
+    # the commonest one and the import can report how many were folded.
+    spellings = collections.defaultdict(collections.Counter)
     total = no_unit = minors = stray_personal = 0
 
     for page in reader.pages:
@@ -159,7 +191,9 @@ def parse(pdf_path, lgas):
                     total += 1
                     if not unit:
                         no_unit += 1
-                    ward_key = ward or "(not stated)"
+                    ward_key = tidy(ward) or "(not stated)"
+                    if ward:
+                        spellings[(key, ward_key)][ward] += 1
                     tree[key][ward_key][unit or "(not stated)"] += 1
                     gender[key][sex.lower()] += 1
                     ward_gender[(key, ward_key)][sex.lower()] += 1
@@ -183,7 +217,12 @@ def parse(pdf_path, lgas):
                     continue
             i += 1
 
+    # How many spellings were folded away. A register whose ward field needed
+    # 1,300 merges is a register somebody should tidy at source.
+    merged = sum(len(seen) - 1 for seen in spellings.values() if len(seen) > 1)
+
     quality = {
+        "wardSpellingsMerged": merged,
         "repeatedNin": sum(count - 1 for count in nins.values() if count > 1),
         "repeatedPhone": sum(count - 1 for count in phones.values() if count > 1),
         "noPollingUnit": no_unit,
@@ -191,7 +230,7 @@ def parse(pdf_path, lgas):
         "underEighteen": minors,
         "outsideState": dict(outside),
     }
-    return tree, gender, ages, ward_gender, ward_ages, quality, total
+    return tree, gender, ages, ward_gender, ward_ages, spellings, quality, total
 
 
 def main():
@@ -207,7 +246,7 @@ def main():
     if not lgas:
         sys.exit(f"No local government list for {args.state}. Add one to STATES in this script.")
 
-    tree, gender, ages, ward_gender, ward_ages, quality, total = parse(args.pdf, lgas)
+    tree, gender, ages, ward_gender, ward_ages, spellings, quality, total = parse(args.pdf, lgas)
 
     payload = {
         "party": args.party,
@@ -217,7 +256,10 @@ def main():
         "lgas": {
             name: {
                 "wards": {
-                    ward: {
+                    # Shown as the spelling most people used, so the screen
+                    # reads "Gagi A" rather than "GAGI A" — the folding is for
+                    # matching, not for display.
+                    (spellings[(name, ward)].most_common(1)[0][0] if spellings.get((name, ward)) else ward): {
                         "units": dict(units),
                         "gender": dict(ward_gender[(name, ward)]),
                         "ages": dict(ward_ages[(name, ward)]),
