@@ -27,7 +27,9 @@
     "verify:board": "node --env-file=.env.local scripts/verify-board.mjs",
     "demo:retire": "node --env-file=.env.local scripts/retire-demo-accounts.mjs",
     "_comment:dumpsite:replay": "Sends DumpSite everything a bad night stopped from landing. Safe to run twice — the hub dedupes on the external id every row carries, so a repeat is recorded once.",
-    "dumpsite:replay": "node --env-file-if-exists=.env.local scripts/dumpsite-replay.mjs"
+    "dumpsite:replay": "node --env-file-if-exists=.env.local scripts/dumpsite-replay.mjs",
+    "_comment:units": "Fetches INEC every ward and polling unit in Nigeria into public/geo/units/, one file per state, and refuses to write if the totals drift from the commission published 774 / 8,809 / 176,846.",
+    "units:import": "node scripts/import-units.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
