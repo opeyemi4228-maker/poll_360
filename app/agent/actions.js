@@ -18,6 +18,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { rateLimit } from "@/lib/ratelimit";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
 import { boothFromForm } from "@/lib/booth";
+import { parseUnitCode } from "@/lib/units";
 import { sniffImage } from "@/lib/image-bytes";
 import { accountForCode } from "@/lib/agent-login";
 import { audit, media, results, units, sheetReads } from "@/lib/db";
@@ -234,15 +235,31 @@ export async function joinAsAgent(_previous, formData) {
      sends anywhere. That is the point of a registration: Agent360 cannot
      confirm a person was at a booth without knowing which person. DumpSite
      seals it at rest under a per-item key and logs every opening. */
+  /* The ward and local government the booth sits in, read back off the code
+     rather than off the form — the form's boxes are optional and a typed code
+     is allowed to be the whole answer, so this is the one field that is
+     present however somebody filled it in. */
+  const place = parseUnitCode(person.unitCode);
+
   forwardToDumpSite({
     kind: KIND.REGISTRATION,
     externalId: `poll360:coordinator:${person.id}`,
     sender: person.phone ?? person.email ?? null,
     mime: photoMime,
     mediaHashes: [stored.hash],
+    /* ── THE NAMES ARE THE HUB'S, NOT OURS ─────────────────────────────────
+       Every key below is read by name in DumpSite's registration handler, and
+       from there by Agent360, which owns the register. A key spelled our way
+       instead of theirs does not fail: it is simply never read, so the field
+       is sealed as null and an agent arrives on the register with no name and
+       no booth. That is invisible at this end — the post returns 200 — which
+       is why these are spelled to match the reader and not the sender. */
     payload: {
-      role: "POLLING_UNIT_AGENT",
-      name: person.name,
+      /* `POLLING_AGENT`, which is the hub's own default and the word Agent360
+         maps to an agent account. An unrecognised role is refused there rather
+         than defaulted, so this is not a cosmetic difference. */
+      role: "POLLING_AGENT",
+      fullName: person.name,
       /* The photograph itself, not a reference to it. Agent360 pairs a
          presence claim with a face, and a hash it cannot resolve to an image
          proves nothing to anybody. */
@@ -251,7 +268,13 @@ export async function joinAsAgent(_previous, formData) {
       photoHash: stored.hash,
       phone: person.phone ?? null,
       email: person.email ?? null,
+      /* Both spellings of the booth. `pollingUnitCode` is what the hub reads;
+         `unitCode` is what this product calls it everywhere else, and it costs
+         nothing to keep for anybody reading a stored payload later. */
+      pollingUnitCode: person.unitCode,
       unitCode: person.unitCode,
+      wardCode: place?.wardCode ?? null,
+      lgaCode: place?.lgaCode ?? null,
       stateCode: person.unitCode?.slice(0, 2) ?? null,
       wardName: person.wardName ?? null,
       unitName: person.unitName ?? null,
