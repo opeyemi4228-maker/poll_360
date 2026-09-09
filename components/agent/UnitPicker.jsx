@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, MapPin } from "lucide-react";
 
 import Field, { fieldInput, fieldSelect } from "./Field";
@@ -15,22 +15,26 @@ import Field, { fieldInput, fieldSelect } from "./Field";
  *  this product has, because it does not fail. It files a real return against
  *  a booth in the wrong ward, and the map looks entirely normal.
  *
- *  So the two halves we can check are now chosen rather than typed. The state
- *  and the local government come from lists, by name, and the code assembles
- *  itself underneath where the agent can read it back against the sheet in
- *  their hand.
+ *  So every part is chosen rather than typed. State, local government, ward
+ *  and booth all come from lists, by name, and the code assembles itself
+ *  underneath where the agent can read it back against the sheet in their hand.
  * ══════════════════════════════════════════════════════════════════════════
  *
- * ── WHY WARD AND UNIT ARE STILL NUMBERS ────────────────────────────────────
- * Because we do not have their names. INEC has around 8,800 wards and 176,000
- * polling units; this repository holds a list of neither, and filling two more
- * dropdowns with invented names would be worse than leaving them out — a wrong
- * ward name printed beside a right ward number reads as confirmation.
+ * ── WARD AND UNIT WERE NUMBERS UNTIL THE LIST EXISTED ──────────────────────
+ * They were typed, and the reason was good: this repository held no ward or
+ * polling-unit list, and filling two dropdowns with invented names would have
+ * been worse than leaving them out — a wrong ward name printed beside a right
+ * ward number reads as confirmation.
  *
- * They are asked for as the numbers printed on the agent's own sheet, and each
- * has an optional box for the name. What is written there is a claim, is
- * stored as a claim, and reaches the person approving them as one more thing
- * to hold against the appointment list.
+ * It holds INEC's now. All 8,809 wards and 176,623 booths, from the
+ * commission's own codes, in public/geo/units/ — see scripts/import-units.mjs.
+ * A state's file is fetched when the state is chosen, about 150KB rather than
+ * the 8.3MB the whole country would be, and the ward and booth become lists
+ * like the two above them.
+ *
+ * What that buys is not convenience. It is that an agent now reads back
+ * "Nbawsi Post Office" instead of nine digits, and knows immediately whether
+ * it is where they are standing.
  *
  * ── IT WORKS WITH THE SCRIPT SWITCHED OFF ──────────────────────────────────
  * That is not a nicety on this form. Its users are on cheap handsets on rural
@@ -46,6 +50,12 @@ import Field, { fieldInput, fieldSelect } from "./Field";
  *     script the full grouped list is still there to scroll; with one it is a
  *     short list. Cascading by fetching would have left the no-script path
  *     with an empty select.
+ *
+ *   · Ward and booth cannot be rendered whole — 176,623 options is not a
+ *     select, it is a denial of service — so those two fall back to the
+ *     numeric boxes they used to be whenever no list has arrived: no script,
+ *     no state chosen yet, or a request that never landed. The agent can
+ *     always finish the form.
  *
  *   · The value of a local government is "SS/LL" and not "LL", so the choice
  *     carries its own state. The two can then never disagree, which they could
@@ -76,6 +86,59 @@ export default function UnitPicker({ places = [], values = {}, errors = {} }) {
   const inState = Boolean(stateNumber) && lga.startsWith(`${stateNumber}/`);
   const lgaNumber = inState ? lga.split("/")[1] : "";
   const lgaName = chosen && lgaNumber ? (chosen.lgas[Number(lgaNumber) - 1] ?? null) : null;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE STATE'S OWN WARDS AND BOOTHS
+
+     ── FETCHED, NOT BUNDLED ──────────────────────────────────────────────
+     176,623 polling units is 8.3MB. Sending that to a phone so somebody can
+     pick one of twelve is the sort of thing that makes a form unusable on the
+     network these forms are actually filled in on. One state is about 150KB
+     and arrives when a state is chosen, which is the same way the room's map
+     fetches one state's boundaries.
+
+     Stamped with the state it was fetched for, so a slow reply for a state
+     the agent has already moved on from cannot populate the dropdown under a
+     different one — the failure that would offer Kano's wards under Kaduna's
+     name, every code valid, nothing objecting.
+     ══════════════════════════════════════════════════════════════════════ */
+  const [book, setBook] = useState(null);
+
+  useEffect(() => {
+    /* Nothing chosen: nothing to fetch, and nothing to clear either, because
+       the reads below key off the state and will simply find no match.
+       Returning early rather than calling setState in an effect body, which
+       cascades a render for no gain. */
+    if (!stateNumber) return undefined;
+
+    let cancelled = false;
+    fetch(`/geo/units/${stateNumber}.json`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => !cancelled && setBook({ state: stateNumber, data }))
+      .catch(() => !cancelled && setBook({ state: stateNumber, data: null }));
+    return () => {
+      cancelled = true;
+    };
+  }, [stateNumber]);
+
+  const loaded = book?.state === stateNumber ? book.data : null;
+  const loadingUnits = Boolean(stateNumber) && book?.state !== stateNumber;
+
+  /* The wards of the chosen local government, and the booths of the chosen
+     ward. Each is empty until the tier above it is answered, which is what
+     makes this a cascade rather than three independent lists. */
+  const wardsHere = useMemo(
+    () => (loaded && lgaNumber ? (loaded.lgas.find((row) => row.n === lgaNumber)?.wards ?? []) : []),
+    [loaded, lgaNumber]
+  );
+
+  const unitsHere = useMemo(
+    () => (ward ? (wardsHere.find((row) => row.n === pad(ward, 2))?.units ?? []) : []),
+    [wardsHere, ward]
+  );
+
+  const chosenWardName = wardsHere.find((row) => row.n === pad(ward, 2))?.name ?? null;
+  const chosenUnitName = unitsHere.find((row) => row.n === pad(unit, 3))?.name ?? null;
 
   const parts = [stateNumber, lgaNumber, pad(ward, 2), pad(unit, 3)];
   const complete = parts.every(Boolean);
@@ -134,9 +197,15 @@ export default function UnitPicker({ places = [], values = {}, errors = {} }) {
             value={stateNumber}
             onChange={(event) => {
               setStateNumber(event.target.value);
-              /* The local government belonged to the old state. Keeping it
-                 would leave a number on screen that means a different place. */
+              /* ── EVERYTHING BELOW A CHANGED ANSWER IS CLEARED ───────────
+                 The local government belonged to the old state, and so did
+                 the ward and the booth under it. Ward 06 means a different
+                 place in every state in the country, so a number left on
+                 screen after the state changes is not a head start — it is a
+                 wrong answer that looks filled in. */
               setLga("");
+              setWard("");
+              setUnit("");
               setReadBack(null);
             }}
             className={fieldSelect(errors.state)}
@@ -164,6 +233,10 @@ export default function UnitPicker({ places = [], values = {}, errors = {} }) {
             value={inState ? lga : ""}
             onChange={(event) => {
               setLga(event.target.value);
+              /* Same reason as the state above: ward 06 of Binji and ward 06
+                 of Gada are two different places, and the number is the same. */
+              setWard("");
+              setUnit("");
               setReadBack(null);
             }}
             className={fieldSelect(errors.lga)}
@@ -192,48 +265,142 @@ export default function UnitPicker({ places = [], values = {}, errors = {} }) {
         )}
       </Field>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Field label="Ward" hint="2 digits" error={errors.ward} name="ward">
-          {(id) => (
-            <input
-              id={id}
-              name="ward"
-              type="text"
-              /* The number pad. Eleven digits through a QWERTY layout at night
-                 is the most reliable way to get a number wrong, and it is the
-                 same reason the phone field above opens the same keyboard. */
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={2}
-              value={ward}
-              onChange={(event) => setWard(digitsOnly(event.target.value, 2))}
-              placeholder="06"
-              className={`${fieldInput(errors.ward)} figure text-center`}
-            />
-          )}
+      {/* ══════════════════════════════════════════════════════════════════
+          WARD AND BOOTH, CHOSEN RATHER THAN TYPED
+
+          ── WHY THESE WERE BOXES UNTIL NOW ─────────────────────────────────
+          Because this repository held no ward or unit list, and two dropdowns
+          filled with invented names would have been worse than none: a wrong
+          ward name printed beside a right ward number reads as confirmation.
+
+          It holds INEC's now — all 8,809 wards and 176,623 booths, from the
+          commission's own codes, in public/geo/units/. So the two halves of
+          the code that could not be checked are chosen from lists, by name,
+          and the thing an agent reads back is "Inname Masukayi" rather than
+          nine digits that look like any other nine digits.
+
+          ── AND THE TYPED PATH IS STILL THERE ──────────────────────────────
+          Not as a fallback for a failed script — as the faster route for
+          somebody holding the sheet. Both write the same four fields. */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Ward"
+          hint={
+            loadingUnits
+              ? "loading…"
+              : wardsHere.length
+                ? `${wardsHere.length} in ${lgaName ?? "this local government"}`
+                : "2 digits"
+          }
+          error={errors.ward}
+          name="ward"
+        >
+          {(id) =>
+            wardsHere.length ? (
+              <select
+                id={id}
+                name="ward"
+                value={pad(ward, 2)}
+                onChange={(event) => {
+                  setWard(event.target.value);
+                  /* The booth belonged to the old ward. Left in place it would
+                     be a number on screen naming somewhere else entirely. */
+                  setUnit("");
+                  setReadBack(null);
+                }}
+                className={fieldSelect(errors.ward)}
+              >
+                <option value="">Choose your ward</option>
+                {wardsHere.map((row) => (
+                  <option key={row.n} value={row.n}>
+                    {row.n} · {row.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              /* No list yet: no state chosen, still loading, or the file did
+                 not arrive. The box that was always here, so the form works
+                 with the script switched off and on a network that dropped
+                 the request. */
+              <input
+                id={id}
+                name="ward"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={2}
+                value={ward}
+                onChange={(event) => setWard(digitsOnly(event.target.value, 2))}
+                placeholder="06"
+                className={`${fieldInput(errors.ward)} figure text-center`}
+              />
+            )
+          }
         </Field>
 
-        <Field label="Unit" hint="3 digits" error={errors.unit} name="unit">
-          {(id) => (
-            <input
-              id={id}
-              name="unit"
-              type="text"
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={3}
-              value={unit}
-              onChange={(event) => setUnit(digitsOnly(event.target.value, 3))}
-              placeholder="012"
-              className={`${fieldInput(errors.unit)} figure text-center`}
-            />
-          )}
+        <Field
+          label="Polling unit"
+          hint={
+            unitsHere.length
+              ? `${unitsHere.length} in this ward`
+              : wardsHere.length
+                ? "choose a ward first"
+                : "3 digits"
+          }
+          error={errors.unit}
+          name="unit"
+        >
+          {(id) =>
+            unitsHere.length ? (
+              <select
+                id={id}
+                name="unit"
+                value={pad(unit, 3)}
+                onChange={(event) => {
+                  setUnit(event.target.value);
+                  setReadBack(null);
+                }}
+                className={fieldSelect(errors.unit)}
+              >
+                <option value="">Choose your polling unit</option>
+                {unitsHere.map((row) => (
+                  <option key={row.n} value={row.n}>
+                    {row.n} · {row.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id={id}
+                name="unit"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={3}
+                value={unit}
+                onChange={(event) => setUnit(digitsOnly(event.target.value, 3))}
+                placeholder="012"
+                className={`${fieldInput(errors.unit)} figure text-center`}
+              />
+            )
+          }
         </Field>
       </div>
 
+      {/* ── THE BOOTH, BY NAME ──────────────────────────────────────────────
+          The whole return on having the list. An agent checking nine digits
+          against a sheet is checking digits; an agent reading "Nbawsi Post
+          Office" knows immediately whether it is where they are standing. */}
+      {chosenUnitName && (
+        <p className="rounded-dash-sm border border-ink-200 bg-ink-50 px-4 py-3 text-[0.875rem] leading-relaxed text-content">
+          <span className="font-semibold">{chosenUnitName}</span>
+          {chosenWardName ? <span className="text-content-muted"> · {chosenWardName} ward</span> : null}
+        </p>
+      )}
+
       <p className="text-[0.8125rem] leading-relaxed text-content-muted">
-        The last two numbers of the code at the top of your result sheet. Ward first, then the unit
-        within it.
+        Your ward and booth, as INEC lists them. If you are holding your result sheet, the code at
+        the top of it is quicker — open the box below and type it whole.
       </p>
 
       {/* ── THE CODE, READ BACK ────────────────────────────────────────────
