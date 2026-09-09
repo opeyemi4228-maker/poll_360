@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
-import { Clock, MapPin, ShieldCheck } from "lucide-react";
+import { Clock, KeyRound, MapPin, ShieldCheck } from "lucide-react";
 
 import { currentCoordinator } from "@/lib/coordinator-session";
 import { signOutAgent } from "@/app/agent/actions";
 import { STATUS } from "@/lib/coordinators";
+import { normaliseAgentCode } from "@/lib/agent-code";
 
 export const metadata = { title: "Waiting for approval", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export const dynamic = "force-dynamic";
  * here, so somebody who fat-fingered a digit can catch it before an
  * administrator has to.
  */
-export default async function AgentPendingPage() {
+export default async function AgentPendingPage({ searchParams }) {
   const person = await currentCoordinator();
   if (!person) redirect("/agent/login");
   /* An approved account has nothing to wait for, and landing here after
@@ -31,6 +32,13 @@ export default async function AgentPendingPage() {
   if (person.canFile) redirect("/agent");
 
   const turnedAway = person.status === "DECLINED" || person.status === "SUSPENDED";
+
+  /* ── THE CODE, ON THE ONE OCCASION IT CAN BE SHOWN ────────────────────────
+     It arrives on the query string from the sign-up action and exists nowhere
+     else: the row holds a hash, and nothing in this product can recover the
+     original. So this page is the only place it will ever appear, and it says
+     so rather than letting somebody assume they can come back for it. */
+  const issued = normaliseAgentCode((await searchParams)?.code);
 
   return (
     <main className="mx-auto w-full max-w-md px-5 py-12">
@@ -47,6 +55,35 @@ export default async function AgentPendingPage() {
           ? `Thank you, ${person.name.split(" ")[0]}. This account cannot file at the moment. Speak to the coordinator who appointed you — they can tell you why and put it right.`
           : `Thank you, ${person.name.split(" ")[0]}. Your details are with the administrators. Somebody who knows your ward checks the polling unit against the appointment list before your account can file anything — usually the same day.`}
       </p>
+
+      {issued && (
+        /* ── WRITE THIS DOWN ────────────────────────────────────────────
+            Loud, boxed and first, above the details, because an agent who
+            scrolls past it has lost it. The instruction is the heading: not
+            "your code is", which reads as a receipt, but the thing they have
+            to do in the next ten seconds. */
+        <section className="mt-8 rounded-dash-sm border-2 border-ink-950 bg-ink-50 p-5">
+          <p className="flex items-center gap-2 text-[0.9375rem] font-bold text-ink-950">
+            <KeyRound size={17} strokeWidth={2.5} aria-hidden="true" />
+            Write this down before you close this page
+          </p>
+
+          <p className="figure mt-4 text-center text-[1.75rem] leading-none font-bold tracking-[0.08em] text-ink-950 select-all">
+            {issued}
+          </p>
+
+          <p className="mt-4 text-[0.875rem] leading-relaxed text-content-muted">
+            This is how you sign in — here, or by sending it to the WhatsApp desk. It is the only
+            time it can be shown: we keep a scrambled copy we cannot read back. Lose it and your
+            coordinator issues a new one, which stops the old one working.
+          </p>
+
+          <p className="mt-3 text-[0.8125rem] leading-relaxed text-content-subtle">
+            The first nine digits are your polling unit, so you can check them against your sheet.
+            The six at the end are the part that signs you in — do not read them out to anybody.
+          </p>
+        </section>
+      )}
 
       <dl className="mt-8 divide-y divide-ink-200 border-y border-ink-200">
         <div className="flex items-start gap-4 py-5">

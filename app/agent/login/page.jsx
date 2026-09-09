@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import AgentAuthForm from "@/components/agent/AgentAuthForm";
-import { signInAgent } from "@/app/agent/actions";
+import CodeSignIn from "@/components/agent/CodeSignIn";
+import { signInAgent, signInWithCode } from "@/app/agent/actions";
 import { currentCoordinator } from "@/lib/coordinator-session";
 
 export const metadata = { title: "Sign in — polling unit", robots: { index: false } };
@@ -30,10 +31,24 @@ export default async function AgentLoginPage() {
     <main className="mx-auto w-full max-w-md px-5 py-12">
       <h1 className="text-fluid-2xl text-ink-950">Sign in to file your booth</h1>
       <p className="mt-3 text-[0.9375rem] leading-relaxed text-content-muted">
-        Use the phone number you signed up with.
+        With the code you were given when you signed up, or with your phone number.
       </p>
 
-      <AgentAuthForm action={signInAgent} mode="signin" />
+      {/* ── THE CODE FIRST ────────────────────────────────────────────────
+          It is the credential an agent has on them. A password chosen three
+          weeks ago at a training session is the one they have forgotten; the
+          card in their pocket is the one they are holding. Both work — this is
+          not a fallback, it is the shorter road. */}
+      <div className="mt-8">
+        <CodeSignIn action={signInWithCode} />
+      </div>
+
+      <div className="mt-10 border-t border-ink-200 pt-8">
+        <h2 className="text-[0.9375rem] font-bold text-ink-950">
+          Or with your phone number and password
+        </h2>
+        <AgentAuthForm action={signInAgent} mode="signin" />
+      </div>
 
       <p className="mt-8 border-t border-ink-200 pt-6 text-[0.9375rem] leading-relaxed text-content-muted">
         Not signed up yet?{" "}

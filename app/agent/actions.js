@@ -18,6 +18,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { rateLimit } from "@/lib/ratelimit";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
 import { boothFromForm } from "@/lib/booth";
+import { accountForCode } from "@/lib/agent-login";
 import { audit, results, units, sheetReads } from "@/lib/db";
 /* Everything this product takes in is also delivered to the hub that seals and
    chains it for the eighteen months between a polling day and a tribunal.
@@ -146,6 +147,13 @@ export async function joinAsAgent(_previous, formData) {
     unitName: unitName || null,
   });
 
+  /* ── THE CODE, CUT ONCE ─────────────────────────────────────────────────
+     The one moment this code exists anywhere. It is returned to the page that
+     shows it to the agent and is written nowhere else — not to the audit
+     trail, not to a log, not into the row, which holds only its hash. See
+     lib/agent-code.js for why it is not simply their polling unit. */
+  const agentCode = await coordinators.issueCode(person.id, { hash: hashPassword });
+
   /* Signed in immediately, on purpose. There is nothing to protect — the
      account can read nothing and file nothing — and the alternative is telling
      somebody their application went somewhere they cannot see. */
@@ -196,10 +204,76 @@ export async function joinAsAgent(_previous, formData) {
     },
   });
 
-  redirect("/agent/pending");
+  /* ── SHOWN, NOT REDIRECTED PAST ─────────────────────────────────────────
+     The code goes on the query string of the holding page rather than into a
+     session or a cookie, for one reason: it is the only copy, this is the only
+     moment, and a redirect that lost it would leave an agent registered and
+     unable to sign in anywhere. It leaves the URL the moment they leave that
+     page, and it is useless to anybody who did not also register. */
+  redirect(agentCode ? `/agent/pending?code=${encodeURIComponent(agentCode)}` : "/agent/pending");
 }
 
 /* ── signing in ───────────────────────────────────────────────────────────── */
+
+/**
+ * Sign in with the code, rather than with a phone and a password.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  WHY THIS EXISTS BESIDE THE PASSWORD PATH
+ *
+ *  An agent at a booth has one hand free, a cheap handset, and a queue in
+ *  front of them. A password chosen three weeks ago at a training session is
+ *  the thing they have forgotten; the code on the card in their pocket is the
+ *  thing they have. It is also the only credential that works over WhatsApp,
+ *  where there is no form to put an email address into.
+ *
+ *  ── AND WHY THE SEARCH IS NARROWED BY THE BOOTH ─────────────────────────
+ *  The code is hashed with a per-row salt, so there is nothing to look it up
+ *  by. Verifying against every account in the country would be forty thousand
+ *  slow hashes for every attempt, which is a denial of service anybody could
+ *  trigger from a phone.
+ *
+ *  So the booth inside the code narrows it to the people at one polling unit.
+ *  That is arithmetic, not authorisation: the booth half is printed on every
+ *  result sheet and published in this repository, and anybody can write it.
+ *  The secret half still has to match a stored hash, and a wrong booth simply
+ *  finds nobody to check against.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+export async function signInWithCode(_previous, formData) {
+  const { ip, userAgent } = await whereFrom();
+
+  /* Ten in fifteen minutes. Thirty bits of secret behind that is far past
+     anything a guess reaches, and it leaves room for somebody mistyping their
+     own code four times in the dark. */
+  const limit = rateLimit(`agent-code:${ip}`, { limit: 10, windowMs: 15 * 60 * 1000 });
+  if (!limit.ok) {
+    return { error: "Too many attempts from this connection. Wait a few minutes and try again." };
+  }
+
+  /* One message whatever went wrong. A code that is not a code and a code that
+     belongs to nobody get the same answer, or the form becomes an oracle
+     telling somebody which booths have agents on them. */
+  const REFUSED_CODE = "That code did not match an account. Check it and try again.";
+
+  const person = await accountForCode(formData.get("code"));
+  if (!person) return { error: REFUSED_CODE };
+
+  await createCoordinatorSession(person.id, { userAgent });
+  await coordinators.markSignedIn(person.id);
+
+  await audit.record({
+    actorId: null,
+    actorName: person.name,
+    action: "coordinator:signed-in",
+    subject: person.unitCode,
+    meta: { by: "code" },
+    ip,
+  });
+
+  redirect(person.canFile ? "/agent" : "/agent/pending");
+}
+
 
 /**
  * ── ONE MESSAGE, WHATEVER WENT WRONG ───────────────────────────────────────
