@@ -1,8 +1,11 @@
 "use server";
 
+import { createHash } from "node:crypto";
+
 import { revalidatePath } from "next/cache";
 
 import { results, incidents, media, units, sheetReads } from "@/lib/db";
+import { sniffImage } from "@/lib/image-bytes";
 import { seal } from "@/lib/crypto";
 import { requireCapability, requireUser, log } from "@/lib/guard";
 import { currentUser } from "@/lib/session";
@@ -13,6 +16,9 @@ import { isUnitCode, parseUnitCode } from "@/lib/units";
 import { validateReturn } from "@/lib/results";
 import { figuresForBallot, readSheet, trustworthy, visionAvailable } from "@/lib/sheet-vision";
 import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
+/* The hub every input this product receives is also delivered to. Never
+   awaited on an agent's path — see lib/dumpsite.js. */
+import { KIND, forwardToDumpSite } from "@/lib/dumpsite";
 
 /**
  * Filing from a booth.
@@ -267,6 +273,56 @@ export async function fileResult(_previous, formData) {
         : `not compared: ${sheet.record.reason ?? "unknown"}`,
   });
 
+  /* ── AND ON TO THE HUB ──────────────────────────────────────────────────
+     The field form was the one filing path that did not reach DumpSite. The
+     agent app forwarded its returns and the WhatsApp webhook forwarded its
+     messages, so the archive held everything except the returns typed by the
+     agents actually standing at the booths — the largest source on the night,
+     and the one a tribunal would ask for first.
+
+     Same shape as app/agent/actions.js deliberately: DumpSite classifies on
+     the payload it is handed, and two filing paths describing one kind of
+     thing two ways is how a classifier comes to route half of them wrongly.
+
+     After the return is committed and after the audit line, never before, and
+     never awaited. A hub having a bad night must cost an agent nothing — see
+     lib/dumpsite.js. */
+  forwardToDumpSite({
+    kind: KIND.RESULT_FIGURES,
+    /* Stable across an amendment, so re-filing a corrected figure updates the
+       hub's record of this booth rather than adding a second one. */
+    externalId: `poll360:result:${project.id}:${race}:${unitCode}`,
+    sender: agent.phone ?? null,
+    /* Pairs these figures with the photograph they were held against, where
+       one was sent. The bytes are not repeated: the sheet travels as its own
+       item and the hub joins them on the hash. */
+    mediaHashes: sheet.hash ? [sheet.hash] : [],
+    payload: {
+      unitCode,
+      stateCode: unitCode.slice(0, 2),
+      race,
+      electionId: project.id,
+      registered,
+      accredited,
+      rejected,
+      votes,
+      cast: check.cast,
+      position: position ?? null,
+      /* Typed by a person at the booth, and said so. A figure a human read off
+         the paper in their hand and a figure a machine read off a photograph
+         are not the same claim, and nothing downstream may weigh them alike. */
+      readBy: "HUMAN",
+      sheet: !sheet.record
+        ? "none"
+        : sheet.record.agrees
+          ? "agreed"
+          : `not compared: ${sheet.record.reason ?? "unknown"}`,
+      amended,
+      filedBy: { id: agent.id, name: agent.name ?? null },
+      filedAt: new Date().toISOString(),
+    },
+  });
+
   revalidatePath("/field");
   revalidatePath("/admin");
   /* Every screen that draws this return, named rather than assumed. The room's
@@ -366,23 +422,40 @@ async function checkAgainstSheet(photo, typed, shown = {}) {
   }
 
   /* The declared type is a claim; the leading bytes are a fact. */
-  if (!sniff(bytes)) return uncompared("the file was not a photograph");
+  if (!sniffImage(bytes)) return uncompared("the file was not a photograph");
 
   const read = await readSheet(bytes);
   if (!read.ok) return uncompared(read.reason ?? "the picture could not be read");
 
   const match = matchSheet(read.parsed, typed);
 
+/* ── THE HASH THAT MAKES A SHEET AND ITS FIGURES ONE RECORD ───────────────
+   Both this and its twin returned a `record` from matchRecord(), which
+   carries `compared`, `agrees`, `checked`, `mismatched` and `reason` — and no
+   hash. Every DumpSite forward then read `sheet.record?.hash`, which is
+   always undefined, so the figures went to the hub with an empty
+   `mediaHashes` while the photograph went with a real one.
+
+   The effect was silent and total: DumpSite pairs an image with the numbers
+   read off it *on that hash*, so no return filed through this product could
+   ever be paired with its own evidence. The comment at the forward site said
+   the pairing happened; nothing did it.
+
+   The bytes are already in hand here, so the hash is computed where the
+   photograph is opened and travels on the result. */
+  const hash = createHash("sha256").update(bytes).digest("hex");
+
   if (match.comparable && !match.agrees) {
     return {
       blocked: true,
       match,
+      hash,
       record: matchRecord(match),
       message: mismatchMessage(match, { channel: "web" }),
     };
   }
 
-  return { blocked: false, match, record: matchRecord(match), message: null };
+  return { blocked: false, match, hash, record: matchRecord(match), message: null };
 }
 
 /**
@@ -445,7 +518,7 @@ export async function readSheetPhoto(_previous, formData) {
   }
 
   /* The declared type is a claim; the leading bytes are a fact. */
-  if (!sniff(bytes)) return failed("That file is not a photograph.");
+  if (!sniffImage(bytes)) return failed("That file is not a photograph.");
 
   const race = String(formData.get("race") ?? "").toUpperCase();
 
@@ -555,7 +628,7 @@ export async function reportIncident(_previous, formData) {
     try {
       if (photo.size > 6_000_000) throw new Error("too large");
       const bytes = Buffer.from(await photo.arrayBuffer());
-      const mime = sniff(bytes);
+      const mime = sniffImage(bytes);
       if (mime) {
         await media.attach({ incidentId, mime, bytes });
       }
@@ -566,6 +639,44 @@ export async function reportIncident(_previous, formData) {
   }
 
   await log(agent, "incident:reported", agent.scope, { kind, severity });
+
+  /* ── THE ONE KIND THE HUB WAS NOT RECEIVING AT ALL ──────────────────────
+     Registrations, figures and sheets all reached DumpSite; situation reports
+     did not. That is the wrong one to be missing. A late-opening report costs
+     a booth; a ballot-snatching report is the thing the whole archive exists
+     to hold, and it was the only kind with no copy outside this database.
+
+     ── WHAT IS SENT, AND WHAT DELIBERATELY IS NOT ────────────────────────
+     The narrative is not forwarded. It is sealed here because it names people
+     — who was obstructed, who did the obstructing — and sending it would put
+     a second plaintext copy of the most sensitive thing this product stores
+     into another system's inbox. What goes is what the hub needs to route and
+     a room needs to act: where, what kind, how serious, when, and the id to
+     ask this product for the rest under an access log.
+
+     The photograph is not sent either, for a duller reason: it is attached
+     after this line and may fail, and forwarding a hash for an image that was
+     never stored would leave the hub pairing against nothing. */
+  forwardToDumpSite({
+    kind: KIND.SITUATION_REPORT,
+    externalId: `poll360:incident:${incidentId}`,
+    sender: agent.phone ?? null,
+    payload: {
+      incidentId,
+      unitCode: agent.scope ?? null,
+      stateCode: (agent.scope ?? "00").slice(0, 2),
+      electionId: project?.id ?? null,
+      kind,
+      severity,
+      /* Named rather than the narrative itself. A hub that can say "there is a
+         critical report from this booth, ask Poll360 for it" routes correctly
+         without holding what it does not need. */
+      hasNarrative: detail.length > 0,
+      reportedBy: { id: agent.id, name: agent.name ?? null },
+      reportedAt: new Date().toISOString(),
+    },
+  });
+
   revalidatePath("/field");
   revalidatePath("/admin");
   revalidatePath("/room");
@@ -573,23 +684,4 @@ export async function reportIncident(_previous, formData) {
   return { ok: true };
 }
 
-/**
- * What these bytes actually are.
- *
- * The Content-Type a browser sends is a claim; the leading bytes are a fact.
- * Only two formats are accepted, both of which every phone camera produces,
- * and anything else, including an SVG, which is a script in a trench coat, * is refused.
- */
-function sniff(bytes) {
-  if (bytes.length < 12) return null;
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
-  if (
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47
-  ) {
-    return "image/png";
-  }
-  return null;
-}
+

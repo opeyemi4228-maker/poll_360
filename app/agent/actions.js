@@ -18,8 +18,9 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import { rateLimit } from "@/lib/ratelimit";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
 import { boothFromForm } from "@/lib/booth";
+import { sniffImage } from "@/lib/image-bytes";
 import { accountForCode } from "@/lib/agent-login";
-import { audit, results, units, sheetReads } from "@/lib/db";
+import { audit, media, results, units, sheetReads } from "@/lib/db";
 /* Everything this product takes in is also delivered to the hub that seals and
    chains it for the eighteen months between a polling day and a tribunal.
    Never awaited on a user's path — see lib/dumpsite.js. */
@@ -118,6 +119,45 @@ export async function joinAsAgent(_previous, formData) {
     errors.password = `Choose a password of at least ${MIN_PASSWORD} characters. Length is what makes it hard to guess.`;
   }
 
+  /* ── THE PHOTOGRAPH, CHECKED BEFORE ANYTHING IS WRITTEN ─────────────────
+     Required, because Agent360's whole question is whether somebody was
+     actually standing at a booth and the answer to it starts with a face —
+     and because a name and a booth code can be typed by anybody, while a
+     photograph is the thing a ward coordinator either recognises or does not.
+
+     Checked here rather than after the account exists, so a camera file this
+     server cannot read is a sentence on the form somebody can act on rather
+     than an account that quietly has no picture. Registration is not
+     time-critical the way filing a return at nine at night is; an agent can
+     take another photograph.
+
+     What the browser calls the file is a claim; the first four bytes are a
+     fact. The browser has already downscaled it — see components/agent/
+     PhotoField.jsx — so anything still over the ceiling did not come through
+     that path. */
+  const photo = formData.get("photo");
+  let photoBytes = null;
+  let photoMime = null;
+
+  if (!photo || typeof photo.arrayBuffer !== "function" || photo.size === 0) {
+    errors.photo = "A photograph of yourself is needed. Your coordinator checks it against the appointment list.";
+  } else if (photo.size > 6_000_000) {
+    errors.photo = "That picture is too large. Take another one with your phone's camera.";
+  } else {
+    try {
+      const bytes = Buffer.from(await photo.arrayBuffer());
+      const mime = sniffImage(bytes);
+      if (!mime) {
+        errors.photo = "That file is not a photograph this system can read. A picture from your phone's camera will work.";
+      } else {
+        photoBytes = bytes;
+        photoMime = mime;
+      }
+    } catch {
+      errors.photo = "That picture could not be opened. Try taking it again.";
+    }
+  }
+
   if (Object.keys(errors).length) return { errors, values };
 
   /* ── AN ACCOUNT THAT EXISTS IS NOT A SIGN-UP ────────────────────────────
@@ -146,6 +186,16 @@ export async function joinAsAgent(_previous, formData) {
     wardName: wardName || null,
     unitName: unitName || null,
   });
+
+  /* Stored against the account, in the same table as the incident
+     photographs — see `attachToCoordinator` in lib/db.js. The pointer goes on
+     the coordinator so a screen showing an agent does not have to search. */
+  const stored = await media.attachToCoordinator({
+    coordinatorId: person.id,
+    mime: photoMime,
+    bytes: photoBytes,
+  });
+  await coordinators.attachPhoto(person.id, stored.id);
 
   /* ── THE CODE, CUT ONCE ─────────────────────────────────────────────────
      The one moment this code exists anywhere. It is returned to the page that
@@ -188,9 +238,17 @@ export async function joinAsAgent(_previous, formData) {
     kind: KIND.REGISTRATION,
     externalId: `poll360:coordinator:${person.id}`,
     sender: person.phone ?? person.email ?? null,
+    mime: photoMime,
+    mediaHashes: [stored.hash],
     payload: {
       role: "POLLING_UNIT_AGENT",
       name: person.name,
+      /* The photograph itself, not a reference to it. Agent360 pairs a
+         presence claim with a face, and a hash it cannot resolve to an image
+         proves nothing to anybody. */
+      photo: photoBytes.toString("base64"),
+      photoMime,
+      photoHash: stored.hash,
       phone: person.phone ?? null,
       email: person.email ?? null,
       unitCode: person.unitCode,
@@ -651,6 +709,14 @@ export async function readAgentSheetPhoto(_previous, formData) {
     return failed("That picture could not be opened.");
   }
 
+  /* What it is, not what it says it is. The type the browser sends is a claim,
+     and this one travels to DumpSite as the label on an exhibit — so it is read
+     off the bytes here the same way the sign-up photograph is. */
+  const sheetMime = sniffImage(bytes);
+  if (!sheetMime) {
+    return failed("That file is not a photograph this system can read. A picture from your phone's camera will work.");
+  }
+
   const project = await currentElection();
   if (!project) {
     return failed("No election project is running, so a reading has nowhere to be saved.");
@@ -705,7 +771,7 @@ export async function readAgentSheetPhoto(_previous, formData) {
     kind: KIND.RESULT_SHEET,
     externalId: `poll360:sheet:${hash}`,
     sender: person.phone ?? null,
-    mime: photo.type || "image/jpeg",
+    mime: sheetMime,
     mediaHashes: [hash],
     payload: {
       unitCode,

@@ -6,6 +6,7 @@ import { ArrowRight, Eye, EyeOff, Loader2, TriangleAlert } from "lucide-react";
 
 import Field, { fieldInput as input } from "./Field";
 import UnitPicker from "./UnitPicker";
+import PhotoField from "./PhotoField";
 
 /**
  * The coordinator's sign-in and sign-up form.
@@ -93,6 +94,8 @@ export default function AgentAuthForm({ action, mode = "signin", initial = {}, p
               />
             )}
           </Field>
+
+          <PhotoField error={errors.photo} />
 
           <UnitPicker places={places} values={values} errors={errors} />
         </>
