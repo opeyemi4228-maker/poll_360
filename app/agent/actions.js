@@ -1,5 +1,7 @@
 "use server";
 
+import { createHash } from "node:crypto";
+
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -17,6 +19,10 @@ import { rateLimit } from "@/lib/ratelimit";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
 import { boothFromForm } from "@/lib/booth";
 import { audit, results, units, sheetReads } from "@/lib/db";
+/* Everything this product takes in is also delivered to the hub that seals and
+   chains it for the eighteen months between a polling day and a tribunal.
+   Never awaited on a user's path — see lib/dumpsite.js. */
+import { KIND, forwardToDumpSite } from "@/lib/dumpsite";
 import { currentElection } from "@/lib/election-scope";
 import { elections } from "@/lib/elections";
 import { ballotFor, isRace } from "@/lib/races";
@@ -156,6 +162,38 @@ export async function joinAsAgent(_previous, formData) {
     subject: person.unitCode,
     meta: { id: person.id },
     ip,
+  });
+
+  /* ── AND ON TO THE HUB ──────────────────────────────────────────────────
+     A registration belongs to Agent360 — whether somebody was actually
+     standing at a booth is its question, not this product's — and it reaches
+     it through DumpSite, which seals and chains it on receipt. See
+     lib/dumpsite.js for why this is never awaited: an agent signing up must
+     not fail because a hub is having a bad night, and their account is
+     already committed here.
+
+     Identity travels on this one, unlike almost everything else this product
+     sends anywhere. That is the point of a registration: Agent360 cannot
+     confirm a person was at a booth without knowing which person. DumpSite
+     seals it at rest under a per-item key and logs every opening. */
+  forwardToDumpSite({
+    kind: KIND.REGISTRATION,
+    externalId: `poll360:coordinator:${person.id}`,
+    sender: person.phone ?? person.email ?? null,
+    payload: {
+      role: "POLLING_UNIT_AGENT",
+      name: person.name,
+      phone: person.phone ?? null,
+      email: person.email ?? null,
+      unitCode: person.unitCode,
+      stateCode: person.unitCode?.slice(0, 2) ?? null,
+      wardName: person.wardName ?? null,
+      unitName: person.unitName ?? null,
+      /* Pending until an administrator agrees with the booth they claimed.
+         Sent as the claim it is rather than as a fact. */
+      status: person.status ?? "PENDING",
+      registeredAt: new Date().toISOString(),
+    },
   });
 
   redirect("/agent/pending");
@@ -457,6 +495,44 @@ export async function fileAgentResult(_previous, formData) {
     ip: (list.get("x-forwarded-for")?.split(",")[0] ?? "local").trim(),
   });
 
+  /* ── AND ON TO THE HUB ──────────────────────────────────────────────────
+     The figures, and the hash of the photograph they were held against. The
+     bytes themselves are not sent: the picture already went as its own item
+     when it was read, and DumpSite pairs the two on the hash rather than
+     holding a second copy of a six-megabyte photograph.
+
+     After the return is committed and after the audit line, never before. A
+     hub that is unreachable must cost this product nothing at all — see
+     lib/dumpsite.js. */
+  forwardToDumpSite({
+    kind: KIND.RESULT_FIGURES,
+    externalId: `poll360:result:${project.id}:${race}:${unitCode}`,
+    sender: person.phone ?? null,
+    mediaHashes: sheet.record?.hash ? [sheet.record.hash] : [],
+    payload: {
+      unitCode,
+      stateCode: unitCode.slice(0, 2),
+      race,
+      electionId: project.id,
+      registered,
+      accredited,
+      rejected,
+      votes,
+      cast: check.cast,
+      position: position ?? null,
+      /* Whether a photograph corroborated these numbers, in the words the
+         audit trail uses, so the hub is never left to infer it. */
+      sheet: !sheet.record
+        ? "none"
+        : sheet.record.agrees
+          ? "agreed"
+          : `not compared: ${sheet.record.reason ?? "unknown"}`,
+      amended,
+      filedBy: { name: person.name, coordinatorId: person.id },
+      filedAt: new Date().toISOString(),
+    },
+  });
+
   revalidatePath("/agent");
   revalidatePath("/admin");
   revalidatePath("/room");
@@ -526,6 +602,75 @@ export async function readAgentSheetPhoto(_previous, formData) {
     reader: read.reader ?? null,
     race: isRace(race) ? race : null,
     source: "APP",
+  });
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE PICTURE AND THE READING, AS TWO ITEMS
+
+     ── WHY TWO AND NOT ONE ──────────────────────────────────────────────
+     They are different kinds of evidence with different lifetimes. The
+     photograph is what the officer wrote and does not change; the reading is
+     a machine's opinion of it, and a second reader, a better model or a human
+     correction produces another one tomorrow. Sent as one item they could
+     never be told apart afterwards, and "which reading is this" is the first
+     question anybody asks of a disputed figure.
+
+     So the sheet goes as RESULT_SHEET carrying the image, and the reading
+     goes as RESULT_FIGURES carrying the same hash. DumpSite pairs them on
+     that hash — see lib/taxonomy.js there, where the image is routed to
+     Agent360 for custody and the figures to Poll360.
+
+     ── AND THE READING TRAVELS WITH ITS PROVENANCE ──────────────────────
+     Which reader, how confident, what it could not make out. A figure read
+     off a photograph and a figure typed by a person are not the same claim,
+     and eighteen months later the difference is the whole argument. */
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const unitCode = person.unitCode ?? parsed.unitCode ?? null;
+
+  forwardToDumpSite({
+    kind: KIND.RESULT_SHEET,
+    externalId: `poll360:sheet:${hash}`,
+    sender: person.phone ?? null,
+    mime: photo.type || "image/jpeg",
+    mediaHashes: [hash],
+    payload: {
+      unitCode,
+      stateCode: unitCode?.slice(0, 2) ?? null,
+      race: isRace(race) ? race : null,
+      electionId: project.id,
+      /* The photograph itself. This is the one item this product sends that
+         carries bytes, because a hash without the image it names proves
+         nothing to a tribunal. */
+      image: bytes.toString("base64"),
+      bytes: bytes.length,
+      capturedBy: { name: person.name, coordinatorId: person.id },
+      capturedAt: new Date().toISOString(),
+    },
+  });
+
+  forwardToDumpSite({
+    kind: KIND.RESULT_FIGURES,
+    externalId: `poll360:read:${id}`,
+    sender: person.phone ?? null,
+    mediaHashes: [hash],
+    payload: {
+      unitCode,
+      stateCode: unitCode?.slice(0, 2) ?? null,
+      race: isRace(race) ? race : null,
+      electionId: project.id,
+      figures: parsed,
+      /* Read by a machine, and said so. Nothing downstream may weigh this the
+         way it weighs a figure a person typed off the sheet in their hand. */
+      readBy: "MACHINE",
+      reader: read.reader ?? null,
+      confidence: read.confidence ?? null,
+      legibility: read.legibility ?? null,
+      unreadable: read.unreadable ?? [],
+      trusted,
+      usable: parsed.usable,
+      problems: parsed.problems ?? [],
+      readAt: new Date().toISOString(),
+    },
   });
 
   return {

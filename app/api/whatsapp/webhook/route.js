@@ -1,6 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { handleInbound } from "@/lib/whatsapp-bot";
+/* Everything that arrives by phone is also delivered to the hub that seals,
+   classifies and routes it. Never awaited — see lib/dumpsite.js. */
+import { KIND as DUMP_KIND, forwardToDumpSite } from "@/lib/dumpsite";
+
 import { whatsapp } from "@/lib/db";
 
 /**
@@ -120,6 +124,44 @@ export async function POST(request) {
                   : "text",
             mediaId,
             location,
+          });
+
+          /* ── AND ON TO THE HUB ────────────────────────────────────────
+             Everything that arrives by phone, whether or not this bot could
+             act on it. DumpSite classifies it — a situation report, a figure,
+             a registration, or an unknown for a human to look at — which is
+             the job it exists to do and one this webhook should not be
+             attempting on its own.
+
+             The channel travels with it because it changes what the figure is
+             worth downstream: Meta delivers a location as a bare pin with no
+             accuracy and strips EXIF from every photograph, so a number that
+             arrived this way must never be weighed as though it came from an
+             attested device. Sending `channel` at the door is what stops that.
+
+             Never awaited — this webhook has to return 200 quickly or Meta
+             retries and eventually drops the channel. See lib/dumpsite.js. */
+          forwardToDumpSite({
+            kind: DUMP_KIND.MESSAGE,
+            externalId: `poll360:wa:${message.id}`,
+            sender: phone,
+            payload: {
+              channel: "WHATSAPP",
+              waId: message.id,
+              from: phone,
+              name: profiles.get(phone) ?? null,
+              type: kind,
+              text: text ?? "",
+              /* The id, not the bytes. Fetching a six-megabyte photograph on
+                 the webhook path is the thing that makes Meta time out. The
+                 desk pulls it when it opens the message. */
+              mediaId,
+              location,
+              /* What this product made of it, so the hub can see whether the
+                 two classifiers agree. */
+              handledAs: outcome.kind ?? null,
+              receivedAt: new Date().toISOString(),
+            },
           });
 
           if (outcome.reply) await send(phone, outcome.reply);
