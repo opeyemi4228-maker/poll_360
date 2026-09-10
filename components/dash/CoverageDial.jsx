@@ -19,6 +19,31 @@ const TICKS = 60;
 const R = 78;
 const CIRCUMFERENCE = 2 * Math.PI * R;
 
+/**
+ * Round a computed coordinate before it is written into an attribute.
+ *
+ * ── THE SAME ROUNDING components/ui/BrandMark.jsx DOES, AND FOR THE SAME
+ *    REASON ────────────────────────────────────────────────────────────────
+ * `Math.sin` and `Math.cos` are implementation-approximated: the specification
+ * does not require two JavaScript engines to agree to the last bit, and the
+ * server and the browser are not the same engine. A one-ulp difference is
+ * invisible on a 200-unit viewBox and it serialises to a different string —
+ * "28.658096754170145" against "28.65809675417016" — which React reports as a
+ * hydration mismatch and then refuses to patch up.
+ *
+ * The mark had this from the start and the dial did not, which is the whole
+ * bug: two components drawing the same instrument, one of them rounding. Three
+ * decimals is a thousandth of a unit on a dial drawn 240px wide, far below
+ * anything a screen can show, and identical on both sides of the wire.
+ *
+ * The two arcs below need no such treatment. They are built from `Math.PI`,
+ * which is a constant, and from multiplication and division, which IEEE 754
+ * requires to be exact — so both sides reach the same double by construction.
+ */
+function round(value) {
+  return Math.round(value * 1000) / 1000;
+}
+
 export default function CoverageDial({ reported, total, verified = 0, label = "Booths reporting" }) {
   const share = total ? Math.min(1, reported / total) : 0;
   const verifiedShare = total ? Math.min(1, verified / total) : 0;
@@ -41,10 +66,10 @@ export default function CoverageDial({ reported, total, verified = 0, label = "B
             return (
               <line
                 key={index}
-                x1={100 + Math.cos(angle) * inner}
-                y1={100 + Math.sin(angle) * inner}
-                x2={100 + Math.cos(angle) * 96}
-                y2={100 + Math.sin(angle) * 96}
+                x1={round(100 + Math.cos(angle) * inner)}
+                y1={round(100 + Math.sin(angle) * inner)}
+                x2={round(100 + Math.cos(angle) * 96)}
+                y2={round(100 + Math.sin(angle) * 96)}
               />
             );
           })}

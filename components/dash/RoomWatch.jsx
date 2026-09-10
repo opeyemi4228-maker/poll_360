@@ -5,7 +5,7 @@ import { BellRing, MapPin, Radio, ShieldAlert } from "lucide-react";
 
 import RoomAlerts from "./RoomAlerts";
 import IncidentStream from "./IncidentStream";
-import { Gauge, MiniMap, Panel, Waffle } from "./Figures";
+import { MiniMap } from "./Figures";
 import { watchBand } from "@/lib/alerts";
 import { cn, formatNumber } from "@/lib/utils";
 
@@ -52,15 +52,12 @@ const SEVERITY = [
 ];
 
 export default function RoomWatch({
-  /* ── THIS IS AN ESCALATION REPORT, NOT A LIST ──────────────────────────
-     What lib/alerts.js returns is `{ at, alerts, dials, level, counts }` — an
-     object whose `alerts` key holds the rows. The name is unfortunate and it
-     is the name the whole room uses, so it is kept and unpacked rather than
-     renamed in one caller.
-
-     Nothing here unpacks it by hand any more. `watchBand` does, in a module a
-     test can call, because doing this arithmetic inside a render is what took
-     this screen down twice in one evening — see the note above it. */
+  /* ── THE RAISED SET, NOT A LIST OF IT ────────────────────────────────
+     This is what `raiseAlerts` returns — `{ level, alerts, dials, counts }` —
+     and it arrives whole because the level is computed there and must not be
+     computed a second time here. It was typed as an array and read as one,
+     which meant `alerts.reduce` on an object and a screen that threw before
+     it drew a pixel. See lib/alerts.js. */
   alerts = null,
   incidents = [],
   photos = {},
@@ -71,75 +68,128 @@ export default function RoomWatch({
 }) {
   const [half, setHalf] = useState("alerts");
 
-  const band = watchBand({ alerts, incidents });
+  /* ══════════════════════════════════════════════════════════════════════
+     THE BAND'S ARITHMETIC IS NOT IN THIS FILE
 
-  /* Rank is an index into SEVERITY_ORDER, loudest first, so the colours line
-     up with it by position and this file never repeats the severity names. */
+     It was, and the screen went down: the component was handed the object
+     `raiseAlerts` returns and read it as an array, so `alerts.reduce` threw
+     before a pixel was drawn, and a rename had left a reference to a variable
+     that no longer existed. Neither could be caught by a test, because there
+     was nothing to test — the sums lived inside the render.
+
+     They live in lib/alerts.js now and have a suite of their own. This file
+     draws what it is given and works nothing out, which is why it can be read
+     in one sitting and why the next rename cannot silently break it.
+     ══════════════════════════════════════════════════════════════════════ */
+  const band = watchBand({ alerts, incidents });
+  const raised = band.raisedRows;
+
+  /* A state is coloured by the worst thing reported in it. One with nothing
+     against it is absent from `byState` and so keeps the surface colour: an
+     absence, not a low number, which is the rule every map here follows. */
   const fills = Object.fromEntries(
-    Object.entries(band.byState).map(([code, item]) => [code, SEVERITY[item.rank].color])
+    Object.entries(band.byState).map(([code, row]) => [code, SEVERITY[row.rank].color])
   );
 
   const notes = Object.fromEntries(
-    Object.entries(band.byState).map(([code, item]) => [
+    Object.entries(band.byState).map(([code, row]) => [
       code,
-      `${item.count} report${item.count === 1 ? "" : "s"}`,
+      `${row.count} report${row.count === 1 ? "" : "s"}`,
     ])
   );
 
+  const bySeverity = band.bySeverity
+    .map((row) => ({ ...SEVERITY.find((item) => item.id === row.id), value: row.count }))
+    .filter((row) => row.value > 0);
+
   return (
     <div className="flex flex-col gap-3">
-      {/* ─────────────────────────────────────────────────── the picture band */}
-      <div className="grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)_minmax(0,1fr)]">
-        <Panel
-          title="The room"
-          figure={band.label}
-          foot={
-            band.raised
-              ? `${formatNumber(band.raisedRows.length)} raised · ${formatNumber(band.reports)} reported`
-              : "Nothing above the line"
-          }
-        >
-          <Gauge
-            /* Full and green is a clear room; it empties as things are raised.
-               Drawn the way somebody hopes to find it, so a glance at a wall
-               tells them whether to walk over. */
-            share={band.raised ? Math.max(6, 100 - Math.min(100, band.raised * 6)) : 100}
-            figure={formatNumber(band.raised)}
-            sub={band.raised === 1 ? "thing to look at" : "things to look at"}
-            tone={band.rank >= 4 ? "alert" : band.rank >= 3 ? "warn" : "good"}
-          />
-        </Panel>
+      {/* ══════════════════════════════════════════════════════════ the band */}
+      {/* ── ONE MAP, NOT THREE PICTURES ────────────────────────────────────
+          This was a gauge, a waffle and a small map side by side. The gauge
+          drew "how clear the room is" from an arc that emptied six points per
+          raised item — a shape with no unit behind it, invented to fill a
+          panel, and the reader had no way to know that. The waffle counted
+          percentage points of reports, which is a proportion of a number that
+          is itself a handful.
 
-        <Panel
-          title="Field reports by severity"
-          figure={formatNumber(band.reports)}
-          foot="Each cell is a percentage point of what has been reported, not one report."
-        >
-          {incidents.length ? (
-            <Waffle
-              share={(band.needSomebody / Math.max(band.reports, 1)) * 100}
-              tone={band.bySeverity[0].count ? "alert" : "warn"}
-              label={`${formatNumber(band.needSomebody)} need somebody`}
+          What a person walking up to this screen wants is where, and one map
+          at a readable size answers it. The two counts that matter sit beside
+          it as a sentence rather than as figures in boxes. */}
+      <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
+        <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-dash-line px-5 py-3.5">
+          <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
+            Where
+          </h2>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.6875rem] font-bold tracking-[0.08em] uppercase",
+              alerts?.level === "CRITICAL"
+                ? "bg-red-600 text-white"
+                : alerts?.level === "SERIOUS"
+                  ? "bg-red-50 text-red-700"
+                  : alerts?.level === "WARNING"
+                    ? "bg-amber-50 text-amber-900"
+                    : "bg-dash-bg text-dash-muted"
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-1.5 rounded-full",
+                alerts?.level === "CRITICAL" ? "animate-pulse bg-white" : "bg-current"
+              )}
             />
+            {band.label}
+          </span>
+
+          <p className="ml-auto text-[0.8125rem] text-dash-muted">
+            {raised.length === 0 && incidents.length === 0
+              ? "Nothing raised, nothing reported"
+              : [
+                  raised.length &&
+                    `${formatNumber(raised.length)} raised by the product`,
+                  incidents.length &&
+                    `${formatNumber(incidents.length)} filed by somebody who was there`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+          </p>
+        </header>
+
+        <div className="px-4 py-3">
+          {shapes ? (
+            <MiniMap shapes={shapes} fills={fills} notes={notes} height={300} />
           ) : (
-            <p className="text-[0.875rem] text-dash-muted">
-              Nothing has been reported from the field yet.
+            <p className="px-4 py-12 text-center text-[0.875rem] text-dash-muted">
+              No map for this contest.
             </p>
           )}
-        </Panel>
+        </div>
 
-        <Panel
-          title="Where"
-          figure={`${formatNumber(band.states)} state${band.states === 1 ? "" : "s"}`}
-          foot="Red is a critical report, amber a serious one. A state with nothing against it is left blank."
-        >
-          {shapes ? (
-            <MiniMap shapes={shapes} fills={fills} notes={notes} height={190} />
+        <footer className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-dash-line px-5 py-3 text-[0.8125rem] text-dash-muted">
+          {bySeverity.length ? (
+            bySeverity.map((item) => (
+              <span key={item.id} className="flex items-center gap-1.5">
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 shrink-0 rounded-xs"
+                  style={{ background: item.color }}
+                />
+                {formatNumber(item.value)} {item.label.toLowerCase()}
+              </span>
+            ))
           ) : (
-            <p className="text-[0.875rem] text-dash-muted">No map for this contest.</p>
+            <span>Nothing has been reported from the field.</span>
           )}
-        </Panel>
-      </div>
+          {band.states > 0 && (
+            <span className="ml-auto">
+              {band.states === 1 ? "One state" : `${formatNumber(band.states)} states`} with
+              something against them
+            </span>
+          )}
+        </footer>
+      </section>
 
       {/* ───────────────────────────────────────────────────────── the detail */}
       {/* A switch rather than both stacked: the lists are long, and a reader
@@ -147,7 +197,7 @@ export default function RoomWatch({
           who stops using the second half. */}
       <div className="flex gap-1 rounded-dash border border-dash-line bg-dash-card p-1">
         {HALVES.map((item) => {
-          const count = item.id === "alerts" ? band.raisedRows.length : band.reports;
+          const count = item.id === "alerts" ? raised.length : incidents.length;
           const active = half === item.id;
 
           return (

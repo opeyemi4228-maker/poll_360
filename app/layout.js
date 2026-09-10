@@ -1,4 +1,5 @@
 import { Inter_Tight, IBM_Plex_Mono, Instrument_Serif } from "next/font/google";
+import Script from "next/script";
 
 import "./globals.css";
 import AppShell from "@/components/pwa/AppShell";
@@ -162,6 +163,49 @@ export default function RootLayout({ children }) {
       className={`${interTight.variable} ${plexMono.variable} ${instrumentSerif.variable}`}
     >
       <body className="antialiased">
+        {/* ── THE RAIL'S WIDTH, BEFORE THE FIRST PAINT ────────────────────
+            The dashboards remember whether their rail is collapsed, and a
+            remembered choice that arrives one frame late is worse than none:
+            the room watched the rail snap shut every time it loaded a page.
+            So the attribute both the rail and the sheet are sized from is
+            set here, during parse, ahead of anything being drawn.
+
+            It lives in the root layout because that is the only component
+            whose output is always parsed as document HTML. Anywhere below it
+            — it was in components/dash/DashLayout — a soft navigation
+            re-renders the tree in the browser instead, and a <script> React
+            creates in the browser never executes.
+
+            Four lines on a public page that has no rail is the price; it
+            reads one key, writes one attribute, and swallows its own errors,
+            because a browser with storage switched off should still get a
+            dashboard. Authored here, no user input reaches it.
+
+            ── AND WHY IT IS next/script AND NOT A RAW TAG ──────────────────
+            It was a bare <script>, which is the obvious way to write this and
+            the one React 19 refuses to let pass quietly: a script element
+            rendered by a component is never executed on the client, so React
+            warns on every load that the thing cannot possibly do what it
+            looks like it does. The warning is right about the mechanism and
+            wrong about the intent — the tag was only ever meant to run in the
+            server's HTML, which is exactly where it did run.
+
+            `beforeInteractive` says that intent out loud instead of implying
+            it. Next injects the script into the initial HTML from the server,
+            ahead of any of its own modules, which is the behaviour this
+            comment has been describing all along; and because Next owns the
+            injection rather than React rendering an element, the console
+            stops reporting a defect that was not one. It must live in the
+            root layout, which is where it already was and where the note
+            above explains it has to be. */}
+        <Script
+          id="poll360-rail"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem('poll360:rail-collapsed')==='1')document.documentElement.dataset.rail='collapsed'}catch(e){}`,
+          }}
+        />
+
         {/* First tab stop on every page. */}
         <a href="#main" className="skip-link">
           Skip to main content

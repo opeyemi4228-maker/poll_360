@@ -1,220 +1,174 @@
-import { Download, Gauge, Radio, Tv } from "lucide-react";
-
-import RaceSwitcher from "@/components/dash/RaceSwitcher";
-import DashLayout from "@/components/dash/DashLayout";
-import { Card, StatCard } from "@/components/dash/DashCard";
-import Sparkline from "@/components/dash/Sparkline";
-import BroadcastAnalysis from "@/components/dash/BroadcastAnalysis";
-import ShareGraphic from "@/components/dash/ShareGraphic";
-import Button from "@/components/ui/Button";
+import BroadcastRoom from "@/components/dash/BroadcastRoom";
 import { viewing } from "@/lib/viewing";
-import GroundBanner from "@/components/dash/GroundBanner";
+import { listElections } from "@/lib/election-scope";
 import { lgasOf } from "@/lib/constituencies";
 import { RACES, raceLabel } from "@/lib/races";
-import { results } from "@/lib/db";
-import { states2023, DECLARED } from "@/lib/election2023";
-import { parseUnitCode } from "@/lib/units";
+import { results, incidents, media, declared, audit, broadcastItems } from "@/lib/db";
+import { watch } from "@/lib/watch";
+import { byState, reportingTrends, rollUp } from "@/lib/broadcast";
+import { capabilitiesOf, can } from "@/lib/roles";
+import { states2023 } from "@/lib/election2023";
+import { STATES } from "@/lib/units";
 import nation from "@/public/geo/map/nation.json";
-import { register } from "@/lib/site";
-import { formatNumber, formatShare } from "@/lib/utils";
 
-export const metadata = { title: "Broadcast desk", robots: { index: false } };
+export const metadata = { title: "Broadcast", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 /**
- * The broadcast desk.
+ * The broadcast arm.
  *
- * Two things a newsroom needs that nobody else does, and both were missing
- * from the first pass:
+ * ══════════════════════════════════════════════════════════════════════════
+ *  WHAT MAKES THIS DIFFERENT FROM A NEWSROOM SYSTEM
  *
- *   1. THE DECLARED FIGURES ALONGSIDE OURS. A studio is not covering a
- *      parallel count, it is covering an election, so the commission's
- *      declared result is on this screen next to our agents', in its own
- *      column, with the difference computed. That comparison is the story.
+ *  A conventional broadcast system receives results from somewhere else. It
+ *  has no idea whether the number it is about to key over a picture came from
+ *  a polling unit or from a wire that got it from somebody who got it from a
+ *  polling unit, and it certainly cannot tell whether anybody has checked it
+ *  against the sheet it was written on.
  *
- *   2. A SURFACE THAT ANSWERS QUESTIONS BETWEEN BULLETINS. Most of a
- *      producer's night is not on air; it is working out what to say. So this
- *      is an analysis tool that happens to be current, driven by touch, rather
- *      than a live ticker that can only be watched.
+ *  This one sits on top of the count. The return, the agent who filed it, the
+ *  position their phone reported, the photographed sheet and the desk that
+ *  verified it are all in the same database as the strap that is about to go
+ *  out about them. That is the whole argument for building this here rather
+ *  than integrating with something, and it is why the clearance control on the
+ *  live results screen can be real rather than ceremonial.
+ *
+ *  ── ONE WAIT, NOT SEVEN ─────────────────────────────────────────────────
+ *  Twenty-eight surfaces are drawn from what this function fetches, and it
+ *  fetches each thing once. A desk left open on a wall re-runs this every
+ *  twenty seconds; a page that asked seven separate questions in sequence
+ *  would be the reason the database is slow at the hour it matters.
+ * ══════════════════════════════════════════════════════════════════════════
  */
 export default async function BroadcastPage() {
-  /* The desk, the project, the contest being covered, and the ground this
-     account may read. A studio switching between the presidential and the
-     governorship is switching between two counts, not filtering one — and a
-     studio issued one senatorial district is not offered the switch at all.
-     See lib/viewing.js. */
+  /* Who, what contest, and over what ground — in one call, threaded into every
+     query below rather than filtered out of the answers. See lib/viewing.js. */
   const { user, project, race, territory, ground, pinned, unresolved } = await viewing("/broadcast");
 
-  /* Named rather than counted: "7 local governments" is a number, and the
-     names are what somebody checks the ground against. */
   const lgaNames = territory ? lgasOf(territory).map((row) => row.name) : [];
 
-  /* What each of the day's contests holds inside this desk's ground, so the
-     control below can show it and an empty screen can say which paper it is
-     empty for. */
-  const byRace = project ? await results.countByRace(project.id, territory) : {};
-  const tally = await results.tally(project?.id, race, territory);
-  const ourRows = await results.counted(project?.id, race, territory);
+  const [
+    allProjects,
+    filedByRace,
+    rows,
+    rawFeed,
+    coordinators,
+    declaredRows,
+    items,
+    log,
+  ] = await Promise.all([
+    listElections(),
+    project ? results.countByRace(project.id, territory) : {},
+    /* The returns themselves, once. Nine surfaces read them — the clearance
+       funnel, the state table, the ticker generator, the map, the charts, the
+       trend lists, the source mix, the comparison and the health screen — and
+       nine queries over one table is how a wall display becomes the reason the
+       database is slow. */
+    project ? results.counted(project.id, race, territory) : [],
+    incidents.recent(40, project?.id, territory),
+    /* The roster. It is the coordinator watch, read as a newsroom's field
+       list: the person filing the return is the person a producer wants a
+       two-way with, and keeping two lists would let the desk be told somebody
+       is live while the count says their booth is silent. */
+    watch.coordinators(project?.id, race, territory),
+    /* What the commission has declared, where it has. The broadcast desk holds
+       `gap:read` and deliberately not `declared:file` — it reads the
+       comparison and does not get to decide what our count is held against. */
+    project ? declared.all(project.id, race, territory) : [],
+    /* Everything this desk has made tonight, in one query — see the note above
+       `broadcastItems.all` in lib/db.js. */
+    broadcastItems.all(project?.id),
+    audit.recent(120),
+  ]);
 
-  /* Our agents' returns, folded up by state so the analysis surface can put
-     them beside the declared figure for the same place. */
-  const ours = {};
-  for (const row of ourRows) {
-    const code = stateCodeFor(row.unitCode);
-    if (!code) continue;
-    ours[code] ??= { votes: {}, units: 0 };
-    ours[code].units += 1;
-    for (const [party, count] of Object.entries(row.votes)) {
-      ours[code].votes[party] = (ours[code].votes[party] ?? 0) + count;
-    }
-  }
+  /* ── THE FEED, WITHOUT THE NARRATIVE ────────────────────────────────────
+     The broadcast desk holds `incidents:read` and not the key. What it is
+     given is that a report exists, of what kind, how serious and where — which
+     is what it needs to decide whether to send somebody, and not what somebody
+     said. The sealed column is dropped here rather than passed down and
+     ignored, so nothing downstream can accidentally render it. */
+  const feed = rawFeed.map(({ detailSealed, ...row }) => row);
+
+  /* How many of those carried a photograph. A count, not the bytes: a result
+     sheet names a booth and an agent in one frame and stays with the room
+     running the count. */
+  const photos = await media.forIncidents(feed.map((row) => row.id));
+  const photoCount = Object.keys(photos).length;
+
+  /* ── THE DENOMINATOR, NAMED ─────────────────────────────────────────────
+     How many polling units each state had at the last general election, keyed
+     by INEC's state number so it joins to the unit codes the returns carry.
+     It is the right order of magnitude and it is not this election's register,
+     which is why every screen quoting it says what it is measured against. */
+  const boothsByState = Object.fromEntries(
+    STATES.map((state) => [
+      state.number,
+      states2023.find((row) => row.code === state.code)?.booths ?? 0,
+    ])
+  );
+
+  const places = byState({ rows, booths: boothsByState });
+  const national = rollUp(places, ground);
+  const trends = reportingTrends({ places, rows });
+
+  const watchSummary = watch.summary(coordinators);
 
   return (
-    <DashLayout
+    <BroadcastRoom
       user={user}
-      screen="broadcast"
-      title="Broadcast desk"
-      lead="Our agents' count and the commission's declared figures, side by side and never merged. Built to be driven by hand on a touch screen between bulletins."
-      actions={
-        <>
-          {/* A broadcast desk cuts between contests on one night, so this is
-              the control it needs most and was the one it did not have. */}
-          <RaceSwitcher
-            race={race}
-            races={RACES.map((row) => ({ id: row.id, label: row.label }))}
-            filed={byRace}
-            /* An account issued for one contest over one district does not
-               switch between counts — see components/dash/RaceSwitcher. */
-            pinned={pinned}
-            ground={ground}
-          />
-          <Button href="/#board" variant="dashOutline" size="sm">
-            <Tv size={15} strokeWidth={2.5} />
-            Wall board
-          </Button>
-          <Button href="/api/export/results" variant="dash" size="sm">
-            <Download size={15} strokeWidth={2.5} />
-            CSV
-          </Button>
-        </>
+      project={project ? { title: project.title, isDemo: project.isDemo } : null}
+      projects={{
+        current: project,
+        all: allProjects,
+        canCreate: ["SUPER_ADMIN", "SITUATION_ROOM"].includes(user.role),
+        canDelete: user.role === "SUPER_ADMIN",
+      }}
+      race={race}
+      raceLabel={raceLabel(race)}
+      races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+      filedByRace={filedByRace}
+      racePinned={pinned}
+      ground={ground}
+      territoryUnresolved={unresolved}
+      territory={
+        territory && {
+          level: territory.level,
+          name: territory.name,
+          stateCode: territory.stateCode,
+          stateName: territory.stateName,
+          stateNumber: territory.stateNumber,
+          lgas: territory.lgas,
+          shared: territory.shared ?? null,
+        }
       }
-    >
-      <GroundBanner
-        territory={territory}
-        ground={ground}
-        unresolved={unresolved}
-        lgaNames={lgaNames}
-      />
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={Gauge}
-          label="Our booths in"
-          value={formatShare((tally.units / register.pollingUnits) * 100)}
-          context={`${formatNumber(tally.units)} ${raceLabel(race).toLowerCase()} returns from our agents`}
-        />
-        <StatCard
-          icon={Radio}
-          label="Declared, 2023"
-          value={formatNumber(DECLARED.validVotes)}
-          context="Valid votes, as declared by INEC"
-        />
-        <StatCard
-          label="Winning margin"
-          value={formatShare(
-            ((DECLARED.apc - DECLARED.pdp) / DECLARED.validVotes) * 100
-          )}
-          context={`${formatNumber(DECLARED.apc - DECLARED.pdp)} between first and second`}
-        />
-        <StatCard
-          label="States declared"
-          value="37"
-          context="APC 12 · PDP 12 · LP 12 · NNPP 1"
-        />
-      </div>
-
-      {/* Named, because the rail links straight here. It was not, so
-          "Analysis" in the sidebar landed at the top of the page and left
-          somebody to find it by scrolling. */}
-      <div id="analysis" className="mt-6 scroll-mt-24">
-        <BroadcastAnalysis declared={states2023} ours={ours} shapes={nation} />
-      </div>
-
-      {/* ── WHAT GOES OUT BETWEEN BULLETINS ────────────────────────────────
-          The audience is on a phone and the count has moved. Without this the
-          desk photographs its own wall board, and that picture — no coverage
-          figure, no timestamp, nothing saying it is a parallel count — is what
-          circulates. This makes the picture from the same figures. */}
-      <div id="post" className="mt-6 scroll-mt-24">
-        <ShareGraphic race={race} />
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <Card title="On-air frames" subtitle="A web address your gallery can point straight at">
-          <ul className="space-y-3 text-[0.875rem] text-dash-muted">
-            <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">Wall board</span>, 1920×1080, map and
-              standings, with how much is counted burnt into the corner.
-            </li>
-            <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">Lower third</span>, see-through
-              background for your keyer, redraws itself as results land.
-            </li>
-            <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">State card</span>, one state full frame,
-              for a presenter standing beside it.
-            </li>
-          </ul>
-          <p className="mt-4 border-t border-dash-line pt-3 text-[0.75rem] leading-relaxed text-dash-muted">
-            The renderer routes are specified and not built yet. The analysis above draws from the
-            same figures they will.
-          </p>
-        </Card>
-
-        <Card title="The rules this desk works under">
-          <ul className="grid gap-4 text-[0.875rem] leading-relaxed text-dash-muted sm:grid-cols-2">
-            <li>
-              <span className="font-bold text-dash-ink">Coverage travels with every total.</span>{" "}
-              It is part of the frame and cannot be switched off.
-            </li>
-            <li>
-              <span className="font-bold text-dash-ink">Nothing is called under 25%.</span> The
-              graphic says “too early” however wide the lead looks.
-            </li>
-            <li>
-              <span className="font-bold text-dash-ink">Result sheets stay private.</span> The
-              photographs belong to the agent and the coordinators above them.
-            </li>
-            <li>
-              <span className="font-bold text-dash-ink">Ours is never presented as theirs.</span> A
-              parallel count is a second source, not the official one.
-            </li>
-          </ul>
-        </Card>
-      </div>
-    </DashLayout>
+      lgaNames={lgaNames}
+      shapes={nation}
+      items={items}
+      /* ── THE DESK'S OWN LOG, NOT THE PRODUCT'S ──────────────────────────
+         The audit table is global and holds account issuance, verification and
+         everything else. A broadcast account has no business reading who was
+         issued a key, and a timeline full of somebody else's work is a
+         timeline nobody reads. Narrowed to this desk's own actions, which is
+         also exactly what the question "how did that get on air" needs. */
+      audit={log.filter((row) => String(row.action ?? "").startsWith("broadcast:"))}
+      rows={rows}
+      places={places}
+      national={national}
+      trends={trends}
+      incidents={feed}
+      photoCount={photoCount}
+      coordinators={coordinators}
+      watchSummary={watchSummary}
+      declaredRows={declaredRows}
+      capabilities={capabilitiesOf(user.role)}
+      /* Read from the same table the guard consults, so a control is never
+         offered that the action would refuse. The action checks again: a
+         hidden button is a courtesy, not a permission. */
+      may={{
+        draft: can(user.role, "broadcast:draft"),
+        clear: can(user.role, "broadcast:clear"),
+        air: can(user.role, "broadcast:air"),
+      }}
+    />
   );
-}
-
-/**
- * Our returns carry a two-digit state prefix from the unit code; the declared
- * table is keyed by INEC's three-letter code. One lookup, kept here rather
- * than in the client component so the mapping never ships to the browser.
- */
-/**
- * The state a return came from, from the code printed on its sheet.
- *
- * ── WHY THIS IS NOT `states2023[n - 1]` ────────────────────────────────────
- * It was, and that is wrong for twenty-two of the thirty-seven. INEC numbers
- * the states alphabetically with the Federal Capital Territory last at 37;
- * `states2023` sorts alphabetically with the FCT under F, at 15. From there the
- * two lists are off by one for the rest of the alphabet, so a return from Gombe
- * was filed on this screen as the FCT, Imo as Gombe, and so on to Zamfara.
- *
- * lib/units.js already holds INEC's ordering and derives the state from the
- * unit code, which is the fact printed on the sheet in the agent's hand. There
- * is now one definition of "which state is this" and this screen uses it.
- */
-function stateCodeFor(unitCode) {
-  return parseUnitCode(unitCode)?.stateCode ?? null;
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useId, useState } from "react";
+
+import { forgetViewCookie } from "@/lib/last-view";
 import { useFormStatus } from "react-dom";
 import { ArrowRight, Eye, EyeOff, Loader2, TriangleAlert } from "lucide-react";
 
@@ -55,7 +57,33 @@ export default function LoginForm() {
     if (!password) next.password = "Enter your password.";
 
     setErrors(next);
-    if (Object.keys(next).length) event.preventDefault();
+    if (Object.keys(next).length) {
+      event.preventDefault();
+      return;
+    }
+
+    /* ── A SHIFT STARTS AT THE FRONT DOOR ────────────────────────────────
+       The room remembers which dashboard somebody was on so that a reload
+       does not cost them their place — see lib/last-view.js. A sign-in is
+       not a reload. These machines are shared: a newsroom laptop, a campaign
+       office desktop, a phone handed to whoever is on shift, and the tab the
+       last person left open is a leftover rather than a preference.
+
+       Cleared here, on the way in, rather than on the way out. Signing out is
+       the tidy path and it is not the one people take — they close the laptop,
+       the session lapses, somebody else signs in on Monday. Clearing on entry
+       is the only point both paths pass through.
+
+       It runs before the action rather than after it because this component
+       is replaced by the redirect the moment the action succeeds, and there
+       is no "after" to run in. Clearing it on an attempt that then fails
+       costs nothing: nobody who has just failed to sign in was mid-way
+       through reading a dashboard. */
+    /* The cookie, not local storage: the room's memory moved so the server
+       could render the remembered view without a flash, and the thing that
+       clears it has to move with it or a sign-in would leave the leftover
+       behind and the next reader would land on it. */
+    forgetViewCookie();
   }
 
   return (

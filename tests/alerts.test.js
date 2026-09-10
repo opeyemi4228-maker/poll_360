@@ -109,10 +109,10 @@ describe("the field", () => {
     assert.match(alert.headline, /4 reports at the top severity/);
     /* The place, not just the count. */
     assert.match(alert.detail, /KAN/);
-    /* The field reports are one half of the alerts console now — see
+    /* The field reports are one half of the situations console now — see
        components/dash/RoomWatch.jsx — so the door on a report alert opens
        the screen it is already standing on, with the reports beside it. */
-    assert.equal(alert.goto, "alerts");
+    assert.equal(alert.goto, "situations");
   });
 
   it("notices several reports from one booth without calling it anything", () => {

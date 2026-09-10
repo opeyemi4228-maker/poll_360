@@ -50,6 +50,7 @@ model Election {
   sheetReads   SheetRead[]
   positions    WaPosition[]
   declared     Declared[]
+  broadcast    BroadcastItem[]
 
   @@index([status, createdAt])
   @@map("elections")
@@ -87,6 +88,8 @@ model User {
   incidents        Incident[]
   ledgerEntries    LedgerEntry[]
   waContacts       WaContact[]
+  broadcastDrafted BroadcastItem[] @relation("BroadcastCreatedBy")
+  broadcastCleared BroadcastItem[] @relation("BroadcastClearedBy")
 
   @@index([status, createdAt])
   @@map("users")
@@ -561,6 +564,61 @@ model Declared {
 /// mistake made for the four thousand could reach the four.
 ///
 /// The two systems meet in exactly one place: the bridge column on Result.
+/// Everything the broadcast desk produces, on one journey.
+///
+/// A ticker line, a lower third, a breaking banner, a full-frame graphic, a
+/// map, a social post, a programme in the running order, a viral claim being
+/// checked, and a clearance saying a place's figures may be read out. Nine
+/// kinds of thing that all move DRAFT → REVIEW → CLEARED → ON_AIR → OFF_AIR,
+/// so the journey is the table and the kind is a column. Nine tables would
+/// have been nine approval queues and nine chances to lose the rule that the
+/// person who drafts a thing may not be the person who clears it.
+///
+/// `payload` is JSON on purpose: what a ticker needs and what a map needs
+/// share almost nothing, and a column for the union of both is a row that is
+/// two-thirds null. Nothing queries inside it — everything this product
+/// filters, sorts or enforces on is a real column.
+model BroadcastItem {
+  id           String    @id
+  electionId   String    @map("election_id")
+  /// TICKER · LOWER_THIRD · BANNER · FULLSCREEN · GRAPHIC · MAP · VIDEO ·
+  /// SOCIAL · PROGRAMME · CLAIM · CLEARANCE
+  kind         String
+  /// DRAFT · REVIEW · CLEARED · ON_AIR · OFF_AIR · REJECTED
+  state        String    @default("DRAFT")
+  race         String?
+  /// The ground this item speaks for, written the way lib/territory.js writes
+  /// one — "NATION", "STATE:20", "LGA:24/13". A clearance is meaningless
+  /// without it: "the figures are cleared" is not a sentence.
+  scope        String?
+  title        String
+  body         String?
+  payload      String?
+  platforms    String?
+  /// Claims only: VERIFIED · FALSE · UNCONFIRMED.
+  verdict      String?
+  scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz(3)
+  createdBy    String?   @map("created_by")
+  createdName  String?   @map("created_name")
+  clearedBy    String?   @map("cleared_by")
+  clearedName  String?   @map("cleared_name")
+  clearedAt    DateTime? @map("cleared_at") @db.Timestamptz(3)
+  airedAt      DateTime? @map("aired_at") @db.Timestamptz(3)
+  endedAt      DateTime? @map("ended_at") @db.Timestamptz(3)
+  note         String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  author   User?    @relation("BroadcastCreatedBy", fields: [createdBy], references: [id])
+  clearer  User?    @relation("BroadcastClearedBy", fields: [clearedBy], references: [id])
+
+  @@index([electionId, state, createdAt])
+  @@index([electionId, kind, createdAt])
+  @@index([electionId, scheduledFor])
+  @@map("broadcast_items")
+}
+
 model Coordinator {
   id           String    @id
   name         String

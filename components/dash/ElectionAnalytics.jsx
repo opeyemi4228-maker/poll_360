@@ -1,19 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   BarChart3,
   CalendarRange,
-  Compass,
   LineChart,
-  TrendingUp,
-  Users,
 } from "lucide-react";
 
 import Executive from "./Executive";
 import PartyStrength from "./PartyStrength";
 import RulingParty from "./RulingParty";
 import { PARTY_FILL } from "./Charts";
+import PartyMark from "./PartyMark";
+import Sparkline from "./Sparkline";
+import { partyLogo } from "@/lib/party-register";
 import { Columns, Gauge, MiniMap, Panel, Ranked, Readout, Split } from "./Figures";
 import { CLASS_OF, CLASSES } from "@/lib/executive";
 import {
@@ -68,13 +68,17 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
  * about a swing that never happened. See lib/record.js.
  */
 
+/* ── GEOGRAPHY, TURNOUT AND TRENDS HAVE GONE ──────────────────────────────
+   Removed on the room's own instruction. Two of the three were also the
+   longest way round to something this product answers better elsewhere:
+   turnout is a layer on the live map, where it drills, and the classified
+   ground each campaign stands on is the strategic brief's own subject. What
+   is left is the record — the count, the candidates, and what happened
+   before — which is what somebody opens an analytics head to read. */
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
-  { id: "geography", label: "Geography", icon: Compass },
-  { id: "turnout", label: "Turnout", icon: Users },
   { id: "candidates", label: "Candidates", icon: LineChart },
   { id: "historical", label: "Historical", icon: CalendarRange },
-  { id: "trends", label: "Trends", icon: TrendingUp },
 ];
 
 /** One hue getting darker, for the trend grades, which have an order. */
@@ -102,7 +106,7 @@ export default function ElectionAnalytics({
   onGo,
   pathOf,
 }) {
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState(TABS[0].id);
 
   return (
     <div className="flex flex-col gap-3">
@@ -148,268 +152,12 @@ export default function ElectionAnalytics({
         />
       )}
 
-      {tab === "geography" && (
-        <Geography brief={briefState.brief} forParty={briefState.forParty} shapes={shapes} place={place} onOpen={onOpen} />
-      )}
-
-      {tab === "turnout" && <Turnout shapes={shapes} />}
-
       {tab === "candidates" && (
         <Candidates shapes={shapes} territory={territory} ground={ground} governing={governing} />
       )}
 
       {tab === "historical" && <Historical shapes={shapes} />}
 
-      {tab === "trends" && <Trends shapes={shapes} onOpen={onOpen} />}
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════════════ geography */
-
-/**
- * Where, classified, for whoever the brief is written for.
- *
- * The same five classes the room's map draws, out of the same call — see
- * lib/executive.js. This is the map at whatever tier the room is standing on,
- * so drilling into a state re-classifies that state's local governments.
- */
-function Geography({ brief, forParty, shapes, place, onOpen }) {
-  const fills = useMemo(() => {
-    const index = {};
-    for (const row of brief.places) {
-      if (!row.code) continue;
-      index[row.code] = CLASS_OF[row.class]?.fill ?? "var(--color-silent)";
-    }
-    return index;
-  }, [brief]);
-
-  const notes = useMemo(() => {
-    const index = {};
-    for (const row of brief.places) {
-      if (!row.code) continue;
-      index[row.code] =
-        row.margin === null
-          ? CLASS_OF[row.class]?.label
-          : `${CLASS_OF[row.class]?.label}, ${row.margin >= 0 ? "ahead" : "behind"} by ${formatShare(Math.abs(row.margin))}`;
-    }
-    return index;
-  }, [brief]);
-
-  const drawable = Object.keys(fills).length > 0;
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-        <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
-          <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-dash-line px-5 py-3.5">
-            <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
-              {place}, classified for {forParty ?? "this campaign"}
-            </h2>
-            <p className="text-[0.8125rem] text-dash-muted">
-              {formatNumber(brief.reporting.places)} place
-              {brief.reporting.places === 1 ? "" : "s"}
-            </p>
-          </header>
-
-          <div className="px-4 py-3">
-            {shapes && drawable ? (
-              <MiniMap shapes={shapes} fills={fills} notes={notes} height={340} />
-            ) : (
-              /* Below a state there are no shapes to draw — the boundary files
-                 stop at local governments — so the tier is a list. Saying so
-                 is better than an empty frame that reads as a broken map. */
-              <p className="px-4 py-12 text-center text-[0.875rem] leading-relaxed text-dash-muted">
-                {shapes
-                  ? "No outline is published at this tier, so the places below are a list rather than a map. The classification is the same either way."
-                  : "No map for this contest."}
-              </p>
-            )}
-          </div>
-
-          <footer className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-dash-line px-5 py-3">
-            {CLASSES.map((item) => (
-              <span key={item.id} className="flex items-center gap-1.5">
-                <span
-                  aria-hidden="true"
-                  className="size-2.5 shrink-0 rounded-[2px]"
-                  style={{ background: item.fill }}
-                />
-                <span className="text-[0.75rem] text-dash-muted">{item.label}</span>
-                <span className="figure text-[0.75rem] font-bold text-dash-ink tabular-nums">
-                  {brief.counts[item.id]}
-                </span>
-              </span>
-            ))}
-          </footer>
-        </section>
-
-        <div className="flex flex-col gap-3">
-          <Panel
-            title="The ground"
-            figure={`${formatNumber(brief.reporting.places)} places`}
-            foot={`Held by more than ${brief.bounds.commanding} points is a stronghold; inside ${brief.bounds.competitive} either way is a contest.`}
-          >
-            <Split
-              segments={CLASSES.filter((item) => brief.counts[item.id] > 0).map((item) => ({
-                id: item.id,
-                label: item.label,
-                value: brief.counts[item.id],
-                color: item.fill,
-              }))}
-              total={brief.reporting.places}
-            />
-          </Panel>
-
-          <Panel title="Closest first" figure={`${brief.battlegrounds.length}`} foot="These decide the result.">
-            <Ranked
-              rows={brief.battlegrounds.slice(0, 8).map((row) => ({
-                id: row.key,
-                label: row.name,
-                value: Math.round(Math.abs(row.margin ?? 0) * 10) / 10,
-              }))}
-              showShare={false}
-              empty="Nothing on screen is inside the competitive margin."
-            />
-          </Panel>
-        </div>
-      </div>
-
-      <Panel title={`Every place in ${place}`} figure={`${formatNumber(brief.places.length)}`}>
-        <ul className="grid gap-x-6 sm:grid-cols-2 xl:grid-cols-3">
-          {brief.places.map((row) => (
-            <li key={row.key}>
-              <Readout
-                label={`${CLASS_OF[row.class]?.dot ?? ""} ${row.name}`}
-                value={
-                  row.margin === null
-                    ? "—"
-                    : `${row.margin > 0 ? "+" : "−"}${formatShare(Math.abs(row.margin))}`
-                }
-                sub={row.turnout === null ? undefined : formatShare(row.turnout)}
-                onClick={onOpen ? () => onOpen(row) : undefined}
-              />
-            </li>
-          ))}
-        </ul>
-      </Panel>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════════════ turnout */
-
-/**
- * Who came out, and who stopped coming.
- *
- * ── THE ONE FINDING THIS TAB EXISTS FOR ────────────────────────────────────
- * Turnout in Nigerian presidential elections has fallen from 69% in 2003 to
- * 27% in 2023. That is not a statistic about an electorate; it is the largest
- * single fact in this entire dataset, and every projection, every target and
- * every "we need X votes" on any other screen is downstream of it.
- */
-function Turnout({ shapes }) {
-  const record = useMemo(() => turnoutRecord(), []);
-  const byState = useMemo(() => turnoutByState(), []);
-
-  const fills = useMemo(() => {
-    const index = {};
-    for (const row of byState) {
-      index[row.code] =
-        row.turnout >= 35
-          ? "var(--color-ink-900)"
-          : row.turnout >= 28
-            ? "var(--color-ink-700)"
-            : row.turnout >= 22
-              ? "var(--color-ink-500)"
-              : "var(--color-amber-500)";
-    }
-    return index;
-  }, [byState]);
-
-  const notes = useMemo(
-    () =>
-      Object.fromEntries(
-        byState.map((row) => [row.code, `${formatShare(row.turnout)} · ${formatNumber(row.stayedHome)} stayed home`])
-      ),
-    [byState]
-  );
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="grid gap-3 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <Panel
-          title="The last election"
-          figure={`${record.last.year}`}
-          foot={`${formatNumber(record.last.stayedHome)} people on the register did not vote`}
-        >
-          <Gauge
-            share={record.last.turnout}
-            figure={formatShare(record.last.turnout)}
-            sub="of the register voted"
-            tone={record.last.turnout < 35 ? "warn" : "ink"}
-          />
-        </Panel>
-
-        <Panel
-          title="Turnout at every presidential election"
-          figure={`−${formatShare(record.fall.points)} from the ${record.peak.year} peak`}
-          foot={
-            record.withoutTurnout.length
-              ? `${record.withoutTurnout.length} governorship${record.withoutTurnout.length === 1 ? "" : "s"} in the record carry no register, so they are not on this chart: ${record.withoutTurnout.join(", ")}.`
-              : null
-          }
-        >
-          <Columns
-            points={record.points.map((point) => ({
-              id: point.id,
-              label: String(point.year),
-              value: Math.round(point.turnout * 10) / 10,
-            }))}
-            height={140}
-            tone={"ink"}
-          />
-          <p className="mt-2 flex flex-wrap justify-between gap-x-4 text-[0.6875rem] text-dash-muted">
-            {record.points.map((point) => (
-              <span key={point.id} className="figure tabular-nums">
-                {point.year}
-              </span>
-            ))}
-          </p>
-        </Panel>
-      </div>
-
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-        <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
-          <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-dash-line px-5 py-3.5">
-            <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
-              Turnout by state, {record.last.year}
-            </h2>
-            <p className="text-[0.8125rem] text-dash-muted">Amber is under 22%</p>
-          </header>
-          <div className="px-4 py-3">
-            {shapes ? (
-              <MiniMap shapes={shapes} fills={fills} notes={notes} height={320} />
-            ) : (
-              <p className="px-4 py-12 text-center text-[0.875rem] text-dash-muted">No map for this contest.</p>
-            )}
-          </div>
-        </section>
-
-        <Panel
-          title="Where the votes are sitting"
-          figure={formatNumber(byState.reduce((sum, row) => sum + row.stayedHome, 0))}
-          foot="Registered voters who did not vote, biggest first. Ranked by people rather than by rate: a rate finds small states, and a campaign wants the votes."
-        >
-          <Ranked
-            rows={byState.slice(0, 10).map((row) => ({
-              id: row.code,
-              label: row.name,
-              value: row.stayedHome,
-            }))}
-          />
-        </Panel>
-      </div>
     </div>
   );
 }
@@ -545,24 +293,517 @@ function Candidates({ shapes, territory, ground, governing }) {
 /* ═══════════════════════════════════════════════════════════════ historical */
 
 /**
+ * What twenty-seven years of results tell you to do tonight.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  A RECORD IS NOT A DASHBOARD UNTIL IT ANSWERS "SO WHAT"
+ *
+ *  This screen used to open on a pair of dropdowns — pick two elections, see
+ *  the swing between them. Every figure on it was correct and nobody could
+ *  say what it was for, which is the most expensive kind of screen there is:
+ *  it costs a tab, a click and a moment of confusion, and returns nothing.
+ *
+ *  The record is worth having because it answers three questions the live
+ *  count cannot, and each of them changes what somebody does:
+ *
+ *    IS TONIGHT'S FIGURE NORMAL?   A state reporting 71% is a landslide or a
+ *                                  Tuesday depending entirely on what that
+ *                                  state has always done. The baseline is the
+ *                                  only thing that tells them apart, and it is
+ *                                  the single most useful column here.
+ *
+ *    WHERE IS THE ELECTION?        Most states are settled and will not move
+ *                                  whatever anybody does. The handful that
+ *                                  change hands are where a campaign is won,
+ *                                  and the record is the only place that
+ *                                  knows which those are.
+ *
+ *    WHICH WAY IS IT RUNNING?      A state lost once is an accident. A state
+ *                                  whose margin has narrowed at every election
+ *                                  is a trend, and the two need opposite
+ *                                  responses.
+ *
+ *  So the screen leads with the answers and keeps the two-election comparison
+ *  underneath as the tool it always was — genuinely useful, but only once you
+ *  know which pair is worth looking at.
+ * ══════════════════════════════════════════════════════════════════════════
+ *
+ * ── THE MAP HAS TWO ENCODINGS AND NEITHER IS INVENTED ──────────────────────
+ * "Who holds it" is the party colours, bound to the party and never to rank —
+ * the encoding every other map in this product uses. "How contested" is one
+ * hue getting darker, which is the rule for anything ordered.
+ *
+ * There is deliberately no third scale colouring the five trend classes in
+ * five hues. Five categorical hues is the shape that failed a colour-vision
+ * check elsewhere in this room — amber and orange separate by ΔE 1.6 for a
+ * deuteranope — and the trends are named in type on every row anyway, which
+ * is a stronger encoding than a hue nobody can name.
+ */
+
+/* One hue getting darker, for the one thing on this screen that is ordered. */
+const CONTEST_FILLS = [
+  "var(--color-ink-200)",
+  "var(--color-ink-400)",
+  "var(--color-ink-600)",
+  "var(--color-ink-900)",
+];
+
+/**
+ * The bands the map is shaded in, taken from the data rather than assumed.
+ *
+ * ── WHY THESE ARE NOT 40 / 25 / 10 ─────────────────────────────────────────
+ * They were, and the render showed why that fails: across this record no state
+ * is held on a margin under sixteen points, so the "knife edge" band was empty
+ * and the darkest shade never appeared. A legend with a step nothing can reach
+ * is a legend that teaches people the map is broken.
+ *
+ * Quartiles of the margins actually present always produce four populated
+ * bands, whatever election is loaded, and the legend prints the real figures
+ * so nobody has to guess what a shade means. The cost is that the shades are
+ * relative — comparing two different records by colour alone is not valid —
+ * which is why the figure is on every row of the table underneath.
+ */
+function contestBands(margins) {
+  const sorted = [...margins].sort((a, b) => a - b);
+  if (!sorted.length) return [];
+  const at = (q) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+  const cuts = [at(0.25), at(0.5), at(0.75)];
+
+  return [
+    { from: cuts[2], fill: CONTEST_FILLS[0], label: `Safest quarter · ${Math.round(cuts[2])}%+` },
+    { from: cuts[1], fill: CONTEST_FILLS[1], label: `${Math.round(cuts[1])}–${Math.round(cuts[2])}%` },
+    { from: cuts[0], fill: CONTEST_FILLS[2], label: `${Math.round(cuts[0])}–${Math.round(cuts[1])}%` },
+    { from: -Infinity, fill: CONTEST_FILLS[3], label: `Tightest quarter · under ${Math.round(cuts[0])}%` },
+  ];
+}
+
+const LAYERS = [
+  { id: "holder", label: "Who holds it" },
+  { id: "contest", label: "How contested" },
+  { id: "turnout", label: "Turnout normally" },
+];
+
+function Historical({ shapes }) {
+  const trends = useMemo(() => stateTrends(), []);
+  const turnout = useMemo(() => turnoutByState(), []);
+  const cover = useMemo(() => span(), []);
+
+  const [layer, setLayer] = useState("holder");
+  const [only, setOnly] = useState("ALL");
+
+  /* Turnout by state, keyed, so the baseline can sit on the same row as the
+     trend without a second pass over 37 states on every render. */
+  const baseline = useMemo(
+    () => Object.fromEntries(turnout.map((row) => [row.code, row])),
+    [turnout]
+  );
+
+  const counts = useMemo(() => {
+    const out = { ALL: trends.length };
+    for (const id of Object.keys(TRENDS)) {
+      out[id] = trends.filter((row) => row.trend === id).length;
+    }
+    return out;
+  }, [trends]);
+
+  const shown = useMemo(
+    () => (only === "ALL" ? trends : trends.filter((row) => row.trend === only)),
+    [trends, only]
+  );
+
+  /* ── THE STATES THAT ARE ACTUALLY MOVING ────────────────────────────────
+     Sorted by how far the margin has travelled since the previous election,
+     in either direction. A settled state at the top of an alphabetical list
+     is a row nobody needs; the state that moved eleven points is the whole
+     point of keeping a record. */
+  const moving = useMemo(
+    () => [...shown].sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift)),
+    [shown]
+  );
+
+  const bands = useMemo(() => contestBands(trends.map((row) => row.margin)), [trends]);
+  /* Memoised because the fills below depend on it, and a function rebuilt on
+     every render would rebuild all thirty-seven fills with it. */
+  const contestFill = useCallback(
+    (margin) => (bands.find((band) => margin >= band.from) ?? bands.at(-1))?.fill ?? CONTEST_FILLS[0],
+    [bands]
+  );
+
+  const fills = useMemo(() => {
+    const index = {};
+    for (const row of shown) {
+      index[row.code] =
+        layer === "holder"
+          ? (PARTY_FILL[row.holder] ?? PARTY_FILL.OTH)
+          : layer === "contest"
+            ? contestFill(row.margin)
+            : /* Turnout, as one hue: darker is more of the register voting. */
+              (baseline[row.code]?.turnout ?? 0) >= 40
+              ? "var(--color-ink-900)"
+              : (baseline[row.code]?.turnout ?? 0) >= 30
+                ? "var(--color-ink-600)"
+                : (baseline[row.code]?.turnout ?? 0) >= 20
+                  ? "var(--color-ink-400)"
+                  : "var(--color-ink-200)";
+    }
+    return index;
+  }, [shown, layer, baseline, contestFill]);
+
+  const notes = useMemo(() => {
+    const index = {};
+    for (const row of shown) {
+      const turn = baseline[row.code];
+      index[row.code] =
+        layer === "turnout"
+          ? `${turn ? formatShare(turn.turnout) : "—"} normally · ${formatNumber(turn?.stayedHome ?? 0)} stayed home`
+          : `${row.holder} by ${formatShare(row.margin)} · ${TRENDS[row.trend].label}${
+              row.changes ? ` · changed hands ${row.changes}×` : " · never changed hands"
+            }`;
+    }
+    return index;
+  }, [shown, layer, baseline]);
+
+  /* ── THE THREE FINDINGS, AND WHY THEY ARE NOT THE TREND COUNTS ─────────
+     The first version read "33 of 37 states decide it", by adding the Swing
+     and Newly-taken buckets. That is true and useless: a headline naming
+     nine states in ten is a headline nobody can act on.
+
+     The classifier is not at fault — across this record twenty-two states
+     have genuinely changed hands more than once, which is what makes them
+     swing states. It is the wrong cut for a headline. These three are the
+     ones that name a short list somebody can actually work: the states that
+     keep changing hands, the ones losing ground now, and the ones no amount
+     of spending will move. */
+  const volatile_ = trends.filter((row) => row.changes >= 2);
+  const slipping = trends.filter((row) => row.drift < -2);
+  const locked = trends.filter((row) => row.changes === 0);
+
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* ── WHAT THE RECORD SAYS, BEFORE ANY CONTROL ──────────────────────
+          Three findings, each a figure and a sentence that names what to do
+          with it. This is the panel that answers "what is this screen for". */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Finding
+          figure={volatile_.length}
+          of={trends.length}
+          label="Keep changing hands"
+          why={`Held by two or more parties across the record${
+            volatile_.length ? `. Tightest: ${[...volatile_].sort((a, b) => a.margin - b.margin)[0].name}` : ""
+          }.`}
+          onGo={() => setOnly("SWING")}
+        />
+        <Finding
+          figure={slipping.length}
+          of={trends.length}
+          label="Losing ground now"
+          why="The holder's margin narrowed at the most recent election. A trend, not an accident."
+          onGo={() => setOnly("DECLINING")}
+          tone="warn"
+        />
+        <Finding
+          figure={locked.length}
+          of={trends.length}
+          label="Never changed hands"
+          why="One party throughout the record. Spending here buys the least."
+          onGo={() => setOnly("STRONGHOLD")}
+          tone="muted"
+        />
+      </div>
+
+      {/* ── THE FILTERS, IN ONE ROW ABOVE WHAT THEY FILTER ────────────────*/}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Chip id="ALL" label="Every state" count={counts.ALL} active={only} onPick={setOnly} />
+        {Object.values(TRENDS).map((trend) => (
+          <Chip
+            key={trend.id}
+            id={trend.id}
+            label={trend.label}
+            count={counts[trend.id] ?? 0}
+            title={trend.why}
+            active={only}
+            onPick={setOnly}
+          />
+        ))}
+      </div>
+
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-start">
+        {/* ─────────────────────────────────────────────────────── the map */}
+        <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-dash-line px-5 py-3">
+            <div>
+              <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
+                {cover.from}–{cover.to}, {shown.length} of {trends.length} states
+              </h2>
+              <p className="text-[0.75rem] text-dash-muted">
+                {cover.elections} elections on record, ending with {cover.lastLabel}
+              </p>
+            </div>
+            <div className="flex gap-1">
+              {LAYERS.map((row) => (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => setLayer(row.id)}
+                  aria-pressed={layer === row.id}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-[0.75rem] font-semibold transition-colors",
+                    layer === row.id
+                      ? "bg-dash-ink text-white"
+                      : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
+                  )}
+                >
+                  {row.label}
+                </button>
+              ))}
+            </div>
+          </header>
+
+          {/* Big. This is the object of the screen, not a thumbnail beside a
+              table — a 200-pixel Nigeria is one in which Bayelsa is a smudge
+              and nobody can tell a thin state from a blank one. */}
+          <div className="px-4 py-4">
+            {shapes ? (
+              <MiniMap shapes={shapes} fills={fills} notes={notes} height={460} />
+            ) : (
+              <p className="px-4 py-12 text-center text-[0.875rem] text-dash-muted">
+                No map available.
+              </p>
+            )}
+          </div>
+
+          <footer className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-dash-line px-5 py-3">
+            {layer === "holder" ? (
+              <p className="text-[0.75rem] text-dash-muted">
+                Each state in the colour of the party holding it at {cover.lastLabel}. The colour
+                follows the party, never its rank.
+              </p>
+            ) : layer === "contest" ? (
+              bands.map((band) => (
+                <span key={band.label} className="flex items-center gap-1.5">
+                  <span
+                    aria-hidden="true"
+                    className="size-2.5 rounded-[2px]"
+                    style={{ background: band.fill }}
+                  />
+                  <span className="text-[0.6875rem] text-dash-muted">{band.label}</span>
+                </span>
+              ))
+            ) : (
+              <p className="text-[0.75rem] text-dash-muted">
+                What share of the register normally votes, darker for more. The yardstick a live
+                turnout figure has to be read against.
+              </p>
+            )}
+          </footer>
+        </section>
+
+        {/* ────────────────────────────────────────────── what is moving */}
+        <div className="flex flex-col gap-3">
+          <Panel
+            title="Moving fastest"
+            figure={`${moving.length}`}
+            foot="How far the winner's margin travelled since the previous election. The record's most actionable column."
+          >
+            {moving.length === 0 ? (
+              <p className="text-[0.875rem] text-dash-muted">No state in this group.</p>
+            ) : (
+              <ul className="space-y-2.5">
+                {moving.slice(0, 10).map((row) => (
+                  <li key={row.code}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <PartyMark id={row.holder} size={16} />
+                        <span className="truncate text-[0.8125rem] font-semibold text-dash-ink">
+                          {row.name}
+                        </span>
+                      </span>
+                      <span
+                        className={cn(
+                          "figure shrink-0 text-[0.8125rem] font-bold tabular-nums",
+                          row.drift > 0 ? "text-emerald-600" : row.drift < 0 ? "text-red-600" : "text-dash-muted"
+                        )}
+                      >
+                        {row.drift > 0 ? "+" : row.drift < 0 ? "−" : ""}
+                        {formatShare(Math.abs(row.drift))}
+                      </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                      {/* The state's whole run, so a one-off and a slide are
+                          not the same picture. */}
+                      <Sparkline values={row.run.map((step) => Math.max(0, step.margin))} />
+                      <span className="text-[0.6875rem] text-dash-muted">
+                        {TRENDS[row.trend].label}
+                      </span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel
+            title="Turnout to expect"
+            figure={`${formatShare(
+              turnout.reduce((sum, row) => sum + row.turnout, 0) / Math.max(1, turnout.length)
+            )} median-ish`}
+            foot="Against the current register in both years, so this compares votes cast rather than two true turnouts."
+          >
+            <Ranked
+              rows={[...turnout]
+                .sort((a, b) => b.turnout - a.turnout)
+                .slice(0, 6)
+                .map((row) => ({ id: row.code, label: row.name, value: Math.round(row.turnout) }))}
+              showShare={false}
+              empty="No register held."
+            />
+            <p className="mt-3 border-t border-dash-line pt-2.5 text-[0.75rem] text-dash-muted">
+              A state reporting 71% tonight is a landslide or an ordinary evening depending on
+              this column. It is the only thing that tells them apart.
+            </p>
+          </Panel>
+        </div>
+      </div>
+
+      {/* ── EVERY STATE, WITH ITS BASELINE ────────────────────────────────
+          The table the record exists to produce: who holds it, by how much,
+          which way it is going, and what turnout to expect. Four columns a
+          planner reads down before a night and checks against during one. */}
+      <Panel title="The record, state by state" figure={`${shown.length}`}>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[38rem] text-[0.8125rem]">
+            <thead>
+              <tr className="border-b border-dash-line text-left text-[0.625rem] tracking-[0.08em] text-dash-muted uppercase">
+                <th className="pb-2 font-semibold">State</th>
+                <th className="pb-2 font-semibold">Holder</th>
+                <th className="pb-2 text-right font-semibold">Margin</th>
+                <th className="pb-2 text-right font-semibold">Since last</th>
+                <th className="pb-2 text-right font-semibold">Changed hands</th>
+                <th className="pb-2 text-right font-semibold">Turnout</th>
+                <th className="pb-2 font-semibold">Reads as</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...shown]
+                .sort((a, b) => a.margin - b.margin)
+                .map((row) => (
+                  <tr key={row.code} className="border-b border-dash-line/60 last:border-0">
+                    <td className="py-1.5 font-semibold text-dash-ink">{row.name}</td>
+                    <td className="py-1.5">
+                      <span className="flex items-center gap-1.5">
+                        <PartyMark id={row.holder} size={16} />
+                        {!partyLogo(row.holder) && (
+                          <span className="figure font-semibold text-dash-ink">{row.holder}</span>
+                        )}
+                      </span>
+                    </td>
+                    <td
+                      className={cn(
+                        "figure py-1.5 text-right font-bold tabular-nums",
+                        row.margin < COMPETITIVE ? "text-red-600" : "text-dash-ink"
+                      )}
+                    >
+                      {formatShare(row.margin)}
+                    </td>
+                    <td
+                      className={cn(
+                        "figure py-1.5 text-right tabular-nums",
+                        row.drift > 0 ? "text-emerald-600" : row.drift < 0 ? "text-red-600" : "text-dash-muted"
+                      )}
+                    >
+                      {row.drift > 0 ? "+" : row.drift < 0 ? "−" : ""}
+                      {formatShare(Math.abs(row.drift))}
+                    </td>
+                    <td className="figure py-1.5 text-right text-dash-muted tabular-nums">
+                      {row.changes === 0 ? "never" : `${row.changes}×`}
+                    </td>
+                    <td className="figure py-1.5 text-right text-dash-muted tabular-nums">
+                      {baseline[row.code] ? formatShare(baseline[row.code].turnout) : "—"}
+                    </td>
+                    <td className="py-1.5 text-dash-muted" title={TRENDS[row.trend].why}>
+                      {TRENDS[row.trend].label}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
+
+      {/* ── THE TOOL, KEPT ────────────────────────────────────────────────
+          Comparing two named elections is genuinely useful — once you know
+          which pair is worth comparing, which is what everything above is
+          for. It was the whole screen; it is now the last panel on it. */}
+      <SwingTool shapes={shapes} cover={cover} />
+    </div>
+  );
+}
+
+/** One of the three findings the screen opens with. */
+function Finding({ figure, of, label, why, onGo, tone = "ink" }) {
+  return (
+    <button
+      type="button"
+      onClick={onGo}
+      className="rounded-dash border border-dash-line bg-dash-card p-4 text-left transition-colors hover:border-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
+    >
+      <span className="flex items-baseline gap-1.5">
+        <span
+          className={cn(
+            "figure text-[2rem] leading-none font-bold tracking-[-0.03em] tabular-nums",
+            tone === "warn" ? "text-amber-700" : tone === "muted" ? "text-dash-muted" : "text-dash-ink"
+          )}
+        >
+          {figure}
+        </span>
+        <span className="figure text-[0.875rem] text-dash-muted tabular-nums">of {of}</span>
+      </span>
+      <span className="mt-1 block text-[0.8125rem] font-bold text-dash-ink">{label}</span>
+      <span className="mt-0.5 block text-[0.75rem] leading-snug text-dash-muted">{why}</span>
+    </button>
+  );
+}
+
+function Chip({ id, label, count, title, active, onPick }) {
+  const on = active === id;
+  return (
+    <button
+      type="button"
+      onClick={() => onPick(id)}
+      aria-pressed={on}
+      title={title}
+      className={cn(
+        "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[0.75rem] font-semibold transition-colors",
+        on
+          ? "border-dash-ink bg-dash-ink text-white"
+          : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
+      )}
+    >
+      {label}
+      <span className="figure tabular-nums opacity-70">{count}</span>
+    </button>
+  );
+}
+
+/**
  * Any two elections, held against each other.
  *
  * ── WHY THE CHOOSER REFUSES SOME PAIRS ─────────────────────────────────────
  * Two of the seven presidential elections — 2007 and 2011 — have no published
- * by-state table, so they cannot appear in a per-state comparison at all.
- * They are in the timeline above with their national figures, and the chooser
- * says why rather than silently omitting them.
+ * by-state table, so they cannot appear in a per-state comparison at all. The
+ * chooser says why rather than silently omitting them.
  *
  * And a governorship is never on either side. See lib/record.js.
  */
-function Historical({ shapes }) {
+function SwingTool({ shapes, cover }) {
   const years = MAPPABLE.map((election) => election.year);
   const [from, setFrom] = useState(years[years.length - 2]);
   const [to, setTo] = useState(years[years.length - 1]);
   const [party, setParty] = useState("");
+  const [open, setOpen] = useState(false);
 
   const seen = useMemo(() => compare(from, to, party || null), [from, to, party]);
-  const cover = useMemo(() => span(), []);
 
   const fills = useMemo(() => {
     if (!seen.ok) return {};
@@ -603,191 +844,117 @@ function Historical({ shapes }) {
   }, []);
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* ── THE WHOLE RECORD, AS ONE LINE ─────────────────────────────────
-          Both series on one timeline, presidential and governorship, because
-          this is the only place in the product that shows what is actually
-          held. The two are told apart by their marks and never by position. */}
-      <Panel
-        title={`The record, ${cover.from} to ${cover.to}`}
-        figure={`${cover.elections} elections`}
-        foot={`${cover.presidential} presidential and ${cover.governorship} off-cycle governorships, ending with ${cover.lastLabel}. No by-state table is published for ${cover.missingStateTables.join(" or ")}, so neither can appear in a comparison below.`}
+    <section className="rounded-dash border border-dash-line bg-dash-card">
+      <button
+        type="button"
+        onClick={() => setOpen((was) => !was)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left"
       >
-        <ul className="flex flex-wrap gap-1.5">
-          {TIMELINE.map((row) => (
-            <li key={row.id}>
-              <span
-                title={`${row.label} · ${row.winner}${row.candidate ? ` · ${row.candidate}` : ""}`}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-dash-sm border px-2 py-1.5 text-[0.75rem]",
-                  row.kind === "PRESIDENTIAL"
-                    ? "border-dash-ink/25 bg-dash-bg"
-                    : "border-dash-line border-dashed"
-                )}
-              >
-                <span
-                  aria-hidden="true"
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ background: PARTY_FILL[row.winner] ?? "var(--color-party-other)" }}
-                />
-                <span className="font-semibold text-dash-ink">{row.place === "Nigeria" ? row.year : row.place}</span>
-                <span className="figure text-dash-muted tabular-nums">
-                  {row.place === "Nigeria" ? row.winner : row.year}
-                </span>
+        <span>
+          <span className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            Compare any two elections
+          </span>
+          <span className="mt-0.5 block text-[0.75rem] text-dash-muted">
+            The swing between one year and another, state by state
+          </span>
+        </span>
+        <span className="figure shrink-0 text-[0.8125rem] font-bold text-dash-ink">
+          {open ? "Close" : "Open"}
+        </span>
+      </button>
+
+      {open && (
+        <div className="border-t border-dash-line px-5 py-4">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+            <Choose label="From" value={from} onChange={setFrom} options={years} />
+            <Choose label="To" value={to} onChange={setTo} options={years} />
+            <label className="flex items-center gap-2">
+              <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                Measuring
               </span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[0.6875rem] text-dash-muted">
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="h-3 w-4 rounded-[2px] border border-dash-ink/25 bg-dash-bg" />
-            Presidential, whole country
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span aria-hidden="true" className="h-3 w-4 rounded-[2px] border border-dashed border-dash-line" />
-            Governorship, one state
-          </span>
-        </p>
-      </Panel>
-
-      {/* ------------------------------------------------------- the chooser */}
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-dash border border-dash-line bg-dash-card px-4 py-3">
-        <Choose label="From" value={from} onChange={setFrom} options={years} />
-        <Choose label="To" value={to} onChange={setTo} options={years} />
-        <label className="flex items-center gap-2">
-          <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-            Measuring
-          </span>
-          <select
-            value={party}
-            onChange={(event) => setParty(event.target.value)}
-            className="rounded-dash-sm border border-dash-line bg-dash-bg px-2 py-1 text-[0.8125rem] font-semibold text-dash-ink"
-          >
-            <option value="">the winner&rsquo;s share</option>
-            {parties.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {!seen.ok ? (
-        <p className="rounded-dash border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-[0.875rem] leading-relaxed text-dash-ink">
-          {seen.why}
-        </p>
-      ) : (
-        <>
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-            <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
-              <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-dash-line px-5 py-3.5">
-                <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
-                  {seen.from.year} to {seen.to.year}
-                  {party ? `, ${party}` : ", the winner in each state"}
-                </h2>
-                <p className="figure text-[0.8125rem] font-bold text-dash-ink tabular-nums">
-                  {seen.national.change > 0 ? "+" : "−"}
-                  {formatShare(Math.abs(seen.national.change))} nationally
-                </p>
-              </header>
-              <div className="px-4 py-3">
-                {shapes ? (
-                  <MiniMap shapes={shapes} fills={fills} notes={notes} height={340} />
-                ) : (
-                  <p className="px-4 py-12 text-center text-[0.875rem] text-dash-muted">No map available.</p>
-                )}
-              </div>
-              <footer className="border-t border-dash-line px-5 py-3 text-[0.75rem] leading-relaxed text-dash-muted">
-                Green is a gain of ten points or more, red a loss of ten or more; the pale states
-                moved by under two either way. The national figure is the sum of the votes over the
-                sum of the vote cast, never an average of the thirty-seven states — an average
-                weights Bayelsa like Kano.
-              </footer>
-            </section>
-
-            <div className="flex flex-col gap-3">
-              <Panel title="Biggest gains" figure={party || "winner"}>
-                <Ranked
-                  rows={[...seen.rows]
-                    .sort((a, b) => b.change - a.change)
-                    .slice(0, 8)
-                    .map((row) => ({
-                      id: row.code,
-                      label: row.name,
-                      value: Math.round(row.change * 10) / 10,
-                    }))}
-                  showShare={false}
-                  empty="Nothing moved."
-                />
-              </Panel>
-
-              <Panel title="Biggest losses" figure={party || "winner"}>
-                <Ranked
-                  rows={[...seen.rows]
-                    .sort((a, b) => a.change - b.change)
-                    .slice(0, 8)
-                    .map((row) => ({
-                      id: row.code,
-                      label: row.name,
-                      value: Math.round(Math.abs(row.change) * 10) / 10,
-                      tone: "alert",
-                    }))}
-                  showShare={false}
-                  empty="Nothing moved."
-                />
-              </Panel>
-            </div>
+              <select
+                value={party}
+                onChange={(event) => setParty(event.target.value)}
+                className="rounded-dash-sm border border-dash-line bg-dash-bg px-2 py-1 text-[0.8125rem] font-semibold text-dash-ink"
+              >
+                <option value="">the winner&rsquo;s share</option>
+                {parties.map((id) => (
+                  <option key={id} value={id}>
+                    {id}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
-          {/* The table the specification asked for, exactly: geography,
-              election A, election B, change. */}
-          <Panel title="Every state" figure={`${seen.rows.length}`}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[30rem] text-[0.8125rem]">
-                <thead>
-                  <tr className="border-b border-dash-line text-left text-[0.625rem] tracking-[0.08em] text-dash-muted uppercase">
-                    <th className="pb-2 font-semibold">State</th>
-                    <th className="pb-2 text-right font-semibold">{seen.from.year}</th>
-                    <th className="pb-2 text-right font-semibold">{seen.to.year}</th>
-                    <th className="pb-2 text-right font-semibold">Change</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {seen.rows.map((row) => (
-                    <tr key={row.code} className="border-b border-dash-line/60 last:border-0">
-                      <td className="py-1.5 font-semibold text-dash-ink">
-                        {row.name}
-                        {row.flipped && (
-                          <span className="ml-2 rounded-full bg-amber-50 px-1.5 py-0.5 text-[0.625rem] font-bold text-amber-700">
-                            {row.was.party} → {row.now.party}
-                          </span>
-                        )}
-                      </td>
-                      <td className="figure py-1.5 text-right text-dash-muted tabular-nums">
-                        {formatShare(row.was.share)}
-                      </td>
-                      <td className="figure py-1.5 text-right font-bold text-dash-ink tabular-nums">
-                        {formatShare(row.now.share)}
-                      </td>
-                      <td
-                        className={cn(
-                          "figure py-1.5 text-right font-bold tabular-nums",
-                          row.change > 0 ? "text-emerald-600" : row.change < 0 ? "text-red-600" : "text-dash-muted"
-                        )}
-                      >
-                        {row.change > 0 ? "+" : row.change < 0 ? "−" : ""}
-                        {formatShare(Math.abs(row.change))}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <p className="mt-2 text-[0.75rem] text-dash-muted">
+            No by-state table is published for {cover.missingStateTables.join(" or ")}, so neither
+            can appear here.
+          </p>
+
+          {!seen.ok ? (
+            <p className="mt-3 rounded-dash border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-[0.875rem] leading-relaxed text-dash-ink">
+              {seen.why}
+            </p>
+          ) : (
+            <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
+              <div>
+                <p className="mb-2 flex flex-wrap items-baseline justify-between gap-3">
+                  <span className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
+                    {seen.from.year} to {seen.to.year}
+                    {party ? `, ${party}` : ", the winner in each state"}
+                  </span>
+                  <span className="figure text-[0.8125rem] font-bold text-dash-ink tabular-nums">
+                    {seen.national.change > 0 ? "+" : "−"}
+                    {formatShare(Math.abs(seen.national.change))} nationally
+                  </span>
+                </p>
+                {shapes && <MiniMap shapes={shapes} fills={fills} notes={notes} height={360} />}
+                <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
+                  Green is a gain of ten points or more, red a loss of ten or more; the pale states
+                  moved by under two either way. The national figure is the sum of the votes over
+                  the sum of the vote cast, never an average of the thirty-seven states — an
+                  average weights Bayelsa like Kano.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <Panel title="Biggest gains" figure={party || "winner"}>
+                  <Ranked
+                    rows={[...seen.rows]
+                      .sort((a, b) => b.change - a.change)
+                      .slice(0, 6)
+                      .map((row) => ({
+                        id: row.code,
+                        label: row.name,
+                        value: Math.round(row.change * 10) / 10,
+                      }))}
+                    showShare={false}
+                    empty="Nothing moved."
+                  />
+                </Panel>
+                <Panel title="Biggest losses" figure={party || "winner"}>
+                  <Ranked
+                    rows={[...seen.rows]
+                      .sort((a, b) => a.change - b.change)
+                      .slice(0, 6)
+                      .map((row) => ({
+                        id: row.code,
+                        label: row.name,
+                        value: Math.round(Math.abs(row.change) * 10) / 10,
+                        tone: "alert",
+                      }))}
+                    showShare={false}
+                    empty="Nothing moved."
+                  />
+                </Panel>
+              </div>
             </div>
-          </Panel>
-        </>
+          )}
+        </div>
       )}
-    </div>
+    </section>
   );
 }
 
@@ -809,129 +976,5 @@ function Choose({ label, value, onChange, options }) {
         ))}
       </select>
     </label>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════════ trends */
-
-/**
- * What has been moving, and which way.
- *
- * ── A REALIGNMENT IS NOT A MARGINAL ────────────────────────────────────────
- * A state that changed hands in 2015 and has been safe ever since is not a
- * swing state. Grading the two alike sends a campaign to defend a place that
- * needs no defending. So a swing here has either changed hands more than once
- * or is held on a knife edge right now — see lib/record.js.
- */
-function Trends({ shapes, onOpen }) {
-  const trends = useMemo(() => stateTrends(), []);
-
-  const counts = useMemo(() => {
-    const index = {};
-    for (const key of Object.keys(TRENDS)) index[key] = trends.filter((row) => row.trend === key).length;
-    return index;
-  }, [trends]);
-
-  const fills = useMemo(
-    () => Object.fromEntries(trends.map((row) => [row.code, TREND_FILL[row.trend]])),
-    [trends]
-  );
-
-  const notes = useMemo(
-    () =>
-      Object.fromEntries(
-        trends.map((row) => [
-          row.code,
-          `${TRENDS[row.trend].label}, ${row.holder} by ${formatShare(row.margin)}`,
-        ])
-      ),
-    [trends]
-  );
-
-  const moving = useMemo(
-    () => [...trends].sort((a, b) => Math.abs(b.drift) - Math.abs(a.drift)).slice(0, 10),
-    [trends]
-  );
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-        <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
-          <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-dash-line px-5 py-3.5">
-            <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
-              What each state has been doing
-            </h2>
-            <p className="text-[0.8125rem] text-dash-muted">
-              Across {MAPPABLE.length} presidential elections with a state table
-            </p>
-          </header>
-          <div className="px-4 py-3">
-            {shapes ? (
-              <MiniMap shapes={shapes} fills={fills} notes={notes} height={340} />
-            ) : (
-              <p className="px-4 py-12 text-center text-[0.875rem] text-dash-muted">No map available.</p>
-            )}
-          </div>
-          <footer className="flex flex-wrap gap-x-4 gap-y-1.5 border-t border-dash-line px-5 py-3">
-            {Object.values(TRENDS).map((item) => (
-              <span key={item.id} className="flex items-center gap-1.5" title={item.why}>
-                <span
-                  aria-hidden="true"
-                  className="size-2.5 shrink-0 rounded-[2px]"
-                  style={{ background: TREND_FILL[item.id] }}
-                />
-                <span className="text-[0.75rem] text-dash-muted">{item.label}</span>
-                <span className="figure text-[0.75rem] font-bold text-dash-ink tabular-nums">
-                  {counts[item.id]}
-                </span>
-              </span>
-            ))}
-          </footer>
-        </section>
-
-        <div className="flex flex-col gap-3">
-          <Panel
-            title="Moving fastest"
-            figure="since the last election"
-            foot="The change in the winner's margin between the last two elections. A widening lead is somewhere to stop spending."
-          >
-            <ul className="space-y-0.5">
-              {moving.map((row) => (
-                <li key={row.code}>
-                  <Readout
-                    label={row.name}
-                    value={`${row.drift > 0 ? "+" : "−"}${formatShare(Math.abs(row.drift))}`}
-                    sub={TRENDS[row.trend].label}
-                    tone={row.drift > 0 ? "good" : "alert"}
-                    onClick={onOpen ? () => onOpen({ code: row.code, name: row.name }) : undefined}
-                  />
-                </li>
-              ))}
-            </ul>
-          </Panel>
-
-          <Panel
-            title="On a knife edge now"
-            figure={`under ${COMPETITIVE} points`}
-            foot="Whatever these states have done in the past, this is what they are today."
-          >
-            <Ranked
-              rows={trends
-                .filter((row) => row.margin < COMPETITIVE)
-                .sort((a, b) => a.margin - b.margin)
-                .slice(0, 8)
-                .map((row) => ({
-                  id: row.code,
-                  label: row.name,
-                  value: Math.round(row.margin * 10) / 10,
-                  tone: "warn",
-                }))}
-              showShare={false}
-              empty="Every state on record is held by more than that."
-            />
-          </Panel>
-        </div>
-      </div>
-    </div>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { formatNumber, formatShare } from "@/lib/utils";
+import PartyMark from "@/components/dash/PartyMark";
+import { partyLogo } from "@/lib/party-register";
 
 /**
  * National standings.
@@ -29,8 +31,11 @@ export default function Standings({ standings, total, margin, className }) {
         {standings.map((party) => (
           <li key={party.id}>
             <div className="flex items-baseline justify-between gap-3">
-              <p className="flex min-w-0 items-baseline gap-2">
-                <span className="figure text-sm font-bold text-white">{party.id}</span>
+              <p className="flex min-w-0 items-center gap-2">
+                <PartyMark id={party.id} size={20} title={Boolean(partyLogo(party.id))} />
+                {!partyLogo(party.id) && (
+                  <span className="figure text-sm font-bold text-white">{party.id}</span>
+                )}
                 <span className="truncate text-[0.75rem] text-white/45">{party.name}</span>
               </p>
               <p className="figure shrink-0 text-sm font-bold text-white tabular-nums">

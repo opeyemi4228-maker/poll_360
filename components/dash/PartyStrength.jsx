@@ -7,7 +7,9 @@ import AddToPlan from "./AddToPlan";
 import { PARTY_FILL } from "./Charts";
 import PartyBreakdown from "./PartyBreakdown";
 import { boundsOf } from "@/lib/bbox";
+import UnitMap from "./UnitMap";
 import { apportion, unitCount, wardCount } from "@/lib/drill";
+import { CLASS_OF, CLASSES, classOf } from "@/lib/executive";
 import { allParties, states2023 } from "@/lib/election2023";
 import { ZONES } from "@/lib/zones";
 import { cn, formatNumber, formatShare } from "@/lib/utils";
@@ -72,6 +74,32 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
      work could have taken, and they are the only places on the map where the
      margin is a budget rather than a fact. */
   const [within, setWithin] = useState(5);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TWO QUESTIONS, ONE MAP, ONE PARTY PICKER
+
+     This screen and the classification map used to be two tabs — "Parties"
+     and "Geographic intelligence" — and they were the same map twice. Both
+     draw one party over one country; they differ only in what the colour
+     means. Share asks how much of the vote the party took here. Standing
+     asks what that amount is worth: held comfortably, genuinely in play,
+     behind but reachable, or gone.
+
+     Split across two tabs the pair was worse than either alone, because the
+     answer to "where are we strong" is never the plan — the plan is which of
+     those strong places can be left alone and which weak ones are close. That
+     is one press now, on the same map, at the same level, for the same party.
+
+     ── AND WHY THE STANDING IS COMPUTED HERE ─────────────────────────────
+     The classification could have been handed down from the strategic brief,
+     which computes its own. It is not, deliberately: the brief is about
+     whichever party the brief is set to, and this screen has its own picker.
+     Two parties, one map, and nothing on screen saying which colour belonged
+     to which — the exact class of quiet wrongness this room spends its
+     comments avoiding. Computed from this screen's own party, off the same
+     `classOf` the brief uses, the two can differ in subject and can never
+     differ in method. */
+  const [colour, setColour] = useState("share");
 
   /**
    * ── ALWAYS THE WHOLE FEDERATION, WHATEVER PROJECT IS OPEN ────────────────
@@ -216,6 +244,17 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
           won: best?.id === party && best.votes > 0,
           /* How far off winning it, in points. Negative means holding it. */
           behind: best?.id === party ? 0 : total ? ((best.votes - mine) / total) * 100 : 0,
+          /* The same distance signed the way a classification reads it:
+             positive is a lead held, negative is a deficit. `behind` is
+             kept as it was because half this screen is written around the
+             word, and a margin that flips sign underneath it would be a
+             silent change to every list that uses it. */
+          margin: (() => {
+            if (!total) return null;
+            if (best?.id !== party) return -((best.votes - mine) / total) * 100;
+            const second = ranked[1]?.votes ?? 0;
+            return ((mine - second) / total) * 100;
+          })(),
         };
       })
       .sort((a, b) => b.share - a.share);
@@ -305,6 +344,30 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
 
   const pickedRow = picked ? children.find((row) => row.key === picked.key) ?? null : null;
 
+  /* ══════════════════════════════════════════════════════════════════════
+     BELOW A STATE THERE ARE NO BOUNDARIES TO DRAW, AND THAT IS NOT THE SAME
+     AS THERE BEING NOTHING TO DRAW
+
+     Nigeria publishes state and local government outlines. It publishes no
+     ward or polling unit geometry at all, so from a local government
+     downwards there is no shape file to colour — and this screen answered
+     that by rendering nothing, falling through to a grid of small cards at
+     the top of a tall black panel.
+
+     That is the exact bug components/dash/SituationRoom.jsx already fixed at
+     these two levels, in the same words: at the levels where somebody is
+     actually deciding where to send a person, the map stopped being a map.
+     Its answer is the right one and it is reused here rather than reinvented
+     — the local government's own real outline, with a tile inside it for
+     every ward or booth. The boundary is real, the arrangement inside it is
+     a lattice and is captioned as one, and neither is a black rectangle.
+     ══════════════════════════════════════════════════════════════════════ */
+  const unitOutline = useMemo(() => {
+    if (level !== "lga" && level !== "ward") return null;
+    const shape = lgaShapes?.lgas?.find((row) => row.name === lga?.name);
+    return shape ? [shape.d] : null;
+  }, [level, lgaShapes, lga]);
+
   /* The shapes follow the rows: a panel ranking three local governments beside
      a map drawing twenty-one is two answers to one question. */
   const mapShapes =
@@ -349,8 +412,9 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
   const strongest = children[0];
   const weakest = children[children.length - 1];
 
-  /* What the darkest step on the ramp means here. The same figure the map
-     divides by, so the legend cannot drift from the shapes it explains. */
+  /* What the darkest step on the ramp means here. The same figure both maps
+     divide by — the choropleth above a state, the lattice below one — so the
+     legend cannot drift from whichever shapes it is explaining. */
   const topShare = Math.max(...children.map((row) => row.share), 1);
   const apportioned = level !== "nation";
 
@@ -393,13 +457,49 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
               </span>
             ))}
 
+            {/* ── WHAT THE COLOUR MEANS, BESIDE THE PLACE IT MEANS IT IN ───
+                Two words, in the map's own header, because this is the control
+                a reader reaches for while looking at a colour they are trying
+                to read. It was a separate tab; a tab is a different screen,
+                and a different screen loses the level, the party and the place
+                you were standing in. */}
+            <div
+              role="group"
+              aria-label="What the colour means"
+              className="ml-auto flex shrink-0 items-center rounded-full bg-white/10 p-0.5"
+            >
+              {[
+                ["share", "Share", `How much of the vote ${party} took here.`],
+                ["standing", "Standing", `What that amount is worth to ${party} here.`],
+              ].map(([id, label, why]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setColour(id)}
+                  aria-pressed={colour === id}
+                  title={why}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[0.75rem] font-bold transition-colors",
+                    colour === id ? "bg-white text-board" : "text-white/60 hover:text-white"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             {/* ── ONE PARTY AT A TIME, AND SAY WHICH ───────────────────────
                 A picker that allowed several at once would put the screen
                 straight back to colouring by whoever leads, which is the thing
                 this screen exists not to do. Comparison is done by switching,
                 which keeps the scale and the place fixed and moves only the
-                party — the only way to see a difference honestly. */}
-            <div className="ml-auto flex flex-wrap items-center gap-1">
+                party — the only way to see a difference honestly.
+
+                It drives both colourings, which is the whole reason the
+                classification was folded into this screen: two pickers on two
+                tabs could name two different parties, and nothing on either
+                map said which one its colours were about. */}
+            <div className="flex flex-wrap items-center gap-1">
               {allParties.map((item) => (
                 <button
                   key={item.id}
@@ -449,7 +549,47 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
                 level={level}
                 rows={children}
                 party={party}
+                colour={colour}
                 onOpen={drill}
+              />
+            ) : unitOutline ? (
+              /* ── WARDS AND BOOTHS, INSIDE THE PLACE THEY ARE IN ──────────
+                  Painted by the caller rather than left to the component's own
+                  single-hue ramp, and painted with exactly the steps the
+                  choropleth above uses — see RAMP and PARTY_TOKEN. A ward and
+                  the state it sits in must never be two different colour
+                  languages for one fact, which is what happens the moment two
+                  surfaces each decide their own shading. */
+              <UnitMap
+                outline={unitOutline}
+                parentLabel={lga?.name}
+                childWord={level === "lga" ? "ward" : "polling unit"}
+                tint={PARTY_TOKEN[party] ?? "var(--color-red-500)"}
+                rows={children.map((row) => {
+                  const strength = topShare ? row.share / topShare : 0;
+                  const step = RAMP.findIndex((edge) => strength <= edge);
+                  const standing = classOf({ reported: row.total > 0, margin: row.margin });
+                  return {
+                    key: row.key,
+                    name: row.name,
+                    value: row.share,
+                    note: `${party} ${row.share.toFixed(1)}%`,
+                    paint:
+                      colour === "standing" && standing
+                        ? { fill: CLASS_OF[standing]?.fill ?? "var(--color-silent)", opacity: 1 }
+                        : {
+                            fill: PARTY_TOKEN[party] ?? "#ffffff",
+                            /* The same floor the choropleth uses: below about a
+                               tenth, a party colour on near-black is
+                               indistinguishable from an empty cell. */
+                            opacity: Math.max(0.12, RAMP[step === -1 ? RAMP.length - 1 : step]),
+                          },
+                  };
+                })}
+                picked={picked?.key ?? null}
+                /* At the floor there is nowhere further to go, so a press opens
+                   the unit's own ballot in the panel instead of doing nothing. */
+                onOpen={(row) => (level === "lga" ? drill(row) : pick(row))}
               />
             ) : (
               <div className="grid h-full grid-cols-2 content-start gap-2 overflow-y-auto sm:grid-cols-3 lg:grid-cols-4">
@@ -490,8 +630,37 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
               they are printed, and they move when the scope does. */}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-board-line px-4 py-2.5">
             <span className="shrink-0 text-[0.5625rem] font-semibold tracking-[0.14em] text-white/35 uppercase">
-              {party} share
+              {party} {colour === "standing" ? "standing" : "share"}
             </span>
+            {/* ── A CLASS NEEDS ITS WORDS PRINTED; A RAMP DOES NOT ────────
+                Four colours meaning "hold it", "fight here", "reachable" and
+                "gone" cannot be worked out from the map, and a reader who
+                guesses guesses wrong in the direction that costs a week of
+                somebody's campaign. The count beside each word is how many
+                places at this level are in it. */}
+            {colour === "standing" ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                {CLASSES.map((item) => {
+                  const count = children.filter(
+                    (row) => classOf({ reported: row.total > 0, margin: row.margin }) === item.id
+                  ).length;
+                  if (!count) return null;
+                  return (
+                    <span key={item.id} className="flex items-center gap-1.5" title={item.why}>
+                      <span
+                        aria-hidden="true"
+                        className="size-3 shrink-0 rounded-xs"
+                        style={{ background: item.fill }}
+                      />
+                      <span className="text-[0.625rem] text-white/60">{item.label}</span>
+                      <span className="figure text-[0.625rem] font-bold text-white tabular-nums">
+                        {count}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
             <div className="flex items-center gap-2">
               {RAMP.map((step, at) => (
                 <span key={step} className="flex items-center gap-1">
@@ -509,6 +678,7 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
                 </span>
               ))}
             </div>
+            )}
             <span className="figure ml-auto text-[0.625rem] text-white/35">
               {pickedRow
                 ? `${pickedRow.name} · ${formatShare(pickedRow.share)}`
@@ -792,7 +962,7 @@ const levelWord = (level) =>
  * moving, so a strong place and a weak place are the same hue at different
  * strengths. Two hues would invite the reader to think they meant two things.
  */
-function ShareMap({ shapes, level, rows, party, onOpen }) {
+function ShareMap({ shapes, level, rows, party, colour = "share", onOpen }) {
   const byName = useMemo(() => new Map(rows.map((row) => [row.key ?? row.name, row])), [rows]);
   /* Memoised because the frame below depends on it, and a fresh array identity
      every render would re-measure every path on every pointer move. */
@@ -818,6 +988,15 @@ function ShareMap({ shapes, level, rows, party, onOpen }) {
         const step = RAMP.findIndex((edge) => strength <= edge);
         const opacity = row ? RAMP[step === -1 ? RAMP.length - 1 : step] : 0;
 
+        /* ── A QUANTITY AND A CLASS ARE PAINTED DIFFERENTLY ON PURPOSE ──
+           Share is one hue getting stronger, because more really is more of
+           the same thing. Standing is four separate colours, because
+           "competitive" is not a larger amount of "stronghold" — it is a
+           different instruction. A ramp would imply an order that is not
+           there, and a reader would take the darkest end for the best. */
+        const standing = row ? classOf({ reported: row.total > 0, margin: row.margin }) : null;
+        const classed = colour === "standing" && standing;
+
         return (
           <path
             key={shape.code ?? shape.name}
@@ -825,8 +1004,14 @@ function ShareMap({ shapes, level, rows, party, onOpen }) {
             /* The board hue, not the white-sheet one: PARTY_FILL is stepped
                dark for a white panel, and dark-on-near-black at 14% opacity is
                indistinguishable from empty. */
-            fill={row ? (PARTY_TOKEN[party] ?? "#ffffff") : "var(--color-board-raised)"}
-            fillOpacity={row ? Math.max(0.12, opacity) : 1}
+            fill={
+              classed
+                ? (CLASS_OF[standing]?.fill ?? "var(--color-silent)")
+                : row
+                  ? (PARTY_TOKEN[party] ?? "#ffffff")
+                  : "var(--color-board-raised)"
+            }
+            fillOpacity={classed ? 1 : row ? Math.max(0.12, opacity) : 1}
             stroke="var(--color-board)"
             strokeWidth={0.9}
             strokeLinejoin="round"
@@ -834,7 +1019,11 @@ function ShareMap({ shapes, level, rows, party, onOpen }) {
             onClick={() => row && onOpen(row)}
           >
             <title>
-              {`${shape.name}${row ? `, ${party} ${row.share.toFixed(1)}%` : ", not in this election"}`}
+              {row
+                ? classed
+                  ? `${shape.name}, ${CLASS_OF[standing]?.label} for ${party}`
+                  : `${shape.name}, ${party} ${row.share.toFixed(1)}%`
+                : `${shape.name}, not in this election`}
             </title>
           </path>
         );

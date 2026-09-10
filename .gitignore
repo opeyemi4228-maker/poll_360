@@ -48,3 +48,6 @@ postgresql:/
 # Fetched source data for scripts/build-history.mjs and build-latlng.mjs.
 # Re-downloadable, and the checked-in output is what matters.
 .cache/
+
+# Claude Code worktrees (git checkouts, not project source)
+/.claude/worktrees/

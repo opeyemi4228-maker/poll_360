@@ -295,33 +295,6 @@ export default function PartyGround({ shapes = null }) {
         <NoRegister party={party} votes={votes} state={held[0]?.state ?? stateCode} />
       ) : (
         <>
-          {/* ══════════════════════════════════════════════════════ where you are */}
-          <nav
-            aria-label="Where you are"
-            className="flex flex-wrap items-center gap-1 rounded-dash border border-dash-line bg-dash-card px-4 py-2.5"
-          >
-            {crumbs.map((crumb, index) => (
-              <span key={`${index}-${crumb.label}`} className="flex items-center gap-1">
-                {index > 0 && <ChevronRight size={13} className="shrink-0 text-dash-muted" />}
-                <button
-                  type="button"
-                  onClick={crumb.go}
-                  className={cn(
-                    "rounded-dash-sm px-2 py-1 text-[0.8125rem] font-semibold transition-colors",
-                    (atNation && index === 0) || (!atNation && index === crumbs.length - 1)
-                      ? "text-dash-ink"
-                      : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
-                  )}
-                >
-                  {crumb.label}
-                </button>
-              </span>
-            ))}
-            <span className="ml-auto text-[0.75rem] text-dash-muted">
-              {atNation ? "The country" : `${formatNumber(rows.length)} ${TIER_LABEL[childTier(path)].toLowerCase()}s below`}
-            </span>
-          </nav>
-
           {/* ═══════════════════════════════════════════════════════ the two figures */}
           {/* ── ONE STATEMENT EACH, NOT TWO ─────────────────────────────────
               These were two panels that each said their point twice: once as
@@ -373,20 +346,66 @@ export default function PartyGround({ shapes = null }) {
               phone a pinned half-screen map leaves nothing to read in. */}
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
             <div className="on-board flex min-h-[32rem] flex-col overflow-hidden rounded-dash border border-board-line bg-board xl:sticky xl:top-[calc(var(--dash-top,4.5rem)+0.75rem)] xl:h-[calc(100vh-var(--dash-top,4.5rem)-1.5rem)] xl:min-h-0">
-              <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-board-line px-5 py-3">
-                <h2 className="font-display text-[1rem] font-extrabold tracking-[-0.01em] text-white">
+              {/* ══════════════════════════════════════════ where you are
+                  ── THE TRAIL BELONGS IN THE FRAME ──────────────────────────
+                  It was a card of its own, floating above the map with a gap
+                  between them. That put the one control that says how deep
+                  you are outside the thing it is describing: the map pins
+                  itself under the bar and keeps the height of the viewport
+                  while the page scrolls past it, so on any real screen the
+                  breadcrumb scrolled away and left a map with no answer to
+                  "where am I".
+
+                  Inside the frame it cannot: it is the frame's top edge, it
+                  travels with the map, and it is the same object in the same
+                  place as on every other map in this product — see the
+                  identical bar in components/dash/SituationRoom.jsx. A reader
+                  who has learnt where to look on one map should not have to
+                  learn again on another. */}
+              <nav
+                aria-label="Where you are"
+                className="flex flex-wrap items-center gap-1 border-b border-board-line px-4 py-2.5"
+              >
+                {/* Keyed by depth rather than by name: a state and one of its
+                    own local governments can share a label, and position in
+                    the trail is the thing that is actually unique. */}
+                {crumbs.map((crumb, index) => (
+                  <span key={`${index}-${crumb.label}`} className="flex items-center gap-1">
+                    {index > 0 && <ChevronRight size={13} className="shrink-0 text-white/40" />}
+                    <button
+                      type="button"
+                      onClick={crumb.go}
+                      className={cn(
+                        "rounded-dash-sm px-2 py-1 text-[0.8125rem] font-semibold transition-colors",
+                        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/60",
+                        (atNation && index === 0) || (!atNation && index === crumbs.length - 1)
+                          ? "text-white"
+                          : "text-white/55 hover:bg-white/10 hover:text-white"
+                      )}
+                    >
+                      {crumb.label}
+                    </button>
+                  </span>
+                ))}
+
+                {/* What is one level down, on the right, where the room's map
+                    puts its own controls. It is the count a reader is about
+                    to drill into, so it belongs on the bar they drill from. */}
+                <span className="ml-auto pl-2 text-[0.75rem] text-white/45">
                   {atNation
-                    ? "Nigeria"
-                    : path.length === 0
-                      ? `${register.state}, by local government`
-                      : `${path[path.length - 1]}, by ${TIER_LABEL[childTier(path)].toLowerCase()}`}
-                </h2>
-                <p className="text-[0.8125rem] text-white/55">
-                  {atNation
-                    ? `${covered.length} state${covered.length === 1 ? "" : "s"} covered by a register`
-                    : `Darker is more ${party} members · press a place to go in`}
-                </p>
-              </header>
+                    ? `${covered.length} state${covered.length === 1 ? "" : "s"} covered`
+                    : `${formatNumber(rows.length)} ${TIER_LABEL[childTier(path)].toLowerCase()}s below`}
+                </span>
+              </nav>
+
+              {/* What the shading means, under the trail rather than beside
+                  it: the trail answers "where", this answers "what am I
+                  looking at", and stacking them keeps each to one line. */}
+              <p className="border-b border-board-line px-4 py-2 text-[0.75rem] text-white/45">
+                {atNation
+                  ? "Only states with a register loaded are drawn. Press one to go in."
+                  : `Darker is more ${party} members · press a place to go in`}
+              </p>
 
               <div
                 className="relative min-h-0 flex-1 p-2"

@@ -1,7 +1,5 @@
 "use client";
 
-import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
-
 import { PARTY_FILL } from "./Charts";
 import { parties, others } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
@@ -139,29 +137,21 @@ export default function PartyBreakdown({
           </span>
         </div>
 
-        {/* The headline: who is ahead and by how much, which is two facts and
-            is always shown as two. */}
-        <div className="mt-3 flex items-end gap-3">
-          <span
-            aria-hidden="true"
-            className="mb-1 size-3.5 shrink-0 rounded-full"
-            style={{ background: PARTY_FILL[top.id] }}
-          />
-          <p className="figure text-[1.75rem] leading-none font-bold tracking-[-0.03em] text-dash-ink">
-            {top.id}
-          </p>
-          <p className="figure mb-0.5 text-[0.9375rem] text-dash-muted">
-            {formatShare(total ? (top.votes / total) * 100 : 0)}
-          </p>
-          <p className="mb-0.5 ml-auto flex items-center gap-1 text-[0.8125rem] text-dash-muted">
-            {lead > 0 ? (
-              <ArrowUpRight size={14} strokeWidth={2.5} className="text-emerald-600" />
-            ) : (
-              <Minus size={14} strokeWidth={2.5} />
-            )}
-            <span className="figure font-bold text-dash-ink">{formatNumber(lead)}</span> ahead
-          </p>
-        </div>
+        {/* ── THE HEADLINE THAT SAID ROW ONE AGAIN ───────────────────────
+            A block stood here drawing the leader's code, the leader's share
+            and the margin, at three times the size — directly above a list
+            whose first row is the leader's code, the leader's share and the
+            leader's votes. The same two figures, twice, four centimetres
+            apart, and the larger copy was the one with no bar next to it to
+            put it in proportion.
+
+            The public board on the home page does not do this and never did:
+            it prints the standings once and puts the margin on one quiet line
+            under them, because "who is ahead" is already legible from the
+            bars, and the only thing the bars cannot say is by how much. That
+            is the shape this panel takes now — see components/board/Standings.
+            The margin has moved to the foot, in one line, next to the
+            arithmetic it belongs with. */}
       </header>
 
       {/* ----------------------------------------------------- every party */}
@@ -193,9 +183,16 @@ export default function PartyBreakdown({
               </div>
 
               <div className="mt-1.5 flex items-center gap-3">
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-dash-bg">
+                {/* ── SQUARE ENDS, AS ON THE PUBLIC BOARD ─────────────────
+                    A bar that rounds its end reads as slightly short of the
+                    value it is drawn at, and these bars are the only thing on
+                    the panel a reader compares by length. The home page's
+                    standings have been square for exactly this reason — see
+                    components/board/Standings.jsx. The card keeps its radius;
+                    the measurement inside it does not. */}
+                <div className="h-2 flex-1 overflow-hidden bg-dash-bg">
                   <div
-                    className="h-full rounded-full transition-[width] duration-500 ease-out"
+                    className="h-full transition-[width] duration-500 ease-out"
                     style={{
                       width: `${Math.min(100, (party.votes / scale) * 100)}%`,
                       background: PARTY_FILL[party.id],
@@ -210,6 +207,31 @@ export default function PartyBreakdown({
           );
         })}
       </ul>
+
+      {/* ── THE ONE THING THE BARS CANNOT SAY ──────────────────────────────
+          Which party leads is legible from the list above without being told.
+          By how much is not: two bars a few pixels apart and two bars a
+          thumb's width apart are the difference between a contest and a
+          result, and at national scale the eye cannot turn either into a
+          number. So the margin is printed, once, in a line — the same place
+          and the same weight the public board gives it. */}
+      {second && (
+        <p className="border-t border-dash-line px-4 py-2.5 text-[0.75rem] text-dash-muted">
+          {lead > 0 ? (
+            <>
+              <span className="figure font-bold text-dash-ink">{top.id}</span> leads{" "}
+              <span className="figure font-bold text-dash-ink">{second.id}</span> by{" "}
+              <span className="figure font-bold text-dash-ink">{formatNumber(lead)}</span>
+              {total > 0 && <> · {formatShare(leadShare)} of the votes counted here</>}
+            </>
+          ) : (
+            <>
+              <span className="figure font-bold text-dash-ink">{top.id}</span> and{" "}
+              <span className="figure font-bold text-dash-ink">{second.id}</span> are level here.
+            </>
+          )}
+        </p>
+      )}
 
       {silent.length > 0 && (
         <p className="border-t border-dash-line px-4 py-2.5 text-[0.6875rem] leading-relaxed text-dash-muted">

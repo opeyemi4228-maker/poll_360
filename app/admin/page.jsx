@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Banknote, FileText, Inbox, KeyRound, ScanLine, ScrollText, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
+import { AlertTriangle, Banknote, Inbox, KeyRound, ScanLine, ScrollText, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 
 import SheetLedger from "@/components/dash/SheetLedger";
 import RaceSwitcher from "@/components/dash/RaceSwitcher";
@@ -8,8 +8,7 @@ import DashLayout from "@/components/dash/DashLayout";
 import ReadinessBanner from "@/components/dash/ReadinessBanner";
 import { readiness } from "@/lib/readiness";
 import { Card, StatCard, Badge, Empty } from "@/components/dash/DashCard";
-import { PartyBars, TrendArea } from "@/components/dash/Charts";
-import CoverageDial from "@/components/dash/CoverageDial";
+import { Histogram, Meter, Ranked, Ring, Split, StateGrid } from "@/components/dash/SystemCharts";
 import IntegrityPanel from "@/components/dash/IntegrityPanel";
 import IssueAccountForm from "@/components/dash/IssueAccountForm";
 import PayAgentForm from "@/components/dash/PayAgentForm";
@@ -20,13 +19,12 @@ import { currentElection, currentRace } from "@/lib/election-scope";
 import { raceLabel, RACES } from "@/lib/races";
 import { allPlaces, resolveTerritory } from "@/lib/constituencies";
 import { describeTerritory } from "@/lib/territory";
-import { results, incidents, audit, accessRequests, users, sheetReads } from "@/lib/db";
+import { results, audit, accessRequests, users, sheetReads } from "@/lib/db";
+import { health, integrations } from "@/lib/system";
+import { ROLES } from "@/lib/roles";
 import { integrityOf } from "@/lib/anomalies";
 import { coordinators } from "@/lib/coordinators";
 import { ledger } from "@/lib/ledger";
-import { unseal } from "@/lib/crypto";
-import { parties, others } from "@/lib/election2023";
-import { register } from "@/lib/site";
 import { formatNumber, formatShare } from "@/lib/utils";
 
 /* What a reader is, said in terms of what its readings are worth to somebody
@@ -71,13 +69,40 @@ export default async function AdminPage() {
      the one check worth paying for on every page view: an administrator
      should never be looking at a ledger whose integrity has not just been
      proved. */
-  const [tally, filed, byRace, feed, requests, trail, chain, payments, waiting, ready, reads, readScore] = await Promise.all([
+  const [
+    tally,
+    filed,
+    byRace,
+    requests,
+    requestsWaiting,
+    activity,
+    chain,
+    payments,
+    waiting,
+    ready,
+    reads,
+    readScore,
+    machine,
+    wiring,
+    byRole,
+  ] = await Promise.all([
     results.tally(project?.id, race),
     results.recent(200, project?.id, race),
     project ? results.countByRace(project.id) : {},
-    incidents.recent(6, project?.id),
     accessRequests.recent(5),
-    audit.recent(8),
+    /* The real figure, not the length of the five above — see the note on
+       `waitingCount` in lib/db.js. A count taken off a capped list reports
+       its own cap, and this one sits on the tile that decides whether
+       anybody opens the queue. */
+    accessRequests.waitingCount(),
+    /* ── THE TRAIL AS A SHAPE, NOT AS EIGHT LINES ────────────────────────
+       This was `audit.recent(8)`, rendered as a card of eight timestamps.
+       Eight lines is not a record — the page that *is* the record lives at
+       /admin/audit and pages through the whole thing — and it is not a
+       summary either, because the question an overview should answer of a
+       log is "was it busy, and when", which eight lines cannot show. The
+       count is one query and the answer is a picture. */
+    audit.activity(36),
     ledger.verify(),
     ledger.recent(6),
     /* Coordinators who have signed themselves up and are waiting to be let
@@ -99,6 +124,19 @@ export default async function AdminPage() {
        is an administrator's question, not a channel operator's. */
     project ? sheetReads.recent(project.id, 12) : [],
     project ? sheetReads.summary(project.id) : {},
+    /* ── THE THREE THE OVERVIEW BECAME ABOUT ────────────────────────────
+       The top of this page used to be a coverage dial, a party standings
+       chart, a cumulative trend and an incident feed — which is, panel for
+       panel, the situation room's command centre. Two screens computing the
+       same four figures is two screens that can disagree about them, and the
+       room is the one built to be watched all night on a wall.
+
+       So the overview answers the question only this desk asks: is the thing
+       doing the counting healthy. All three are cheap, none of them is drawn
+       anywhere else, and they join the wait rather than adding round trips. */
+    health(),
+    integrations(),
+    users.tally(),
   ]);
 
   /* The state, district and local government tables, for the account form
@@ -107,17 +145,9 @@ export default async function AdminPage() {
      into the browser instead. */
   const places = allPlaces();
 
-  const counted = Object.values(tally.totals).reduce((a, b) => a + b, 0);
   const disputed = filed.filter((row) => row.status === "DISPUTED").length;
   const unverified = filed.filter((row) => row.status === "SUBMITTED").length;
   const verified = filed.filter((row) => row.status === "VERIFIED").length;
-
-  const standings = [...parties, others]
-    .map((party) => ({ id: party.id, name: party.name, votes: tally.totals[party.id] ?? 0 }))
-    .sort((a, b) => (a.id === "OTH" ? 1 : b.id === "OTH" ? -1 : b.votes - a.votes));
-
-  /* Cumulative booths over the evening, from the returns themselves. */
-  const trend = buildTrend(filed);
 
   /* ── SCREENING RUNS ON EVERY LOAD, NOT ON DEMAND ────────────────────────
      The screening was written, tested and then never put on a screen, which
@@ -199,96 +229,182 @@ export default async function AdminPage() {
         </div>
       )}
 
-      {/* ------------------------------------------------------------- hero
-          The dial is the largest object on the page on purpose: it is the
-          product's own mark doing its job, and it makes the central rule
-          physical, you cannot read the count without also reading how much
-          of the country it came from, because they are one object. */}
-      <div className="grid gap-6 xl:grid-cols-[20rem_1fr]">
-        <Card title="Coverage" subtitle="Filed, and checked, against the whole register">
-          <CoverageDial
-            reported={tally.units}
-            total={register.pollingUnits}
-            verified={verified}
-          />
-        </Card>
+      {/* ═══════════════════════════════════════════ the machine, not the count
+          ── WHAT USED TO BE HERE, AND WHY IT WENT ────────────────────────
+          A coverage dial, three totals, a cumulative trend, a party
+          standings chart and an incident feed. Every one of those is on the
+          situation room's command centre, computed from the same rows — and
+          the room is the surface built to carry them: it is watched all
+          night, it refreshes on a timer, it drills, and it is where somebody
+          is already looking when a figure moves.
 
-        <div className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard
-              icon={FileText}
-              label="Votes counted"
-              value={formatNumber(counted)}
-              context={`From ${formatNumber(tally.units)} booths`}
+          Two screens holding one set of figures is not redundancy, it is a
+          second place for them to be wrong in. The one that had to go is the
+          one whose reader was not asking the question: an administrator opens
+          this page to find out whether the *product* is working, and was met
+          with a results board that told them nothing about it.
+
+          What replaces it is the question nobody else on this deployment can
+          answer, in the form that answers it fastest. */}
+      <div className="mb-6 grid gap-6 xl:grid-cols-[1fr_1.15fr]">
+        <Card title="Fit to run an election" subtitle="Checked on this request, not asserted">
+          <div className="flex flex-wrap items-center justify-around gap-6">
+            <Ring
+              label="Readiness"
+              value={ready.checks.length - ready.failing.length}
+              of={ready.checks.length}
+              display={`${ready.checks.length - ready.failing.length}/${ready.checks.length}`}
+              tone={ready.ready ? "good" : ready.blocking ? "alert" : "warn"}
+              caption={
+                ready.ready
+                  ? "Every check passes."
+                  : `${ready.failing.length} failing${ready.blocking ? ", one of them blocking" : ""}.`
+              }
             />
-            <StatCard
-              icon={Users}
-              label="Awaiting a check"
-              value={formatNumber(unverified)}
-              context={`${formatNumber(verified)} already verified`}
-            />
-            <StatCard
-              icon={AlertTriangle}
-              label="Disputed"
-              value={formatNumber(disputed)}
-              tone={disputed ? "alert" : "default"}
-              context="In the table, out of every sum"
+            <Ring
+              label="The record"
+              value={chain.ok ? 1 : 0}
+              of={1}
+              display={chain.ok ? "OK" : "×"}
+              tone={chain.ok ? "good" : "alert"}
+              caption={
+                chain.ok
+                  ? `${formatNumber(chain.entries)} payment entries, unaltered.`
+                  : `Hash chain broken at entry ${chain.at}.`
+              }
             />
           </div>
 
-          <Card title="Returns arriving" subtitle="Cumulative booths filed across the evening">
-            <TrendArea points={trend} />
-          </Card>
-        </div>
+          {/* The wiring, as a wall of dots. Seven integrations and their keys
+              would be a table nobody reads on an overview; what somebody
+              actually wants from this card is whether there is a red one. */}
+          <div className="mt-6 border-t border-dash-line pt-5">
+            <StateGrid
+              label="What this deployment is wired to"
+              cells={wiring.map((row) => ({
+                label: row.name,
+                state:
+                  row.state === "on"
+                    ? "set up"
+                    : row.state === "partial"
+                      ? "half set up — looks connected and cannot deliver"
+                      : row.essential
+                        ? "missing, and needed"
+                        : "not in use",
+                tone:
+                  row.state === "on"
+                    ? "good"
+                    : row.state === "partial"
+                      ? "warn"
+                      : row.essential
+                        ? "alert"
+                        : "neutral",
+              }))}
+            />
+            <Button href="/admin/integrations" variant="dashOutline" size="sm" className="mt-4">
+              Integrations
+            </Button>
+          </div>
+        </Card>
+
+        <Card title="Is the machine well" subtitle="Timed and counted on this request">
+          {/* ── THE READING, AGAINST THE LINE THAT DECIDES WHAT IT MEANS ──
+              "342 ms" told an administrator who already knew what a good
+              latency was precisely what they already knew. The bands are
+              drawn now, so the answer is a position rather than a number to
+              interpret — and the threshold is on the screen, where somebody
+              can argue with it. */}
+          <Meter
+            label="Database round trip"
+            value={machine.reachable ? machine.latency : null}
+            unit="ms"
+            over="no answer"
+            bands={[
+              { to: 250, label: "fast", tone: "good" },
+              { to: 800, label: "usable", tone: "good" },
+              { to: 1500, label: "slow", tone: "warn" },
+              { to: 4000, label: "timing out", tone: "alert" },
+            ]}
+            caption={
+              machine.reachable
+                ? "One query, measured as this page was built."
+                : "Nothing on any screen in the product is current."
+            }
+          />
+
+          {machine.counts && (
+            <div className="mt-6 border-t border-dash-line pt-5">
+              <Split
+                label="Every account on this deployment"
+                segments={[
+                  {
+                    label: "can sign in",
+                    tone: "good",
+                    value: Object.values(byRole).reduce((sum, row) => sum + row.active, 0),
+                  },
+                  {
+                    label: "waiting",
+                    tone: "warn",
+                    value: Object.values(byRole).reduce((sum, row) => sum + row.pending, 0),
+                  },
+                  {
+                    label: "shut off",
+                    tone: "neutral",
+                    value: Object.values(byRole).reduce((sum, row) => sum + row.disabled, 0),
+                  },
+                ]}
+                caption={`${formatNumber(machine.counts.liveSessions)} session${
+                  machine.counts.liveSessions === 1 ? "" : "s"
+                } open right now.`}
+              />
+
+              <div className="mt-5 border-t border-dash-line pt-5">
+                <Ranked
+                  label="Keys issued, by role"
+                  caption="One ink, deepening with the count — these are one kind of thing at six sizes, not six kinds of thing."
+                  rows={Object.entries(byRole).map(([key, count]) => ({
+                    label: ROLES[key]?.label ?? key,
+                    value: count.total,
+                    note: count.pending ? `${count.pending} waiting` : undefined,
+                  }))}
+                />
+              </div>
+            </div>
+          )}
+
+          <Button href="/admin/health" variant="dashOutline" size="sm" className="mt-5">
+            System health
+          </Button>
+        </Card>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <Card title="Standings" subtitle="From our agents' returns only, never the declared figure">
-          {counted === 0 ? (
-            <Empty>
-              No votes counted yet. The moment a coordinator files from a booth, it appears here.
-            </Empty>
-          ) : (
-            <PartyBars rows={standings} total={counted} />
-          )}
-        </Card>
-
-        <Card title="Incidents" subtitle="Anything that is not a number" action={<AlertTriangle size={16} className="shrink-0 text-dash-muted" />}>
-          {feed.length === 0 ? (
-            <Empty>Nothing reported. This is the panel you want to stay empty.</Empty>
-          ) : (
-            <ul className="space-y-4">
-              {feed.map((incident) => (
-                <li key={incident.id} className="border-l-2 border-dash-line pl-3">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      tone={
-                        incident.severity === "CRITICAL"
-                          ? "alert"
-                          : incident.severity === "SERIOUS"
-                            ? "warn"
-                            : "neutral"
-                      }
-                    >
-                      {incident.severity}
-                    </Badge>
-                    <span className="figure text-[0.75rem] text-dash-muted">
-                      {incident.unitCode}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[0.875rem] font-semibold text-dash-ink">
-                    {incident.kind}
-                  </p>
-                  {incident.detailSealed && (
-                    <p className="mt-1 text-[0.8125rem] leading-relaxed text-dash-muted">
-                      {unseal(incident.detailSealed)}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
+      {/* ── THE WORK THIS DESK ACTUALLY HOLDS ────────────────────────────
+          Two of the three totals that used to sit at the top of this page
+          survive, and they are the two that were never the room's: a return
+          awaiting a check and a return thrown out are both *this desk's*
+          business, and both are the reason somebody opened the page. "Votes
+          counted" was the room's, and has gone back to it. */}
+      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <StatCard
+          icon={Users}
+          label="Awaiting a check"
+          value={formatNumber(unverified)}
+          context={`${formatNumber(verified)} already verified`}
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Disputed"
+          value={formatNumber(disputed)}
+          tone={disputed ? "alert" : "default"}
+          context="In the table, out of every sum"
+        />
+        <StatCard
+          icon={Inbox}
+          label="Waiting to be let in"
+          value={formatNumber(waiting + requestsWaiting)}
+          tone={waiting + requestsWaiting ? "alert" : "default"}
+          context={`${formatNumber(waiting)} coordinators, ${formatNumber(requestsWaiting)} access requests`}
+        />
       </div>
 
       {/* ---------------------------------------------------------- returns */}
@@ -631,53 +747,42 @@ export default async function AdminPage() {
           )}
         </Card>
 
+        {/* ── THE TRAIL AS A SHAPE, WITH THE RECORD ONE CLICK AWAY ───────
+            This was eight timestamps in a list. The page that holds the
+            actual record is /admin/audit — it filters by action and pages
+            through every line ever written — so eight lines here was neither
+            the record nor a summary of it, just the newest sliver of
+            something better held elsewhere.
+
+            What an overview can add, and the paging screen cannot, is the
+            shape: thirty-six hours of it in one row of bars, where a dead
+            hour between two busy ones is visible as a dead hour. That is
+            what a broken webhook looks like, and no page of a log shows it. */}
         <Card
           id="audit"
-          title="Audit trail"
-          subtitle="Append-only"
+          title="Activity"
+          subtitle="Every act the product recorded about itself, by the hour"
           action={<ScrollText size={16} className="text-dash-muted" />}
         >
-          <ul className="space-y-2.5">
-            {trail.map((entry) => (
-              <li key={entry.id} className="flex items-baseline gap-3 text-[0.8125rem]">
-                <span className="figure w-11 shrink-0 text-dash-muted">
-                  {entry.createdAt.toISOString().slice(11, 16)}
-                </span>
-                <span className="figure font-semibold text-dash-ink">{entry.action}</span>
-                <span className="truncate text-dash-muted">{entry.subject}</span>
-              </li>
-            ))}
-          </ul>
+          <Histogram
+            buckets={activity}
+            label="Last 36 hours"
+            caption="Lagos time"
+            height={72}
+          />
+
+          <p className="mt-4 text-[0.8125rem] text-dash-muted">
+            {formatNumber(activity.reduce((sum, row) => sum + row.value, 0))} lines written in that
+            window. Lines are added and never changed or removed.
+          </p>
+
+          <Button href="/admin/audit" variant="dashOutline" size="sm" className="mt-4">
+            Read the trail
+          </Button>
         </Card>
       </div>
     </DashLayout>
   );
-}
-
-/**
- * Cumulative booths over the evening, bucketed by the hour a return was filed.
- *
- * Derived from the returns rather than stored: a separate counter would be a
- * second version of the truth, and the moment it disagreed with the table
- * nobody would know which to believe.
- */
-
-function buildTrend(rows) {
-  if (rows.length < 2) return [];
-
-  const ordered = [...rows].sort((a, b) => a.submittedAt - b.submittedAt);
-  const buckets = new Map();
-
-  for (const row of ordered) {
-    const hour = row.submittedAt.toISOString().slice(0, 13);
-    buckets.set(hour, (buckets.get(hour) ?? 0) + 1);
-  }
-
-  let running = 0;
-  return [...buckets.entries()].map(([hour, count]) => {
-    running += count;
-    return { label: `${hour.slice(11)}:00`, value: running };
-  });
 }
 
 /**

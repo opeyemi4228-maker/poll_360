@@ -491,7 +491,7 @@ export default function Executive({
                   label={`${row.dot} ${row.label}`}
                   value={formatNumber(row.places)}
                   sub={row.registered ? `${formatNumber(row.registered)} registered` : undefined}
-                  onClick={onGo ? () => onGo("classify") : undefined}
+                  onClick={onGo ? () => onGo("parties") : undefined}
                 />
               </li>
             ))}

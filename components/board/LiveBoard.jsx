@@ -12,6 +12,8 @@ import StateTable from "./StateTable";
 import { snapshot, parties, others, SILENT } from "@/lib/replay";
 import { DECLARED, SOURCE } from "@/lib/election2023";
 import { cn, formatShare } from "@/lib/utils";
+import PartyMark from "@/components/dash/PartyMark";
+import { partyLogo } from "@/lib/party-register";
 
 /** Milliseconds per batch of returns. Fast enough to move, slow enough to read. */
 const TICK = 240;
@@ -204,8 +206,13 @@ export default function LiveBoard({ board, className }) {
                   aria-hidden="true"
                   className="size-2.5 shrink-0"
                   style={{ background: swatchFor(party) }}
+                  hidden={Boolean(partyLogo(party.id))}
                 />
-                <span className="figure text-[0.75rem] font-bold text-white">{party.id}</span>
+                {partyLogo(party.id) ? (
+                  <PartyMark id={party.id} size={18} />
+                ) : (
+                  <span className="figure text-[0.75rem] font-bold text-white">{party.id}</span>
+                )}
                 <span className="hidden text-[0.75rem] text-white/45 sm:inline">{party.name}</span>
               </li>
             ))}

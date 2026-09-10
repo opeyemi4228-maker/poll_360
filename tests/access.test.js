@@ -39,6 +39,7 @@ const CAPABILITIES = [
   "declared:file",
   "whatsapp:read",
   "whatsapp:claim",
+  "system:read",
 ];
 
 /* Every route the application actually serves behind a sign-in. Written out
@@ -47,6 +48,20 @@ const CAPABILITIES = [
 const GUARDED = [
   "/admin",
   "/admin/coordinators",
+  "/admin/requests",
+  /* The system console. Eight routes about the machine rather than about the
+     count, and every one of them beneath /admin — which is not decoration:
+     nesting them there means the guard refuses every other desk at the route
+     before the capability is ever consulted, and a new console page cannot be
+     added outside that protection by accident. */
+  "/admin/users",
+  "/admin/organisations",
+  "/admin/sources",
+  "/admin/integrations",
+  "/admin/audit",
+  "/admin/health",
+  "/admin/api",
+  "/admin/settings",
   "/field",
   "/broadcast",
   "/room",
@@ -110,6 +125,14 @@ describe("the access matrix", () => {
     for (const role of ["PU_AGENT", "BROADCASTER", "SITUATION_ROOM", "WHATSAPP_DESK", "VIEWER"]) {
       assert.equal(mayOpen(role, "/admin"), false, `${role} opened /admin`);
       assert.equal(mayOpen(role, "/admin/coordinators"), false, `${role} opened the coordinator queue`);
+
+      /* The console reads across every election on the deployment and names
+         every account on it. A desk being refused the overview and let into
+         the audit trail would be a worse leak than the one the matrix above
+         is guarding. */
+      for (const route of GUARDED.filter((path) => path.startsWith("/admin/"))) {
+        assert.equal(mayOpen(role, route), false, `${role} opened ${route}`);
+      }
     }
   });
 
@@ -164,6 +187,16 @@ describe("capabilities", () => {
        it is about to put on air. */
     for (const capability of ["results:file", "results:upload", "results:verify", "declared:file"]) {
       assert.equal(can("BROADCASTER", capability), false, `a broadcaster held ${capability}`);
+    }
+  });
+
+  it("lets only the administrator read the system console", () => {
+    /* Reading the console is standing outside every election and looking at
+       the machine: who holds a key, what it is wired to, and everything it
+       has recorded about itself. It is deliberately a separate grant from
+       issuing accounts, and today deliberately held by the same single role. */
+    for (const role of ROLE_KEYS) {
+      assert.equal(can(role, "system:read"), role === "SUPER_ADMIN", `${role} and system:read`);
     }
   });
 

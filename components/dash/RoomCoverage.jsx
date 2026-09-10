@@ -4,7 +4,7 @@ import { useState } from "react";
 import { MapPinned } from "lucide-react";
 
 import { Columns, Meter, Panel, Ranked, Readout, Split, Tile } from "./Figures";
-import { clockLabel, quiet } from "./RoomPulse";
+import { clockLabel, quiet } from "@/lib/pulse";
 import { cn, formatNumber, formatShare } from "@/lib/utils";
 
 /**

@@ -10,6 +10,7 @@ import { validateReturn, auditSheet, EC8A_BOXES } from "@/lib/results";
 import { ballotFor, raceLabel } from "@/lib/races";
 import { shrinkImage, putOnInput, RESULT_SHEET } from "@/lib/shrink";
 import { formatNumber } from "@/lib/utils";
+import Certification from "./Certification";
 
 /**
  * The form the whole product depends on.
@@ -983,9 +984,17 @@ function SheetReading({ reading }) {
       {reading.figures?.unitCode && (
         <p className="figure mt-1 text-[0.75rem] text-dash-muted">
           Sheet says unit {reading.figures.unitCode}
-          {reading.figures.repName ? ` · ${reading.figures.repName}` : ""}
         </p>
       )}
+
+      {/* ── THE CERTIFICATION, WITH THE OFFICER'S NAME LABELLED ────────────
+          The officer's name used to be appended to the line above after a
+          middle dot, unlabelled, where it read as part of the unit code and
+          nobody could find it. It has its own block now, beside the two marks
+          that make a sheet a certified return rather than a photograph of
+          some numbers. See components/dash/Certification.jsx for why each of
+          them has three states and not two. */}
+      <Certification reading={reading.figures} className="mt-2.5" />
 
       {folded.length > 0 && (
         <p className="mt-2 text-[0.8125rem] leading-relaxed text-dash-ink">

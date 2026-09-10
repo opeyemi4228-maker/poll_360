@@ -9,6 +9,7 @@ import { coordinate, unproject } from "@/lib/geo";
 import { PARTY_FILL } from "./Charts";
 import { CLASS_OF } from "@/lib/executive";
 import { boundsOf, extentOf } from "@/lib/bbox";
+import { bandOf, breaksFor } from "@/lib/scale";
 import { leaderOf } from "@/lib/drill";
 import { parties, allParties } from "@/lib/election2023";
 import { ruling } from "@/lib/governors";
@@ -61,13 +62,97 @@ const GOVERNS = new Map(ruling().map((row) => [row.code, row.current]));
    room, high enough that the party is still legible on a projector. */
 const HELD_OPACITY = 0.3;
 
+/**
+ * The magnitude ramp: ten bands that change hue as well as lightness.
+ *
+ * ── ONE HUE AT TEN BANDS IS UNREADABLE, AND THAT IS NOT A TASTE QUESTION ───
+ * This was ten steps of one blue. Ten steps of anything is about four more
+ * than a reader can hold: asked which of two dark-blue wards is further along,
+ * they cannot say, and a legend does not rescue it, because matching a fill to
+ * a swatch across a map is a task nobody performs at two in the morning. The
+ * band has to be identifiable in place.
+ *
+ * ── SO THE HUE MOVES TOO, AND IT IS STILL A SEQUENCE ───────────────────────
+ * This is the viridis ramp. It is not a rainbow, and the difference matters:
+ * a rainbow's lightness wanders — it has bright yellows in the middle and dark
+ * blues at both ends — so it has no readable order, and a reader cannot tell
+ * high from low without the key. Viridis climbs in lightness monotonically
+ * from end to end while the hue travels purple → blue → teal → green → yellow.
+ * That gives two encodings of one quantity at once:
+ *
+ *   · the hue makes any two bands tellable apart at a glance, in place, with
+ *     no legend and no second look;
+ *   · the lightness carries the ordering, so it still reads correctly in a
+ *     monochrome print, under forced colours, and for a reader with any of
+ *     the three common colour-vision deficiencies — which is the property a
+ *     rainbow does not have and is the whole reason this ramp exists.
+ *
+ * ── AND IT DOES NOT COLLIDE WITH ANYTHING ELSE ON THIS PRODUCT ─────────────
+ * Status colour is reserved: red, amber and green mean "somebody must act"
+ * on every screen here, and a reporting percentage is not a status — a ward at
+ * 30% at six in the evening is early, not wrong. Party colour is reserved too,
+ * and this ramp never draws on a layer that also draws parties.
+ *
+ * The bottom of the true viridis scale is nearly black, which on this map's
+ * near-black board would be indistinguishable from a place nobody was assigned
+ * to. It starts one step in, so the darkest band still reads as a filled
+ * place rather than as an absence.
+ */
 const STEPS = [
-  "oklch(30% 0.03 255)",
-  "oklch(42% 0.06 250)",
-  "oklch(55% 0.1 245)",
-  "oklch(68% 0.13 240)",
-  "oklch(82% 0.14 235)",
+  "#46327e",
+  "#3f4a8a",
+  "#31678e",
+  "#26838e",
+  "#1f9d8a",
+  "#35b779",
+  "#6ece58",
+  "#b5de2b",
+  "#dfe318",
+  "#fde725",
 ];
+
+/**
+ * The layers whose scale is a percentage and must not be recomputed.
+ *
+ * ── A RELATIVE SCALE IS A LIE ABOUT A PERCENTAGE ───────────────────────────
+ * Every other magnitude on this map is scaled to what is on screen, which is
+ * right: a register has no natural ceiling, and the interesting thing about
+ * one state's is how it compares with its neighbours'.
+ *
+ * Reporting is not like that. It has a floor of nothing and a ceiling of
+ * everything, and those two are what a room is watching for. Scaled to the
+ * data, a night where every ward sat between 40% and 60% drew the 40% wards
+ * black and the 60% ones bright — a map that said "these places have sent
+ * nothing" about places that had sent nearly half. The colour has to mean the
+ * same thing at nine o'clock as it does at midnight, so the scale is pinned.
+ */
+const FIXED_PERCENT = new Set(["booth"]);
+const PERCENT_EXTENT = [0, 100];
+
+/**
+ * The layers bucketed by rank rather than by value.
+ *
+ * ── ONE LAGOS FLATTENS A LINEAR RAMP ──────────────────────────────────────
+ * Voters per polling unit is not spread evenly across the federation: a
+ * handful of places sit far above the rest, and a scale drawn from the lowest
+ * value to the highest spends most of its ten bands on a range nothing is in.
+ * The result is a map of one bright state and thirty-six identical dark ones —
+ * technically a correct linear encoding, and useless, because the differences
+ * a reader came to see are all inside the bottom band.
+ *
+ * Quantiles fix it by construction. The breaks are placed so each band holds
+ * about a tenth of the places, so every band is occupied and the full ramp is
+ * always in use however skewed the underlying figures are.
+ *
+ * ── WHAT IT COSTS, AND WHY THE LEGEND CARRIES THE NUMBERS ─────────────────
+ * Equal steps of colour stop meaning equal steps of quantity: two adjacent
+ * bands may be forty voters apart at one end of the scale and four hundred at
+ * the other. That is a real trade and it is why the legend prints the value at
+ * every break rather than a smooth gradient — the colour ranks a place, and
+ * the figures beside it say what the ranking is worth.
+ */
+const QUANTILE = new Set(["clusters"]);
+
 
 export default function ScopeMap({
   level,
@@ -111,9 +196,21 @@ export default function ScopeMap({
 
   const extent = useMemo(() => {
     if (CATEGORICAL.has(layer)) return [0, 0];
+    /* Pinned rather than measured — see FIXED_PERCENT above. */
+    if (FIXED_PERCENT.has(layer)) return PERCENT_EXTENT;
     const values = rows.map((row) => magnitude(row, layer));
     return [Math.min(...values), Math.max(...values)];
   }, [rows, layer]);
+
+  /* Empty on every layer but the rank-bucketed ones, so `stepIndex` falls back
+     to the linear scale without a second code path at the call site. */
+  const breaks = useMemo(
+    () =>
+      QUANTILE.has(layer)
+        ? breaksFor(rows.map((row) => magnitude(row, layer)), STEPS.length)
+        : [],
+    [rows, layer]
+  );
 
   const heatPoints = useMemo(
     () => (heat ? heatPointsFor({ shapes, rows, layer }) : []),
@@ -355,7 +452,11 @@ export default function ScopeMap({
             results layer, where the fill is a party colour and stippling it
             would make four parties into four textures nobody asked for. */}
         {STEPS.map((colour, index) => {
-          const radius = 1.55 + index * 0.55;
+          /* Scaled to the band count rather than stepped by a fixed amount:
+             at five bands `1.55 + index * 0.55` topped out at 3.75 in a 9×9
+             tile, and at ten it would have reached 6.5 — dots wider than the
+             tile they tile, which renders as a flat block. */
+          const radius = 1.4 + (index / Math.max(1, STEPS.length - 1)) * 2.4;
           return (
             <pattern
               key={index}
@@ -369,13 +470,22 @@ export default function ScopeMap({
                   its own dots invisible against it, and a whole band of the
                   map went flat, which is precisely the state a reader would
                   mistake for "nothing reported". */}
-              <rect width="9" height="9" fill="oklch(21% 0.02 255)" />
+              {/* A ground darker than every band, so the quietest place still
+                  reads as stippled land rather than as a flat block. Neutral
+                  rather than blue now the ramp travels through five hues — a
+                  blue ground under a yellow band tinted the top of the scale
+                  green, which is a band the ramp already uses. */}
+              <rect width="9" height="9" fill="oklch(19% 0.008 260)" />
               <circle cx="4.5" cy="4.5" r={radius} fill={colour} />
               {/* Offset dots on the two brightest bands only. Density is the
                   point at the top of the scale, and adding them lower down
                   would flatten the very difference the texture exists to show. */}
-              {index >= 3 && <circle cx="0" cy="0" r={radius * 0.55} fill={colour} />}
-              {index >= 3 && <circle cx="9" cy="9" r={radius * 0.55} fill={colour} />}
+              {index >= STEPS.length - 2 && (
+                <circle cx="0" cy="0" r={radius * 0.55} fill={colour} />
+              )}
+              {index >= STEPS.length - 2 && (
+                <circle cx="9" cy="9" r={radius * 0.55} fill={colour} />
+              )}
             </pattern>
           );
         })}
@@ -399,7 +509,7 @@ export default function ScopeMap({
         const active = hovered === key;
         const size = fits.get(shape.name) ?? { code: true, name: false };
 
-        const code = row && layer === "results" ? partyCode(row, slots) : null;
+        const code = row && PARTY_LAYERS.has(layer) ? partyCode(row, slots) : null;
 
         /* Nothing counted here yet. At national level the state is still known
            territory: somebody holds it, and that is worth drawing. Below the
@@ -407,7 +517,7 @@ export default function ScopeMap({
            says nothing about, so they stay grey rather than inheriting a
            colour that would be a claim nobody has checked. */
         const held =
-          layer === "results" && code === null && level === "nation"
+          PARTY_LAYERS.has(layer) && code === null && level === "nation"
             ? (GOVERNS.get(shape.code) ?? null)
             : null;
 
@@ -418,12 +528,12 @@ export default function ScopeMap({
                  happens for the instant between a level change and the next
                  render — and silence is the only honest fill for it. */
               (CLASS_OF[row?.class]?.fill ?? "var(--color-silent)")
-            : layer === "results"
+            : PARTY_LAYERS.has(layer)
               ? code === null
                 ? (held ? PARTY_FILL[held] : "var(--color-silent)")
                 : partyFill(code, "scope", PARTY_FILL[code])
               : row
-                ? `url(#scope-dots-${stepIndex(magnitude(row, layer), extent)})`
+                ? `url(#scope-dots-${stepIndex(magnitude(row, layer), extent, breaks)})`
                 : "var(--color-silent)";
 
         /* Stroke is in user units, and those differ once a frame is cropped, so it scales with the frame or a small state gets a cage. */
@@ -847,10 +957,25 @@ function HoverCard({
 /* -------------------------------------------------------------------------- */
 
 export const LABEL = {
+  booth: "how much of each place has reported",
+  /* Command draws the same thing Results does — who leads, drilling state to
+     local government to ward to polling unit. It is a separate layer only so
+     the command panels can sit above the frame; the map itself is the room's
+     one map, not a second one that would have to be kept in step. */
+  command: "who leads",
   results: "who leads",
   register: "register reporting",
   turnout: "turnout so far",
   density: "votes per reporting unit",
+  /* ── CLUSTERS IS THE REGISTER'S OWN SHAPE, NOT THE COUNT'S ────────────
+     `density` is votes per unit that has reported — a live measure of where
+     tonight's count is coming from, and meaningless before the first return.
+     Clusters asks the older question: where are the *people*, and how tightly
+     are they packed onto the booths that serve them. Registered voters per
+     polling unit, at every level down to a unit itself, and true at nine in
+     the morning on a day nobody has voted. Two different questions, so two
+     layers rather than one word doing both jobs badly. */
+  clusters: "voters per polling unit",
   classify: "how each place stands",
 };
 
@@ -867,10 +992,31 @@ export const LABEL = {
  *
  * So the question each of those three is really asking is named once, here.
  */
-export const CATEGORICAL = new Set(["results", "classify"]);
+export const CATEGORICAL = new Set(["command", "results", "classify"]);
+
+/**
+ * The layers whose shapes are coloured by the party that leads them.
+ *
+ * ── WHY THIS IS NOT `CATEGORICAL` ─────────────────────────────────────────
+ * Both sets draw a category rather than a quantity, and they draw different
+ * categories. `classify` paints how a place stands for one campaign — a class
+ * out of lib/executive.js, with its own fills. These two paint who won it.
+ *
+ * ── AND WHY IT IS A SET RATHER THAN `layer === "results"` ─────────────────
+ * That comparison was written in five places, and when Command arrived as a
+ * second party-coloured layer every one of them silently said no: the map
+ * drew, drilled and hovered correctly with every state grey, because a
+ * literal in five files is a decision nobody can change in one place. This is
+ * that decision, named once.
+ */
+export const PARTY_LAYERS = new Set(["results", "command"]);
 
 /** The figure a callout carries: short enough to read at a glance from across a room. */
 function calloutValue(row, layer, slots = allParties) {
+  /* The share that has reported, on the face of the place. A place nobody was
+     assigned to prints a dash: it has no rate, and a "0%" there would be read
+     as a place that has gone quiet. */
+  if (layer === "booth") return row.reporting == null ? "—" : formatShare(row.reporting);
   if (layer === "classify") return CLASS_OF[row.class]?.label ?? "Unknown";
   if (layer === "turnout") return formatShare(row.turnout ?? 0);
   if (layer === "register") return formatNumber(row.registered ?? 0);
@@ -881,8 +1027,33 @@ function calloutValue(row, layer, slots = allParties) {
 
 export function magnitude(row, layer) {
   if (layer === "register") return row.registered ?? 0;
+  /* The full booth count, never the reporting one: this is a fact about the
+     ground and not about tonight, so a state that has reported from four of
+     its booths must not read as though its whole register were packed into
+     those four. */
+  if (layer === "clusters") {
+    /* ── THE WHOLE REGISTER, NOT THE PART THAT HAS REPORTED ─────────────
+       `registered` on a national row is the slice of the register that has
+       filed — the right denominator for turnout mid-count and the wrong one
+       here. Read that way, every state that had not reported computed to
+       zero, and the map drew the entire country in the bottom band with one
+       bright outlier: not a dull ramp, a broken measurement.
+
+       Clusters is a fact about the ground, so both halves of it are the
+       ground's: the full register over the full booth count. `fullRegister`
+       is carried on national rows for exactly this; below that level the
+       register is already the whole one. */
+    const booths = row.fullBooths ?? row.booths ?? 0;
+    const people = row.fullRegister ?? row.registered ?? 0;
+    return booths > 0 ? Math.round(people / booths) : 0;
+  }
   if (layer === "turnout") return row.turnout ?? 0;
   if (layer === "density") return row.density ?? 0;
+  /* How much of what we hold here has spoken. A place we staffed nobody at
+     has no reporting rate at all and must not be drawn as one at zero — see
+     lib/reporting.js — so it falls to -1, which sits below the ramp and leaves
+     the shape blank rather than colouring it like a place gone silent. */
+  if (layer === "booth") return row.reporting ?? -1;
   /* A classification has no magnitude. Callers that size something by this —
      the heat field, the Google pins — are already kept off the categorical
      layers, and the vote total is the honest answer for anything else that
@@ -891,6 +1062,20 @@ export function magnitude(row, layer) {
 }
 
 export function describe(row, layer, slots = allParties) {
+  /* ── THE TWO HALVES OF ONE SENTENCE ──────────────────────────────────
+     How much has spoken, and of that, how much is actually through. A ward
+     at "12 of 20" tells a room to ring a coordinator; the same ward at
+     "12 of 20 · 9 still to check" tells it to ring its own desk instead, and
+     those are opposite instructions from one number. */
+  if (layer === "booth") {
+    if (row?.assignedBooths == null || row.assignedBooths === 0) return "Nobody assigned here";
+    const filed = `${row.filedBooths ?? 0} of ${row.assignedBooths} filed`;
+    if (row.silentBooths > 0) {
+      return `${filed} · ${row.silentBooths} silent`;
+    }
+    return row.stuckBooths > 0 ? `${filed} · ${row.stuckBooths} still to check` : `${filed} · all checked`;
+  }
+
   /* The list beside the map says the same thing the map says. A state with
      nothing counted names who holds it, worded so it cannot be read as a
      result: "held by", never "leading". */
@@ -986,11 +1171,66 @@ export function ramp(value, [min, max]) {
   return STEPS[stepIndex(value, [min, max])];
 }
 
-/** Which band of the ramp a value falls in. The dot texture needs the index, not the colour. */
-export function stepIndex(value, [min, max]) {
+/**
+ * Which band of the ramp a value falls in. The dot texture needs the index.
+ *
+ * `breaks`, where a layer has them, rank the value instead of scaling it — see
+ * QUANTILE above for why one Lagos otherwise flattens the whole country into
+ * the bottom band. Without them the linear scale is unchanged.
+ */
+export function stepIndex(value, [min, max], breaks = []) {
+  if (breaks.length) return bandOf(value, breaks, STEPS.length);
   if (max === min) return 2;
   const t = (value - min) / (max - min);
   return Math.min(STEPS.length - 1, Math.max(0, Math.floor(t * STEPS.length)));
+}
+
+/**
+ * The bands a pinned-percentage layer draws, with the range each one covers.
+ *
+ * Exported so the legend is generated from the same array the shapes are
+ * filled from. A legend maintained by hand beside a ramp is a legend that
+ * eventually describes a colour the map no longer uses, and nobody notices,
+ * because a legend is the one thing on a screen nobody checks.
+ */
+/**
+ * The legend for a layer, computed from the same rows the map is filled from.
+ *
+ * One entry point so the key and the shapes cannot describe different scales.
+ * A legend that is one deployment behind the ramp is the worst kind of wrong,
+ * because a legend is the one thing on a screen nobody thinks to check.
+ */
+export function legendFor(layer, rows = []) {
+  if (FIXED_PERCENT.has(layer)) return bandsFor(layer);
+  if (!QUANTILE.has(layer)) return null;
+  return bandsFor(layer, breaksFor(rows.map((row) => magnitude(row, layer)), STEPS.length));
+}
+
+export function bandsFor(layer, breaks = []) {
+  if (FIXED_PERCENT.has(layer)) {
+    const width = 100 / STEPS.length;
+    return STEPS.map((colour, index) => ({
+      colour,
+      index,
+      from: Math.round(index * width),
+      to: Math.round((index + 1) * width),
+      unit: "%",
+    }));
+  }
+
+  /* A rank-bucketed layer: the edges are real values, and they are what the
+     legend has to print — the colour ranks a place and these say what the
+     ranking is worth. */
+  if (QUANTILE.has(layer) && breaks.length) {
+    return STEPS.map((colour, index) => ({
+      colour,
+      index,
+      from: index === 0 ? 0 : breaks[index - 1],
+      to: index < breaks.length ? breaks[index] : null,
+    }));
+  }
+
+  return null;
 }
 
 export { STEPS };

@@ -8,6 +8,8 @@ import { Card, Badge } from "./DashCard";
 import { parties, others } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import PartyMark from "./PartyMark";
+import { partyLogo } from "@/lib/party-register";
 
 /**
  * The analysis surface a studio actually drives.
@@ -195,8 +197,15 @@ export default function BroadcastAnalysis({ declared, ours, shapes }) {
                   aria-hidden="true"
                   className="size-2.5 shrink-0 rounded-full"
                   style={{ background: PARTY_FILL[party.id] }}
+                  hidden={Boolean(partyLogo(party.id))}
                 />
-                <span className="figure text-[0.75rem] font-bold text-dash-ink">{party.id}</span>
+                {/* The logo stands in for the swatch as well as the code: a
+                    dot beside an emblem is the same fact twice. */}
+                {partyLogo(party.id) ? (
+                  <PartyMark id={party.id} size={18} />
+                ) : (
+                  <span className="figure text-[0.75rem] font-bold text-dash-ink">{party.id}</span>
+                )}
               </li>
             ))}
             <li className="flex items-center gap-2">
@@ -265,8 +274,13 @@ function GapPanel({ declared, ours, rows }) {
                     aria-hidden="true"
                     className="size-2.5 rounded-full"
                     style={{ background: PARTY_FILL[row.id] }}
+                    hidden={Boolean(partyLogo(row.id))}
                   />
-                  <span className="figure text-[0.875rem] font-bold text-dash-ink">{row.id}</span>
+                  {partyLogo(row.id) ? (
+                    <PartyMark id={row.id} size={20} />
+                  ) : (
+                    <span className="figure text-[0.875rem] font-bold text-dash-ink">{row.id}</span>
+                  )}
                 </span>
               </td>
               <td className="figure py-2.5 text-right text-[0.875rem] text-dash-ink">

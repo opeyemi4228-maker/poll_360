@@ -23,7 +23,7 @@ import { ROLES } from "@/lib/roles";
  * The choice is remembered, and a remembered choice that arrives one frame
  * late is worse than none: the room watched the rail snap shut every time it
  * loaded a page. So `--rail` is set on <html> before the first paint by the
- * inline script in DashLayout, both this and the sheet beside it are sized
+ * inline script in app/layout.js, both this and the sheet beside it are sized
  * from that one number, and the labels are hidden by the `rail-collapsed`
  * variant rather than unmounted. React state here does nothing but drive the
  * toggle's own label and pressed state.

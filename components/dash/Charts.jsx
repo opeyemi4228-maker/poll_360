@@ -1,3 +1,6 @@
+import PartyMark from "./PartyMark";
+import { PARTY_FILL } from "@/lib/party-fill";
+import { partyLogo } from "@/lib/party-register";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -15,26 +18,11 @@ import { cn } from "@/lib/utils";
  *   · every total is rendered next to the share of booths behind it.
  */
 
-/** Party fills for a white surface. See the tokens in globals.css. */
-export const PARTY_FILL = {
-  APC: "var(--color-apc-l)",
-  PDP: "var(--color-pdp-l)",
-  LP: "var(--color-lp-l)",
-  NNPP: "var(--color-nnpp-l)",
-  OTH: "var(--color-party-other-l)",
-  /* Off-cycle parties. Without these APGA holding Anambra would be drawn
-     as "other", which on a governorship map is the one thing that must not
-     be grey. */
-  APGA: "var(--color-apga-l)",
-  SDP: "var(--color-sdp-l)",
-  ADC: "var(--color-adc-l)",
-  ACCORD: "var(--color-accord-l)",
-  APM: "var(--color-apm-l)",
-  /* On the ballot rather than only off-cycle: see lib/races.js. It is drawn
-     with a dot texture wherever a shape is filled, because its violet and
-     APC's blue are the same colour to a protanope. */
-  NDC: "var(--color-ndc-l)",
-};
+/* Moved to lib/party-fill.js so PartyMark can read it without importing this
+   file, which imports PartyMark. Re-exported — not merely forwarded — because
+   roughly twenty modules import it from here and none of them should have to
+   care where it moved to. */
+export { PARTY_FILL };
 
 /**
  * Ranked horizontal bars, the right form for "who is ahead, and by how much".
@@ -51,8 +39,18 @@ export function PartyBars({ rows, total, className }) {
       {rows.map((row) => (
         <li key={row.id}>
           <div className="flex items-baseline justify-between gap-3">
-            <p className="flex min-w-0 items-baseline gap-2">
-              <span className="figure text-[0.875rem] font-bold text-dash-ink">{row.id}</span>
+            <p className="flex min-w-0 items-center gap-2">
+              {/* ── THE LOGO IS THE LABEL, WHERE THERE IS ONE ──────────────
+                  A party with its own mark is named by it and the code is
+                  dropped: the emblem is what a reader recognises, and "APC"
+                  beside the APC broom is the same word twice. A party with no
+                  file keeps its code, because a colour alone names nothing.
+                  The slot is one size either way, so the shares stay in a
+                  column — see components/dash/PartyMark.jsx. */}
+              <PartyMark id={row.id} size={22} title={Boolean(partyLogo(row.id))} />
+              {!partyLogo(row.id) && (
+                <span className="figure text-[0.875rem] font-bold text-dash-ink">{row.id}</span>
+              )}
               <span className="truncate text-[0.8125rem] text-dash-muted">{row.name}</span>
             </p>
             <p className="figure shrink-0 text-[0.875rem] font-bold text-dash-ink tabular-nums">

@@ -2,6 +2,7 @@ import { UserRoundCheck } from "lucide-react";
 
 import DashLayout from "@/components/dash/DashLayout";
 import { Card } from "@/components/dash/DashCard";
+import { Split } from "@/components/dash/SystemCharts";
 import ApprovalQueue from "@/components/dash/ApprovalQueue";
 import { requireCapability } from "@/lib/guard";
 import { coordinators } from "@/lib/coordinators";
@@ -48,12 +49,29 @@ export default async function CoordinatorsPage() {
       title="Coordinators"
       lead="People who signed themselves up to file from a polling unit. Nothing they send enters the count until you approve them."
     >
-      <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-dash border border-dash-line bg-dash-line sm:grid-cols-4">
-        <Count label="Waiting" value={tally.PENDING} tone={tally.PENDING ? "alert" : "ink"} />
-        <Count label="Approved" value={tally.ACTIVE} />
-        <Count label="Turned down" value={tally.DECLINED} />
-        <Count label="Suspended" value={tally.SUSPENDED} />
-      </dl>
+      {/* ── FOUR COUNTS, OR ONE SHAPE ────────────────────────────────────
+          These were four figures in a strip. The question an administrator
+          has of them is never "how many are suspended" — it is "how much of
+          this sign-up list have we actually dealt with", which is a
+          proportion, and four separate counts make the reader work it out.
+
+          The counts are still printed, on the bar and beside it. Nothing here
+          is identified by its colour alone. */}
+      <Card className="mb-6" title="Everybody who has signed themselves up">
+        <Split
+          segments={[
+            { label: "waiting on you", value: tally.PENDING ?? 0, tone: "warn" },
+            { label: "approved", value: tally.ACTIVE ?? 0, tone: "good" },
+            { label: "turned down", value: tally.DECLINED ?? 0, tone: "neutral" },
+            { label: "suspended", value: tally.SUSPENDED ?? 0, tone: "alert" },
+          ]}
+          caption={
+            tally.PENDING
+              ? "Nothing a waiting coordinator sends enters the count until they are approved."
+              : "Nobody is waiting. Every sign-up has been answered."
+          }
+        />
+      </Card>
 
       <Card
         title={
@@ -73,23 +91,6 @@ export default async function CoordinatorsPage() {
         the returns from the single booth on their account.
       </p>
     </DashLayout>
-  );
-}
-
-function Count({ label, value, tone = "ink" }) {
-  return (
-    <div className="bg-dash-card px-4 py-3.5">
-      <dt className="text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-        {label}
-      </dt>
-      <dd
-        className={`figure mt-1 text-[1.375rem] font-bold tabular-nums ${
-          tone === "alert" ? "text-red-600" : "text-dash-ink"
-        }`}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }
 
