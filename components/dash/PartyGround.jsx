@@ -15,7 +15,10 @@ import {
   STRENGTH_OF,
   TIER_LABEL,
   demographicsAt,
+  hasDetail,
+  loadDetail,
   strengthBand,
+  watchDetail,
   childTier,
   childrenOf,
   coverage,
@@ -115,12 +118,63 @@ export default function PartyGround({ shapes = null }) {
      cannot draw over the one we are on. */
   const [boundaries, setBoundaries] = useState(null);
 
+  /* ── THE WARDS OF THIS STATE, FETCHED WHEN THIS STATE IS OPENED ────────
+     The national index ships with the page and carries every state and all
+     774 local governments, which is what the map draws. The wards and polling
+     units beneath them are a separate file per state, because all of them
+     together are megabytes and nobody opens more than one or two.
+
+     `tick` exists only to re-render when one lands. Until it does, the tiers
+     below a local government report null rather than nought — see the head of
+     lib/members.js — and the screen below says it is still fetching rather
+     than drawing a state's wards as empty. */
+  const [tick, setTick] = useState(0);
+
+  useEffect(() => {
+    let live = true;
+    const stop = watchDetail(() => {
+      if (live) setTick((seen) => seen + 1);
+    });
+    loadDetail(party, stateCode);
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [party, stateCode]);
+
+  const detailed = hasDetail(party, stateCode);
+
   const held = useMemo(() => coverage(), []);
+
+  /* What the whole register covers, for a caption that has to be exactly
+     true. Summed from the index rather than typed, so it stays right when the
+     next register is imported. */
+  const national = useMemo(
+    () =>
+      held.reduce(
+        (into, row) => ({
+          members: into.members + row.members,
+          lgas: into.lgas + row.lgas,
+          units: into.units + row.units,
+        }),
+        { members: 0, lgas: 0, units: 0 }
+      ),
+    [held]
+  );
   const register = registerFor(party, stateCode);
   const quality = useMemo(() => qualityOf(party, stateCode), [party, stateCode]);
 
-  const rows = useMemo(() => childrenOf(party, stateCode, path), [party, stateCode, path]);
+  /* `tick` is a dependency of every figure below a local government: those
+     read from the state file, and the state file arrives after the render
+     that asked for it. */
+  const rows = useMemo(
+    () => childrenOf(party, stateCode, path),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [party, stateCode, path, tick]
+  );
   const members = membersAt(party, stateCode, path);
+  /* Below a local government with no state file yet: unknown, not empty. */
+  const awaitingDetail = path.length >= 1 && !detailed;
   const votes = votesAt(party, stateCode, path);
   const covered = coveredStates(party);
   const ratio = useMemo(
@@ -131,7 +185,11 @@ export default function PartyGround({ shapes = null }) {
   /* Which tier the map is drawing. `path` is [] at the country, [lga] inside a
      state, [lga, ward] inside a local government. The state itself is fixed by
      the picker, so the country tier is only reachable as a way back out. */
-  const [atNation, setAtNation] = useState(false);
+  /* ── THE MAP OPENS ON THE COUNTRY ──────────────────────────────────────
+     It opened on one state when one state was all there was. The register now
+     covers all 37, so the first thing on the screen is the national picture
+     and a state is something you press into. */
+  const [atNation, setAtNation] = useState(true);
 
   useEffect(() => {
     if (!stateCode || atNation) return undefined;
@@ -147,6 +205,14 @@ export default function PartyGround({ shapes = null }) {
 
   const lgaShapes = boundaries?.code === stateCode ? boundaries.data : null;
   const loading = Boolean(stateCode) && !atNation && boundaries?.code !== stateCode;
+
+  /* The same coverage rows in name order. `held` is ranked by size, which is
+     right for the caption and wrong for a picker somebody scans for one
+     state. */
+  const byState = useMemo(
+    () => [...held].sort((a, b) => a.state.localeCompare(b.state)),
+    [held]
+  );
 
   const byName = useMemo(() => new Map(rows.map((row) => [row.name, row])), [rows]);
   const biggest = rows[0]?.members ?? 1;
@@ -207,7 +273,10 @@ export default function PartyGround({ shapes = null }) {
                   onClick={() => {
                     setParty(item.id);
                     setPath([]);
-                    setAtNation(false);
+                    /* Back to the country: a different party is a different
+                       register, and which of 37 states to land in is not a
+                       question the last one's answer carries over. */
+                    setAtNation(true);
                   }}
                   title={
                     has
@@ -237,6 +306,40 @@ export default function PartyGround({ shapes = null }) {
             })}
           </div>
         </div>
+
+        {/* ── THE STATE, AS A LIST AS WELL AS A MAP ──────────────────────
+            Pressing a state on the map is the nicer way in and it was the only
+            way in, which stopped being reasonable the moment the register grew
+            from one state to 37: Lagos and Ebonyi are a few pixels across on a
+            national outline, and nothing on the map can be reached from a
+            keyboard. */}
+        <label className="flex items-center gap-2">
+          <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            State
+          </span>
+          <select
+            value={atNation ? "" : stateCode}
+            onChange={(event) => {
+              const code = event.target.value;
+              setPath([]);
+              setHovered(null);
+              if (!code) {
+                setAtNation(true);
+                return;
+              }
+              setStateCode(code);
+              setAtNation(false);
+            }}
+            className="rounded-dash-sm border border-dash-line bg-dash-bg px-2 py-1 text-[0.8125rem] font-semibold text-dash-ink"
+          >
+            <option value="">All Nigeria</option>
+            {byState.map((row) => (
+              <option key={row.stateCode} value={row.stateCode}>
+                {row.state} — {formatNumber(row.members)}
+              </option>
+            ))}
+          </select>
+        </label>
 
         {/* ── WHAT TO PLAN ON ────────────────────────────────────────────
             Three states, not a checkbox pair: "both" is its own thing, because
@@ -287,12 +390,20 @@ export default function PartyGround({ shapes = null }) {
         <p className="ml-auto text-[0.75rem] text-dash-muted">
           {held.length === 1
             ? `${held[0].party} in ${held[0].state}: ${formatNumber(held[0].members)} members across ${formatNumber(held[0].units)} polling units.`
-            : `${held.length} registers loaded.`}
+            : `${party}: ${formatNumber(national.members)} members across ${held.length} states, ${formatNumber(national.lgas)} local governments and ${formatNumber(national.units)} polling units.`}
         </p>
       </div>
 
       {!register ? (
-        <NoRegister party={party} votes={votes} state={held[0]?.state ?? stateCode} />
+        /* The state actually selected, not the first row of a coverage list
+           that belongs to a different party. The vote quoted underneath is
+           this state's, so naming any other state puts a true figure under a
+           false heading. */
+        <NoRegister
+          party={party}
+          votes={votes}
+          state={byState.find((row) => row.stateCode === stateCode)?.state ?? stateCode}
+        />
       ) : (
         <>
           {/* ═══════════════════════════════════════════════════════ the two figures */}
@@ -430,6 +541,18 @@ export default function PartyGround({ shapes = null }) {
                   </p>
                 )}
 
+                {/* ── STILL FETCHING, WHICH IS NOT THE SAME AS EMPTY ───────
+                    The wards of a state arrive in their own file. Between
+                    opening a local government and that file landing there are
+                    no rows to draw, and a blank frame would read as a place
+                    with no members in it. This says which it is. */}
+                {awaitingDetail && !atNation && (
+                  <p className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-board/80 text-[0.875rem] text-white/60">
+                    <Loader2 size={16} className="animate-spin" />
+                    Loading {register?.state ?? stateCode} wards
+                  </p>
+                )}
+
                 {atNation ? (
                   /* ── THE COUNTRY ──────────────────────────────────────────
                      Only states a register covers are drawn in the party's
@@ -439,8 +562,9 @@ export default function PartyGround({ shapes = null }) {
                   <Nation
                     shapes={shapes}
                     covered={covered}
-                    fill={fill}
                     held={held}
+                    hovered={hovered}
+                    onHover={setHovered}
                     onOpen={(code) => {
                       if (!covered.includes(code)) return;
                       setStateCode(code);
@@ -627,12 +751,30 @@ export default function PartyGround({ shapes = null }) {
 /* ══════════════════════════════════════════════════════════════════ the tiers */
 
 /** The country, with only the states a register covers drawn in. */
-function Nation({ shapes, covered, fill, held, onOpen }) {
+/**
+ * Nigeria, shaded by how many of the party's members are in each state.
+ *
+ * ── IT USED TO BE ONE FLAT COLOUR, AND THAT WAS RIGHT AT THE TIME ─────────
+ * When one state had been imported, "covered" and "not covered" was the only
+ * distinction there was to draw, so every covered state was painted the
+ * party's colour and the map answered one question: is there a register here.
+ *
+ * All 37 are imported now, so that map would paint the whole country a single
+ * flat block and answer nothing. It is banded instead, on exactly the scale
+ * the local government map below it uses — `strengthBand`, measured against
+ * the even split of this tier, which for 37 states is 2.7% each. The doctrine
+ * at the head of lib/members.js is that the rule travels between tiers, and
+ * this is the tier it travels up to.
+ */
+function Nation({ shapes, covered, held, hovered, onHover, onOpen }) {
   if (!shapes?.states?.length) {
     return <p className="py-16 text-center text-[0.875rem] text-white/50">No national outline loaded.</p>;
   }
 
   const byCode = new Map(held.map((row) => [row.stateCode, row]));
+  /* The denominator is the register, not the country: a state's share is its
+     share of the members that have actually been counted. */
+  const whole = held.reduce((sum, row) => sum + row.members, 0) || 1;
 
   return (
     <svg
@@ -644,15 +786,24 @@ function Nation({ shapes, covered, fill, held, onOpen }) {
       {shapes.states.map((state) => {
         const on = covered.includes(state.code);
         const row = byCode.get(state.code);
+        const band = row ? strengthBand(row.members, (row.members / whole) * 100, covered.length) : null;
+        const active = hovered === state.code;
+
         return (
-          <g key={state.code} onClick={() => onOpen?.(state.code)}>
+          <g
+            key={state.code}
+            onPointerEnter={() => on && onHover?.(state.code)}
+            onPointerLeave={() => on && onHover?.(null)}
+            onClick={() => onOpen?.(state.code)}
+          >
             <path
               d={state.d}
-              fill={on ? fill : "var(--color-silent)"}
-              stroke="var(--color-board)"
-              strokeWidth={1.2}
+              fill={band ? STRENGTH_OF[band].fill : "var(--color-silent)"}
+              stroke={active ? "#ffffff" : "var(--color-board)"}
+              strokeWidth={active ? 2.6 : 1.2}
               strokeLinejoin="round"
-              className={cn("transition-opacity", on ? "cursor-pointer hover:opacity-85" : "opacity-60")}
+              style={{ opacity: hovered && !active ? 0.55 : 1 }}
+              className={cn("transition-opacity duration-150", on && "cursor-pointer")}
             >
               <title>
                 {`${state.name}${row ? `, ${row.members.toLocaleString("en-NG")} members` : ", no register"}`}
@@ -664,13 +815,13 @@ function Nation({ shapes, covered, fill, held, onOpen }) {
                 y={state.at[1]}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="pointer-events-none font-mono select-none"
+                className="pointer-events-none select-none"
                 style={{
-                  fontSize: 15,
+                  fontSize: 13,
                   fontWeight: 700,
                   fill: "#ffffff",
                   paintOrder: "stroke",
-                  stroke: "rgba(0,0,0,0.4)",
+                  stroke: "rgba(0,0,0,0.5)",
                   strokeWidth: 3,
                   strokeLinejoin: "round",
                 }}
@@ -1138,8 +1289,11 @@ function QualityPanel({ quality }) {
   return (
     <section className="overflow-hidden rounded-dash border border-amber-200 bg-amber-50">
       <header className="flex items-baseline justify-between gap-3 border-b border-amber-200 px-4 py-3">
+        {/* Named, because there are 37 of these now and the findings below
+            belong to one of them. "About this register" was unambiguous when
+            there was only one register to be about. */}
         <h3 className="font-display text-[0.875rem] font-extrabold text-amber-900">
-          About this register
+          About the {quality.state} register
         </h3>
         <span className="figure text-[0.75rem] font-bold text-amber-900 tabular-nums">
           {formatNumber(quality.votingAge)} of voting age

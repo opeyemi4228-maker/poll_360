@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { before, describe, it } from "node:test";
 
 import {
   AGE_BANDS,
@@ -20,8 +22,9 @@ import {
   strengthAt,
   tierOf,
   votesAt,
+  hasDetail,
+  loadDetail,
 } from "../lib/members.js";
-import { SOKOTO_ADC } from "../lib/data/members-sokoto-adc.js";
 
 /**
  * Party strength on the ground.
@@ -46,35 +49,158 @@ import { SOKOTO_ADC } from "../lib/data/members-sokoto-adc.js";
  * ══════════════════════════════════════════════════════════════════════════
  */
 
+/* Sokoto is the state these tests drill into, so its wards and polling units
+   have to be fetched before any of them run. Every other state stays
+   unfetched on purpose — "a tier nobody has downloaded" is a state this
+   module has to get right, and it is asserted below. */
+before(async () => {
+  await loadDetail("ADC", "SOK");
+});
+
+/**
+ * How many state registers are actually on disk.
+ *
+ * ── DERIVED, BECAUSE THE HARDCODED 37 WAS WRONG AND SILENT ────────────────
+ * These tests asserted all 36 states and the FCT. Twenty-eight registers have
+ * been imported; the other nine the ADC has not published in a form this
+ * product has read. The assertion did not catch a missing import — it fired
+ * only once the index was built, long after the module had been written to
+ * expect files that were never there.
+ *
+ * Counting the directory means importing the twenty-ninth state breaks
+ * nothing, and an index that silently drops one still fails.
+ */
+const REGISTERS = readdirSync(join(process.cwd(), "lib", "data")).filter((name) =>
+  /^members-[a-z]{3}-adc\.js$/.test(name)
+).length;
+
 describe("what has actually been imported", () => {
-  it("holds the Sokoto ADC register, to polling-unit level", () => {
-    const [held] = coverage();
-    assert.equal(held.party, "ADC");
-    assert.equal(held.state, "Sokoto");
-    assert.equal(held.members, 66_474);
-    assert.equal(held.lgas, 23, "Sokoto has 23 local governments");
+  it("holds one row per register imported, and no row for a state without one", () => {
+    const rows = coverage();
+    assert.equal(
+      rows.length,
+      REGISTERS,
+      "the index and the state files on disk disagree — re-run scripts/build-member-index.mjs"
+    );
+    /* A state nobody has imported must be absent rather than present at
+       nought. Nought members is a claim about the ADC that nobody has made;
+       absent is answered as null, which is the truth. */
+    assert.ok(rows.length > 0 && rows.length <= 37);
+    assert.ok(
+      rows.every((row) => row.party === "ADC"),
+      "only the ADC register has been imported"
+    );
+
+    /* Sorted biggest first, because the question asked of this list is always
+       "where is the party strongest". */
+    for (let index = 1; index < rows.length; index += 1) {
+      assert.ok(rows[index - 1].members >= rows[index].members);
+    }
+
+    const sokoto = rows.find((row) => row.stateCode === "SOK");
+    assert.equal(sokoto.state, "Sokoto");
+    assert.equal(sokoto.members, 66_474);
+    assert.equal(sokoto.lgas, 23, "Sokoto has 23 local governments");
     /* Fewer ward names than the raw register held, because its spellings are
        folded — see "the register's own ward names" below. Still far more than
        INEC's 244, which is why no vote estimate is offered below a local
        government. */
-    assert.ok(held.wards > 1000 && held.wards < 1568);
-    assert.ok(held.units > 7000);
+    assert.ok(sokoto.wards > 1000 && sokoto.wards < 1568);
+    assert.ok(sokoto.units > 7000);
   });
 
-  it("carries no personal data whatsoever", () => {
+  it("counts every state's wards and booths without fetching them", () => {
+    /* ── THE CAPTION MUST BE TRUE BEFORE THE FILES ARRIVE ────────────────
+       Only Sokoto's detail is loaded, yet the coverage line quotes ward and
+       polling-unit counts for all 37. They are counted at import time and
+       carried in the index for exactly this reason: a caption that said
+       "0 polling units" for every state nobody had opened would be false, and
+       it would look like a register with nothing in it. */
+    for (const row of coverage()) {
+      if (row.stateCode === "SOK") continue;
+      assert.equal(hasDetail("ADC", row.stateCode), false, `${row.state} was fetched`);
+      assert.ok(row.lgas > 0, `${row.state} reports no local governments`);
+      assert.ok(row.wards > 0, `${row.state} reports no wards`);
+      assert.ok(row.units > 0, `${row.state} reports no polling units`);
+    }
+  });
+
+  it("carries no personal data whatsoever, in any shipped file", () => {
     /* ── THE TEST THIS FILE EXISTS FOR ────────────────────────────────────
-       The register this was built from holds names, ages, telephone numbers
-       and National Identification Numbers for sixty-six thousand people. This
+       The registers this was built from hold names, ages, telephone numbers
+       and National Identification Numbers for millions of people. This
        repository is pushed to a remote, and a NIN in a git history cannot be
        recalled from every clone that has already taken it.
 
-       So the shipped data is asserted to contain nothing that could identify
-       anybody: no eleven-digit numbers, which is what both a NIN and a
-       Nigerian mobile are. A refactor of the importer that started emitting
-       them fails here rather than being noticed by a journalist. */
-    const written = JSON.stringify(SOKOTO_ADC);
-    assert.ok(!/\b\d{11}\b/.test(written), "an eleven-digit number reached the data file");
-    assert.ok(!/\b0[789]\d{9}\b/.test(written), "a mobile number reached the data file");
+       So every shipped file is asserted to contain nothing that could
+       identify anybody: no eleven-digit numbers, which is what both a NIN and
+       a Nigerian mobile are. It reads them off disk rather than through the
+       module, because the risk is what was written, not what is exported — a
+       file nothing imports yet is still a file in the history.
+
+       A refactor of the importer that started emitting them fails here rather
+       than being noticed by a journalist. */
+    const folder = join(process.cwd(), "lib", "data");
+    const files = readdirSync(folder).filter((name) => /^members-.*\.js$/.test(name));
+
+    /* Every register plus the index, and the count is derived so that a file
+       appearing or disappearing cannot quietly drop out of this scan. The
+       check that matters is the loop below; this one only guarantees the loop
+       is not running over an empty list. */
+    assert.equal(
+      files.length,
+      REGISTERS + 1,
+      `expected ${REGISTERS} registers and one index, found ${files.length} files`
+    );
+    assert.ok(REGISTERS > 0, "no member registers found at all");
+
+    for (const name of files) {
+      const written = readFileSync(join(folder, name), "utf8");
+      const eleven = written.match(/\b\d{11}\b/);
+      assert.equal(eleven, null, `${name} contains ${eleven?.[0]}, which is a NIN or a telephone`);
+      const mobile = written.match(/\b0[789]\d{9}\b/);
+      assert.equal(mobile, null, `${name} contains the mobile number ${mobile?.[0]}`);
+    }
+  });
+
+  it("keeps the wards out of the file every browser downloads", async () => {
+    /* ── WHY THE SPLIT IS A TEST AND NOT A PREFERENCE ────────────────────
+       The index is loaded eagerly by a client component, so anything in it is
+       downloaded by everybody who opens the dashboard. The ward and
+       polling-unit detail is megabytes. A change that folded it back into the
+       index would not fail anything — the screens would work perfectly, and
+       every visitor would silently pay for 36 states they never opened.
+
+       Checked on the parsed object rather than on the text of the file: the
+       index does legitimately carry the word "wards", because each state
+       records HOW MANY wards it has so a caption can say so without fetching
+       them. Counting them is the opposite of shipping them. */
+    /* Not named `module`: Next refuses that identifier anywhere in the tree,
+       because in a CommonJS scope it shadows the real one. */
+    const loaded = await import("../lib/data/members-adc-index.js");
+    const index = Object.values(loaded)[0];
+
+    for (const [code, state] of Object.entries(index.states)) {
+      assert.equal(typeof state.counts.wards, "number", `${code} does not count its wards`);
+
+      for (const [name, lga] of Object.entries(state.lgas)) {
+        assert.ok(!("wards" in lga), `${code} / ${name} carries its wards in the index`);
+        assert.ok(!("units" in lga), `${code} / ${name} carries its polling units in the index`);
+        assert.equal(typeof lga.members, "number", `${code} / ${name} has no count`);
+      }
+    }
+
+    /* And the split has to have been worth making. */
+    const folder = join(process.cwd(), "lib", "data");
+    const size = (name) => statSync(join(folder, name)).size;
+    const detail = readdirSync(folder)
+      .filter((name) => /^members-[a-z]{3}-adc\.js$/.test(name))
+      .reduce((total, name) => total + size(name), 0);
+
+    assert.ok(
+      size("members-adc-index.js") * 4 < detail,
+      "the index is not materially smaller than the state files it exists to avoid loading"
+    );
   });
 
   it("says which parties have a register and which have none", () => {
@@ -87,8 +213,82 @@ describe("what has actually been imported", () => {
     assert.equal(adc, undefined);
     assert.ok(apc, "the APC is on the ballot and must be listed");
     assert.deepEqual(apc.registers, [], "no APC register has been imported");
-    assert.deepEqual(coveredStates("ADC"), ["SOK"]);
+    assert.equal(coveredStates("ADC").length, REGISTERS);
+    assert.ok(coveredStates("ADC").includes("SOK"));
+    assert.ok(coveredStates("ADC").includes("LAG"));
     assert.deepEqual(coveredStates("APC"), []);
+  });
+});
+
+describe("a state whose detail has not been fetched", () => {
+  /* ── THE PROPERTY THE LAZY SPLIT LIVES OR DIES BY ──────────────────────
+     Lagos is never loaded by these tests. Everything the index carries about
+     it must still be right, and everything beneath a local government must
+     read as UNKNOWN rather than as nought.
+
+     A ward drawn at nought because its file is still in flight is a ward a
+     campaign writes off, and it would right itself a second later with nobody
+     aware of what they had just been shown. */
+  it("still knows the state and its local governments", () => {
+    assert.equal(hasDetail("ADC", "LAG"), false);
+    assert.ok(membersAt("ADC", "LAG") > 0, "the state total comes from the index");
+
+    const lgas = childrenOf("ADC", "LAG", []);
+    assert.ok(lgas.length > 0, "the local governments come from the index");
+    assert.ok(membersAt("ADC", "LAG", [lgas[0].name]) > 0);
+
+    /* And the gender and age split, which the index also carries. */
+    assert.ok(demographicsAt("ADC", "LAG", [])?.total > 0);
+    assert.ok(demographicsAt("ADC", "LAG", [lgas[0].name])?.total > 0);
+  });
+
+  it("says unknown below a local government, never nought", () => {
+    const lga = childrenOf("ADC", "LAG", [])[0].name;
+
+    assert.equal(
+      membersAt("ADC", "LAG", [lga, "any ward"]),
+      null,
+      "an unfetched ward reported a membership figure"
+    );
+    assert.notEqual(membersAt("ADC", "LAG", [lga, "any ward"]), 0, "unknown was reported as nought");
+    assert.deepEqual(childrenOf("ADC", "LAG", [lga]), []);
+    assert.equal(demographicsAt("ADC", "LAG", [lga, "any ward"]), null);
+  });
+
+  it("fetches on request, and then answers the same questions", async () => {
+    /* The other half of the contract: what was unknown becomes known, and
+       nothing about the tiers above it changes when it does. */
+    const before = membersAt("ADC", "EBO");
+    const lgas = childrenOf("ADC", "EBO", []).map((row) => row.name);
+
+    assert.deepEqual(childrenOf("ADC", "EBO", [lgas[0]]), [], "not fetched yet");
+
+    const loaded = await loadDetail("ADC", "EBO");
+    assert.ok(loaded, "the state file did not arrive");
+    assert.equal(hasDetail("ADC", "EBO"), true);
+
+    assert.equal(membersAt("ADC", "EBO"), before, "the state total moved when its wards arrived");
+    assert.deepEqual(childrenOf("ADC", "EBO", []).map((row) => row.name), lgas);
+
+    const wards = childrenOf("ADC", "EBO", [lgas[0]]);
+    assert.ok(wards.length > 0, "no wards after fetching");
+    assert.equal(
+      wards.reduce((sum, ward) => sum + ward.members, 0),
+      membersAt("ADC", "EBO", [lgas[0]]),
+      "the wards do not add up to the local government the index already held"
+    );
+  });
+
+  it("asks once however many screens want it", async () => {
+    /* Two components mounting together must not start two downloads. */
+    const [one, two] = await Promise.all([loadDetail("ADC", "EKI"), loadDetail("ADC", "EKI")]);
+    assert.ok(one);
+    assert.equal(one, two, "the same fetch was not shared");
+  });
+
+  it("returns nothing for a state no register covers, rather than throwing", () => {
+    assert.equal(registerFor("ADC", "ZZZ"), null);
+    assert.equal(membersAt("ADC", "ZZZ"), null);
   });
 });
 
