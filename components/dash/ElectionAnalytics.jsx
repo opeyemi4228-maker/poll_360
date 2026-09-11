@@ -5,9 +5,11 @@ import {
   BarChart3,
   CalendarRange,
   LineChart,
+  Target,
 } from "lucide-react";
 
 import Executive from "./Executive";
+import Strongholds from "./Strongholds";
 import PartyStrength from "./PartyStrength";
 import RulingParty from "./RulingParty";
 import { PARTY_FILL } from "./Charts";
@@ -79,6 +81,16 @@ const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "candidates", label: "Candidates", icon: LineChart },
   { id: "historical", label: "Historical", icon: CalendarRange },
+  /* ── WHY STRONGHOLDS IS NOT PART OF HISTORICAL ─────────────────────────
+     They read the same record and ask opposite questions. Historical asks
+     what has changed — which states are drifting, where turnout is going.
+     Strongholds asks what has not: which places a named candidate has carried
+     every time they stood, and what a booth-level map of that looks like.
+
+     Folding the second into the first was tried on paper and produced the
+     thing this product keeps having to undo: one screen with two subjects,
+     where every control belongs to half of it. */
+  { id: "strongholds", label: "Strongholds", icon: Target },
 ];
 
 /** One hue getting darker, for the trend grades, which have an order. */
@@ -157,6 +169,8 @@ export default function ElectionAnalytics({
       )}
 
       {tab === "historical" && <Historical shapes={shapes} />}
+
+      {tab === "strongholds" && <Strongholds shapes={shapes} />}
 
     </div>
   );
