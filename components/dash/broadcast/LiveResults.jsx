@@ -9,6 +9,7 @@ import { ItemCard, Queue, Said, clock, useAction, useDesk } from "./Queue";
 import { draftItem } from "@/app/broadcast/actions";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import PartyMark from "../PartyMark";
 
 /**
  * Live results, and the one control that decides whether any of it may be
@@ -183,11 +184,7 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
                       <Td>
                         {leader ? (
                           <span className="inline-flex items-center gap-2">
-                            <span
-                              aria-hidden="true"
-                              className="size-2.5 shrink-0 rounded-full"
-                              style={{ background: PARTY_FILL[leader.id] ?? PARTY_FILL.OTH }}
-                            />
+                            <PartyMark id={leader.id} size={18} />
                             <span className="font-semibold text-dash-ink">{leader.id}</span>
                             <span className="text-dash-muted">{formatShare(leader.share)}</span>
                           </span>

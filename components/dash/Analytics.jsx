@@ -31,6 +31,7 @@ import { raceFor } from "@/lib/races";
 import StateAnalytics from "./StateAnalytics";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import PartyMark from "./PartyMark";
 
 /**
  * Projection and analysis.
@@ -237,11 +238,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
               <label key={party.id} className="block">
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="flex items-center gap-2">
-                    <span
-                      aria-hidden="true"
-                      className="size-2.5 rounded-full"
-                      style={{ background: PARTY_FILL[party.id] }}
-                    />
+                    <PartyMark id={party.id} size={18} />
                     <span className="figure text-[0.8125rem] font-bold text-dash-ink">
                       {party.id}
                     </span>
@@ -374,11 +371,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                 <tr key={party.id} className="border-b border-dash-line last:border-0">
                   <td className="px-4 py-3">
                     <span className="flex items-center gap-2.5">
-                      <span
-                        aria-hidden="true"
-                        className="size-2.5 shrink-0 rounded-full"
-                        style={{ background: PARTY_FILL[party.id] }}
-                      />
+                      <PartyMark id={party.id} size={20} />
                       <span className="figure text-[0.875rem] font-bold text-dash-ink">
                         {party.id}
                       </span>

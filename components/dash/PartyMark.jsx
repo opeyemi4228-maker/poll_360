@@ -8,17 +8,17 @@ import { cn } from "@/lib/utils";
  * ══════════════════════════════════════════════════════════════════════════
  *  ONE SLOT ON EVERY ROW, AND EVERY PARTY FILLS IT
  *
- *  Two of the nineteen parties in the register have a logo file. Those two are
- *  named by it — the emblem is what a reader recognises at arm's length in a
- *  feed, and "APC" printed beside the APC broom is the same word twice. The
- *  other seventeen are named by their code, in type, on a block of their own
- *  colour.
+ *  Four of the nineteen parties in the register have a logo file — APC, PDP,
+ *  LP and ADC. Those four are named by it: the emblem is what a reader
+ *  recognises at arm's length in a feed, and "APC" printed beside the APC
+ *  broom is the same word twice. The other fifteen are named by their code, in
+ *  type, on a block of their own colour.
  *
  *  The important part is what does *not* vary: the slot. It is one size on
- *  every row, so a card with two logos and two colour blocks still reads as
- *  one list with its shares in a column, rather than as two parties the
- *  product treats properly and seventeen it does not. That distinction is not
- *  cosmetic on an election night, under an organisation's name.
+ *  every row, so a card mixing emblems and colour blocks still reads as one
+ *  list with its shares in a column, rather than as the parties this product
+ *  treats properly and the ones it does not. That distinction is not cosmetic
+ *  on an election night, under an organisation's name.
  *
  *  Nothing is lost to a screen reader either way: a logo carries the party's
  *  full name as its alt text, which is more than the three letters it stands
@@ -71,8 +71,9 @@ export default function PartyMark({ id, size = 28, className, title = true }) {
       className={cn(
         /* A hairline and a radius on both branches. Both logo files carry
            their own full-bleed background — APC's green and blue panels, ADC's
-           solid green — so without a boundary they bleed into a white card and
-           stop reading as a badge. */
+           solid green, the PDP's and Labour's white discs — so without a
+           boundary they bleed into a white card and stop reading as a
+           badge. */
         "flex shrink-0 items-center justify-center overflow-hidden rounded-[3px] border border-black/10",
         className
       )}
@@ -87,9 +88,9 @@ export default function PartyMark({ id, size = 28, className, title = true }) {
           alt={party?.name ?? code}
           width={size}
           height={size}
-          /* Contain, never cover: the logos are 300×270 and 330×302, and
-             cropping a party's mark to a square cuts the broom off the top of
-             one of them. */
+          /* Contain, never cover: the files are 300×270, 330×302 and two at
+             320×320, and cropping a party's mark to a square cuts the broom
+             off the top of one of them. */
           className="size-full object-contain"
         />
       ) : label ? (

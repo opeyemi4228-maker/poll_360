@@ -8,6 +8,7 @@ import TargetList from "./TargetList";
 import { parties as PRESIDENTIAL, states2023 } from "@/lib/election2023";
 import { councilsIn, coverage } from "@/lib/lga-control";
 import { cn } from "@/lib/utils";
+import PartyMark from "./PartyMark";
 
 /**
  * Who governs each state.
@@ -336,11 +337,7 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
           ) : (
             seats[which].map((row) => (
             <span key={row.party} className="flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className="size-3 rounded-full"
-                style={{ background: PARTY_FILL[row.party] ?? "var(--color-silent)" }}
-              />
+              <PartyMark id={row.party} size={18} />
               <span className="text-[0.75rem] font-bold text-white">{row.party}</span>
               <span className="figure text-[0.75rem] text-white/55">{row.seats}</span>
             </span>

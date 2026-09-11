@@ -19,6 +19,7 @@ import { GOVERNORS, crossedFloor, ruling, seatsBy } from "@/lib/governors";
 import { NOT_LOADED, OFF_CYCLE } from "@/lib/offcycle";
 import { ZONES } from "@/lib/zones";
 import { cn, formatNumber, formatShare } from "@/lib/utils";
+import PartyMark from "./PartyMark";
 
 /**
  * Analytics for a contest fought in one state, or a handful.
@@ -645,11 +646,9 @@ function Chip({ party, small }) {
         small ? "text-[0.6875rem]" : "text-[0.875rem]"
       )}
     >
-      <span
-        aria-hidden="true"
-        className={cn("shrink-0 rounded-full", small ? "size-2" : "size-2.5")}
-        style={{ background: PARTY_FILL[party] ?? "var(--color-dash-muted)" }}
-      />
+      {/* The party's own mark rather than a dot of its colour. One component,
+          so every chip on this dashboard gains it at once. */}
+      <PartyMark id={party} size={small ? 14 : 18} />
       {party}
     </span>
   );

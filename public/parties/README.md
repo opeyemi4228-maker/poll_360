@@ -3,7 +3,9 @@
 The result cards and the standings draw a party's own mark here — see
 `components/dash/PartyMark.jsx`.
 
-Two files ship with the product: `apc.png` and `adc.png`. Every other party in
+Four files ship with the product: `apc.png`, `pdp.png`, `lp.png` and
+`adc.png` — the three parties that carried a state in 2023, plus the one whose
+membership register this product holds. Every other party in
 `lib/party-register.js` is drawn as a block of its own colour with its code on
 it, and that is a finished state rather than a placeholder.
 
@@ -27,9 +29,10 @@ known to be there.
 
 ## The file
 
-Square is easiest but not required — `apc.png` is 300×270 and `adc.png` is
-330×302, and both are drawn with `object-contain` inside a square slot, so
-nothing is ever cropped or stretched.
+Square is easiest but not required — `pdp.png` and `lp.png` are 320×320,
+`apc.png` is 300×270 and `adc.png` is 330×302. All are drawn with
+`object-contain` inside a square slot, so nothing is ever cropped or
+stretched.
 
 At least 128px on the long edge. The slot is 24–44px on screen, which is up to
 88 real pixels on a retina display, and the same mark is drawn much larger
@@ -46,7 +49,8 @@ of this product's charts identify parties exactly that way already, and a
 missing file costs a party nothing that matters — it still has its own colour,
 its own row, its own column in an export and its own box on the filing form.
 
-This directory is allowed to hold two files forever.
+This directory is allowed to stay small. A party without a mark here loses
+nothing that matters.
 
 ## Rights
 

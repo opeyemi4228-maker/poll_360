@@ -1,6 +1,7 @@
 "use client";
 
 import { PARTY_FILL } from "./Charts";
+import PartyMark from "./PartyMark";
 import { parties, others } from "@/lib/election2023";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -164,11 +165,16 @@ export default function PartyBreakdown({
                 <span className="figure w-4 shrink-0 text-[0.6875rem] text-dash-muted">
                   {index + 1}
                 </span>
-                <span
-                  aria-hidden="true"
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ background: PARTY_FILL[party.id] }}
-                />
+                {/* ── THE PARTY'S OWN MARK, WHERE ONE EXISTS ──────────────
+                    This was a 10px dot of the party's colour, which is a
+                    perfectly good encoding and is not what a reader
+                    recognises at arm's length on a result board. PartyMark
+                    draws the emblem for the parties that have one and the
+                    same-sized coloured block with the code on it for the
+                    rest, so the column stays one width either way — see the
+                    head of components/dash/PartyMark.jsx for why that
+                    uniformity matters more than the logos do. */}
+                <PartyMark id={party.id} size={compact ? 18 : 22} className="self-center" />
                 <span className="figure shrink-0 text-[0.875rem] font-bold text-dash-ink">
                   {party.id}
                 </span>
