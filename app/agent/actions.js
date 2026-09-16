@@ -14,19 +14,22 @@ import {
   destroyCoordinatorSession,
   sweepExpiredCoordinatorSessions,
 } from "@/lib/coordinator-session";
-import { hashPassword, verifyPassword } from "@/lib/password";
 import { rateLimit } from "@/lib/ratelimit";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
 import { boothFromForm } from "@/lib/booth";
 import { parseUnitCode } from "@/lib/units";
 import { sniffImage } from "@/lib/image-bytes";
-import { accountForCode } from "@/lib/agent-login";
-import { audit, media, results, units, sheetReads } from "@/lib/db";
+import { agentPath } from "@/lib/agent-address";
+import { applyAsAgent, confirmAgentCode } from "@/lib/databank-agents";
+import { forgetAgentCode, rememberAgentCode } from "@/lib/agent-code-vault";
+import { audit, results, units, sheetReads } from "@/lib/db";
 /* Everything this product takes in is also delivered to the hub that seals and
    chains it for the eighteen months between a polling day and a tribunal.
-   Never awaited on a user's path — see lib/dumpsite.js. */
-import { KIND, forwardToDumpSite } from "@/lib/dumpsite";
+   Never awaited on a user's path — see lib/databank.js. */
+import { KIND, forwardToDataBank } from "@/lib/databank";
 import { currentElection } from "@/lib/election-scope";
+import { agentElection } from "@/lib/agent-election";
+import { placeOf } from "@/lib/lga-names";
 import { elections } from "@/lib/elections";
 import { ballotFor, isRace } from "@/lib/races";
 import { validateReturn } from "@/lib/results";
@@ -45,12 +48,6 @@ import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
  * ───────────────────────────────────────────────────────────────────────────
  */
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-
-/* Length is the only rule. A composition rule ("one capital, one symbol")
-   reliably produces Password1! and the feeling of having asked for something. */
-const MIN_PASSWORD = 10;
-
 async function whereFrom() {
   const list = await headers();
   return {
@@ -62,7 +59,7 @@ async function whereFrom() {
 /* ── signing up ───────────────────────────────────────────────────────────── */
 
 export async function joinAsAgent(_previous, formData) {
-  const { ip, userAgent } = await whereFrom();
+  const { ip } = await whereFrom();
 
   /* Five in an hour from one address. A ward coordinator signing up their
      whole team from one phone is a real thing and this leaves room for it; a
@@ -76,32 +73,20 @@ export async function joinAsAgent(_previous, formData) {
   }
 
   const name = String(formData.get("name") ?? "").trim().slice(0, 120);
-  const email = String(formData.get("email") ?? "").trim().toLowerCase().slice(0, 160);
   const rawPhone = String(formData.get("phone") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
 
   /* Where they say they are, in the four parts the form asks for. */
   const booth = boothFromForm(formData);
 
-  /* Optional, and stored exactly as written. These are the agent's words for
-     their own ward and booth, not a lookup: nobody here holds INEC's ward or
-     unit names, and a name we could not check is worth having only as long as
-     it is never mistaken for one we could. */
+  /* Optional, and kept only as the agent's own words. See UnitPicker. */
   const wardName = String(formData.get("wardName") ?? "").trim().slice(0, 80);
   const unitName = String(formData.get("unitName") ?? "").trim().slice(0, 80);
 
-  /* `normalisePhone` puts a number into one shape; it does not judge whether
-     it is one. A Nigerian mobile is 234 and ten digits, and anything that does
-     not come out that length is a typo rather than a phone — left unchecked,
-     "0803" sits in the queue as a contact nobody can ring. */
   const cleaned = rawPhone ? normalisePhone(rawPhone) : null;
-  /* The rule itself is in lib/phone.js, so the two sign-up paths and every
-     script that takes a number agree on what one is. */
   const phone = isNigerianMobile(cleaned) ? cleaned : null;
 
   const values = {
     name,
-    email,
     phone: rawPhone,
     state: booth.state,
     lga: booth.lga,
@@ -113,29 +98,14 @@ export async function joinAsAgent(_previous, formData) {
   const errors = { ...booth.errors };
 
   if (!name) errors.name = "Tell us your name, as your coordinator knows it.";
-  if (!phone && !email) errors.phone = "A phone number or an email address is needed to sign in.";
-  if (rawPhone && !phone) errors.phone = "That does not look like a Nigerian phone number.";
-  if (email && !EMAIL.test(email)) errors.email = "That does not look like an email address.";
-  if (password.length < MIN_PASSWORD) {
-    errors.password = `Choose a password of at least ${MIN_PASSWORD} characters. Length is what makes it hard to guess.`;
-  }
+  if (!rawPhone) errors.phone = "Your phone number is needed. It is how your coordinator reaches you.";
+  else if (!phone) errors.phone = "That does not look like a Nigerian phone number.";
 
-  /* ── THE PHOTOGRAPH, CHECKED BEFORE ANYTHING IS WRITTEN ─────────────────
-     Required, because Agent360's whole question is whether somebody was
-     actually standing at a booth and the answer to it starts with a face —
-     and because a name and a booth code can be typed by anybody, while a
-     photograph is the thing a ward coordinator either recognises or does not.
-
-     Checked here rather than after the account exists, so a camera file this
-     server cannot read is a sentence on the form somebody can act on rather
-     than an account that quietly has no picture. Registration is not
-     time-critical the way filing a return at nine at night is; an agent can
-     take another photograph.
-
-     What the browser calls the file is a claim; the first four bytes are a
-     fact. The browser has already downscaled it — see components/agent/
-     PhotoField.jsx — so anything still over the ceiling did not come through
-     that path. */
+  /* ── THE PHOTOGRAPH, CHECKED BEFORE ANYTHING IS SENT ────────────────────
+     Required, because a name and a booth code can be typed by anybody, while
+     a photograph is the thing a ward coordinator either recognises or does
+     not — and Agent360 pairs every presence claim with a face. What the
+     browser calls the file is a claim; the first four bytes are a fact. */
   const photo = formData.get("photo");
   let photoBytes = null;
   let photoMime = null;
@@ -161,164 +131,103 @@ export async function joinAsAgent(_previous, formData) {
 
   if (Object.keys(errors).length) return { errors, values };
 
-  /* ── AN ACCOUNT THAT EXISTS IS NOT A SIGN-UP ────────────────────────────
-     Said plainly rather than answered with a generic failure. This is not a
-     sign-in form, the address is not a secret worth protecting here, and the
-     alternative is somebody signing up four times, wondering why nothing
-     happens, and ringing the desk on polling morning. */
-  if (email && (await coordinators.byEmail(email))) {
-    return { errors: { email: "An account already uses that email. Sign in instead." }, values };
-  }
-  if (phone && (await coordinators.byPhone(phone))) {
-    return { errors: { phone: "An account already uses that number. Sign in instead." }, values };
-  }
+  /* ── ONTO THE AGENT LIST, WHICH DATA BANK HOLDS ─────────────────────────
+     A sign-up is a request to be put on the list, and the list is Data
+     Bank's. This product keeps no row for it: the approval screen reads the
+     list back, and approving is what issues the code the agent signs in with.
 
-  const person = await coordinators.signUp({
-    name,
-    email: email || null,
+     Awaited, unlike the forwards elsewhere, because the person holding the
+     phone needs to know it landed. Signing up is not time-critical the way
+     filing a result is; if Data Bank cannot be reached they are told to try
+     again, and nothing half-exists. */
+  const applied = await applyAsAgent({
+    ref: `poll360:site:${crypto.randomUUID()}`,
+    fullName: name,
     phone,
-    passwordHash: await hashPassword(password),
-    /* The booth they say they are at. A claim until an administrator agrees
-       with it, which is what the queue is for — and the approval screen can
-       still correct it, because a booth chosen from a list is a great deal
-       harder to get wrong than nine digits copied off a form in the dark, and
-       nowhere near impossible. */
-    unitCode: booth.code,
-    wardName: wardName || null,
-    unitName: unitName || null,
+    pollingUnitCode: booth.code,
+    role: "Polling unit agent",
   });
 
-  /* Stored against the account, in the same table as the incident
-     photographs — see `attachToCoordinator` in lib/db.js. The pointer goes on
-     the coordinator so a screen showing an agent does not have to search. */
-  const stored = await media.attachToCoordinator({
-    coordinatorId: person.id,
-    mime: photoMime,
-    bytes: photoBytes,
-  });
-  await coordinators.attachPhoto(person.id, stored.id);
+  if (!applied.ok) {
+    return {
+      error: "We could not send your details just now, so nothing was saved. Wait a few minutes and try again.",
+      values,
+    };
+  }
+  if (applied.outcome === "already") {
+    return {
+      error:
+        "You are already on the agent list for this polling unit. Your coordinator gives you your code once you are approved.",
+      values,
+    };
+  }
 
-  /* ── THE CODE, CUT ONCE ─────────────────────────────────────────────────
-     The one moment this code exists anywhere. It is returned to the page that
-     shows it to the agent and is written nowhere else — not to the audit
-     trail, not to a log, not into the row, which holds only its hash. See
-     lib/agent-code.js for why it is not simply their polling unit. */
-  const agentCode = await coordinators.issueCode(person.id, { hash: hashPassword });
-
-  /* Signed in immediately, on purpose. There is nothing to protect — the
-     account can read nothing and file nothing — and the alternative is telling
-     somebody their application went somewhere they cannot see. */
-  await createCoordinatorSession(person.id, { userAgent });
-
-  /* Written to the same audit trail as everything else. The trail is about
-     what happened to the count, not about which table the actor sat in, and
-     splitting it would leave the one question worth asking at 2am — who did
-     this — with two places to look. */
   await audit.record({
     actorId: null,
-    actorName: person.name,
-    action: "coordinator:signed-up",
-    subject: person.unitCode,
-    meta: { id: person.id },
+    actorName: name,
+    action: "agent:applied",
+    subject: booth.code,
+    meta: { databankAgentId: applied.id },
     ip,
   });
 
-  /* ── AND ON TO THE HUB ──────────────────────────────────────────────────
-     A registration belongs to Agent360 — whether somebody was actually
-     standing at a booth is its question, not this product's — and it reaches
-     it through DumpSite, which seals and chains it on receipt. See
-     lib/dumpsite.js for why this is never awaited: an agent signing up must
-     not fail because a hub is having a bad night, and their account is
-     already committed here.
+  /* ── AND THE REGISTRATION, WITH THE PHOTOGRAPH, ON TO AGENT360 ──────────
+     Agent360 answers whether somebody was actually standing at a booth, and
+     it starts from a face. The registration travels through Data Bank's
+     intake door as it always has, sealed at rest, and is never awaited. Every
+     key is spelled the way Data Bank's registration handler reads it. */
+  const place = parseUnitCode(booth.code);
+  const photoHash = createHash("sha256").update(photoBytes).digest("hex");
 
-     Identity travels on this one, unlike almost everything else this product
-     sends anywhere. That is the point of a registration: Agent360 cannot
-     confirm a person was at a booth without knowing which person. DumpSite
-     seals it at rest under a per-item key and logs every opening. */
-  /* The ward and local government the booth sits in, read back off the code
-     rather than off the form — the form's boxes are optional and a typed code
-     is allowed to be the whole answer, so this is the one field that is
-     present however somebody filled it in. */
-  const place = parseUnitCode(person.unitCode);
-
-  forwardToDumpSite({
+  forwardToDataBank({
     kind: KIND.REGISTRATION,
-    externalId: `poll360:coordinator:${person.id}`,
-    sender: person.phone ?? person.email ?? null,
+    externalId: `poll360:agent:${applied.id}`,
+    sender: phone,
     mime: photoMime,
-    mediaHashes: [stored.hash],
-    /* ── THE NAMES ARE THE HUB'S, NOT OURS ─────────────────────────────────
-       Every key below is read by name in DumpSite's registration handler, and
-       from there by Agent360, which owns the register. A key spelled our way
-       instead of theirs does not fail: it is simply never read, so the field
-       is sealed as null and an agent arrives on the register with no name and
-       no booth. That is invisible at this end — the post returns 200 — which
-       is why these are spelled to match the reader and not the sender. */
+    mediaHashes: [photoHash],
     payload: {
-      /* `POLLING_AGENT`, which is the hub's own default and the word Agent360
-         maps to an agent account. An unrecognised role is refused there rather
-         than defaulted, so this is not a cosmetic difference. */
       role: "POLLING_AGENT",
-      fullName: person.name,
-      /* The photograph itself, not a reference to it. Agent360 pairs a
-         presence claim with a face, and a hash it cannot resolve to an image
-         proves nothing to anybody. */
+      fullName: name,
       photo: photoBytes.toString("base64"),
       photoMime,
-      photoHash: stored.hash,
-      phone: person.phone ?? null,
-      email: person.email ?? null,
-      /* Both spellings of the booth. `pollingUnitCode` is what the hub reads;
-         `unitCode` is what this product calls it everywhere else, and it costs
-         nothing to keep for anybody reading a stored payload later. */
-      pollingUnitCode: person.unitCode,
-      unitCode: person.unitCode,
+      photoHash,
+      phone,
+      email: null,
+      pollingUnitCode: booth.code,
+      unitCode: booth.code,
       wardCode: place?.wardCode ?? null,
       lgaCode: place?.lgaCode ?? null,
-      stateCode: person.unitCode?.slice(0, 2) ?? null,
-      wardName: person.wardName ?? null,
-      unitName: person.unitName ?? null,
-      /* Pending until an administrator agrees with the booth they claimed.
-         Sent as the claim it is rather than as a fact. */
-      status: person.status ?? "PENDING",
+      stateCode: booth.code?.slice(0, 2) ?? null,
+      wardName: wardName || null,
+      unitName: unitName || null,
+      status: "PENDING",
       registeredAt: new Date().toISOString(),
     },
   });
 
-  /* ── SHOWN, NOT REDIRECTED PAST ─────────────────────────────────────────
-     The code goes on the query string of the holding page rather than into a
-     session or a cookie, for one reason: it is the only copy, this is the only
-     moment, and a redirect that lost it would leave an agent registered and
-     unable to sign in anywhere. It leaves the URL the moment they leave that
-     page, and it is useless to anybody who did not also register. */
-  redirect(agentCode ? `/agent/pending?code=${encodeURIComponent(agentCode)}` : "/agent/pending");
+  redirect(agentPath(`/pending?unit=${encodeURIComponent(booth.code)}`));
 }
+
 
 /* ── signing in ───────────────────────────────────────────────────────────── */
 
 /**
- * Sign in with the code, rather than with a phone and a password.
+ * Sign in with the code. The only way an agent signs in.
  *
  * ══════════════════════════════════════════════════════════════════════════
- *  WHY THIS EXISTS BESIDE THE PASSWORD PATH
+ *  DATA BANK CONFIRMS THE CODE
  *
- *  An agent at a booth has one hand free, a cheap handset, and a queue in
- *  front of them. A password chosen three weeks ago at a training session is
- *  the thing they have forgotten; the code on the card in their pocket is the
- *  thing they have. It is also the only credential that works over WhatsApp,
- *  where there is no form to put an email address into.
+ *  The agent list is Data Bank's, and so is the answer to "whose code is
+ *  this". Every sign-in asks it. A code that belongs to an approved agent
+ *  comes back with the agent's name, phone and polling unit; anything else —
+ *  not a code, nobody's code, a suspended agent's code — comes back as one
+ *  refusal, so the form cannot be used to learn which booths have agents.
  *
- *  ── AND WHY THE SEARCH IS NARROWED BY THE BOOTH ─────────────────────────
- *  The code is hashed with a per-row salt, so there is nothing to look it up
- *  by. Verifying against every account in the country would be forty thousand
- *  slow hashes for every attempt, which is a denial of service anybody could
- *  trigger from a phone.
- *
- *  So the booth inside the code narrows it to the people at one polling unit.
- *  That is arithmetic, not authorisation: the booth half is printed on every
- *  result sheet and published in this repository, and anybody can write it.
- *  The secret half still has to match a stored hash, and a wrong booth simply
- *  finds nobody to check against.
+ *  ── THE SESSION IS KEPT HERE ─────────────────────────────────────────────
+ *  Filing needs an author row for the result it writes, and a session that
+ *  survives a bad signal. So the confirmed agent is kept as a row in
+ *  `coordinators`, linked to their Data Bank id, and signed in on this
+ *  product's own cookie. Nothing on the filing path calls Data Bank.
  * ══════════════════════════════════════════════════════════════════════════
  */
 export async function signInWithCode(_previous, formData) {
@@ -332,106 +241,58 @@ export async function signInWithCode(_previous, formData) {
     return { error: "Too many attempts from this connection. Wait a few minutes and try again." };
   }
 
-  /* One message whatever went wrong. A code that is not a code and a code that
-     belongs to nobody get the same answer, or the form becomes an oracle
-     telling somebody which booths have agents on them. */
-  const REFUSED_CODE = "That code did not match an account. Check it and try again.";
+  const confirmed = await confirmAgentCode(formData.get("code"));
 
-  const person = await accountForCode(formData.get("code"));
-  if (!person) return { error: REFUSED_CODE };
+  if (confirmed.state === "unavailable") {
+    return {
+      error: "Codes cannot be checked right now. Nothing is wrong with yours — wait a minute and try again.",
+    };
+  }
+  if (confirmed.state !== "matched") {
+    return { error: "That code did not match an approved agent. Check it and try again, or ask your coordinator." };
+  }
 
-  await createCoordinatorSession(person.id, { userAgent });
-  await coordinators.markSignedIn(person.id);
+  /* ── A GOOD CODE THAT CANNOT BE SAVED IS NOT THE AGENT'S FAULT ───────────
+     Data Bank has already said yes by here. If this product's own database
+     then refuses the write — full, or unreachable — the agent is owed a
+     sentence that says their code is fine, not a page saying it did not
+     build. The redirect stays outside, because it works by throwing. */
+  let person;
+  try {
+    person = await coordinators.mirrorAgent(confirmed.agent);
+    if (person?.canFile) {
+      await createCoordinatorSession(person.id, { userAgent });
+      /* Sealed onto this phone, never into the database: it is what Data Bank
+         asks for before it will put an update or a report on a board in this
+         agent's name. See lib/agent-code-vault.js. */
+      await rememberAgentCode(formData.get("code"));
+      await coordinators.markSignedIn(person.id);
+      await sweepExpiredCoordinatorSessions();
+    }
+  } catch (error) {
+    console.error("agent sign-in could not be saved:", error?.code ?? "", error?.message ?? error);
+    return {
+      error:
+        "Your code is right, but sign-in cannot finish right now because of a problem on our side. Tell your coordinator — nothing you have filed is lost.",
+    };
+  }
+
+  if (!person?.canFile) {
+    return { error: "This account cannot file at the moment. Speak to your coordinator." };
+  }
 
   await audit.record({
     actorId: null,
     actorName: person.name,
     action: "coordinator:signed-in",
     subject: person.unitCode,
-    meta: { by: "code" },
+    meta: { by: "code", confirmedBy: "databank" },
     ip,
   });
 
-  redirect(person.canFile ? "/agent" : "/agent/pending");
+  redirect(agentPath("/"));
 }
 
-
-/**
- * ── ONE MESSAGE, WHATEVER WENT WRONG ───────────────────────────────────────
- * A form that says "no account with that number" tells whoever is guessing
- * which half of the pair to keep. It is the same rule app/actions/auth.js
- * follows, and it matters more here: a coordinator's identifier is a phone
- * number, and phone numbers are guessable in a way email addresses are not.
- */
-const REFUSED =
-  "That did not match an account. Check the number or email and the password, and try again.";
-
-/**
- * A hash of the right shape and cost to compare against when no account was
- * found. Built once as the module loads rather than written in as a literal,
- * so it tracks whatever cost lib/password.js currently uses instead of
- * quietly becoming cheaper than a real one as those parameters are raised.
- *
- * Declared above its use on purpose: a `let` referenced before its
- * initialiser is a temporal-dead-zone error waiting for the first person who
- * moves this code.
- */
-const DUMMY_HASH = await hashPassword(
-  `no-such-account-${Math.random().toString(36).slice(2)}`
-);
-
-export async function signInAgent(_previous, formData) {
-  const { ip, userAgent } = await whereFrom();
-
-  /* Ten attempts an hour per address. Enough for somebody fumbling a password
-     on a phone keypad in the dark, not enough to work through a list. */
-  const limit = rateLimit(`agent-signin:${ip}`, { limit: 10, windowMs: 60 * 60 * 1000 });
-  if (!limit.ok) {
-    return { error: "Too many attempts from this connection. Wait a few minutes and try again." };
-  }
-
-  const contact = String(formData.get("contact") ?? "").trim().toLowerCase();
-  const password = String(formData.get("password") ?? "");
-
-  if (!contact || !password) return { error: REFUSED };
-
-  /* An identifier with an @ is an email; anything else is treated as a phone
-     and normalised the same way the sign-up normalised it, so "0803 123 4567"
-     and "+2348031234567" reach the same row. */
-  const person = contact.includes("@")
-    ? await coordinators.byEmail(contact)
-    : await coordinators.byPhone(normalisePhone(contact));
-
-  /* ── THE HASH IS VERIFIED EVEN WHEN THERE IS NO ACCOUNT ─────────────────
-     Against a dummy of the same shape and cost. Without it, a missing account
-     returns in a millisecond and a wrong password takes a hundred, and the
-     difference is a reliable way to ask this endpoint whether a phone number
-     is registered — which for this product is asking whether a named person
-     is an agent, and that is exactly the kind of question the incident log is
-     encrypted to prevent being answerable. */
-  const stored = person ? await coordinators.secretFor(person.id) : null;
-  const ok = await verifyPassword(password, stored ?? DUMMY_HASH);
-
-  if (!person || !ok) return { error: REFUSED };
-
-  if (person.status === "DECLINED" || person.status === "SUSPENDED") {
-    /* Told plainly. Somebody who was turned down or switched off needs to know
-       that is what happened, or they will keep trying and then ring the desk
-       on the busiest morning of the year. */
-    return {
-      error:
-        "This account is not active. Speak to the coordinator who appointed you — they can tell you why and put it right.",
-    };
-  }
-
-  await createCoordinatorSession(person.id, { userAgent });
-  await coordinators.markSignedIn(person.id);
-  await sweepExpiredCoordinatorSessions();
-
-  /* Pending accounts sign in and land on the page that says where they stand,
-     rather than on a filing screen they cannot use. */
-  redirect(person.canFile ? "/agent" : "/agent/pending");
-}
 
 /* ── signing out ──────────────────────────────────────────────────────────── */
 
@@ -444,7 +305,8 @@ export async function signOutAgent() {
     await coordinatorSessions.destroyAllFor(person.id);
   }
   await destroyCoordinatorSession();
-  redirect("/agent/login");
+  await forgetAgentCode();
+  redirect(agentPath("/login"));
 }
 
 
@@ -536,6 +398,10 @@ export async function fileAgentResult(_previous, formData) {
     if (name) agents[party.id] = name;
   }
 
+  /* The presiding officer, as written at the foot of the sheet: read off the
+     photograph and confirmed by the agent, or typed where it could not be. */
+  const repName = text("repName");
+
   const sheetBoxes = {
     formSerial: text("formSerial"),
     ballotsIssued: optional("ballotsIssued"),
@@ -561,7 +427,10 @@ export async function fileAgentResult(_previous, formData) {
      this files into whatever project is actually running, and refuses rather
      than guessing when none is — filing a governorship return into a closed
      presidential project is not a small mistake. */
-  const project = (await currentElection()) ?? (await elections.active());
+  /* The same election the agent's own pages show — their state's first. A
+     page and its filing that picked two different projects would file a
+     return into an election the agent never saw on screen. */
+  const project = await agentElection(person.unitCode);
   if (!project) {
     return { error: "No election is running at the moment, so this return has nowhere to go." };
   }
@@ -610,6 +479,7 @@ export async function fileAgentResult(_previous, formData) {
        exactly one of the pair is set. */
     coordinatorId: person.id,
     source: "AGENT",
+    repName,
     sheetMatch: sheet.record,
   });
 
@@ -653,13 +523,13 @@ export async function fileAgentResult(_previous, formData) {
   /* ── AND ON TO THE HUB ──────────────────────────────────────────────────
      The figures, and the hash of the photograph they were held against. The
      bytes themselves are not sent: the picture already went as its own item
-     when it was read, and DumpSite pairs the two on the hash rather than
+     when it was read, and Data Bank pairs the two on the hash rather than
      holding a second copy of a six-megabyte photograph.
 
      After the return is committed and after the audit line, never before. A
      hub that is unreachable must cost this product nothing at all — see
-     lib/dumpsite.js. */
-  forwardToDumpSite({
+     lib/databank.js. */
+  forwardToDataBank({
     kind: KIND.RESULT_FIGURES,
     externalId: `poll360:result:${project.id}:${race}:${unitCode}`,
     sender: person.phone ?? null,
@@ -683,12 +553,23 @@ export async function fileAgentResult(_previous, formData) {
           ? "agreed"
           : `not compared: ${sheet.record.reason ?? "unknown"}`,
       amended,
+      unitName: placeOf(unitCode)?.unitName ?? (await units.at(unitCode).catch(() => null))?.name ?? null,
+      /* ── EVERYTHING ELSE THE AGENT CONFIRMED OFF THE SHEET ────────────────
+         The rest of the boxes, the serial and date, who presided, whether the
+         photograph showed a signature and a stamp, and the party agents who
+         signed. Without them the hub holds a row of numbers; with them it
+         holds a result somebody can defend. The certification is the reading
+         the agent was shown, never composed here — see lib/certification.js. */
+      ...sheetBoxes,
+      presidingOfficer: repName,
+      certification: sheet.parsed?.certification ?? null,
+      readBy: "HUMAN",
       filedBy: { name: person.name, coordinatorId: person.id },
       filedAt: new Date().toISOString(),
     },
   });
 
-  revalidatePath("/agent");
+  revalidatePath("/agent", "layout");
   revalidatePath("/admin");
   revalidatePath("/room");
 
@@ -733,19 +614,29 @@ export async function readAgentSheetPhoto(_previous, formData) {
   }
 
   /* What it is, not what it says it is. The type the browser sends is a claim,
-     and this one travels to DumpSite as the label on an exhibit — so it is read
+     and this one travels to Data Bank as the label on an exhibit — so it is read
      off the bytes here the same way the sign-up photograph is. */
   const sheetMime = sniffImage(bytes);
   if (!sheetMime) {
     return failed("That file is not a photograph this system can read. A picture from your phone's camera will work.");
   }
 
-  const project = await currentElection();
+  const project = await agentElection(person.unitCode);
   if (!project) {
     return failed("No election project is running, so a reading has nowhere to be saved.");
   }
 
   const race = String(formData.get("race") ?? "").toUpperCase();
+
+  /* Where the agent stood when they took the photograph. Corroboration only,
+     and absent rather than guessed when the phone did not share it. */
+  const lat = Number(formData.get("lat"));
+  const lon = Number(formData.get("lon"));
+  const position =
+    formData.get("lat") && Number.isFinite(lat) && Number.isFinite(lon)
+      ? { lat, lon, accuracy: Number(formData.get("accuracy")) || null }
+      : null;
+
   const read = await readSheet(bytes);
   if (!read.ok) return failed(read.reason ?? "That picture could not be read.");
 
@@ -779,7 +670,7 @@ export async function readAgentSheetPhoto(_previous, formData) {
      question anybody asks of a disputed figure.
 
      So the sheet goes as RESULT_SHEET carrying the image, and the reading
-     goes as RESULT_FIGURES carrying the same hash. DumpSite pairs them on
+     goes as RESULT_FIGURES carrying the same hash. Data Bank pairs them on
      that hash — see lib/taxonomy.js there, where the image is routed to
      Agent360 for custody and the figures to Poll360.
 
@@ -790,7 +681,7 @@ export async function readAgentSheetPhoto(_previous, formData) {
   const hash = createHash("sha256").update(bytes).digest("hex");
   const unitCode = person.unitCode ?? parsed.unitCode ?? null;
 
-  forwardToDumpSite({
+  forwardToDataBank({
     kind: KIND.RESULT_SHEET,
     externalId: `poll360:sheet:${hash}`,
     sender: person.phone ?? null,
@@ -806,12 +697,21 @@ export async function readAgentSheetPhoto(_previous, formData) {
          nothing to a tribunal. */
       image: bytes.toString("base64"),
       bytes: bytes.length,
+      /* The place in words — state, local government, ward, unit — so Data
+         Bank's Sheets board can group the photograph where it belongs. */
+      place: unitCode ? placeOf(unitCode) : null,
+      unitName: (unitCode ? placeOf(unitCode)?.unitName : null) ?? (await units.at(unitCode).catch(() => null))?.name ?? null,
+      /* ── ITS CUSTODY: WHO, WHERE, WHEN ─────────────────────────────────
+         Evidence is a photograph plus the person who took it, where they
+         were standing and the moment they took it. Data Bank's Sheets board
+         shows all three beside the picture. */
+      position,
       capturedBy: { name: person.name, coordinatorId: person.id },
       capturedAt: new Date().toISOString(),
     },
   });
 
-  forwardToDumpSite({
+  forwardToDataBank({
     kind: KIND.RESULT_FIGURES,
     externalId: `poll360:read:${id}`,
     sender: person.phone ?? null,
@@ -822,6 +722,11 @@ export async function readAgentSheetPhoto(_previous, formData) {
       race: isRace(race) ? race : null,
       electionId: project.id,
       figures: parsed,
+      /* The same reading laid onto this ballot and keyed by party, so the hub
+         does not need to know the reader's scanning order to find a figure. */
+      ballot: isRace(race) ? figuresForBallot(parsed, race) : null,
+      position,
+      capturedBy: { name: person.name, coordinatorId: person.id },
       /* Read by a machine, and said so. Nothing downstream may weigh this the
          way it weighs a figure a person typed off the sheet in their hand. */
       readBy: "MACHINE",
@@ -893,9 +798,10 @@ async function checkSheet(file, typed, shown = {}) {
           match,
           record: matchRecord(match),
           message: mismatchMessage(match, { channel: "web" }),
+          parsed: stored.parsed,
         };
       }
-      return { blocked: false, match, record: matchRecord(match), message: null };
+      return { blocked: false, match, record: matchRecord(match), message: null, parsed: stored.parsed };
     }
   }
 
@@ -922,8 +828,9 @@ async function checkSheet(file, typed, shown = {}) {
       match,
       record: matchRecord(match),
       message: mismatchMessage(match, { channel: "web" }),
+      parsed,
     };
   }
 
-  return { blocked: false, match, record: matchRecord(match), message: null };
+  return { blocked: false, match, record: matchRecord(match), message: null, parsed };
 }

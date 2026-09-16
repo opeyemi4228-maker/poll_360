@@ -232,6 +232,18 @@ export default async function RoomPage() {
       ? await liveTree({ electionId: project.id, race, territory })
       : null;
 
+  /* ── AND COMMAND'S OWN, FROM THE SAME SOURCE AS ITS BOARD ─────────────────
+     Command drills too, and without a tree of its own it fell back to the one
+     above — which on a demonstration project is no tree at all, so the room
+     divided the 2023 replay's declared totals down through every local
+     government, ward and booth and drew them under Command. A clean slate at
+     the country and last election's figures one click in. Built from exactly
+     what `commandBoard` is built from, so the two cannot tell different
+     stories: while the feed is off, both are empty. */
+  const commandTree = project
+    ? await liveTree({ electionId: commandLive ? project.id : null, race, territory })
+    : null;
+
   const feed = rawFeed.map((item) => ({
     ...item,
     /* Decrypted here and nowhere else: the situation room is one of the two
@@ -350,6 +362,7 @@ export default async function RoomPage() {
       command={
         commandBoard && {
           board: commandBoard,
+          tree: commandTree,
           spread: commandSpread,
           standings: commandView.standings,
           ticker: commandView.ticker,

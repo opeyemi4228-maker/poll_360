@@ -109,39 +109,6 @@ export const viewport = {
   viewportFit: "cover",
 };
 
-/* Structured data. The subject of this site is a piece of software, and the
-   `about` edge says plainly what it does, a parallel count, which is not an
-   official result. Search engines are one more surface where that distinction
-   has to hold. */
-const schema = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "SoftwareApplication",
-      "@id": `${site.url}#software`,
-      name: site.name,
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web",
-      description: site.description,
-      url: site.url,
-      areaServed: { "@type": "Country", name: "Nigeria" },
-      audience: {
-        "@type": "Audience",
-        audienceType:
-          "Election situation rooms, broadcasters, observer missions and campaigns",
-      },
-    },
-    {
-      "@type": "WebSite",
-      "@id": `${site.url}#website`,
-      url: site.url,
-      name: site.name,
-      inLanguage: "en-NG",
-      about: { "@id": `${site.url}#software` },
-    },
-  ],
-};
-
 /**
  * Deliberately not session-aware.
  *
@@ -253,11 +220,9 @@ export default function RootLayout({ children }) {
             until one of them has something to say. */}
         <AppShell />
 
-        <script
-          type="application/ld+json"
-          // Static object authored in this repo; no user input reaches it.
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
-        />
+        {/* Poll360's structured data lives in app/(site)/layout.jsx, on the
+            public site it describes — not here, where it would also be printed
+            into every page of the agents' app. */}
       </body>
     </html>
   );

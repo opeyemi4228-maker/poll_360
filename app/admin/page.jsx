@@ -23,7 +23,7 @@ import { results, audit, accessRequests, users, sheetReads } from "@/lib/db";
 import { health, integrations } from "@/lib/system";
 import { ROLES } from "@/lib/roles";
 import { integrityOf } from "@/lib/anomalies";
-import { coordinators } from "@/lib/coordinators";
+import { agentCounts } from "@/lib/databank-agents";
 import { ledger } from "@/lib/ledger";
 import { formatNumber, formatShare } from "@/lib/utils";
 
@@ -112,7 +112,7 @@ export default async function AdminPage() {
     /* Only the count here. The queue itself has its own page now — see the
        banner below — and fetching forty rows to render a number was work done
        on every load of the busiest screen in the product for nothing. */
-    coordinators.waitingCount(),
+    agentCounts().then((tally) => tally?.PENDING ?? 0),
     /* Whether this deployment is fit to hold a real election. Asked with the
        rest rather than after them: it is a couple of counts, and it is the
        one answer on this page that nothing else on the page can reveal. */
@@ -403,7 +403,7 @@ export default async function AdminPage() {
           label="Waiting to be let in"
           value={formatNumber(waiting + requestsWaiting)}
           tone={waiting + requestsWaiting ? "alert" : "default"}
-          context={`${formatNumber(waiting)} coordinators, ${formatNumber(requestsWaiting)} access requests`}
+          context={`${formatNumber(waiting)} agents, ${formatNumber(requestsWaiting)} access requests`}
         />
       </div>
 

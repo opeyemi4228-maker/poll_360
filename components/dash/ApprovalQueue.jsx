@@ -2,39 +2,36 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Check, Loader2, MapPin, TriangleAlert, UserRoundCheck, X } from "lucide-react";
+import { Check, KeyRound, Loader2, MapPin, TriangleAlert, UserRoundCheck, X } from "lucide-react";
 
 import Button from "@/components/ui/Button";
 import { approveCoordinator, declineCoordinator } from "@/app/admin/actions";
 import { cn } from "@/lib/utils";
 
 /**
- * Coordinators waiting to be let in.
+ * Agents waiting to be approved, from Data Bank's list.
  *
  * ── THE ONE SCREEN WHERE A TYPO IS WORTH CATCHING ──────────────────────────
- * Everything on a sign-up form can be fixed later except the polling unit,
- * because the unit is what every figure that account ever files will be
- * attached to. A wrong code does not fail loudly: it files a real return
- * against a booth in the wrong ward, and the map looks entirely normal.
+ * Everything about an agent can be fixed later except the polling unit,
+ * because the unit is what every figure they file is attached to — and it is
+ * baked into the code they are about to be given. So the unit is printed in a
+ * field, ready to be corrected by the person approving, who is usually the one
+ * holding the appointment list.
  *
- * So the unit is not printed here as a fact, it is printed in a field, ready to
- * be corrected by the person approving — who is usually the one holding the
- * appointment list. Approving without touching it keeps what they typed.
- *
- * ── AND WHY DECLINING IS NOT A DELETE ──────────────────────────────────────
- * A declined application stays on the record, marked declined. The alternative
- * is somebody signing up again an hour later and arriving in the queue looking
- * like a new name nobody has seen before.
- * ───────────────────────────────────────────────────────────────────────────
+ * ── AND THE CODE IS SHOWN HERE, ONCE ───────────────────────────────────────
+ * Approving is what issues an agent's code. Data Bank keeps only a fingerprint
+ * of it, so this is the only moment anybody can read it: the row turns into
+ * the code, large, with the instruction to hand it to the agent. Lose it and
+ * the agent is given a new one.
  */
-export default function ApprovalQueue({ waiting = [] }) {
+export default function ApprovalQueue({ waiting = [], signUpAddress }) {
   if (!waiting.length) {
     return (
       <div className="border-l-2 border-dash-line bg-dash-bg px-4 py-3.5">
         <p className="text-[0.875rem] leading-relaxed text-dash-muted">
-          Nobody is waiting. Coordinators who sign up at{" "}
-          <span className="figure text-dash-ink">/agent/join</span> appear here, and can file
-          nothing at all until somebody approves them.
+          Nobody is waiting. Agents from a party&rsquo;s uploaded list, and agents who sign up at{" "}
+          <span className="figure text-dash-ink">{signUpAddress}</span>, appear here. None of them
+          can sign in until they are approved and given a code.
         </p>
       </div>
     );
@@ -54,17 +51,31 @@ function Applicant({ person }) {
   const [declineState, decline] = useActionState(declineCoordinator, {});
   const [scope, setScope] = useState(person.scope ?? "");
 
-  /* Once dealt with, the row says what happened and stops offering the
-     buttons. The list itself is re-fetched on the next render of the page;
-     this is what the person who just clicked sees in the meantime. */
   if (approveState?.ok) {
     return (
-      <li className="flex items-start gap-3 py-4">
-        <Check size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-emerald-600" />
-        <p className="text-[0.875rem] text-dash-ink">
-          <span className="font-semibold">{approveState.name}</span> is approved for{" "}
-          <span className="figure">{approveState.scope}</span>. They can file from that booth now.
+      <li className="py-4">
+        <p className="flex items-start gap-2.5 text-[0.875rem] text-dash-ink">
+          <Check size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-emerald-600" />
+          <span>
+            <span className="font-semibold">{approveState.name}</span> is approved for{" "}
+            <span className="figure">{approveState.scope}</span>.
+          </span>
         </p>
+        {approveState.code && (
+          <div className="mt-3 rounded-dash-sm border-2 border-dash-ink bg-dash-bg p-4">
+            <p className="flex items-center gap-2 text-[0.8125rem] font-bold text-dash-ink">
+              <KeyRound size={15} strokeWidth={2.5} />
+              Give {approveState.name.split(" ")[0]} this code. It is shown only once.
+            </p>
+            <p className="figure mt-3 text-center text-[1.5rem] leading-none font-bold tracking-[0.08em] text-dash-ink select-all">
+              {approveState.code}
+            </p>
+            <p className="mt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
+              They sign in with it on the agents&rsquo; site, or by sending it to the WhatsApp desk. If
+              it is lost, they are given a new one and this one stops working.
+            </p>
+          </div>
+        )}
       </li>
     );
   }
@@ -75,7 +86,7 @@ function Applicant({ person }) {
         <X size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-dash-muted" />
         <p className="text-[0.875rem] text-dash-muted">
           <span className="font-semibold text-dash-ink">{declineState.declined}</span> was turned
-          down. The application stays on the record.
+          down. They stay on the list, marked as turned down.
         </p>
       </li>
     );
@@ -86,14 +97,14 @@ function Applicant({ person }) {
 
   return (
     <li className="py-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[0.9375rem] font-bold text-dash-ink">{person.name}</p>
-          <p className="figure mt-1 text-[0.8125rem] text-dash-muted">
-            {person.phoneTail ? `Phone ending ${person.phoneTail}` : person.email ?? "No contact"}
-            {person.waitingFor && ` · waiting ${person.waitingFor}`}
-          </p>
-        </div>
+      <div className="min-w-0">
+        <p className="text-[0.9375rem] font-bold text-dash-ink">{person.name}</p>
+        <p className="figure mt-1 text-[0.8125rem] text-dash-muted">
+          {person.phoneTail ? `Phone ending ${person.phoneTail}` : "No phone"}
+          {person.party && ` · ${person.party}`}
+          {person.sourceLabel && ` · ${person.sourceLabel.toLowerCase()}`}
+          {person.waitingFor && ` · waiting ${person.waitingFor}`}
+        </p>
       </div>
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
@@ -139,40 +150,14 @@ function Applicant({ person }) {
   );
 }
 
-/**
- * The nine digits, said in words.
- *
- * ── TWO KINDS OF NAME, AND THEY ARE NOT PRINTED ALIKE ──────────────────────
- * The state and the local government are read off the code itself, against
- * lists this product ships. They are facts about the number in the box beside
- * them, and they move when it is corrected.
- *
- * The ward and the booth are whatever the applicant wrote, because nobody here
- * holds INEC's ward or polling unit names. They are marked as their words, in
- * quotation marks, and set apart from the two above — an unchecked name
- * printed as though it came from the register is worse than no name at all,
- * because it reads as confirmation of the very digits it was typed beside.
- *
- * ── AND WHY THE FIRST TWO ARE NOT DERIVED IN THE BROWSER ───────────────────
- * They arrive already worked out. The local government names come off disk,
- * which is a thing only the server can do, and it is the same reason the
- * waiting time above is computed there.
- */
+/* The state and local government, read off the code on the server against the
+   lists this product ships. They move when the code is corrected. */
 function Where({ person }) {
   const placed = [person.stateName, person.lgaName].filter(Boolean);
-  const written = [person.wardName, person.unitName].filter(Boolean);
-
-  if (!placed.length && !written.length) return null;
-
+  if (!placed.length) return null;
   return (
-    <p className="mt-1.5 max-w-[26rem] text-[0.8125rem] leading-relaxed text-dash-muted">
-      {placed.length > 0 && <span className="text-dash-ink">{placed.join(" · ")}</span>}
-      {written.length > 0 && (
-        <>
-          {placed.length > 0 && " — "}
-          they wrote {written.map((name) => `“${name}”`).join(", ")}
-        </>
-      )}
+    <p className="mt-1.5 max-w-[26rem] text-[0.8125rem] leading-relaxed text-dash-ink">
+      {placed.join(" · ")}
     </p>
   );
 }
@@ -186,7 +171,7 @@ function Approve() {
       ) : (
         <UserRoundCheck size={14} strokeWidth={2.5} />
       )}
-      Approve
+      Approve and issue code
     </Button>
   );
 }

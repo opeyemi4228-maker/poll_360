@@ -34,6 +34,7 @@ export default function AppShell() {
   const [offline, setOffline] = useState(false);
   const [showIosHint, setShowIosHint] = useState(false);
   const [dismissed, setDismissed] = useState(true);
+  const [appName, setAppName] = useState("Poll360");
 
   /* ------------------------------------------------------ service worker */
   useEffect(() => {
@@ -121,6 +122,11 @@ export default function AppShell() {
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       setDismissed(localStorage.getItem(DISMISSED) === "1");
+      /* Offered under the name of the app this page belongs to: "Agents" on
+         the agents' app, Poll360 everywhere else. The page's own metadata
+         says which, so the offer can never install one app under the
+         other's name. */
+      setAppName(document.querySelector('meta[name="application-name"]')?.content || "Poll360");
 
       const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
       const standalone =
@@ -247,7 +253,7 @@ export default function AppShell() {
             <Download size={17} strokeWidth={2.5} className="shrink-0 text-red-600" />
 
             <p className="flex-1 text-[0.8125rem] leading-snug text-ink-950">
-              <span className="font-bold">Install Poll360.</span>{" "}
+              <span className="font-bold">Install {appName}.</span>{" "}
               <span className="text-content-muted">
                 {showIosHint ? (
                   <>

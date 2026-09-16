@@ -516,8 +516,11 @@ export default function ScopeMap({
            national level these shapes are local governments, which this data
            says nothing about, so they stay grey rather than inheriting a
            colour that would be a claim nobody has checked. */
+        /* Never on Command. Who governs a state is what came out of the last
+           election, and Command is a clean slate: a state our agents have not
+           filed from is grey there, however it voted before. */
         const held =
-          PARTY_LAYERS.has(layer) && code === null && level === "nation"
+          PARTY_LAYERS.has(layer) && layer !== "command" && code === null && level === "nation"
             ? (GOVERNS.get(shape.code) ?? null)
             : null;
 
@@ -857,7 +860,7 @@ function HoverCard({
            in the same breath. Anything vaguer and the map starts calling
            races nobody has counted. */
         <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
-          {(level === "nation" && GOVERNS.get(placeCode)) ? (
+          {(level === "nation" && layer !== "command" && GOVERNS.get(placeCode)) ? (
             <>
               No returns yet. The wash is{" "}
               <span className="font-bold text-dash-ink">{GOVERNS.get(placeCode)}</span>, who hold
@@ -1080,7 +1083,7 @@ export function describe(row, layer, slots = allParties) {
      nothing counted names who holds it, worded so it cannot be read as a
      result: "held by", never "leading". */
   if (row && row.reported === false) {
-    const holder = holderOf(row);
+    const holder = holderOf(row, layer);
     return holder ? `No returns yet · ${holder} hold it` : "No returns yet";
   }
   /* The class in words, then the margin that put it in that class. A reader
@@ -1099,7 +1102,7 @@ export function describe(row, layer, slots = allParties) {
   if (layer === "density") return `${formatNumber(row.density ?? 0)} votes per unit in`;
   const code = partyCode(row, slots);
   if (code) return `${code} leading · ${formatNumber(row.total)} votes`;
-  const holder = holderOf(row);
+  const holder = holderOf(row, layer);
   return holder ? `No returns yet · ${holder} hold it` : "No returns yet";
 }
 
@@ -1110,7 +1113,9 @@ export function describe(row, layer, slots = allParties) {
  * `key` below it, so this is a lookup that is allowed to miss: an LGA name
  * simply is not in the table, and a miss is the correct answer there.
  */
-function holderOf(row) {
+function holderOf(row, layer = null) {
+  /* Command never names an incumbent: it is a clean slate. See `held`. */
+  if (layer === "command") return null;
   const code = row?.code ?? row?.key;
   return code ? (GOVERNS.get(code) ?? null) : null;
 }

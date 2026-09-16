@@ -15,7 +15,7 @@ import Field from "./Field";
  *  Not a profile picture. Agent360's whole question is "was somebody actually
  *  standing there", and the answer to it starts with knowing what the person
  *  who was supposed to be standing there looks like. It reaches Agent360
- *  through DumpSite with the rest of the registration.
+ *  through Data Bank with the rest of the registration.
  *
  *  It is also what an administrator holds against the appointment list. A name
  *  and a booth code can be typed by anybody; a face is the thing a ward

@@ -5,6 +5,7 @@ import {
   issueAgentCode,
   looksLikeAgentCode,
   normaliseAgentCode,
+  readTypedAgentCode,
   unitOfAgentCode,
 } from "../lib/agent-code.js";
 import { parseUnitCode } from "../lib/units.js";
@@ -136,6 +137,34 @@ describe("reading a code somebody typed", () => {
     const code = issueAgentCode(BOOTH);
     assert.equal(normaliseAgentCode(code.slice(0, -1)), null);
     assert.equal(normaliseAgentCode(`${code}0`), null);
+  });
+});
+
+describe("telling somebody what is missing", () => {
+  it("recognises the polling unit number typed on its own", () => {
+    /* The commonest wrong thing in the box. It must be named as what it is, so
+       the form can say six more symbols come after it — and never accepted. */
+    for (const typed of ["33/01/01/001", "330101001", "33-0101001", " 33 01 01 001 "]) {
+      assert.equal(readTypedAgentCode(typed), "unit-only", `misread "${typed}"`);
+      assert.equal(normaliseAgentCode(typed), null);
+    }
+  });
+
+  it("says complete exactly when sign-in would accept it", () => {
+    const code = issueAgentCode(BOOTH);
+    for (const typed of [code, code.toLowerCase(), code.replaceAll("-", " ")]) {
+      assert.equal(readTypedAgentCode(typed), "complete");
+    }
+  });
+
+  it("tells apart half a code, too much, and words around it", () => {
+    const code = issueAgentCode(BOOTH);
+    assert.equal(readTypedAgentCode(""), "empty");
+    assert.equal(readTypedAgentCode("   "), "empty");
+    assert.equal(readTypedAgentCode("33-01"), "incomplete");
+    assert.equal(readTypedAgentCode(code.slice(0, -1)), "incomplete");
+    assert.equal(readTypedAgentCode(`${code}0`), "too-long");
+    assert.equal(readTypedAgentCode(`code: ${code}!`), "stray");
   });
 });
 

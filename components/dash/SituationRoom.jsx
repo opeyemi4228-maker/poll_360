@@ -965,6 +965,20 @@ export default function SituationRoom({
   const activeBoard = onCommand ? command.board : board;
   const activeCursor = onCommand ? command.board.events.length : cursor;
 
+  /* ── AND COMMAND IS A CLEAN SLATE ALL THE WAY DOWN ───────────────────────
+     The board swap above only ever covered the country. Every level beneath
+     it was built from `liveTree`, and where there was none — a demonstration
+     project — from the replay's declared state totals divided down through
+     real local governments, wards and booths. So a double click on a state
+     under Command opened last election's figures, which is exactly what this
+     screen must never show.
+
+     Command drills its own tree now, built on the server from the same feed
+     as its board, and never falls back to dividing anything: a place nobody
+     has filed from is empty. Past figures stay on Results. */
+  const activeTree = onCommand ? (command.tree ?? null) : liveTree;
+  const drillFiled = onCommand || Boolean(liveTree);
+
   const view = useMemo(
     () => snapshot(activeBoard, activeCursor),
     [activeBoard, activeCursor]
@@ -1084,7 +1098,7 @@ export default function SituationRoom({
            one is used is decided by the board rather than by the caller
            remembering. */
         const factor = reported ? boothsIn / Math.max(row.booths, 1) : 0;
-        const scaled = board.live
+        const scaled = activeBoard.live
           ? (live?.votes ?? [0, 0, 0, 0, 0])
           : reported
             ? row.votes.map((value) => Math.round(value * factor))
@@ -1094,7 +1108,7 @@ export default function SituationRoom({
         /* The slice of this state's register that has actually reported. Added
            up from the returns on a live board; estimated from coverage on the
            replay, which has no per-booth registers to add. */
-        const registerIn = board.live
+        const registerIn = activeBoard.live
           ? (live?.registered ?? 0)
           : reported
             ? Math.round(row.registered * (boothsIn / Math.max(row.booths, 1)))
@@ -1132,7 +1146,7 @@ export default function SituationRoom({
              is left null there rather than estimated — an invented
              accreditation figure on an election night is exactly the kind of
              number that gets quoted. */
-          accredited: board.live ? (live?.accredited ?? 0) : null,
+          accredited: activeBoard.live ? (live?.accredited ?? 0) : null,
           booths: boothsIn,
           fullBooths: row.booths,
           coverage: live?.coverage ?? 0,
@@ -1144,7 +1158,7 @@ export default function SituationRoom({
           density: boothsIn > 0 ? Math.round(scaledTotal / boothsIn) : 0,
         };
       }),
-    [inScope, view.byState, board.live]
+    [inScope, view.byState, activeBoard.live]
   );
 
   /* ── UNDERNEATH A STATE: FILED, OR APPORTIONED, NEVER BOTH ───────────────
@@ -1157,12 +1171,12 @@ export default function SituationRoom({
      The branch is on the tree being present rather than on a flag somebody has
      to remember to pass with it. */
   const liveStateNode = useMemo(
-    () => (liveTree && state ? liveNodeFor(liveTree, state.name) : null),
-    [liveTree, state]
+    () => (activeTree && state ? liveNodeFor(activeTree, state.name) : null),
+    [activeTree, state]
   );
 
   const lgaRows = useMemo(() => {
-    if (liveTree) return liveRowsFrom(liveStateNode);
+    if (drillFiled) return liveRowsFrom(liveStateNode);
     if (!stateData || !lgaShapes) return [];
 
     /* ── DIVIDED ACROSS THE STATE, THEN NARROWED. NOT THE OTHER WAY ROUND ──
@@ -1187,7 +1201,7 @@ export default function SituationRoom({
     return territory?.lgaNames?.length
       ? all.filter((row) => territory.lgaNames.includes(row.name))
       : all;
-  }, [liveTree, liveStateNode, stateData, lgaShapes, territory]);
+  }, [drillFiled, liveStateNode, stateData, lgaShapes, territory]);
 
   const liveLgaNode = useMemo(
     () => (liveStateNode && lga ? liveNodeFor(liveStateNode, lga.name) : null),
@@ -1195,7 +1209,7 @@ export default function SituationRoom({
   );
 
   const wardRows = useMemo(() => {
-    if (liveTree) return liveRowsFrom(liveLgaNode);
+    if (drillFiled) return liveRowsFrom(liveLgaNode);
     if (!lga) return [];
     const parent = lgaRows.find((row) => row.name === lga.name);
     if (!parent) return [];
@@ -1206,10 +1220,10 @@ export default function SituationRoom({
       registered: parent.registered,
       parentKey: `${state.code}:${lga.name}`,
     });
-  }, [liveTree, liveLgaNode, lga, lgaRows, state]);
+  }, [drillFiled, liveLgaNode, lga, lgaRows, state]);
 
   const unitRows = useMemo(() => {
-    if (liveTree) {
+    if (drillFiled) {
       return liveRowsFrom(liveLgaNode && ward ? liveNodeFor(liveLgaNode, ward.name) : null);
     }
     if (!ward) return [];
@@ -1230,7 +1244,7 @@ export default function SituationRoom({
       registered: parent.registered,
       parentKey: key,
     }).map((row) => ({ ...row, booths: 1, density: row.registered }));
-  }, [liveTree, liveLgaNode, ward, wardRows, state, lga]);
+  }, [drillFiled, liveLgaNode, ward, wardRows, state, lga]);
 
   const counts =
     level === "nation" ? nationRows : level === "state" ? lgaRows : level === "lga" ? wardRows : unitRows;
@@ -1258,7 +1272,7 @@ export default function SituationRoom({
      class it works out is written back onto the rows every surface below
      already reads. See useBrief in components/dash/Executive.jsx.
      ══════════════════════════════════════════════════════════════════════ */
-  const briefState = useBrief({ rows: counts, slots, level });
+  const briefState = useBrief({ rows: counts, slots, level, race });
 
   const rows = useMemo(() => {
     const intel = new Map(briefState.brief.places.map((place) => [place.key, place]));
@@ -1847,7 +1861,9 @@ export default function SituationRoom({
                dashboard, because the dashboard's name is already on the tab
                and a wall display is read by people who did not press it. */
             : layer === "analytics"
-              ? `${briefState.forParty ?? "This campaign"} in ${crumbs.at(-1).label} · 1999 to ${recordSpan.lastLabel}`
+              ? `${briefState.forParty ?? "This campaign"} in ${crumbs.at(-1).label}${
+                  race !== "PRESIDENTIAL" ? ` · ${seat?.raceLabel ?? race}` : ""
+                } · 1999 to ${recordSpan.lastLabel}`
               : layer === "planning"
                 ? territory
                   ? `Where to focus inside ${ground ?? territory.name}, and what covering it costs`
@@ -1973,6 +1989,22 @@ export default function SituationRoom({
           territory={territory}
           ground={ground ?? territory?.name ?? null}
           governing={{ ...governing, fct: FCT }}
+          /* The contest on the wall, and who holds this ground in it. Every
+             tab inside follows the same count the race switcher chose. */
+          race={race}
+          seat={seat}
+          /* The Overview draws on this room's own map: the same outlines,
+             the same trail, and the same walk one level down, so the brief
+             drills exactly where the results map does. */
+          map={{
+            level,
+            shapes: mapShapes,
+            outline: unitOutline,
+            loading,
+            crumbs,
+            onDrill: drill,
+            canDrill: level !== "ward",
+          }}
           onOpen={(row) => {
             /* Every row is a door, and the door leads to the map: the
                question after "which places" is always "where are they". */
@@ -2018,7 +2050,7 @@ export default function SituationRoom({
           winning, because that is the Results dashboard's job and duplicating
           it here would make three copies of one screen. */}
       <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
-        {metricsFor({ layer, level, scope, rows, view, trend, incidentCount, place: crumbs.at(-1).label, here: boothHere, pulse, principal, spread, benchmark }).map(
+        {metricsFor({ layer, level, scope, rows, view, trend, incidentCount, place: crumbs.at(-1).label, here: boothHere, pulse, principal, spread, benchmark: onCommand ? null : benchmark }).map(
           (metric) => (
             <Metric key={metric.label} {...metric} />
           )
@@ -2423,7 +2455,9 @@ export default function SituationRoom({
             <CommandBrief
               principal={principal}
               spread={command.spread}
-              benchmark={benchmark}
+              /* No benchmark: "what won in 2023" is a past result, and past
+                 results live on Results. Command reports this campaign's own
+                 count and nothing it did not file. */
               standings={view.standings}
               ballot={slots}
               total={view.total}

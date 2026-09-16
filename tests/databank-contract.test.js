@@ -8,7 +8,7 @@ import { describe, it } from "node:test";
  * ══════════════════════════════════════════════════════════════════════════
  *  THE FAILURE THIS CATCHES MAKES NO NOISE ANYWHERE
  *
- *  A registration went to DumpSite under `name`, and DumpSite's registration
+ *  A registration went to Data Bank under `name`, and Data Bank's registration
  *  handler reads `fullName`. Nothing failed. The post returned 200, the item
  *  was sealed, hashed into the evidence chain and routed to Agent360 — with a
  *  null where the person's name should be. The same three lines sent
@@ -33,7 +33,7 @@ import { describe, it } from "node:test";
 const ROOT = new URL("..", import.meta.url).pathname;
 
 /**
- * What DumpSite's registration handler reads out of a payload.
+ * What Data Bank's registration handler reads out of a payload.
  *
  * Taken from the INSERT in its lib/store/items.js. Restated here because that
  * file is in another repository and cannot be imported — which means this list
@@ -46,7 +46,7 @@ const HUB_READS = ["fullName", "phone", "nin", "pollingUnitCode", "wardCode", "l
 /** Of those, the ones this product actually knows at sign-up. */
 const MUST_SEND = ["fullName", "phone", "pollingUnitCode", "wardCode", "lgaCode", "stateCode", "role"];
 
-/** The payload object passed to `forwardToDumpSite` for a given kind. */
+/** The payload object passed to `forwardToDataBank` for a given kind. */
 function payloadFor(source, kind) {
   const start = source.indexOf(`kind: KIND.${kind},`);
   if (start < 0) return null;

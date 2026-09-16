@@ -20,16 +20,19 @@
     "build:constituencies": "node scripts/build-constituencies.mjs",
     "build:map": "node scripts/build-map.mjs",
     "build:icons": "node scripts/build-icons.mjs",
+    "build:strongholds": "node scripts/model-strongholds.mjs",
     "seed:demo": "node scripts/seed-demo.mjs",
     "seed:election": "node scripts/seed-election.mjs",
     "_comment:seed:adamawa": "One state, four campaigns. Creates the Adamawa project, loads the declared figures lib/adamawa.js holds, and issues four accounts pinned to a governorship, a senatorial district, a federal constituency and a local government. Prints their passwords once. Runs a dry run without --commit.",
     "seed:adamawa": "node --env-file=.env.local scripts/seed-adamawa.mjs",
     "verify:board": "node --env-file=.env.local scripts/verify-board.mjs",
     "demo:retire": "node --env-file=.env.local scripts/retire-demo-accounts.mjs",
-    "_comment:dumpsite:replay": "Sends DumpSite everything a bad night stopped from landing. Safe to run twice — the hub dedupes on the external id every row carries, so a repeat is recorded once.",
-    "dumpsite:replay": "node --env-file-if-exists=.env.local scripts/dumpsite-replay.mjs",
+    "_comment:databank:replay": "Sends Data Bank everything a bad night stopped from landing. Safe to run twice — the hub dedupes on the external id every row carries, so a repeat is recorded once.",
+    "databank:replay": "node --env-file-if-exists=.env.local scripts/databank-replay.mjs",
     "_comment:units": "Fetches INEC every ward and polling unit in Nigeria into public/geo/units/, one file per state, and refuses to write if the totals drift from the commission published 774 / 8,809 / 176,846.",
-    "units:import": "node scripts/import-units.mjs"
+    "units:import": "node scripts/import-units.mjs",
+    "_comment:agents:move": "Moves the agents this product held onto Data Bank’s agent list and issues codes to the approved ones. A dry run without --commit; with it, --out names the file the codes are written to, once.",
+    "agents:move": "node --env-file-if-exists=.env.local scripts/move-agents-to-databank.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

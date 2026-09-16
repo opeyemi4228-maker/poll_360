@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+import { agentUrl } from "@/lib/agent-address";
+
 /**
  * The waiting room moved, with the sign-up it belongs to.
  *
@@ -11,5 +13,5 @@ import { redirect } from "next/navigation";
 export const metadata = { robots: { index: false } };
 
 export default function PendingPage() {
-  redirect("/agent/pending");
+  redirect(agentUrl("/pending"));
 }

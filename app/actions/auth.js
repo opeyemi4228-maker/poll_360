@@ -115,7 +115,12 @@ export async function signIn(_previous, formData) {
 
   const ok = await verifyPassword(password, hash);
 
-  if (!user || !ok || user.disabledAt) {
+  /* ── STAFF ONLY ───────────────────────────────────────────────────────────
+     This is Poll360's sign-in, for staff. Agents sign in to their own app, on
+     their own domain, with a code — never here, and never with a password. An
+     agent account is refused with the same sentence as a wrong password, so
+     this form cannot be used to learn which numbers belong to agents. */
+  if (!user || !ok || user.disabledAt || user.role === "PU_AGENT") {
     /* Only now is the attempt spent. */
     consume(ipKey);
     consume(idKey);
@@ -128,6 +133,7 @@ export async function signIn(_previous, formData) {
   clearLimit(ipKey);
 
   const list = await headers();
+
   await createSession(user.id, {
     userAgent: list.get("user-agent") ?? undefined,
     remember: formData.get("remember") != null,

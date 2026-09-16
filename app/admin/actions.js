@@ -6,7 +6,7 @@ import { users, results, accessRequests } from "@/lib/db";
 import { ledger, CREDIT_KINDS } from "@/lib/ledger";
 import { hashPassword, passphrase } from "@/lib/password";
 import { requireCapability, log } from "@/lib/guard";
-import { coordinators } from "@/lib/coordinators";
+import { decideAgent } from "@/lib/databank-agents";
 import { currentElection, currentRace } from "@/lib/election-scope";
 import { ROLE_KEYS } from "@/lib/roles";
 import { isRace, raceLabel } from "@/lib/races";
@@ -191,86 +191,72 @@ export async function reviewResult(_previous, formData) {
 
 /* --------------------------------------------------------------- approvals */
 
+/* What went wrong, said to the administrator holding the appointment list. */
+const DECISION_ERRORS = {
+  "already-decided": "Somebody else dealt with this agent a moment ago. Reload the page.",
+  "not-found": "That agent is no longer on the list.",
+  "bad-unit": "That is not a polling unit code. Four parts, nine digits.",
+  duplicate: "This person is already on the list at that polling unit.",
+  "not-configured": "This deployment is not connected to Data Bank's agent list yet.",
+};
+const DECISION_FALLBACK = "Data Bank could not be reached, so nothing was decided. Try again in a minute.";
+
 /**
- * Let a coordinator in, or turn them down.
+ * Approve an agent on Data Bank's list, and issue their code.
  *
- * ── THE DECISION THAT DECIDES WHAT COUNTS ──────────────────────────────────
- * Approving an account is not administration. It is the moment somebody
- * becomes able to put figures into the count, which is the only thing this
- * product is for, so it sits behind the same capability as issuing an account
- * by hand and every call is written to the audit log with the actor on it.
+ * ── THE LIST IS DATA BANK'S; THE DECISION IS MADE HERE ─────────────────────
+ * The agent is not a row in this product. Approving sends the decision to
+ * Data Bank, which marks them approved and issues the code they will sign in
+ * with, and hands that code back exactly once — to this screen, for the
+ * administrator to give to the agent.
  *
- * ── THE BOOTH CAN BE CORRECTED ON THE WAY THROUGH ──────────────────────────
- * The single likeliest error on the sign-up form is the unit code: nine digits
- * copied off a form on a phone. The person approving is usually the person who
- * knows what it should have been, so they can put it right here rather than
- * declining somebody for a typo and asking them to sign up again.
+ * A corrected polling unit is checked here before it is sent, because the
+ * unit becomes the first half of the code and a wrong one would put every
+ * figure that agent files against a booth in the wrong ward.
  */
 export async function approveCoordinator(_previous, formData) {
   const admin = await requireCapability("accounts:issue", "/admin");
 
   const id = String(formData.get("id") ?? "");
-  const applicant = await coordinators.byId(id);
-  if (!applicant) return { error: "That application no longer exists." };
-  if (applicant.status !== "PENDING") {
-    return { error: `${applicant.name} has already been dealt with.` };
-  }
-
-  /* Blank means "leave it as they typed it". A correction is checked to be a
-     real unit code before it replaces one, because an approval that quietly
-     wrote nonsense into the booth would produce a coordinator who can file and
-     a unit that matches nothing on the map. */
   const typed = String(formData.get("scope") ?? "").trim();
-  let unitCode = null;
 
-  if (typed && typed !== applicant.unitCode) {
+  let unitCode = null;
+  if (typed) {
     if (!isUnitCode(typed)) {
       return { errors: { scope: "That is not a polling unit code. Four parts, nine digits." } };
     }
     unitCode = parseUnitCode(typed).code;
   }
 
-  const person = await coordinators.approve(id, { by: admin.id, unitCode });
+  const result = await decideAgent({ id, decision: "APPROVE", unitCode, by: admin.name ?? admin.id });
+  if (!result.ok) return { error: DECISION_ERRORS[result.error] ?? DECISION_FALLBACK };
 
-  /* ── THE UPDATE IS CONDITIONAL, SO THE RESULT HAS TO BE CHECKED ─────────
-     `approve` only touches a row that is still PENDING, which is what stops
-     two administrators working the queue at once from each approving the same
-     person and the second silently overwriting the first's correction to the
-     booth. That guard is worth nothing if nobody looks at what came back. */
-  if (!person || person.status !== "ACTIVE") {
-    return { error: `${applicant.name} was approved by somebody else a moment ago.` };
-  }
-
-  await log(admin, "coordinator:approved", person.id, {
-    unit: person.unitCode,
-    corrected: Boolean(unitCode),
-  });
+  await log(admin, "agent:approved", id, { unit: result.pollingUnitCode });
   revalidatePath("/admin");
   revalidatePath("/admin/coordinators");
 
-  return { ok: true, name: person.name, scope: person.unitCode };
+  return { ok: true, name: result.fullName, scope: result.pollingUnitCode, code: result.code };
 }
 
 /**
- * Turn somebody down.
+ * Turn an agent down.
  *
- * The row stays, marked. A refusal that deleted the application is a refusal
- * nobody can see afterwards, and the same person signing up again an hour
- * later would arrive in the queue looking like a name nobody had seen.
+ * They stay on Data Bank's list, marked. A refusal that deleted them is one
+ * nobody can see afterwards, and the same person arriving again in the next
+ * party file would look like a name nobody had seen.
  */
 export async function declineCoordinator(_previous, formData) {
   const admin = await requireCapability("accounts:issue", "/admin");
 
   const id = String(formData.get("id") ?? "");
-  const applicant = await coordinators.byId(id);
-  if (!applicant) return { error: "That application no longer exists." };
+  const result = await decideAgent({ id, decision: "DECLINE", by: admin.name ?? admin.id });
+  if (!result.ok) return { error: DECISION_ERRORS[result.error] ?? DECISION_FALLBACK };
 
-  await coordinators.decline(id, { by: admin.id });
-  await log(admin, "coordinator:declined", applicant.id, { unit: applicant.unitCode });
+  await log(admin, "agent:declined", id, { unit: result.pollingUnitCode });
   revalidatePath("/admin");
   revalidatePath("/admin/coordinators");
 
-  return { ok: true, declined: applicant.name };
+  return { ok: true, declined: result.fullName };
 }
 
 

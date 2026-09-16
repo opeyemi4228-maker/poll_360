@@ -1,5 +1,5 @@
 /**
- * Send the party's membership counts to DumpSite.
+ * Send the party's membership counts to Data Bank.
  *
  *   node scripts/share-members.mjs --party ADC
  *
@@ -34,12 +34,12 @@ const args = Object.fromEntries(
 );
 
 const PARTY = String(args.party ?? "ADC").toUpperCase();
-const URL_BASE = process.env.DUMPSITE_URL?.replace(/\/+$/, "");
-const KEY = process.env.DUMPSITE_MEMBERS_KEY ?? process.env.DUMPSITE_API_KEY;
+const URL_BASE = (process.env.DATABANK_URL ?? process.env.DUMPSITE_URL)?.replace(/\/+$/, "");
+const KEY = (process.env.DATABANK_MEMBERS_KEY ?? process.env.DUMPSITE_MEMBERS_KEY) ?? (process.env.DATABANK_API_KEY ?? process.env.DUMPSITE_API_KEY);
 
 if (!URL_BASE || !KEY) {
   console.error(
-    "DUMPSITE_URL and DUMPSITE_MEMBERS_KEY (or DUMPSITE_API_KEY) must both be set.\n" +
+    "DATABANK_URL and DATABANK_MEMBERS_KEY (or DATABANK_API_KEY) must both be set.\n" +
       "The key needs the members:write scope, which nothing else in this product uses."
   );
   process.exit(1);
@@ -64,12 +64,22 @@ for (const row of coverage().filter((entry) => entry.party === PARTY)) {
   const stateName = nameOf.get(row.stateCode) ?? register.state ?? row.stateCode;
   states += 1;
 
+  /* ── THE STATE'S SPLIT IS ROLLED UP, NOT READ ──────────────────────────
+     The registers carry a gender and age split against every local government
+     and against most wards, and none against the state itself. Sending the
+     state row with `split(register)` therefore sent nulls — and a board drawing
+     an empty Male column for all thirty-seven states, with the figures sitting
+     one level down, hides information it holds.
+
+     So it is summed from the local governments. Null only where every one of
+     them was null, which keeps "the source never said" distinguishable from
+     "the source said nought". */
   places.push({
     stateCode: row.stateCode,
     stateName,
     tier: "STATE",
     members: register.members ?? 0,
-    ...split(register),
+    ...rollUp(Object.values(register.lgas ?? {})),
   });
 
   for (const [lgaName, lga] of Object.entries(register.lgas ?? {})) {
@@ -108,6 +118,26 @@ for (const row of coverage().filter((entry) => entry.party === PARTY)) {
   }
 
   process.stderr.write(`  ${row.stateCode} ${stateName}\n`);
+}
+
+/**
+ * The split a place does not carry, summed from the places inside it.
+ *
+ * Returns null for a field where no child carried it, rather than nought: a
+ * state whose registers never recorded gender has not recorded nought women.
+ */
+function rollUp(children) {
+  const fields = ["male", "female", "ageU18", "age18to25", "age26to35", "age36to50", "ageOver50"];
+  const total = Object.fromEntries(fields.map((field) => [field, null]));
+
+  for (const child of children) {
+    const parts = split(child);
+    for (const field of fields) {
+      if (parts[field] === null || parts[field] === undefined) continue;
+      total[field] = (total[field] ?? 0) + parts[field];
+    }
+  }
+  return total;
 }
 
 /** The gender and age split, where the tier carried one. */
@@ -163,7 +193,7 @@ console.error(
 
 const response = await fetch(`${URL_BASE}/api/v1/members`, {
   method: "POST",
-  headers: { "x-dumpsite-key": KEY, "content-type": "application/json" },
+  headers: { "x-databank-key": KEY, "x-dumpsite-key": KEY, "content-type": "application/json" },
   body: JSON.stringify({
     party: PARTY,
     source: `Poll360 · ${states} state registers`,

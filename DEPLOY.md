@@ -24,6 +24,10 @@ Production, Preview and Development.
 | `DATABASE_URL` | **yes** | The Neon **pooled** connection string. Without it the app cannot start. |
 | `ENCRYPTION_KEY` | **yes** | 32 random bytes, base64. Seals phone numbers and message bodies at rest. |
 | `NEXT_PUBLIC_SITE_URL` | yes | `https://poll-360.vercel.app`, used for canonical URLs and the sitemap. |
+| `NEXT_PUBLIC_AGENT_URL` | optional | The agents' own domain, e.g. `https://poll360agents.com`. Add that domain to this same Vercel project, and set this for **Production only** — on previews the agent pages stay at `/agent`. Once set, the agents' pages are served at its root and `/agent/...` on the main site forwards there, while staff pages answer "not found" on it. Changing it needs a redeploy. To try it locally, set `http://agent.localhost:3001` in `.env.local` and restart `npm run dev`; browsers resolve `*.localhost` to this machine with no hosts-file edit. |
+| `DATABANK_AGENTS_KEY` | for agents | A key issued in Data Bank for `POLL360` with the scopes `agents:register`, `agents:approve` and `agents:confirm`. Agents sign in with a code only, and Data Bank confirms it; without this key no agent can sign in and the approval page cannot read the list. `DATABANK_URL` (or the older `DUMPSITE_URL`) must point at Data Bank. |
+| `AGENT360_URL` | optional | Agent360's address, for check-ins, the SOS and the day's record on the agents' app. Without it the app simply has no check-in section. |
+| `AGENT_DOOR_SECRET` | with `AGENT360_URL` | Any long random string. Agent360 holds the same value; it signs every request between the two. |
 | `WHATSAPP_VERIFY_TOKEN` | for WhatsApp | Any string you also paste into Meta's webhook setup. |
 | `WHATSAPP_APP_SECRET` | for WhatsApp | From the Meta app. Every delivery is signature checked against it. |
 | `WHATSAPP_TOKEN` | for WhatsApp | Meta access token, used to send replies and download photographs. |

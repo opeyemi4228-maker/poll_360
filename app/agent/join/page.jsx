@@ -5,9 +5,10 @@ import { ClipboardCheck, ShieldCheck, Smartphone } from "lucide-react";
 import AgentAuthForm from "@/components/agent/AgentAuthForm";
 import { joinAsAgent } from "@/app/agent/actions";
 import { currentCoordinator } from "@/lib/coordinator-session";
+import { agentPath } from "@/lib/agent-address";
 import { inecPlaces } from "@/lib/lga-names";
 
-export const metadata = { title: "Sign up — polling unit", robots: { index: false } };
+export const metadata = { title: "Sign up", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const STEPS = [
@@ -38,7 +39,7 @@ const STEPS = [
  */
 export default async function AgentJoinPage() {
   const person = await currentCoordinator();
-  if (person) redirect(person.canFile ? "/agent" : "/agent/pending");
+  if (person) redirect(agentPath(person.canFile ? "/" : "/pending"));
 
   /* ── THE PLACES, READ HERE AND PASSED DOWN ─────────────────────────────
      `inecPlaces` reads the boundary files off disk, so it cannot run in the
@@ -78,7 +79,7 @@ export default async function AgentJoinPage() {
 
       <p className="mt-8 border-t border-ink-200 pt-6 text-[0.9375rem] leading-relaxed text-content-muted">
         Already signed up?{" "}
-        <Link href="/agent/login" className="font-bold text-ink-950 underline underline-offset-4">
+        <Link href={agentPath("/login")} className="font-bold text-ink-950 underline underline-offset-4">
           Sign in
         </Link>
         .

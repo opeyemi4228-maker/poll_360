@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 
+import { agentUrl } from "@/lib/agent-address";
+
 /**
  * The coordinators' front door moved.
  *
@@ -25,5 +27,5 @@ import { redirect } from "next/navigation";
 export const metadata = { robots: { index: false } };
 
 export default function JoinPage() {
-  redirect("/agent/join");
+  redirect(agentUrl("/join"));
 }

@@ -7,7 +7,7 @@ import { sniffImage } from "../lib/image-bytes.js";
  * The bytes decide, not the label.
  *
  * This is the check standing between an agent's upload box and both the media
- * table and DumpSite, so what it refuses matters more than what it accepts.
+ * table and Data Bank, so what it refuses matters more than what it accepts.
  * The cases below are the ones that have actually been tried against upload
  * forms in the wild rather than a sweep of every format in existence.
  */

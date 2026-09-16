@@ -1,19 +1,28 @@
-import BrandMark from "@/components/ui/BrandMark";
+import AgentsMark from "@/components/agent/AgentsMark";
+import { AGENTS_APP, AGENTS_ICONS } from "@/lib/agents-app";
 
 /**
- * The coordinator's own chrome.
+ * The agents' app chrome: its own name, its own mark, its own install.
  *
- * ── NOT DashLayout, AND NOT THE MARKETING SITE ─────────────────────────────
- * Both of those are built for a desk: a sidebar of rooms, a masthead of
- * navigation, a footer of links. A coordinator has exactly one job and one
- * screen, reached on a phone, and every pixel spent on somewhere else to go is
- * a pixel taken from the form they came here to fill in.
+ * ── NOT POLL360 ────────────────────────────────────────────────────────────
+ * Agents use "Agents", on their own domain. The tab title, the home-screen
+ * name and icon, the header and the sign-in page all say so, and the metadata
+ * here replaces Poll360's for every agent page — see lib/agents-app.js.
  *
- * So the whole of this section is one column, one mark at the top, and nothing
- * that navigates anywhere except out.
+ * ── NOT A DESK EITHER ──────────────────────────────────────────────────────
+ * An agent has one polling unit and one phone. The chrome is one mark at the
+ * top and nothing that navigates anywhere else.
  */
 export const metadata = {
-  robots: { index: false },
+  title: { default: AGENTS_APP.name, template: `%s · ${AGENTS_APP.name}` },
+  description: AGENTS_APP.description,
+  applicationName: AGENTS_APP.name,
+  manifest: "/agents.webmanifest",
+  appleWebApp: { capable: true, title: AGENTS_APP.name, statusBarStyle: "default" },
+  icons: { icon: AGENTS_ICONS.favicon, apple: AGENTS_ICONS.apple },
+  openGraph: null,
+  twitter: null,
+  robots: { index: false, follow: false },
 };
 
 export default function AgentLayout({ children }) {
@@ -21,11 +30,9 @@ export default function AgentLayout({ children }) {
     <div className="min-h-screen bg-ink-50">
       <header className="border-b border-ink-200 bg-white">
         <div className="mx-auto flex h-16 w-full max-w-3xl items-center gap-3 px-5">
-          <BrandMark className="h-7 w-auto text-ink-950" />
-          <span className="text-[0.9375rem] font-bold text-ink-950">Poll360</span>
-          <span className="ml-auto text-[0.8125rem] font-semibold text-content-subtle">
-            Polling unit
-          </span>
+          <AgentsMark />
+          <span className="text-[1.0625rem] font-extrabold tracking-[-0.01em] text-ink-950">{AGENTS_APP.name}</span>
+          <span className="ml-auto text-[0.8125rem] font-semibold text-content-subtle">Polling unit</span>
         </div>
       </header>
       {children}

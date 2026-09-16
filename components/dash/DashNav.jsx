@@ -223,7 +223,6 @@ const SECTIONS = [
              actually asking for, computed once so the map beside them cannot
              disagree. See components/dash/Executive.jsx. */
           { href: "/room#executive", label: "Strategic brief", icon: Target, group: "Intelligence", capability: "gap:read" },
-          { href: "/room#historical", label: "Historical results", icon: Captions, group: "Intelligence", capability: "gap:read" },
           { href: "/room#priorities", label: "Where to focus", icon: Compass, group: "Intelligence", capability: "gap:read" },
         ],
       },

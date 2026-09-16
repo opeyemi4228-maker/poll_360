@@ -7,7 +7,7 @@ import { matchRecord, matchSheet } from "../lib/sheet-match.js";
  * The join between a photograph and the figures read off it.
  *
  * ══════════════════════════════════════════════════════════════════════════
- *  DumpSite pairs a result sheet with its figures on a content hash: the
+ *  Data Bank pairs a result sheet with its figures on a content hash: the
  *  image travels as RESULT_SHEET carrying the hash of its bytes, the numbers
  *  travel as RESULT_FIGURES carrying the same hash, and the hub joins them
  *  rather than holding a second copy of a six-megabyte photograph.
@@ -60,7 +60,7 @@ describe("what a match record carries", () => {
 
   it("does not carry the photograph's hash, on any path", () => {
     /* If this ever fails, somebody has added a hash to the comparison record.
-       That is fine — but the DumpSite forwards read `sheet.hash`, and two
+       That is fine — but the Data Bank forwards read `sheet.hash`, and two
        places holding one hash is how they come to disagree. Point them at the
        new one and delete this test rather than leaving both. */
     const agreed = matchRecord(matchSheet(reading(), typed));

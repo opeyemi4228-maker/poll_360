@@ -44,13 +44,13 @@ export default function FileReturns({
   action,
   readAction,
 }) {
-  /* Opens on the first position with nothing against it, which on a fresh
-     evening is the presidential and after three filings is the next one to do.
-     A screen that always opened on the first tab would make an agent who has
-     filed four click past all four to reach the fifth. */
-  const [race, setRace] = useState(
-    () => RACES.find((row) => !filed[row.id])?.id ?? RACES[0].id
-  );
+  /* ── NOTHING IS OPEN UNTIL A POSITION IS CHOSEN ───────────────────────────
+     The likeliest mistake of the evening is one ballot paper's figures filed
+     as another's, and a form that opened on a guessed position invites it:
+     the boxes are already on screen, so somebody starts filling them. With
+     nothing chosen, the first act here is saying which sheet is in their
+     hand, and only then does the upload box appear. */
+  const [race, setRace] = useState(null);
 
   /* What has been filed, as the screen knows it. Seeded from the server and
      updated in place when a return lands, so the tick appears the moment the
@@ -86,7 +86,7 @@ export default function FileReturns({
   }, [unitCode]);
 
   const done = useMemo(() => RACES.filter((row) => sent[row.id]).length, [sent]);
-  const current = RACES.find((row) => row.id === race) ?? RACES[0];
+  const current = RACES.find((row) => row.id === race) ?? null;
 
   return (
     <div className="space-y-5">
@@ -169,37 +169,47 @@ export default function FileReturns({
       </div>
 
       {/* -------------------------------------------------------- the form */}
-      <div className="rounded-dash border border-dash-line bg-dash-card p-5">
-        <div className="mb-5 border-b border-dash-line pb-4">
-          <h3 className="font-display text-[1.125rem] leading-none font-extrabold tracking-[-0.02em] text-dash-ink">
-            {current.label}
-          </h3>
-          <p className="mt-2 text-[0.875rem] leading-relaxed text-dash-muted">
-            {sent[current.id]
-              ? `Already sent from this booth. Filing again replaces that return and sends it back to be checked.`
-              : `${current.elects}. Counted at this booth, collated into ${current.collatedInto}.`}
+      {!current ? (
+        <div className="rounded-dash border-2 border-dashed border-dash-line bg-dash-bg px-5 py-9 text-center">
+          <p className="text-[1rem] font-bold text-dash-ink">Choose which result you are sending</p>
+          <p className="mx-auto mt-1.5 max-w-md text-[0.875rem] leading-relaxed text-dash-muted">
+            Pick the position printed at the top of the sheet in your hand. The upload box opens as soon
+            as you do.
           </p>
         </div>
+      ) : (
+        <div className="rounded-dash border border-dash-line bg-dash-card p-5">
+          <div className="mb-5 border-b border-dash-line pb-4">
+            <h3 className="font-display text-[1.125rem] leading-none font-extrabold tracking-[-0.02em] text-dash-ink">
+              {current.label}
+            </h3>
+            <p className="mt-2 text-[0.875rem] leading-relaxed text-dash-muted">
+              {sent[current.id]
+                ? `Already sent from this booth. Filing again replaces that return and sends it back to be checked.`
+                : `${current.elects}. Counted at this booth, collated into ${current.collatedInto}.`}
+            </p>
+          </div>
 
-        {/* Remounted per position, so no figure can survive a switch. */}
-        <FileResultForm
-          key={`${unitCode ?? "unassigned"}:${current.id}`}
-          race={current.id}
-          /* Undefined here means "use the staff action", which is what every
-             caller but the coordinator dashboard wants. Passing it explicitly
-             as undefined rather than omitting it would defeat the default.
+          {/* Remounted per position, so no figure can survive a switch. */}
+          <FileResultForm
+            key={`${unitCode ?? "unassigned"}:${current.id}`}
+            race={current.id}
+            /* Undefined here means "use the staff action", which is what every
+               caller but the coordinator dashboard wants. Passing it explicitly
+               as undefined rather than omitting it would defeat the default.
 
-             The same is true of `readAction` below: the coordinator dashboard
-             passes its own, because the staff one authenticates against a
-             table a coordinator is not in. */
-          {...(action ? { action } : {})}
-          {...(readAction ? { readAction } : {})}
-          unitCode={unitCode}
-          canNameUnit={canNameUnit}
-          existing={filed[current.id]?.row ?? null}
-          onFiled={onFiled}
-        />
-      </div>
+               The same is true of `readAction` below: the coordinator dashboard
+               passes its own, because the staff one authenticates against a
+               table a coordinator is not in. */
+            {...(action ? { action } : {})}
+            {...(readAction ? { readAction } : {})}
+            unitCode={unitCode}
+            canNameUnit={canNameUnit}
+            existing={filed[current.id]?.row ?? null}
+            onFiled={onFiled}
+          />
+        </div>
+      )}
 
       {/* ── WHAT THIS DESK HAS ACTUALLY PUT IN ───────────────────────────────
           Only for an account filing on behalf of booths it is not standing at.

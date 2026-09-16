@@ -17,8 +17,8 @@ import { validateReturn } from "@/lib/results";
 import { figuresForBallot, readSheet, trustworthy, visionAvailable } from "@/lib/sheet-vision";
 import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
 /* The hub every input this product receives is also delivered to. Never
-   awaited on an agent's path — see lib/dumpsite.js. */
-import { KIND, forwardToDumpSite } from "@/lib/dumpsite";
+   awaited on an agent's path — see lib/databank.js. */
+import { KIND, forwardToDataBank } from "@/lib/databank";
 
 /**
  * Filing from a booth.
@@ -230,6 +230,7 @@ export async function fileResult(_previous, formData) {
     position,
     note: String(formData.get("note") ?? "").trim().slice(0, 500) || null,
     submittedBy: agent.id,
+    repName: String(formData.get("repName") ?? "").trim().slice(0, 120) || null,
     /* How it got here, kept on the row. A return typed by the agent standing
        at the booth and one read down the phone to a desk are both returns and
        they are not equally direct, and a screen that could not tell them apart
@@ -274,20 +275,20 @@ export async function fileResult(_previous, formData) {
   });
 
   /* ── AND ON TO THE HUB ──────────────────────────────────────────────────
-     The field form was the one filing path that did not reach DumpSite. The
+     The field form was the one filing path that did not reach Data Bank. The
      agent app forwarded its returns and the WhatsApp webhook forwarded its
      messages, so the archive held everything except the returns typed by the
      agents actually standing at the booths — the largest source on the night,
      and the one a tribunal would ask for first.
 
-     Same shape as app/agent/actions.js deliberately: DumpSite classifies on
+     Same shape as app/agent/actions.js deliberately: Data Bank classifies on
      the payload it is handed, and two filing paths describing one kind of
      thing two ways is how a classifier comes to route half of them wrongly.
 
      After the return is committed and after the audit line, never before, and
      never awaited. A hub having a bad night must cost an agent nothing — see
-     lib/dumpsite.js. */
-  forwardToDumpSite({
+     lib/databank.js. */
+  forwardToDataBank({
     kind: KIND.RESULT_FIGURES,
     /* Stable across an amendment, so re-filing a corrected figure updates the
        hub's record of this booth rather than adding a second one. */
@@ -318,6 +319,10 @@ export async function fileResult(_previous, formData) {
           ? "agreed"
           : `not compared: ${sheet.record.reason ?? "unknown"}`,
       amended,
+      /* The rest of the sheet, as the agent app sends it — same shape, so the
+         hub reads both filing paths one way. */
+      ...sheetBoxes,
+      presidingOfficer: String(formData.get("repName") ?? "").trim().slice(0, 120) || null,
       filedBy: { id: agent.id, name: agent.name ?? null },
       filedAt: new Date().toISOString(),
     },
@@ -432,11 +437,11 @@ async function checkAgainstSheet(photo, typed, shown = {}) {
 /* ── THE HASH THAT MAKES A SHEET AND ITS FIGURES ONE RECORD ───────────────
    Both this and its twin returned a `record` from matchRecord(), which
    carries `compared`, `agrees`, `checked`, `mismatched` and `reason` — and no
-   hash. Every DumpSite forward then read `sheet.record?.hash`, which is
+   hash. Every Data Bank forward then read `sheet.record?.hash`, which is
    always undefined, so the figures went to the hub with an empty
    `mediaHashes` while the photograph went with a real one.
 
-   The effect was silent and total: DumpSite pairs an image with the numbers
+   The effect was silent and total: Data Bank pairs an image with the numbers
    read off it *on that hash*, so no return filed through this product could
    ever be paired with its own evidence. The comment at the forward site said
    the pairing happened; nothing did it.
@@ -641,7 +646,7 @@ export async function reportIncident(_previous, formData) {
   await log(agent, "incident:reported", agent.scope, { kind, severity });
 
   /* ── THE ONE KIND THE HUB WAS NOT RECEIVING AT ALL ──────────────────────
-     Registrations, figures and sheets all reached DumpSite; situation reports
+     Registrations, figures and sheets all reached Data Bank; situation reports
      did not. That is the wrong one to be missing. A late-opening report costs
      a booth; a ballot-snatching report is the thing the whole archive exists
      to hold, and it was the only kind with no copy outside this database.
@@ -657,7 +662,7 @@ export async function reportIncident(_previous, formData) {
      The photograph is not sent either, for a duller reason: it is attached
      after this line and may fail, and forwarding a hash for an image that was
      never stored would leave the hub pairing against nothing. */
-  forwardToDumpSite({
+  forwardToDataBank({
     kind: KIND.SITUATION_REPORT,
     externalId: `poll360:incident:${incidentId}`,
     sender: agent.phone ?? null,

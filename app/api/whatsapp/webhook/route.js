@@ -2,8 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { handleInbound } from "@/lib/whatsapp-bot";
 /* Everything that arrives by phone is also delivered to the hub that seals,
-   classifies and routes it. Never awaited — see lib/dumpsite.js. */
-import { KIND as DUMP_KIND, forwardToDumpSite } from "@/lib/dumpsite";
+   classifies and routes it. Never awaited — see lib/databank.js. */
+import { KIND as DUMP_KIND, forwardToDataBank } from "@/lib/databank";
 
 import { whatsapp } from "@/lib/db";
 
@@ -128,7 +128,7 @@ export async function POST(request) {
 
           /* ── AND ON TO THE HUB ────────────────────────────────────────
              Everything that arrives by phone, whether or not this bot could
-             act on it. DumpSite classifies it — a situation report, a figure,
+             act on it. Data Bank classifies it — a situation report, a figure,
              a registration, or an unknown for a human to look at — which is
              the job it exists to do and one this webhook should not be
              attempting on its own.
@@ -140,8 +140,8 @@ export async function POST(request) {
              attested device. Sending `channel` at the door is what stops that.
 
              Never awaited — this webhook has to return 200 quickly or Meta
-             retries and eventually drops the channel. See lib/dumpsite.js. */
-          forwardToDumpSite({
+             retries and eventually drops the channel. See lib/databank.js. */
+          forwardToDataBank({
             kind: DUMP_KIND.MESSAGE,
             externalId: `poll360:wa:${message.id}`,
             sender: phone,

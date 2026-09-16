@@ -91,6 +91,16 @@ const OFFERED = [
    between them, which is the only figure that says which of the two you are
    looking at.
    ══════════════════════════════════════════════════════════════════════════ */
+/* What each strength band means, in the words the key prints under its name.
+   The long form is `why` in lib/members.js, shown when a band is hovered. */
+const BAND_MEANS = {
+  HEAVY: "More than twice an even share",
+  ABOVE: "One to two even shares",
+  BELOW: "Half to one even share",
+  THIN: "Under half an even share",
+  BARE: "Fewer than 10 members",
+};
+
 const BASIS = [
   { id: "register", label: "Party register", what: "How many of our people are here." },
   { id: "result", label: "Last election", what: "How the place actually voted." },
@@ -105,6 +115,16 @@ export default function PartyGround({ shapes = null }) {
   const [against, setAgainst] = useState("PDP");
   const [party, setParty] = useState("ADC");
   const [stateCode, setStateCode] = useState("SOK");
+  /* Which tier the map is drawing: the country, or the state above `path`.
+     Declared here with the rest of the state because the figures below are
+     computed from it — read further down, it was in its temporal dead zone
+     and the screen threw before it drew anything.
+
+     ── AND IT OPENS ON THE COUNTRY ────────────────────────────────────────
+     It opened on one state when one state was all there was. The register
+     covers every state now, so the first thing on the screen is the national
+     picture and a state is something you press into. */
+  const [atNation, setAtNation] = useState(true);
   const [path, setPath] = useState([]);
   const [hovered, setHovered] = useState(null);
   /* Where the pointer is inside the map frame, so the card can sit beside it
@@ -144,7 +164,11 @@ export default function PartyGround({ shapes = null }) {
 
   const detailed = hasDetail(party, stateCode);
 
-  const held = useMemo(() => coverage(), []);
+  /* This party's registers only. `coverage()` answers for every party that has
+     one, and feeding all of them to the national map, the picker and the
+     totals would draw one party's states in another party's colour the moment
+     a second register is imported. */
+  const held = useMemo(() => coverage().filter((row) => row.party === party), [party]);
 
   /* What the whole register covers, for a caption that has to be exactly
      true. Summed from the index rather than typed, so it stays right when the
@@ -162,7 +186,13 @@ export default function PartyGround({ shapes = null }) {
     [held]
   );
   const register = registerFor(party, stateCode);
-  const quality = useMemo(() => qualityOf(party, stateCode), [party, stateCode]);
+  /* Beside the national map, the whole register's defects; inside a state,
+     that state's. The panel sits next to a figure and has to caveat the
+     figure that is actually on screen. */
+  const quality = useMemo(
+    () => qualityOf(party, atNation ? null : stateCode),
+    [party, stateCode, atNation]
+  );
 
   /* `tick` is a dependency of every figure below a local government: those
      read from the state file, and the state file arrives after the render
@@ -172,24 +202,22 @@ export default function PartyGround({ shapes = null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [party, stateCode, path, tick]
   );
-  const members = membersAt(party, stateCode, path);
+  /* ── AND SO DOES THE FIGURE ────────────────────────────────────────────
+     At the country this is every member in every register imported, summed
+     from the index. Reading it off the selected state instead is what put
+     one state's 66,474 under a map of 28. */
+  const members = atNation ? national.members : membersAt(party, stateCode, path);
   /* Below a local government with no state file yet: unknown, not empty. */
   const awaitingDetail = path.length >= 1 && !detailed;
-  const votes = votesAt(party, stateCode, path);
+  /* No national vote is held for a party here: `votesAt` answers per state,
+     and the 2023 table keeps the ADC inside its "other" column, so there is
+     nothing to sum that would be this party's. Unknown, and it says why. */
+  const votes = atNation ? { known: false, why: "national" } : votesAt(party, stateCode, path);
   const covered = coveredStates(party);
   const ratio = useMemo(
     () => (basis === "register" ? null : ratioAt(party, stateCode, against, path)),
     [basis, party, stateCode, against, path]
   );
-
-  /* Which tier the map is drawing. `path` is [] at the country, [lga] inside a
-     state, [lga, ward] inside a local government. The state itself is fixed by
-     the picker, so the country tier is only reachable as a way back out. */
-  /* ── THE MAP OPENS ON THE COUNTRY ──────────────────────────────────────
-     It opened on one state when one state was all there was. The register now
-     covers all 37, so the first thing on the screen is the national picture
-     and a state is something you press into. */
-  const [atNation, setAtNation] = useState(true);
 
   useEffect(() => {
     if (!stateCode || atNation) return undefined;
@@ -218,14 +246,22 @@ export default function PartyGround({ shapes = null }) {
   const biggest = rows[0]?.members ?? 1;
   const fill = PARTY_FILL[party] ?? "var(--color-dash-ink)";
 
-  const crumbs = [
-    { label: "Nigeria", go: () => setAtNation(true) },
-    { label: register?.state ?? stateCode, go: () => { setAtNation(false); setPath([]); } },
-    ...path.map((name, index) => ({
-      label: name,
-      go: () => { setAtNation(false); setPath(path.slice(0, index + 1)); },
-    })),
-  ];
+  /* ── THE TRAIL ENDS WHERE YOU ARE STANDING ─────────────────────────────
+     It used to carry the selected state whether or not the map was showing
+     it, so the country view read "Nigeria › Sokoto" over a map of all 37
+     states — and the footer under that map, which prints the last crumb and
+     the figure beside it, said "Sokoto, 66,474 ADC members" while the reader
+     was plainly looking at the whole country. */
+  const crumbs = atNation
+    ? [{ label: "Nigeria", go: () => setAtNation(true) }]
+    : [
+        { label: "Nigeria", go: () => setAtNation(true) },
+        { label: register?.state ?? stateCode, go: () => { setAtNation(false); setPath([]); } },
+        ...path.map((name, index) => ({
+          label: name,
+          go: () => { setAtNation(false); setPath(path.slice(0, index + 1)); },
+        })),
+      ];
 
   /* ── WHAT THE HOVER CARD IS ABOUT ─────────────────────────────────────
      The place under the pointer, at whatever tier is drawn, with its own
@@ -254,6 +290,27 @@ export default function PartyGround({ shapes = null }) {
     const shape = lgaShapes.lgas.find((row) => row.name === path[0]);
     return shape ? [shape.d] : [];
   }, [lgaShapes, path]);
+
+  /* ── THE KEY, COUNTED ON THE RULE THE MAP IS PAINTED WITH ──────────────
+     At the country a state's share is of every member counted and the even
+     split is across the states covered — exactly what `Nation` paints. Inside
+     a state it is the rows on screen. One computation, so the number beside a
+     colour is always how many shapes on the map carry it. */
+  const coveredCount = covered.length;
+  const legend = useMemo(() => {
+    const whole = held.reduce((sum, row) => sum + row.members, 0) || 1;
+    const places = atNation
+      ? held.map((row) => ({ members: row.members, share: (row.members / whole) * 100 }))
+      : rows;
+    const siblings = atNation ? coveredCount : rows.length;
+    const counts = Object.fromEntries(STRENGTH.map((band) => [band.id, 0]));
+    for (const row of places) {
+      const band = strengthBand(row.members, row.share, siblings);
+      if (band) counts[band] += 1;
+    }
+    const tier = atNation ? "state" : TIER_LABEL[childTier(path)].toLowerCase();
+    return { counts, siblings, even: siblings > 0 ? 100 / siblings : 100, tier };
+  }, [atNation, held, rows, coveredCount, path]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -421,9 +478,11 @@ export default function PartyGround({ shapes = null }) {
               says={
                 members === null
                   ? "No register imported for this party."
-                  : path.length === 0
-                    ? `Across the whole ${register.state} register.`
-                    : `In ${path[path.length - 1]}.`
+                  : atNation
+                    ? `Across every ${party} register imported — ${held.length} state${held.length === 1 ? "" : "s"}.`
+                    : path.length === 0
+                      ? `Across the whole ${register.state} register.`
+                      : `In ${path[path.length - 1]}.`
               }
             />
 
@@ -439,7 +498,9 @@ export default function PartyGround({ shapes = null }) {
                     ? `No Nigerian election publishes a vote below the state, so there is none to show. Dividing ${register.state}'s total among its wards would look precise and be invented.`
                     : votes.why === "in-other"
                       ? `Inside the "other" column of the 2023 state table — ${formatNumber(votes.bucket)} votes shared with every minor party.`
-                      : "Not held for this place."
+                      : votes.why === "national"
+                        ? "The published vote is held state by state. Open a state to see its."
+                        : "Not held for this place."
               }
             />
           </div>
@@ -514,8 +575,8 @@ export default function PartyGround({ shapes = null }) {
                   looking at", and stacking them keeps each to one line. */}
               <p className="border-b border-board-line px-4 py-2 text-[0.75rem] text-white/45">
                 {atNation
-                  ? "Only states with a register loaded are drawn. Press one to go in."
-                  : `Darker is more ${party} members · press a place to go in`}
+                  ? `Each state is coloured by how strong the ${party} register is there — the key is under the map. Press one to go in.`
+                  : `Each place is coloured by how strong the ${party} register is there — the key is under the map. Press one to go in.`}
               </p>
 
               <div
@@ -628,28 +689,61 @@ export default function PartyGround({ shapes = null }) {
                   A banded map without a key is a map of colours nobody can
                   read. Every band carries its own count of places, so the key
                   is also the answer to "how many of these are weak". */}
-              {!atNation && rows.length > 0 && (
-                <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-board-line px-5 py-2.5">
-                  {STRENGTH.map((band) => {
-                    const count = rows.filter(
-                      (row) => strengthBand(row.members, row.share, rows.length) === band.id
-                    ).length;
-                    if (!count) return null;
-                    return (
-                      <li key={band.id} className="flex items-center gap-1.5" title={band.why}>
+              {/* ── A KEY ON EVERY TIER, INCLUDING THE COUNTRY ─────────────
+                  It was a row of band names inside a state and nothing at all
+                  on the national map, which is the first thing anybody sees.
+                  Every band now says in plain words what it means, how many
+                  places on the map carry it, and what "an even share" is at
+                  this level — the yardstick every band is measured against. */}
+              {(atNation || rows.length > 0) && (
+                <div className="border-t border-board-line px-5 py-3">
+                  <p className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                    <span className="text-[0.625rem] font-bold tracking-[0.1em] text-white/60 uppercase">
+                      What the colours mean
+                    </span>
+                    <span className="text-[0.6875rem] text-white/50">
+                      {party} members in each {legend.tier}, against an even split of{" "}
+                      <span className="figure font-bold text-white/80">{formatShare(legend.even)}</span> each
+                      across {formatNumber(legend.siblings)} {legend.tier}
+                      {legend.siblings === 1 ? "" : "s"}
+                    </span>
+                  </p>
+                  <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 2xl:grid-cols-6">
+                    {[...STRENGTH].reverse().map((band) => (
+                      <li key={band.id} className="flex items-start gap-2" title={band.why}>
                         <span
                           aria-hidden="true"
-                          className="size-2.5 shrink-0 rounded-[2px]"
+                          className="mt-0.5 size-3 shrink-0 rounded-[3px]"
                           style={{ background: band.fill }}
                         />
-                        <span className="text-[0.6875rem] text-white/55">{band.label}</span>
-                        <span className="figure text-[0.6875rem] font-bold text-white tabular-nums">
-                          {count}
+                        <span className="min-w-0 leading-tight">
+                          <span className="flex items-baseline gap-1.5 text-[0.75rem] font-bold text-white">
+                            {band.label}
+                            <span className="figure text-[0.6875rem] text-white/60 tabular-nums">
+                              {formatNumber(legend.counts[band.id])}
+                            </span>
+                          </span>
+                          <span className="block text-[0.625rem] text-white/50">{BAND_MEANS[band.id]}</span>
                         </span>
                       </li>
-                    );
-                  })}
-                </ul>
+                    ))}
+                    <li className="flex items-start gap-2">
+                      <span
+                        aria-hidden="true"
+                        className="mt-0.5 size-3 shrink-0 rounded-[3px] ring-1 ring-white/15"
+                        style={{ background: "var(--color-silent)" }}
+                      />
+                      <span className="leading-tight">
+                        <span className="block text-[0.75rem] font-bold text-white">
+                          {atNation ? "No register" : "None recorded"}
+                        </span>
+                        <span className="block text-[0.625rem] text-white/50">
+                          Not counted — not the same as no members
+                        </span>
+                      </span>
+                    </li>
+                  </ul>
+                </div>
               )}
 
               <footer className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-board-line px-5 py-2.5">
@@ -1292,8 +1386,12 @@ function QualityPanel({ quality }) {
         {/* Named, because there are 37 of these now and the findings below
             belong to one of them. "About this register" was unambiguous when
             there was only one register to be about. */}
+        {/* Named, because there are many of these now and the findings below
+            belong to one of them — or, at the country, to all of them. */}
         <h3 className="font-display text-[0.875rem] font-extrabold text-amber-900">
-          About the {quality.state} register
+          {quality.state === "national"
+            ? `About the ${quality.party} register`
+            : `About the ${quality.state} register`}
         </h3>
         <span className="figure text-[0.75rem] font-bold text-amber-900 tabular-nums">
           {formatNumber(quality.votingAge)} of voting age

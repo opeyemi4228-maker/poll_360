@@ -1,4 +1,4 @@
-import { Radio, ShieldCheck, ShieldQuestion, Smartphone } from "lucide-react";
+import { Radio, ShieldCheck, ShieldQuestion, Siren } from "lucide-react";
 
 import LoginForm from "@/components/auth/LoginForm";
 import Reveal from "@/components/ui/Reveal";
@@ -18,15 +18,17 @@ import { site } from "@/lib/site";
 export const metadata = {
   title: "Log in",
   description:
-    "Log in to Poll360. Field agents file the result from their booth, coordinators check what has come in, and newsrooms take their graphics, all from the same count.",
+    "Log in to Poll360. Situation rooms follow every report as it lands, coordinators check what has come in, and newsrooms take their graphics, all from the same count.",
   alternates: { canonical: "/login" },
 };
 
+/* Staff rooms only. Agents have their own app on their own domain, with its
+   own sign-in, and this page does not mention it — see lib/agents-app.js. */
 const ROOMS = [
   {
-    icon: Smartphone,
-    title: "Field agents",
-    body: "Your booth is already loaded. File your result, attach the photo of the sheet, and you are done.",
+    icon: Siren,
+    title: "Situation rooms",
+    body: "Every report from the field as it lands, with the ones that cannot wait at the top.",
   },
   {
     icon: ShieldCheck,

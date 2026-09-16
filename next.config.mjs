@@ -1,5 +1,25 @@
+/* ── THE AGENTS' OWN ADDRESS ─────────────────────────────────────────────────
+   When NEXT_PUBLIC_AGENT_URL is set, this one deployment answers on a second
+   domain with the agent pages at its root — see lib/agent-address.js and
+   proxy.js. Two things below have to know that domain: the dev server, which
+   otherwise refuses its own scripts to any hostname but localhost, and the
+   no-store rule, because on that domain a signed-in page lives at "/results"
+   and not under a prefix the path rule can see. A value that is not a full
+   address is ignored here exactly as it is there. */
+const agentAddress = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_AGENT_URL ? new URL(process.env.NEXT_PUBLIC_AGENT_URL) : null;
+  } catch {
+    return null;
+  }
+})();
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /* Development only: lets agent.localhost load the dev server's own scripts,
+     so the agents' pages can be tried on their own address before deploying. */
+  allowedDevOrigins: agentAddress ? [agentAddress.hostname] : [],
+
   /* ── WHY THIS IS RAISED FROM THE DEFAULT MEGABYTE ──────────────────────────
      Two things now travel to a server action as files: an agent photographs a
      result sheet so the figures they typed can be checked against it, and the
@@ -168,6 +188,19 @@ const nextConfig = {
           { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
         ],
       },
+      /* On the agents' own address every page is an agent's page — "/",
+         "/results", "/situations" — so the whole host is kept out of shared
+         caches, not a prefix it does not use. Placed before the service worker
+         and boundary rules, which still apply their own on top. */
+      ...(agentAddress
+        ? [
+            {
+              source: "/:path*",
+              has: [{ type: "host", value: agentAddress.hostname }],
+              headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" }],
+            },
+          ]
+        : []),
       {
         /* The service worker must never be served from a stale cache, or a
            deploy cannot reach a device that already has the old one. Browsers

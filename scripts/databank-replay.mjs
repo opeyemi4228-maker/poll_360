@@ -5,10 +5,10 @@
  * ══════════════════════════════════════════════════════════════════════════
  *  WHY THIS SCRIPT IS THE OTHER HALF OF FIRE-AND-FORGET
  *
- *  Poll360 delivers every registration, sheet and figure to DumpSite, and it
+ *  Poll360 delivers every registration, sheet and figure to Data Bank, and it
  *  does so without ever putting that delivery on the path between an agent and
  *  a saved return — a hub having a bad night must not cost a polling unit its
- *  count. See lib/dumpsite.js.
+ *  count. See lib/databank.js.
  *
  *  That is only honest because of this. Anything that does not land is kept in
  *  `dumpsite_outbox` with the reason, and this sends it again. Without a
@@ -17,30 +17,30 @@
  *  at all.
  * ══════════════════════════════════════════════════════════════════════════
  *
- *   node --env-file=.env.local scripts/dumpsite-replay.mjs
- *   node --env-file=.env.local scripts/dumpsite-replay.mjs --limit 500
+ *   node --env-file=.env.local scripts/databank-replay.mjs
+ *   node --env-file=.env.local scripts/databank-replay.mjs --limit 500
  *
  * ── IT IS SAFE TO RUN TWICE ────────────────────────────────────────────────
- * Every item carries the external id Poll360 gave it, and DumpSite dedupes on
+ * Every item carries the external id Poll360 gave it, and Data Bank dedupes on
  * that, so a row sent twice is recorded once and marked DUPLICATE. Which means
  * the honest failure mode of this script is doing nothing, never doubling a
  * return — and it can be put on a timer without anybody watching it.
  */
 
 import { sql } from "../lib/sql.js";
-import { configured } from "../lib/dumpsite.js";
+import { configured } from "../lib/databank.js";
 
 const limit = Number(process.argv[process.argv.indexOf("--limit") + 1]) || 200;
 
 if (!configured()) {
   console.error(
-    "No hub is configured. Set DUMPSITE_URL and DUMPSITE_API_KEY, then run this again."
+    "No hub is configured. Set DATABANK_URL and DATABANK_API_KEY, then run this again."
   );
   process.exit(1);
 }
 
-const endpoint = `${process.env.DUMPSITE_URL.replace(/\/$/, "")}/api/intake`;
-const key = process.env.DUMPSITE_API_KEY;
+const endpoint = `${(process.env.DATABANK_URL ?? process.env.DUMPSITE_URL).replace(/\/$/, "")}/api/intake`;
+const key = (process.env.DATABANK_API_KEY ?? process.env.DUMPSITE_API_KEY);
 
 const waiting = await sql`
   SELECT id, kind, external_id, body, tries
