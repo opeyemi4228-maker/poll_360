@@ -639,6 +639,15 @@ export default function SituationRoom({
   states,
   incidents = [],
   incidentCount,
+  /* ── DATA BANK'S REPORTS BOARD, AND WHY IT IS A SEPARATE PROP ───────────
+     Not merged into `incidents`. These two lists know different things: ours
+     carries the agent's own account of what happened, sealed; the hub's
+     carries that a report of some category and severity exists for a booth,
+     over a channel, and deliberately never carries the words. Blending them
+     would put rows with no narrative beside rows with one and read as missing
+     data rather than as a different kind of evidence. See lib/intake.js. */
+  hubReports = null,
+
   /* Who has not sent their result, rolled up down the whole country on the
      server — see lib/reporting.js. Indexed by the same place names the map's
      trail is built from, so the Booth layer can colour any level without a
@@ -1684,7 +1693,14 @@ export default function SituationRoom({
   };
 
   /* Whatever card is showing: the picked child, or the scope itself. */
-  const pickedRow = picked ? rows.find((row) => (row.key ?? row.name) === picked) : null;
+  /* Matched on either identity. A shape hands back `code ?? name`, and a live
+     row is keyed by its booth code — so a local government clicked on the map
+     came back as `"Binji"` and was looked for among rows keyed `"33/01"`,
+     which found nothing and left the card empty. See `byPlace` in
+     lib/drill.js. */
+  const pickedRow = picked
+    ? (rows.find((row) => row.key === picked) ?? rows.find((row) => row.name === picked) ?? null)
+    : null;
 
   /* ════════════════════════════════════════════════════════════════════════
   /* ── THE ASSISTANT'S HANDS, AND THE BOARD THEY WROTE ON, ARE OFF ────────
@@ -1926,6 +1942,7 @@ export default function SituationRoom({
         <RoomSituations
           alerts={escalations}
           incidents={incidents}
+          hubReports={hubReports}
           photos={photos}
           shapes={shapes}
           onGo={setLayer}
@@ -2464,6 +2481,8 @@ export default function SituationRoom({
               margin={view.margin}
               isDemoProject={command.isDemoProject}
               awaiting={command.awaiting}
+              /* Where the figures came from, ours and the hub's. */
+              sources={command.sources}
             />
           ) : (
           <PartyBreakdown

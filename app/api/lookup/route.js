@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { consume, rateLimit } from "@/lib/ratelimit";
+import { attempt, spend } from "@/lib/ratelimit";
 import { currentUser } from "@/lib/session";
 
 /**
@@ -52,20 +52,20 @@ export async function GET(request) {
 
   /* ── EVERY CALL IS SPENT, NOT ONLY THE FAILED ONES ──────────────────────
      The limiter in this codebase was written for sign-in attempts, where only
-     a failure is worth counting, so `rateLimit` asks and `consume` spends and
+     a failure is worth counting, so `attempt` asks and `spend` spends and
      the two are separate calls. Here it is the successes that need bounding:
      a microphone left open with the wake word armed is a machine that could
      ask this a hundred times an hour without anybody meaning to, at somebody
      else's service, in our name. So every call spends one. */
   const key = `lookup:${user.id}`;
-  const limit = rateLimit(key, { limit: 30, windowMs: 5 * 60 * 1000 });
+  const limit = await attempt(key, { limit: 30, windowMs: 5 * 60 * 1000 });
   if (!limit.ok) {
     return NextResponse.json(
       { error: "That is a lot of looking up at once. Try again in a few minutes." },
       { status: 429 }
     );
   }
-  consume(key, { windowMs: 5 * 60 * 1000 });
+  await spend(key, { windowMs: 5 * 60 * 1000 });
 
   const query = (new URL(request.url).searchParams.get("q") ?? "").trim().slice(0, 120);
   if (query.length < 2) {

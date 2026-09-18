@@ -10,7 +10,7 @@ import { PARTY_FILL } from "./Charts";
 import { CLASS_OF } from "@/lib/executive";
 import { boundsOf, extentOf } from "@/lib/bbox";
 import { bandOf, breaksFor } from "@/lib/scale";
-import { leaderOf } from "@/lib/drill";
+import { byPlace, leaderOf } from "@/lib/drill";
 import { parties, allParties } from "@/lib/election2023";
 import { ruling } from "@/lib/governors";
 import { cn, formatNumber, formatShare } from "@/lib/utils";
@@ -176,7 +176,11 @@ export default function ScopeMap({
   heat = false,
   heatTint = "var(--color-red-500)",
 }) {
-  const byName = useMemo(() => new Map(rows.map((row) => [row.key ?? row.name, row])), [rows]);
+  /* Indexed by code *and* name: a boundary file names a local government and
+     carries no code, while a live row is keyed by the booth code it was rolled
+     up from. See `byPlace` in lib/drill.js for the bug that came of matching
+     them one way only. */
+  const byName = useMemo(() => byPlace(rows), [rows]);
 
   /* ── THE WINDOW ─────────────────────────────────────────────────────────
      At national level it is the whole canvas; inside a state it is cropped to
@@ -1146,7 +1150,7 @@ function holderOf(row, layer = null) {
 export function heatPointsFor({ shapes, rows, layer }) {
   if (!shapes || CATEGORICAL.has(layer)) return [];
   const shown = shapes.paths ?? shapes.states ?? [];
-  const byKey = new Map(rows.map((row) => [row.key ?? row.name, row]));
+  const byKey = byPlace(rows);
   const ceiling = Math.max(...rows.map((row) => magnitude(row, layer)), 1);
 
   return shown

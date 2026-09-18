@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { users } from "@/lib/db";
 import { verifyPassword } from "@/lib/password";
 import { createSession, destroySession, sweepExpiredSessions } from "@/lib/session";
-import { rateLimit, consume, clearLimit } from "@/lib/ratelimit";
+import { attempt, spend, clear } from "@/lib/ratelimit";
+import { clientAddress, limiterKey } from "@/lib/client-ip";
 import { homeFor } from "@/lib/roles";
 
 /**
@@ -36,10 +37,27 @@ function normalise(contact) {
   return { phone: local };
 }
 
+/**
+ * Which caller this is, for the purpose of counting their failures.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  THIS READ THE FIRST ENTRY OF X-FORWARDED-FOR, WHICH THE CALLER SENDS
+ *
+ *  A header anybody can set was the key the sign-in limiter counted against.
+ *  Set it to something different on every request and every request is a new
+ *  caller: the limiter kept counting, kept firing, kept looking like it
+ *  worked, and stopped nobody. Eight attempts per account was unlimited
+ *  attempts per account for anybody who thought to try.
+ *
+ *  `limiterKey` returns an address only when it can be established — counted
+ *  in past the proxies we actually run, or taken from a header the platform
+ *  sets and strips from anything inbound. When it cannot be established,
+ *  every such caller shares one bucket, which is blunt and is the safe
+ *  direction to be blunt in. See lib/client-ip.js.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
 async function callerKey() {
-  const list = await headers();
-  const forwarded = list.get("x-forwarded-for");
-  return (forwarded?.split(",")[0] ?? list.get("x-real-ip") ?? "local").trim();
+  return limiterKey(clientAddress(await headers()));
 }
 
 export async function signIn(_previous, formData) {
@@ -65,8 +83,21 @@ export async function signIn(_previous, formData) {
   const ipKey = `signin:ip:${ip}`;
   const idKey = `signin:id:${identityKey}`;
 
-  const byIp = rateLimit(ipKey, { limit: 30 });
-  const byIdentity = rateLimit(idKey, { limit: 8 });
+  /* ── COUNTED ACROSS EVERY INSTANCE, NOT JUST THIS ONE ──────────────────
+     The limiter's counters used to live in one process's memory, so on a
+     platform that runs the application in as many instances as the traffic
+     asks for, "eight attempts" was eight attempts per instance — and a
+     caller working through a password list was handed a fresh budget every
+     time they were routed somewhere new. On a quiet night there is one
+     instance and it worked. On the night somebody is actually attacking it,
+     there are forty. See lib/shared-counter.js.
+
+     Asked in parallel because they are two independent questions and this is
+     on the path between a person and their dashboard. */
+  const [byIp, byIdentity] = await Promise.all([
+    attempt(ipKey, { limit: 30 }),
+    attempt(idKey, { limit: 8 }),
+  ]);
 
   if (!byIp.ok || !byIdentity.ok) {
     const wait = Math.max(byIp.retryAfter, byIdentity.retryAfter);
@@ -121,16 +152,16 @@ export async function signIn(_previous, formData) {
      agent account is refused with the same sentence as a wrong password, so
      this form cannot be used to learn which numbers belong to agents. */
   if (!user || !ok || user.disabledAt || user.role === "PU_AGENT") {
-    /* Only now is the attempt spent. */
-    consume(ipKey);
-    consume(idKey);
+    /* Only now is the attempt spent — and it is awaited, because a failure
+       that is not recorded before the answer goes back is a failure the next
+       attempt does not see. That is the whole of what a limiter is. */
+    await Promise.all([spend(ipKey), spend(idKey)]);
     return { error: "Those details do not match an account." };
   }
 
   /* A correct sign-in wipes the failures before it, for this account and for
      the address it came from. */
-  clearLimit(idKey);
-  clearLimit(ipKey);
+  await Promise.all([clear(idKey), clear(ipKey)]);
 
   const list = await headers();
 

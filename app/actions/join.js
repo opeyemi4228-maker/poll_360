@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 import { users } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
 import { createSession } from "@/lib/session";
-import { rateLimit } from "@/lib/ratelimit";
+import { attempt } from "@/lib/ratelimit";
+import { clientAddress, limiterKey } from "@/lib/client-ip";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
 import { isUnitCode, parseUnitCode } from "@/lib/units";
 
@@ -49,12 +50,18 @@ const MIN_PASSWORD = 10;
 
 export async function joinAsCoordinator(_previous, formData) {
   const list = await headers();
-  const ip = (list.get("x-forwarded-for")?.split(",")[0] ?? "local").trim();
+  const address = clientAddress(list);
+  const ip = address.trusted ? address.ip : `${address.ip} (unverified)`;
 
   /* Five from one address in an hour. A coordinator signing up their whole
      ward from one phone is a real thing and this leaves room for it; a script
-     filling the approval queue with noise is not. */
-  const limit = rateLimit(`join:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+     filling the approval queue with noise is not.
+
+     Keyed on an address that was actually established rather than on the
+     first entry of a header the caller sends — which is what this counted
+     before, and which made the ceiling above decorative. See
+     lib/client-ip.js. */
+  const limit = await attempt(`join:${limiterKey(address)}`, { limit: 5, windowMs: 60 * 60 * 1000 });
   if (!limit.ok) {
     return {
       error:

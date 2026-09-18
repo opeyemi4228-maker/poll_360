@@ -3,7 +3,8 @@
 import { headers } from "next/headers";
 
 import { accessRequests } from "@/lib/db";
-import { rateLimit } from "@/lib/ratelimit";
+import { attempt } from "@/lib/ratelimit";
+import { clientAddress, limiterKey } from "@/lib/client-ip";
 import { resolveTerritory } from "@/lib/constituencies";
 import { isRace, raceLabel } from "@/lib/races";
 import { describeTerritory, levelForRace } from "@/lib/territory";
@@ -55,11 +56,13 @@ function clean(value, max) {
 
 export async function requestAccess(_previous, formData) {
   const list = await headers();
-  const ip = (list.get("x-forwarded-for")?.split(",")[0] ?? "local").trim();
+  const address = clientAddress(list);
+  const ip = address.trusted ? address.ip : `${address.ip} (unverified)`;
 
   /* Three a day from one address is a generous ceiling for a form nobody needs
-     to submit twice, and a low one for anybody filling the table with noise. */
-  const limit = rateLimit(`access:${ip}`, { limit: 3, windowMs: 24 * 60 * 60 * 1000 });
+     to submit twice, and a low one for anybody filling the table with noise.
+     Keyed on an established address, not on a header the caller sends. */
+  const limit = await attempt(`access:${limiterKey(address)}`, { limit: 3, windowMs: 24 * 60 * 60 * 1000 });
   if (!limit.ok) {
     return {
       error: "We already have a request from you today. We will come back to you shortly.",

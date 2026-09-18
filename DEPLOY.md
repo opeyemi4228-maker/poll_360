@@ -39,6 +39,37 @@ Production, Preview and Development.
 | `SHEET_READER_EFFORT` | optional | How much care it takes over the digits: `low` to `max`, default `high`. |
 | `SHEET_READER_CACHE` | optional | Where the local reader keeps its language file. Defaults to the system temporary directory, which is right almost everywhere. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | optional | Turns on the Google and Satellite grounds under the Voters, Turnout and Clusters layers. Without it those controls are not rendered and the room draws its own map, which is the default either way. |
+| `TRUSTED_PROXY_HOPS` | **yes in production** | How many proxies sit in front of this deployment. **1 on Vercel.** Every rate limit is counted against the caller's address, and the address is read out of a header the caller can also send — so the only trustworthy entries are the ones our own infrastructure appended, counted in from the right. Too low and every caller in the world shares one bucket; too high and anybody can have a fresh one on every request. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | recommended | Where failed sign-ins are counted. Without them the count falls back to Postgres, which is correct and costs a round trip; without a database either, it falls back to this process's memory, where "eight attempts" means eight *per instance*. The health screen reports which is in use. |
+| `DATABANK_SIGNING_SECRET` | with `DATABANK_URL` | Signs every delivery to Data Bank, so the hub can tell that this body left this product within the last five minutes. The same long random string on both products. Deliveries keep working while only one end has it, so it can be rolled out in either order. |
+| `SESSION_CACHE_SECONDS` | optional | How long a session is recognised from memory before the database is asked again. `5` in production by default, `0` switches it off. It trades a few seconds of revocation delay for a large reduction in the busiest query in the product — see `lib/session-cache.js` for exactly which cases move. |
+
+### Before a deploy that changes the schema
+
+Run the index build **first**, against the live database:
+
+```
+npm run db:indexes -- --check    # what is missing
+npm run db:indexes               # build it, concurrently, no lock held
+```
+
+A plain `CREATE INDEX` blocks every write to the table until it finishes. On an
+empty database that is instant; on a table holding a general election's returns
+it is minutes of agents unable to file, at boot, which is the worst possible
+moment for it. This builds them without the lock, and the statements in
+`lib/db.js` then find them already there and do nothing.
+
+### After the deploy
+
+Open **Administration → System health**. Two cards are the whole check: *Fit to
+run a real election* (demonstration accounts, a missing address) and *What is
+protecting this deployment* (a sealing key that is a placeholder, an unsigned
+pipeline, a sign-in limit that is per instance). Every item on the second one is
+a setting whose absence changes nothing anybody can see.
+
+A router or load balancer in front of this should check **`/api/health`**, which
+times a real query and answers 503 rather than 200 when the database cannot be
+reached. See [SCALE.md](SCALE.md) for the topology and where the ceiling is.
 
 **The Google ground.** `NEXT_PUBLIC_GOOGLE_MAPS_KEY` is a browser key, so it
 travels to every reader of the room and must be restricted in the Google Cloud

@@ -1,4 +1,4 @@
-import { Activity, HeartPulse, ShieldCheck, TriangleAlert } from "lucide-react";
+import { Activity, HeartPulse, Lock, ShieldCheck, TriangleAlert } from "lucide-react";
 
 import DashLayout from "@/components/dash/DashLayout";
 import { Card, Badge, Empty } from "@/components/dash/DashCard";
@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import { requireCapability } from "@/lib/guard";
 import { health } from "@/lib/system";
 import { readiness } from "@/lib/readiness";
+import { environmentVerdict } from "@/lib/environment";
 import { ledger } from "@/lib/ledger";
 import { formatNumber } from "@/lib/utils";
 
@@ -43,6 +44,15 @@ export default async function HealthPage() {
      hundred hashes, and a proof of integrity that was true ten minutes ago is
      not the thing anybody came to this page for. */
   const [state, ready, chain] = await Promise.all([health(), readiness(), ledger.verify()]);
+
+  /* ── AND THE SETTINGS THAT PROTECT IT ──────────────────────────────────
+     Reads the environment and nothing else, so it costs nothing and cannot
+     fail. It answers a different question from the readiness checks above:
+     those ask whether this deployment is fit to run a real election —
+     demonstration accounts, a missing address — and this asks whether the
+     things that are meant to be protecting it actually are. Every one of them
+     fails in a way that looks exactly like working. See lib/environment.js. */
+  const posture = environmentVerdict();
 
   const failing = ready.failing.length;
 
@@ -227,6 +237,61 @@ export default async function HealthPage() {
           )}
         </Card>
       </div>
+
+      {/* ── WHAT IS PROTECTING THIS DEPLOYMENT, AND WHAT IS NOT ──────────
+          Deliberately a separate card from the one below. "Fit to run a real
+          election" is about the count — a demo project left live, an account
+          whose password is in this repository. This is about the machine: a
+          sealing key that is not secret, a pipeline nobody can prove was not
+          tampered with, a sign-in limit that is per instance.
+
+          Every item here is a setting whose absence changes nothing anybody
+          can see. That is the whole reason it needs a screen. */}
+      {posture.findings.length > 0 && (
+        <Card
+          className="mt-6"
+          title="What is protecting this deployment"
+          subtitle={
+            posture.ok
+              ? "Nothing here is dangerous. The notes below are worth reading anyway."
+              : "Each of these works. None of them is protecting anything, and no other screen would ever say so."
+          }
+          action={
+            posture.ok ? (
+              <Badge tone={posture.worthFixing ? "warn" : "good"}>
+                {posture.worthFixing ? "Worth fixing" : "Clear"}
+              </Badge>
+            ) : (
+              <Badge tone="alert">
+                {posture.serious} serious
+              </Badge>
+            )
+          }
+        >
+          <ul className="space-y-4">
+            {posture.findings.map((finding) => (
+              <li key={finding.name} className="flex items-start gap-3">
+                {finding.severity === "serious" ? (
+                  <TriangleAlert size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-red-600" />
+                ) : finding.severity === "worth-fixing" ? (
+                  <TriangleAlert size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-amber-700" />
+                ) : (
+                  <Lock size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-emerald-700" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-[0.875rem] font-bold text-dash-ink">{finding.name}</p>
+                  <p className="mt-0.5 text-[0.8125rem] text-dash-muted">{finding.says}</p>
+                  {finding.fix && (
+                    <p className="figure mt-1.5 rounded-dash-sm bg-dash-bg px-3 py-2 text-[0.75rem] wrap-break-word text-dash-ink">
+                      {finding.fix}
+                    </p>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       {/* ── FIT TO RUN A REAL ELECTION ───────────────────────────────────
           The same checks the overview banner runs, rendered in full. The

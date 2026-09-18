@@ -1,4 +1,4 @@
-import { KeyRound, Radio, ShieldCheck, TriangleAlert, Webhook } from "lucide-react";
+import { Activity, KeyRound, Radio, ShieldCheck, TriangleAlert, Webhook } from "lucide-react";
 
 import DashLayout from "@/components/dash/DashLayout";
 import { Card, Badge } from "@/components/dash/DashCard";
@@ -197,8 +197,13 @@ export default async function ApiPage() {
             title={endpoint.path}
             subtitle={endpoint.what}
             action={
+              /* Three kinds of door, and the badge has to say which. Showing
+                 an open one as "Signed in" would put a false claim on the one
+                 screen somebody checks to find out what is exposed. */
               endpoint.guard === "signature" ? (
                 <Badge tone="ink">Signed</Badge>
+              ) : endpoint.guard === "open" ? (
+                <Badge tone="warn">Open to anybody</Badge>
               ) : (
                 <Badge tone="neutral">Signed in</Badge>
               )
@@ -212,6 +217,8 @@ export default async function ApiPage() {
                 <span className="flex items-start gap-2">
                   {endpoint.guard === "signature" ? (
                     <Webhook size={14} strokeWidth={2.5} className="mt-0.5 shrink-0 text-dash-muted" />
+                  ) : endpoint.guard === "open" ? (
+                    <Activity size={14} strokeWidth={2.5} className="mt-0.5 shrink-0 text-dash-muted" />
                   ) : (
                     <KeyRound size={14} strokeWidth={2.5} className="mt-0.5 shrink-0 text-dash-muted" />
                   )}
@@ -230,10 +237,15 @@ export default async function ApiPage() {
 
       <p className="mt-6 flex items-start gap-2.5 text-[0.8125rem] text-dash-muted">
         <ShieldCheck size={15} strokeWidth={2.25} className="mt-0.5 shrink-0" />
-        There is no public API key and nothing here can be read anonymously. Every address either
-        requires a signed-in session, which is checked against the database on each request, or a
+        There is no public API key. Every address that carries a figure, a photograph or a person’s
+        details requires a signed-in session, checked against the database on each request, or a
         signature this product can verify. What an account can see through them is narrowed to the
         ground and the contest it holds — the same narrowing the screens use.
+        {" "}
+        One address is open to anybody, and it is marked above: the health check, which exists so the
+        router in front of this deployment can tell whether this copy of the product is able to save a
+        return. It answers with nothing but a yes or no and a number of milliseconds — no key, no
+        address, and no figure from the count.
       </p>
     </DashLayout>
   );

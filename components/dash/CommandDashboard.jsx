@@ -81,6 +81,82 @@ function Awaiting({ principal }) {
   );
 }
 
+/**
+ * Where the figures on this screen came from.
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  A BOARD BUILT FROM TWO SOURCES HAS TO SAY SO
+ *
+ *  This screen now counts returns filed into this product *and* returns Data
+ *  Bank holds for booths this product never heard from. That is strictly more
+ *  of the count than it had before, and it is also a claim somebody will have
+ *  to defend: the first question anybody asks about a total that moved is
+ *  where the new figures came from.
+ *
+ *  It is the same discipline this product applies to coverage. A leader on 4%
+ *  of booths is not a leader, and a total whose provenance is unstated is a
+ *  total nobody can check. So the split is printed, always, in one line.
+ *
+ *  ── AND THE REFUSALS ARE PRINTED TOO ────────────────────────────────────
+ *  The interesting number is not what was added, it is what was not. A
+ *  machine's reading of a photograph is not a vote; a figure the hub's own
+ *  arithmetic calls impossible is not a vote; and a booth we already hold is
+ *  not counted a second time. Each of those is a decision this screen made on
+ *  the reader's behalf, and a decision made silently is one nobody can
+ *  disagree with. See lib/hub-returns.js.
+ * ══════════════════════════════════════════════════════════════════════════
+ */
+function Sources({ sources }) {
+  if (!sources) return null;
+
+  const { ours = 0, hub = 0, duplicate = 0, readings = 0, impossible = 0, hubAvailable } = sources;
+
+  /* Nothing has been filed anywhere. The empty board already says so in large
+     type above; a provenance line under it would be explaining a blank. */
+  if (!ours && !hub) return null;
+
+  const held = [
+    readings ? `${formatNumber(readings)} machine reading${readings === 1 ? "" : "s"}` : null,
+    impossible ? `${formatNumber(impossible)} the hub calls impossible` : null,
+  ].filter(Boolean);
+
+  return (
+    <section className="rounded-dash border border-dash-line bg-dash-card px-4 py-3">
+      <p className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+        Where these figures came from
+      </p>
+      <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-ink">
+        <span className="figure font-bold tabular-nums">{formatNumber(ours)}</span> filed into this
+        product
+        {hub > 0 ? (
+          <>
+            {" "}
+            and{" "}
+            <span className="figure font-bold tabular-nums">{formatNumber(hub)}</span> more that
+            reached Data Bank from booths this product never heard from.
+          </>
+        ) : hubAvailable ? (
+          <>. Data Bank holds nothing this product has not already counted.</>
+        ) : (
+          <>. Data Bank is not connected, so any return that reached it alone is not on this board.</>
+        )}
+      </p>
+      {(duplicate > 0 || held.length > 0) && (
+        <p className="mt-1 text-[0.75rem] leading-relaxed text-dash-muted">
+          {duplicate > 0 && (
+            <>
+              <span className="figure tabular-nums">{formatNumber(duplicate)}</span> of the hub&rsquo;s
+              rows are copies of returns already counted here and were not counted again
+              {held.length ? "; " : "."}
+            </>
+          )}
+          {held.length > 0 && <>not counted: {held.join(", ")}.</>}
+        </p>
+      )}
+    </section>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════ the narrow column */
 
 export function CommandBrief({
@@ -94,12 +170,16 @@ export function CommandBrief({
   isDemoProject = false,
   /* The feed is switched off at the source — see app/room/page.jsx. */
   awaiting = false,
+  /* What this board was built from: our own returns, the ones added from Data
+     Bank, and what the hub sent that was deliberately not counted. */
+  sources = null,
   className,
 }) {
   return (
     <div className={cn("space-y-4", className)}>
       {/* First, because it governs how every figure under it should be read. */}
       {awaiting && <Awaiting principal={principal} />}
+      {!awaiting && <Sources sources={sources} />}
       {/* ── WHOSE ROOM THIS IS ──────────────────────────────────────────
           First, and permanent. Every figure on this screen is computed for
           this party; a screen reporting "38.2%" without saying whose is a

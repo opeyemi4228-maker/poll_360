@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BellRing,
+  Database,
   ShieldAlert,
   Volume2,
   VolumeX,
@@ -11,6 +12,7 @@ import {
 
 import RoomAlerts from "./RoomAlerts";
 import IncidentStream from "./IncidentStream";
+import HubReports from "./HubReports";
 import { MiniMap } from "./Figures";
 import { createSpeaker, newArrivals, soundable } from "@/lib/alarm";
 import { LEVELS, watchBand } from "@/lib/alerts";
@@ -59,6 +61,14 @@ export default function RoomSituations({
   /* What `raiseAlerts` returned — an object, not a list. See lib/alerts.js. */
   alerts = null,
   incidents = [],
+  /* ── THE THIRD LANE ─────────────────────────────────────────────────────
+     Data Bank's own reports board, for the booths this room watches. A third
+     job with a third response: this is something that reached the hub and did
+     not reach us, so the response is to find out why — not to ring a booth
+     (that is a situation) and not to walk to a screen (that is attention).
+     Kept as its own lane for the reason the other two are: behind a switch,
+     the invisible one is always the one nobody is thinking about. */
+  hubReports = null,
   photos = {},
   shapes = null,
   onGo,
@@ -73,6 +83,13 @@ export default function RoomSituations({
 
   const attention = useLane("ATTENTION", attentionRows);
   const situation = useLane("SITUATION", situationRows);
+
+  /* The hub's rows are not `soundable` — there is no alarm on this lane — so
+     the count is the plain length. Null when Data Bank is not connected, which
+     the button prints as a dash rather than as a confident zero: "no reports"
+     and "not reading the hub" are different sentences and the second one must
+     never be able to look like the first. */
+  const hubCount = hubReports?.available ? (hubReports.rows?.length ?? 0) : null;
 
   const worst = LEVELS[band.level] ?? LEVELS.NORMAL;
 
@@ -124,6 +141,11 @@ export default function RoomSituations({
             {[
               ["situations", "Situations", situationRows.length, "red", situation.fresh],
               ["attention", "Attention", attentionRows.length, "amber", attention.fresh],
+              /* No alarm on this lane, deliberately. A report reaching Data
+                 Bank and not reaching us is a gap to close, not an emergency
+                 to interrupt a room for — and a third noise at two in the
+                 morning is how all three get muted. */
+              ["databank", "Data Bank", hubCount, "sky", false],
             ].map(([id, label, count, accent, fresh]) => (
               <button
                 key={id}
@@ -133,7 +155,9 @@ export default function RoomSituations({
                 title={
                   id === "situations"
                     ? "A person in a field filed this. Ring them."
-                    : "The product noticed a threshold. Look at a screen."
+                    : id === "attention"
+                      ? "The product noticed a threshold. Look at a screen."
+                      : "This reached Data Bank. Find out why it did not reach us."
                 }
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[0.8125rem] font-bold transition-colors",
@@ -156,11 +180,17 @@ export default function RoomSituations({
                   aria-hidden="true"
                   className={cn(
                     "size-2 shrink-0 rounded-full",
-                    accent === "red" ? "bg-red-500" : "bg-amber-500"
+                    accent === "red"
+                      ? "bg-red-500"
+                      : accent === "amber"
+                        ? "bg-amber-500"
+                        : "bg-sky-500"
                   )}
                 />
                 {label}
-                <span className="figure tabular-nums">{formatNumber(count)}</span>
+                <span className="figure tabular-nums">
+                  {count === null ? "—" : formatNumber(count)}
+                </span>
               </button>
             ))}
           </div>
@@ -176,10 +206,16 @@ export default function RoomSituations({
               <ShieldAlert size={13} strokeWidth={2.5} className="shrink-0 text-red-500" />
               Somebody in a field is telling you what they can see. The response is a telephone.
             </>
-          ) : (
+          ) : half === "attention" ? (
             <>
               <BellRing size={13} strokeWidth={2.5} className="shrink-0 text-amber-500" />
               This product crossed a threshold it was told to watch. The response is a screen.
+            </>
+          ) : (
+            <>
+              <Database size={13} strokeWidth={2.5} className="shrink-0 text-sky-500" />
+              Reports that reached the hub, for booths this room watches. The account stays in Data
+              Bank.
             </>
           )}
           <span className="ml-auto flex items-center gap-2">
@@ -279,8 +315,27 @@ export default function RoomSituations({
               incidents={place ? incidents.filter((row) => row.stateCode === place) : incidents}
               photos={photos}
             />
-          ) : (
+          ) : half === "attention" ? (
             <RoomAlerts alerts={alerts} onGo={onGo} />
+          ) : (
+            <HubReports
+              /* The map narrows this lane too. A booth code's first two digits
+                 are its state, which is the same fact `stateCode` carries on
+                 our own rows — read off the code here because the hub's view
+                 does not carry a separate state column, and the code is what
+                 is printed on the sheet. */
+              hubReports={
+                place && hubReports?.rows
+                  ? {
+                      ...hubReports,
+                      rows: hubReports.rows.filter(
+                        (row) => String(row.polling_unit_code ?? "").slice(0, 2) === place
+                      ),
+                    }
+                  : hubReports
+              }
+              incidents={incidents}
+            />
           )}
         </div>
       </div>

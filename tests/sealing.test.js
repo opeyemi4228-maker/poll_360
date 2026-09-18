@@ -60,8 +60,21 @@ describe("sealing a narrative", () => {
     const sealed = seal("Presiding officer confirmed the count at 16:20.");
     const [version, iv, tag, ciphertext] = sealed.split(".");
 
-    /* One flipped character in the body. */
-    const altered = [version, iv, tag, `${ciphertext.slice(0, -1)}${ciphertext.at(-1) === "A" ? "B" : "A"}`].join(".");
+    /* ── ONE FLIPPED BIT, AND IT HAS TO BE FLIPPED IN THE BYTES ────────────
+       This used to change the last character of the base64url text, which
+       looks like the same test and is not one: base64 encodes three bytes in
+       four characters, so when the ciphertext length does not divide evenly
+       the final character carries bits that decode to nothing. Changing it
+       then produces different text that decodes to *identical bytes*, the
+       record authenticates perfectly, and the assertion below fails — on a
+       test whose whole subject is tampering being detected.
+
+       It failed roughly one run in six, which is about the rate you would
+       expect from a length landing on the wrong remainder. Flipping a bit in
+       the decoded bytes is the thing the test meant all along. */
+    const bytes = Buffer.from(ciphertext, "base64url");
+    bytes[0] ^= 0x01;
+    const altered = [version, iv, tag, bytes.toString("base64url")].join(".");
     const read = unseal(altered);
 
     assert.match(read, /unreadable/, "a tampered record was rendered as though it were the original");

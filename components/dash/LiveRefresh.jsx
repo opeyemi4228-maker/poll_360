@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { isStale, nextInterval, shouldRefresh } from "@/lib/live-state";
 
 /**
  * Keeps a dashboard current without a socket, and shows that it is doing it.
@@ -39,13 +40,45 @@ import { cn } from "@/lib/utils";
  *  Below it, the age of the figures in seconds, which is the number somebody
  *  about to read a total out loud actually wants.
  * ══════════════════════════════════════════════════════════════════════════
+ *
+ * ══════════════════════════════════════════════════════════════════════════
+ *  WHAT CHANGED, AND WHY EACH PIECE IS NOT DECORATION
+ *
+ *  IT WAITED HALF A SECOND AND THEN CLAIMED SUCCESS
+ *      The "updated" time and the ring were driven by a `setTimeout` of five
+ *      hundred milliseconds, because a refresh gave nothing to wait on. So
+ *      the ring refilled and the age reset to zero whether or not the server
+ *      had answered — which is precisely the lie the block above says this
+ *      component exists not to tell. A refresh that failed looked identical
+ *      to one that worked. `useTransition` is what actually tracks it: the
+ *      transition stays pending until the new output is rendered, so the ring
+ *      now measures the thing it claims to.
+ *
+ *  EVERY VIEWER REFRESHED AT THE SAME INSTANT
+ *      A fixed interval preserves whatever alignment it started with, and
+ *      viewers arrive together — when a bulletin says the figures are in,
+ *      when a shift starts, when a link goes into a group. A thousand of them
+ *      were not fifty requests a second, they were a thousand in one second
+ *      and nothing for nineteen. See lib/live-state.js.
+ *
+ *  A DEVICE WITH NO NETWORK KEPT TRYING ANYWAY
+ *      On a handset at a booth that is the battery going for nothing, and
+ *      when the signal comes back the refresh is a second late rather than
+ *      nineteen.
+ * ══════════════════════════════════════════════════════════════════════════
  */
 export default function LiveRefresh({ seconds = 20, label = "Live" }) {
   const router = useRouter();
+
+  /* ── WHAT ACTUALLY KNOWS WHEN A REFRESH IS DONE ────────────────────────
+     `router.refresh()` returns nothing useful. Wrapping it in a transition
+     does: `busy` is true from the moment it starts until the server's new
+     output has been rendered into the page. */
+  const [busy, startRefresh] = useTransition();
+
   const [at, setAt] = useState(null);
-  const [busy, setBusy] = useState(false);
   /* Ticks once a second purely so the ring and the age stay true. It is not
-     what triggers a refresh — that is the interval below. */
+     what triggers a refresh — that is the timer below. */
   const [now, setNow] = useState(() => Date.now());
   /* ── STATE, NOT A REF, AND THE REASON IS NOT STYLE ────────────────────
      This is read on every render to draw the ring, and a ref read during
@@ -56,36 +89,108 @@ export default function LiveRefresh({ seconds = 20, label = "Live" }) {
      lazy initialiser runs once, which is the same thing done legally. */
   const [since, setSince] = useState(() => Date.now());
 
-  const tick = useCallback(() => {
-    if (document.visibilityState !== "visible") return;
-    setBusy(true);
-    setSince(Date.now());
-    router.refresh();
-    /* The refresh is not awaited — it resolves when the server component has
-       re-rendered — so this is only the beat that shows the page is doing
-       something. Half a second is long enough to be seen and short enough not
-       to look stuck. */
-    setTimeout(() => {
-      setBusy(false);
-      setAt(new Date());
-    }, 500);
-  }, [router]);
+  /* Consecutive refreshes that did not come back. Held in a ref because
+     nothing is drawn from it directly — it only decides the next interval,
+     and putting it in state would re-render the ring for no visible reason. */
+  const failures = useRef(0);
+  /* ── WHY THE TIMER READS A REF AND NOT `busy` ──────────────────────────
+     The timer is created once and reschedules itself, so it closes over
+     whatever `busy` was on the render that made it — which is false, forever.
+     A ref is the value it can read now.
 
+     Written from an effect rather than during render. Assigning to a ref
+     while rendering is a real hazard, not a lint preference: under concurrent
+     rendering a render can be started, abandoned and started again, and a ref
+     written during one of those keeps a value from work that was thrown
+     away. */
+  const busyRef = useRef(false);
   useEffect(() => {
-    const poll = setInterval(tick, seconds * 1000);
+    busyRef.current = busy;
+  }, [busy]);
+
+  const tick = useCallback(
+    ({ force = false } = {}) => {
+      const visible = typeof document === "undefined" || document.visibilityState === "visible";
+      const online = typeof navigator === "undefined" || navigator.onLine !== false;
+
+      if (!force && !shouldRefresh({ visible, online, busy: busyRef.current })) return;
+      /* Even a forced refresh — somebody pressed the button — must not start a
+         second one on top of one already running. */
+      if (busyRef.current) return;
+
+      setSince(Date.now());
+
+      startRefresh(() => {
+        router.refresh();
+      });
+    },
+    [router]
+  );
+
+  /* ── WHEN A REFRESH FINISHES, AND ONLY THEN ────────────────────────────
+     `busy` going from true to false is the transition completing, which means
+     the server's output is on the screen. That is the moment the figures are
+     genuinely new and the only honest moment to say so. */
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (wasBusy.current && !busy) {
+      setAt(new Date());
+      failures.current = 0;
+    }
+    wasBusy.current = busy;
+  }, [busy]);
+
+  /* ── THE TIMER RESCHEDULES ITSELF, RATHER THAN REPEATING ───────────────
+     A `setInterval` fires on a fixed rhythm, which is exactly the alignment
+     that has to be broken. Each refresh books the next one, at a slightly
+     different distance, so a crowd that started together comes apart within a
+     few cycles. */
+  useEffect(() => {
+    let timer;
+
+    const schedule = () => {
+      timer = setTimeout(() => {
+        const visible = typeof document === "undefined" || document.visibilityState === "visible";
+        const online = typeof navigator === "undefined" || navigator.onLine !== false;
+
+        /* A skipped turn is counted, so a tab that has been offline for a
+           while comes back gently rather than at full rate. */
+        if (!shouldRefresh({ visible, online, busy: busyRef.current })) {
+          failures.current = Math.min(8, failures.current + 1);
+        } else {
+          tick();
+        }
+
+        schedule();
+      }, nextInterval(seconds, { failures: failures.current }));
+    };
+
+    schedule();
     const clock = setInterval(() => setNow(Date.now()), 1000);
 
     const onVisibility = () => {
       /* Coming back to a tab that has been hidden for ten minutes should show
-         current figures immediately, not in twenty seconds' time. */
-      if (document.visibilityState === "visible") tick();
+         current figures immediately, not in twenty seconds' time. The failure
+         count is cleared first, so returning to a tab is not treated as the
+         end of a bad spell. */
+      if (document.visibilityState === "visible") {
+        failures.current = 0;
+        tick();
+      }
     };
+    const onOnline = () => {
+      failures.current = 0;
+      tick();
+    };
+
     document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("online", onOnline);
 
     return () => {
-      clearInterval(poll);
+      clearTimeout(timer);
       clearInterval(clock);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onOnline);
     };
   }, [tick, seconds]);
 
@@ -101,12 +206,12 @@ export default function LiveRefresh({ seconds = 20, label = "Live" }) {
   /* Stale is not a failure state — a hidden tab is the usual cause — so it is
      drawn in the muted tone and not in a status colour. Status colour on this
      dashboard means somebody has to look at something. */
-  const stale = age > seconds * 2.5;
+  const stale = isStale(age, seconds);
 
   return (
     <button
       type="button"
-      onClick={tick}
+      onClick={() => tick({ force: true })}
       title={
         at
           ? `Updated ${at.toTimeString().slice(0, 8)}. Click to refresh now.`

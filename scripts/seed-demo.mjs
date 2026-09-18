@@ -34,7 +34,18 @@ import { seal } from "../lib/crypto.js";
  */
 const LIVE = process.env.NODE_ENV === "production" || /^(postgres|postgresql):/.test(process.env.DATABASE_URL ?? "");
 
-if (LIVE && process.env.POLL360_ALLOW_DEMO_SEED !== "1") {
+const clearing = process.argv.includes("--clear");
+
+/* ── THE GUARD IS ABOUT WRITING, AND IT USED TO BLOCK THE CLEAN-UP TOO ────
+   It sat above `--clear` and caught it, so on a live database the seeder
+   refused to *remove* its own demonstration data — with a message about
+   creating accounts, which is not what was being asked for. That is the one
+   database where removing it matters, and the refusal is what kept invented
+   coordinators and invented reports on a real situation room's screens.
+
+   Taking demonstration rows out of a live database is the safe direction.
+   Putting them in is not. Only the second is guarded. */
+if (LIVE && !clearing && process.env.POLL360_ALLOW_DEMO_SEED !== "1") {
   console.error(
     "\nRefusing to seed demonstration accounts against a live database.\n" +
       "Their passwords are published in .env.example, so anyone who has read\n" +
@@ -87,17 +98,101 @@ const INCIDENTS = [
   ["Wrong ballot papers delivered", "SERIOUS", "Papers for a neighbouring constituency were in the pack. Corrected before accreditation began."],
 ];
 
-const clearing = process.argv.includes("--clear");
+/* ══════════════════════════════════════════════════════════════════════════
+   REMOVING IT AGAIN, WHICH DID NOT WORK
 
+   ── EVERY QUERY HERE WAS MISSING ITS `await` ────────────────────────────
+   Storage was `node:sqlite`, where `prepare(...).all()` returns rows. It is
+   Postgres now and returns a promise, so `rows` was a Promise, `for (const row
+   of rows)` threw "is not iterable", and the four deletes below it never ran
+   at all. The only way to remove the demonstration data was by hand, which
+   means in practice it stayed — on whatever database the deployment was
+   pointed at, appearing on the situation room's own screens as forty
+   coordinators and a night of invented reports.
+
+   ── AND IT SAID IT HAD WORKED ───────────────────────────────────────────
+   The throw came from the loop, after the SELECT. Nothing was caught, so the
+   process exited non-zero with a stack trace — but anybody reading the line
+   above it saw the script it was told to run and assumed the trace was noise
+   from a second system. A clear-up that half-runs is worse than one that
+   refuses.
+
+   ── WHAT IT TAKES, AND WHAT IT LEAVES ───────────────────────────────────
+   Only rows belonging to an `@example.ng` account, which is the marker the
+   seeder puts on everything it creates and which no real account can hold.
+   Photographs go with their incidents by cascade (`media.incident_id ... ON
+   DELETE CASCADE`). Nothing else is touched: a real return filed at a booth a
+   demonstration account happens to share is not this script's to delete, and
+   it cannot be, because `submitted_by` names the account and not the booth.
+   ══════════════════════════════════════════════════════════════════════════ */
 if (clearing) {
-  const rows = db.prepare("SELECT id FROM users WHERE email LIKE '%@example.ng'").all();
-  for (const row of rows) {
-    db.prepare("DELETE FROM results WHERE submitted_by = ?").run(row.id);
-    db.prepare("DELETE FROM incidents WHERE reported_by = ?").run(row.id);
-    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(row.id);
-    db.prepare("DELETE FROM users WHERE id = ?").run(row.id);
+  const rows = await db.prepare("SELECT id FROM users WHERE email LIKE '%@example.ng'").all();
+
+  if (!rows.length) {
+    console.log("\nNo demonstration accounts found. Nothing to remove.\n");
+    process.exit(0);
   }
-  console.log(`Removed ${rows.length} demonstration coordinators and their data.`);
+
+  let results = 0;
+  let reports = 0;
+  let paid = 0;
+
+  for (const row of rows) {
+    /* Counted before they go, so the line printed at the end is the number
+       actually removed rather than the number of accounts they hung off. */
+    const [before] = await db
+      .prepare(
+        `SELECT (SELECT count(*)::int FROM results   WHERE submitted_by = ?) AS results,
+                (SELECT count(*)::int FROM incidents WHERE reported_by  = ?) AS reports,
+                (SELECT count(*)::int FROM ledger    WHERE user_id      = ?) AS paid`
+      )
+      .all(row.id, row.id, row.id);
+    results += before?.results ?? 0;
+    reports += before?.reports ?? 0;
+    paid += before?.paid ?? 0;
+
+    /* ── EVERYTHING THAT POINTS AT THE ACCOUNT, IN TWO KINDS ────────────
+       The four deletes this used to do covered three tables and left eight
+       others pointing at a row it then tried to remove. `ledger.user_id` is
+       ON DELETE RESTRICT, so the database refused and the whole clean-up
+       stopped at the first demonstration account that had ever been paid —
+       which, after scripts/seed-evidence.mjs has run, is all of them.
+
+       The two kinds are handled differently on purpose:
+
+         DELETED   rows that only exist because the demonstration exists —
+                   its returns, its reports, its sessions, its ledger.
+         NULLED    a real row that merely records a demonstration account as
+                   having touched it: a genuine coordinator approved by the
+                   demo administrator, a real declared figure they typed in.
+                   Deleting those would destroy real records to tidy up a
+                   fake one. Losing "who did it" is the correct, smaller loss,
+                   and for an account that was never a person it loses
+                   nothing true. */
+    await db.prepare("DELETE FROM ledger WHERE user_id = ?").run(row.id);
+    await db.prepare("DELETE FROM results WHERE submitted_by = ?").run(row.id);
+    await db.prepare("DELETE FROM incidents WHERE reported_by = ?").run(row.id);
+    await db.prepare("DELETE FROM sessions WHERE user_id = ?").run(row.id);
+
+    await db.prepare("UPDATE results SET verified_by = NULL WHERE verified_by = ?").run(row.id);
+    await db.prepare("UPDATE wa_contacts SET user_id = NULL WHERE user_id = ?").run(row.id);
+    await db.prepare("UPDATE declared SET entered_by = NULL WHERE entered_by = ?").run(row.id);
+    await db.prepare("UPDATE coordinators SET approved_by = NULL WHERE approved_by = ?").run(row.id);
+    await db
+      .prepare("UPDATE access_requests SET issued_user_id = NULL WHERE issued_user_id = ?")
+      .run(row.id);
+    await db.prepare("UPDATE broadcast_items SET created_by = NULL WHERE created_by = ?").run(row.id);
+    await db.prepare("UPDATE broadcast_items SET cleared_by = NULL WHERE cleared_by = ?").run(row.id);
+
+    await db.prepare("DELETE FROM users WHERE id = ?").run(row.id);
+  }
+
+  console.log(
+    `\nRemoved ${rows.length} demonstration coordinator${rows.length === 1 ? "" : "s"}, ` +
+      `${reports} invented report${reports === 1 ? "" : "s"}, ${results} demonstration ` +
+      `return${results === 1 ? "" : "s"} and ${paid} ledger entr${paid === 1 ? "y" : "ies"}. ` +
+      `Photographs went with their reports.\n`
+  );
   process.exit(0);
 }
 

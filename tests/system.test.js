@@ -82,12 +82,34 @@ describe("the endpoint table", () => {
       assert.ok(endpoint.who?.length > 0, `${endpoint.path} does not say who may use it`);
       assert.ok(endpoint.what?.length > 0, `${endpoint.path} does not say what it is for`);
       assert.ok(endpoint.methods?.length > 0, `${endpoint.path} lists no methods`);
-      /* There is no third kind of door. Anything anonymous would have to be a
-         deliberate decision, and it would have to be argued for here first. */
+      /* ── THERE IS NOW A THIRD KIND OF DOOR, AND HERE IS THE ARGUMENT ───
+         For a long time there were two: a session, or a signature. Anything
+         anonymous had to be a deliberate decision and had to be argued for
+         here first, which is what this is.
+
+         The health endpoint cannot be guarded. What asks it is the router in
+         front of this deployment — a platform's own load balancer, a
+         container scheduler — deciding whether this instance is well enough
+         to be handed the next return. None of those can hold a session or a
+         signing secret, and an instance that has lost its database would
+         happily keep answering a *guarded* check with 401 forever while the
+         router concluded nothing was wrong.
+
+         So "open" is allowed, and the price of it is the rule below: an open
+         door has to say in its own note why it is open and what it does not
+         print. A door with no guard and no explanation is how the next one
+         gets added without an argument. */
       assert.ok(
-        ["session", "signature"].includes(endpoint.guard),
-        `${endpoint.path} is guarded by "${endpoint.guard}", which is neither a session nor a signature`
+        ["session", "signature", "open"].includes(endpoint.guard),
+        `${endpoint.path} is guarded by "${endpoint.guard}", which is not a session, a signature, or a deliberately open door`
       );
+
+      if (endpoint.guard === "open") {
+        assert.ok(
+          endpoint.note?.length > 0,
+          `${endpoint.path} is open to anybody and does not say why, or what it withholds`
+        );
+      }
     }
   });
 });

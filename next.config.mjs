@@ -86,48 +86,33 @@ const nextConfig = {
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           {
-            /* ── REPORT-ONLY, AND DELIBERATELY SO ─────────────────────────
-               A content security policy is the single most effective thing
-               left to add here, and also the single easiest one to ship
-               broken: get one directive wrong and the app loads as a blank
-               page for everybody, with no error anybody can act on. That is
-               a poor trade to make blind on a product whose bad night is
-               election night.
+            /* ── THE POLICY ITSELF IS NO LONGER HERE ───────────────────────
+               This carried a `Content-Security-Policy-Report-Only` header for
+               a long time, with an honest note saying that enforcing one
+               blind is a poor trade on a product whose bad night is election
+               night, and that it should be run for a day and then switched
+               on. The reasoning was right; the day never came, which is what
+               always happens to a header that has to be switched on by hand.
 
-               So it goes out in report-only first. The browser enforces
-               nothing and logs every violation to the console, which turns
-               "what does this app actually load" from a guess into a list.
-               Run the product for a day — the dashboards, the WhatsApp desk,
-               the broadcast board in its iframe — collect what it complains
-               about, then change this one key from
-               `Content-Security-Policy-Report-Only` to
-               `Content-Security-Policy` and it is enforced.
+               It is now enforced, with a fresh nonce per request, and it is
+               set in proxy.js because a nonce cannot be a static string in
+               this file. See lib/security-headers.js for what it says.
 
-               Two notes on what is already here. `unsafe-inline` for scripts
-               is not laziness: the App Router inlines its hydration payload,
-               and removing it needs per-request nonces, which is a separate
-               piece of work and belongs after this one. And `frame-ancestors`
-               is deliberately absent — the broadcast board is *meant* to be
-               embedded in vMix and OBS, that is handled by the X-Frame-Options
-               rule below, and duplicating it here in a form that contradicts
-               it would break the feature the product is sold on. */
-            key: "Content-Security-Policy-Report-Only",
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
-              /* Wikimedia is the only outside origin any image comes from,
-                 and it comes from there because the board can hold a
-                 reference the product itself does not know. */
-              "img-src 'self' data: blob: https://upload.wikimedia.org",
-              "font-src 'self' data:",
-              "connect-src 'self'",
-              "media-src 'self' blob:",
-              "object-src 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-              "upgrade-insecure-requests",
-            ].join("; "),
+               ── WHAT STAYS HERE, AND WHY ────────────────────────────────
+               proxy.js does not run for API routes, framework bundles or
+               static files — deliberately, because a policy governs a
+               document and means nothing on a font. So the headers those
+               paths need are set here, where they cost nothing per request.
+
+               ── AND THE ONE THAT WAS MISSING ALTOGETHER ─────────────────
+               Without HSTS the first request of every day is plain HTTP:
+               somebody types the domain, the browser tries port 80, and the
+               redirect to HTTPS happens after the session cookie has already
+               crossed a network in the clear. Two years, subdomains
+               included, and submitted to the preload list so even a first
+               visit from a new device is covered. */
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
           },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
@@ -164,6 +149,22 @@ const nextConfig = {
         ],
       },
       {
+        /* ── AN ANSWER THAT IS NOT A PAGE NEEDS ALMOST NOTHING ─────────────
+           Every route under /api returns JSON, an image this server drew, or
+           a file. None of them is a document, so none of them should be
+           allowed to load a script, open a frame or be framed. `'none'`
+           across the board is the honest description of what these need, and
+           it means a route that somehow returned HTML — an error page, a
+           stack trace, something reflected back — could not execute anything
+           in a browser that opened it directly. */
+        source: "/api/:path*",
+        headers: [
+          { key: "Content-Security-Policy", value: "default-src 'none'; frame-ancestors 'none'; sandbox" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
+        ],
+      },
+      {
         /* Broadcast surfaces are *designed* to be embedded — a board in vMix or
            OBS is an iframe in someone else's scene, and a station's own page may
            legitimately frame one. So framing is allowed here and denied
@@ -182,8 +183,18 @@ const nextConfig = {
            only three and left the situation room, the broadcast desk, the
            administrator's console and the WhatsApp desk cacheable — the four
            that carry the most, and the ones most likely to sit behind a
-           corporate proxy in a newsroom. */
-        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp|gap|agent)/:path*",
+           corporate proxy in a newsroom.
+
+           ── AND IT HAPPENED AGAIN, WITH /governors ─────────────────────
+           Which is behind `requireUser` like every other room and was not in
+           this list. A list of signed-in pages maintained by hand goes stale
+           exactly once per page added, and nothing about the omission is
+           visible from any screen. So it is no longer maintained by hand
+           alone: `tests/security-headers.test.js` compares this list against
+           the one lib/security-headers.js keeps of the pages rendered per
+           request, and fails when a page appears in one and not the other.
+           The test is what found this. */
+        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp|gap|agent|governors)/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
         ],

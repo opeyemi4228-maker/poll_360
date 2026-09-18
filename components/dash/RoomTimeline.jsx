@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ChevronRight, MapPin } from "lucide-react";
+import { AlertTriangle, ChevronRight, Flag, MapPin } from "lucide-react";
 
 import { SLOT_MINUTES } from "@/lib/timeline";
 import { formatNumber } from "@/lib/utils";
@@ -56,11 +56,24 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
   const { slots, phases, moments, quietFor } = timeline;
   const peak = Math.max(1, ...slots.map((slot) => slot.filed));
   const loudest = Math.max(1, ...slots.map((slot) => slot.incidents));
-  const started = slots.some((slot) => slot.filed);
+  /* ── THE MORNING'S OWN SCALE ────────────────────────────────────────────
+     Updates run to their own maximum rather than to the returns'. They are a
+     different quantity — eight presses a booth against one return a booth —
+     and sharing a scale would draw the whole field's morning as a flat line
+     under the evening's count. */
+  const busiest = Math.max(1, ...slots.map((slot) => slot.updates ?? 0));
+
+  /* ── THE CHART DRAWS ONCE THE DAY STARTS, NOT ONCE THE COUNTING DOES ────
+     This used to wait for the first return, so a screen watched through an
+     entire morning of agents arriving, materials landing and voting opening
+     showed the empty state and the words "nothing yet". The night starts when
+     the first agent says it has. */
+  const started = slots.some((slot) => slot.filed || slot.updates);
 
   const observed = phases.filter((phase) => phase.at).length;
   const totalFiled = slots.reduce((sum, slot) => sum + slot.filed, 0);
   const totalReports = slots.reduce((sum, slot) => sum + slot.incidents, 0);
+  const totalUpdates = slots.reduce((sum, slot) => sum + (slot.updates ?? 0), 0);
 
   return (
     <div className="flex flex-col gap-3">
@@ -150,6 +163,27 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
                           />
                         </div>
 
+                        {/* ── WHAT THE AGENTS SENT, ON ITS OWN THIN TRACK ──
+                            A third quantity and therefore a third track: the
+                            file's own rule is that two kinds of event must not
+                            share an axis, and an update is neither a return
+                            nor a report. It is thin because it is context for
+                            the other two rather than the subject — but it is
+                            the only thing on this chart that is not zero at
+                            nine in the morning, which is most of a polling
+                            day. */}
+                        <div className="flex h-4 items-end pb-[2px]">
+                          <div
+                            className="w-full rounded-t-[2px] transition-[height] duration-500"
+                            style={{
+                              height: `${slot.updates ? Math.max(12, ((slot.updates ?? 0) / busiest) * 100) : 1}%`,
+                              background: slot.updates
+                                ? "var(--color-sky-500)"
+                                : "var(--color-dash-line)",
+                            }}
+                          />
+                        </div>
+
                         {/* the axis: the hour, and only every other one on a
                             long night, so the labels never collide */}
                         <span className="figure border-y border-dash-line py-1 text-center text-[0.625rem] leading-none text-dash-muted tabular-nums">
@@ -184,7 +218,7 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
             {slots
               .map(
                 (slot) =>
-                  `${hour(slot.at)}: ${slot.filed} returns, ${slot.verified} verified, ${slot.incidents} reports`
+                  `${hour(slot.at)}: ${slot.filed} returns, ${slot.verified} verified, ${slot.incidents} reports, ${slot.updates ?? 0} updates from agents`
               )
               .join(". ")}
           </p>
@@ -194,6 +228,7 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
             and the chart's whole content is stated once in words. */}
         <footer className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-dash-line px-5 py-2.5 text-[0.75rem] text-dash-muted">
           <Key colour="var(--color-dash-ink)" label="Returns filed" value={totalFiled} />
+          <Key colour="var(--color-sky-500)" label="Updates from agents" value={totalUpdates} />
           <Key colour="var(--color-amber-500)" label="Reports from the field" value={totalReports} />
           <Key colour="var(--color-red-500)" label="Most recent half-hour" />
           <span className="ml-auto">{SLOT_MINUTES} minutes to a column, running to now.</span>
@@ -287,7 +322,8 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
                 What happened, and where
               </h2>
               <p className="mt-0.5 text-[0.8125rem] text-dash-muted">
-                Firsts, and the reports at the top severity. Newest first.
+                The first booth to reach each step, the first return from each state, and the
+                reports at the top severity. Newest first.
               </p>
             </div>
             <span className="figure shrink-0 text-[0.8125rem] font-bold text-dash-ink tabular-nums">
@@ -302,7 +338,16 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
           ) : (
             <ul className="divide-y divide-dash-line">
               {moments.map((moment) => {
-                const Icon = moment.kind === "critical" ? AlertTriangle : MapPin;
+                /* Three kinds now, and each gets its own mark: a step the
+                   field reached, a first return from a state, a report at the
+                   top severity. One icon for all three would make the list
+                   read as one kind of thing happening repeatedly. */
+                const Icon =
+                  moment.kind === "critical"
+                    ? AlertTriangle
+                    : moment.kind === "step"
+                      ? Flag
+                      : MapPin;
                 const critical = moment.kind === "critical";
 
                 return (
@@ -487,10 +532,15 @@ function PhaseDetail({ phase, slots, onPlace }) {
 
       {slot ? (
         <>
-          <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-dash-sm border border-dash-line bg-dash-line sm:grid-cols-4">
+          <dl className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-dash-sm border border-dash-line bg-dash-line sm:grid-cols-3 lg:grid-cols-6">
             <Figure label="Returns filed" value={slot.filed} />
             <Figure label="Checked" value={slot.verified} />
             <Figure label="Reports" value={slot.incidents} tone={slot.loud ? "alert" : undefined} />
+            <Figure label="Updates" value={slot.updates ?? 0} />
+            {/* Every booth heard from in this half-hour by any means. It is the
+                honest answer to "is the field alive right now", which neither
+                returns nor reports give on their own. */}
+            <Figure label="Booths heard" value={slot.booths ?? 0} />
             <Figure label="Agents seen" value={slot.signedIn} />
           </dl>
           <p className="mt-2 text-[0.6875rem] text-dash-muted">
@@ -868,6 +918,7 @@ function tip(slot) {
   return [
     `${hour(slot.at)} — ${slot.filed} returns`,
     slot.verified ? `${slot.verified} verified` : null,
+    slot.updates ? `${slot.updates} updates` : null,
     slot.incidents ? `${slot.incidents} reports` : null,
     slot.states.length ? slot.states.slice(0, 3).join(", ") : null,
   ]

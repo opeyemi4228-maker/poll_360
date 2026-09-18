@@ -13,7 +13,9 @@ import { IS_VIEW, LANDING } from "@/lib/room-views";
 import { lgasOf, resolveTerritory } from "@/lib/constituencies";
 import { holdersOf, lastResultFor } from "@/lib/seats";
 import { RACES, raceLabel } from "@/lib/races";
-import { results, incidents, media, declared, sheetReads, units } from "@/lib/db";
+import { results, incidents, media, declared, sheetReads, units, unitUpdates } from "@/lib/db";
+import { figuresFor, situationsFor } from "@/lib/intake";
+import { hubReturns } from "@/lib/hub-returns";
 import { watch } from "@/lib/watch";
 import { gapReport } from "@/lib/gap-report";
 import { nightPulse, sheetAudits } from "@/lib/pulse";
@@ -84,6 +86,7 @@ export default async function RoomPage() {
     readings,
     registrySize,
     statuses,
+    dayUpdates,
   ] = await Promise.all([
     incidents.recent(40, project?.id, territory),
     watch.coordinators(project?.id, race, territory),
@@ -124,6 +127,13 @@ export default async function RoomPage() {
        screen has to print — so they are counted separately rather than
        derived from a list they were filtered out of. */
     project ? results.statusCounts(project.id, race, territory) : {},
+    /* ── WHAT THE AGENTS SENT FROM THEIR BOOTHS ─────────────────────────
+       The day's procedure — arrived, materials here, voting started, counting
+       begun — recorded by this product before it is relayed anywhere, so the
+       room has it whether or not Data Bank and Agent360 are reachable. It is
+       what the timeline's morning is made of, and it joins this wait rather
+       than adding a round trip of its own. */
+    project ? unitUpdates.recent(project.id, territory) : [],
   ]);
 
   /* ── THREE THINGS A MAP CAN BE, AND THEY ARE NOT INTERCHANGEABLE ─────────
@@ -193,7 +203,48 @@ export default async function RoomPage() {
      then the screen reads zero everywhere and says why, which is the honest
      picture and the one that cannot be mistaken for a count.
      ══════════════════════════════════════════════════════════════════════ */
-  const commandLive = process.env.COMMAND_FEED === "live";
+  /* ── THE DEMONSTRATION GUARD IS STRUCTURAL NOW, NOT A SWITCH ────────────
+     `COMMAND_FEED` was turned off because the database held seeded returns —
+     a demonstration count filed by a script to exercise these screens. Every
+     one of those rows belongs to a project marked `is_demo`, so the condition
+     that actually matters is a property of the data and can be read off it.
+     An environment variable is a thing somebody forgets to set on the one
+     night it matters, in either direction: left off, the room shows a real
+     campaign nothing; turned on, it shows them a script's figures.
+
+     So the demonstration project is refused here, structurally and always,
+     and `COMMAND_FEED=off` remains as a way to force the screen dark on a
+     deployment whose real project is not yet trustworthy. A room on a live
+     project now sees its own count without anybody setting anything. */
+  const commandLive =
+    Boolean(project) && !project.isDemo && process.env.COMMAND_FEED !== "off";
+
+  /* ══════════════════════════════════════════════════════════════════════
+     THE HUB'S OWN FIGURES, FOR BOOTHS THIS PRODUCT HAS NONE FROM
+
+     Data Bank holds returns that reached it another way — an agent filing
+     through another product, a keyed call, a WhatsApp conversation the hub
+     classified — and on a night when this database is unreachable for twenty
+     minutes and the relay is not, it holds returns this product never saw.
+
+     Every rule about what may be added is in lib/hub-returns.js, and the one
+     worth naming here is that a booth we already hold is never added twice:
+     almost every hub figure is a copy of one filed through this product, so
+     the overlap is the normal case rather than the edge.
+
+     Read only for a live command board. Asking the hub on a demonstration
+     project would be a query whose answer must be discarded.
+     ══════════════════════════════════════════════════════════════════════ */
+  const commandRows = commandLive ? await results.counted(project.id, race, territory) : [];
+
+  /* The booths this room may read, which is what scopes every hub query on
+     this page. Built once, here, because the command board needs it before the
+     situations panel does — and asked for twice would be two scans over the
+     same three lists on a page that re-renders every twenty seconds. */
+  const watchedCodes = boothsWatched({ coordinators, rows: ourRows, updates: dayUpdates });
+
+  const hubFigures = commandLive ? await figuresFor(watchedCodes, { race }) : null;
+  const fromHub = hubReturns({ ours: commandRows, hub: hubFigures, race });
 
   const commandBoard = project
     ? await liveBoard({
@@ -202,6 +253,7 @@ export default async function RoomPage() {
         electionId: commandLive ? project.id : null,
         race,
         territory,
+        extra: fromHub.rows,
       })
     : null;
 
@@ -241,7 +293,16 @@ export default async function RoomPage() {
      what `commandBoard` is built from, so the two cannot tell different
      stories: while the feed is off, both are empty. */
   const commandTree = project
-    ? await liveTree({ electionId: commandLive ? project.id : null, race, territory })
+    ? await liveTree({
+        electionId: commandLive ? project.id : null,
+        race,
+        territory,
+        /* The same rows the board counted. A drill-down built without them
+           would show a state total on the map and a smaller sum underneath
+           it, and the first person to add the wards up by hand would stop
+           believing both. */
+        extra: fromHub.rows,
+      })
     : null;
 
   const feed = rawFeed.map((item) => ({
@@ -312,7 +373,7 @@ export default async function RoomPage() {
   const booth = boothBoard({ roster: coordinators, rows: ourRows });
 
 
-  const timeline = nightTimeline({ rows: ourRows, incidents: feed, coordinators });
+  const timeline = nightTimeline({ rows: ourRows, incidents: feed, coordinators, updates: dayUpdates });
 
   const escalations = raiseAlerts({ pulse, integrity, operations, incidents: feed });
 
@@ -329,6 +390,30 @@ export default async function RoomPage() {
     turnout: row.registered ? (row.declaredTotal / row.registered) * 100 : 0,
   }));
   const photoMap = Object.fromEntries(await media.forIncidents(feed.map((item) => item.id)));
+
+  /* ══════════════════════════════════════════════════════════════════════
+     WHAT DATA BANK HAS HEARD THAT THIS PRODUCT HAS NOT
+
+     ── THE HALF OF THE NIGHT THAT IS INVISIBLE FROM IN HERE ──────────────
+     Poll360 knows every report filed *to Poll360*. It cannot know that an
+     agent sent a situation straight to Data Bank from another product, over
+     WhatsApp into the hub, or through the agents' app on a night when the
+     write back to this database failed and the relay succeeded. Those reports
+     are sealed and chained in the hub and, until now, appeared on no screen in
+     this room. Silence is where rigging hides, and half the silence was not
+     visible from inside this product.
+
+     ── SCOPED TO THE BOOTHS THIS ROOM MAY ALREADY READ ───────────────────
+     Not the federation. The codes are the ones this room already holds returns
+     or coordinators for, which is the same ground `within` narrowed everything
+     else above to — so connecting the hub cannot widen a narrowed room. An
+     empty scope reads nothing rather than everything; see lib/intake.js.
+
+     ── AND IT COSTS NOTHING WHEN THE HUB IS NOT THERE ────────────────────
+     `situationsFor` never throws and returns `available: false` when Data
+     Bank's schema has not been published into this deployment. The screen says
+     so in words rather than going blank. */
+  const hubReports = await situationsFor(watchedCodes);
 
   /* ── ONE BOOTH, EVERYTHING WE HOLD, INDEXED ONCE ────────────────────────
      Built here rather than fetched when somebody clicks a booth: clicking is
@@ -377,6 +462,20 @@ export default async function RoomPage() {
              own notice from this rather than leaving a reader to wonder
              whether a wall of zeroes is a quiet night or a broken page. */
           awaiting: !commandLive,
+          /* ── WHERE THESE FIGURES CAME FROM ──────────────────────────
+             A board built from two sources has to say so. This is the
+             count added from Data Bank, the overlap it refused to count
+             twice, and what it dropped — see lib/hub-returns.js. The
+             screen prints it in words rather than implying one source. */
+          sources: {
+            ours: commandRows.length,
+            hub: fromHub.added,
+            duplicate: fromHub.duplicate,
+            readings: fromHub.readings,
+            impossible: fromHub.impossible,
+            byChannel: fromHub.byChannel,
+            hubAvailable: fromHub.available,
+          },
         }
       }
       /* What the last presidential election was actually won on, from the
@@ -397,6 +496,10 @@ export default async function RoomPage() {
          board, which is already the project's own declared figures. */
       states={project?.isDemo ? states2023 : boardStates}
       incidents={feed}
+      /* Data Bank's own reports board, for the booths this room watches. It
+         carries no narrative by design — see lib/intake.js — so it is drawn
+         beside the incident feed and never merged into it. */
+      hubReports={hubReports}
       booth={booth}
       coordinators={coordinators}
       watchSummary={watchSummary}
@@ -525,4 +628,31 @@ export default async function RoomPage() {
       }}
     />
   );
+}
+
+/**
+ * The booths this room may read, from everything it already holds.
+ *
+ * ── WHY THE SCOPE IS BUILT FROM WHAT WE HOLD, NOT FROM THE TERRITORY ───────
+ * `within` narrows our own queries by local government prefix, which is right
+ * for a table this product owns. Data Bank's views are read by an explicit
+ * list of booth codes instead, and the list has to be one this room could
+ * already see — otherwise connecting the hub would quietly widen a narrowed
+ * room, which is the one thing a per-territory grant cannot survive.
+ *
+ * Coordinators, returns and updates are all already scoped to this room's
+ * ground by the time they reach here, so their union is exactly the set of
+ * booths it is entitled to ask about. An empty list reads nothing rather than
+ * everything — see lib/intake.js.
+ */
+function boothsWatched({ coordinators = [], rows = [], updates = [] }) {
+  return [
+    ...new Set(
+      [
+        ...coordinators.map((person) => person.unitCode),
+        ...rows.map((row) => row.unitCode),
+        ...updates.map((row) => row.unitCode),
+      ].filter(Boolean)
+    ),
+  ];
 }

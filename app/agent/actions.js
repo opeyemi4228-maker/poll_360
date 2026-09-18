@@ -14,7 +14,8 @@ import {
   destroyCoordinatorSession,
   sweepExpiredCoordinatorSessions,
 } from "@/lib/coordinator-session";
-import { rateLimit } from "@/lib/ratelimit";
+import { attempt, spend } from "@/lib/ratelimit";
+import { clientAddress, limiterKey } from "@/lib/client-ip";
 import { isNigerianMobile, normalisePhone } from "@/lib/phone";
 import { boothFromForm } from "@/lib/booth";
 import { parseUnitCode } from "@/lib/units";
@@ -48,10 +49,25 @@ import { matchSheet, matchRecord, mismatchMessage } from "@/lib/sheet-match";
  * ───────────────────────────────────────────────────────────────────────────
  */
 
+/**
+ * Where a request came from, and what to count it against.
+ *
+ * ── THE ADDRESS AND THE KEY ARE NOT THE SAME THING ─────────────────────────
+ * `ip` is for the audit trail and `key` is for the limiter, and they differ in
+ * exactly one case that matters: when the address cannot be established. The
+ * trail then records what was claimed, marked as unverified, because an
+ * address anybody could have typed is worse than none in a tribunal. The
+ * limiter puts every such caller in one bucket, because counting against
+ * something the caller chooses is the same as not counting at all — which is
+ * what this did before. See lib/client-ip.js.
+ */
 async function whereFrom() {
   const list = await headers();
+  const address = clientAddress(list);
+
   return {
-    ip: (list.get("x-forwarded-for")?.split(",")[0] ?? "local").trim(),
+    ip: address.trusted ? address.ip : `${address.ip} (unverified)`,
+    key: limiterKey(address),
     userAgent: list.get("user-agent") ?? undefined,
   };
 }
@@ -59,12 +75,12 @@ async function whereFrom() {
 /* ── signing up ───────────────────────────────────────────────────────────── */
 
 export async function joinAsAgent(_previous, formData) {
-  const { ip } = await whereFrom();
+  const { ip, key } = await whereFrom();
 
   /* Five in an hour from one address. A ward coordinator signing up their
      whole team from one phone is a real thing and this leaves room for it; a
      script filling the approval queue with noise is not. */
-  const limit = rateLimit(`agent-join:${ip}`, { limit: 5, windowMs: 60 * 60 * 1000 });
+  const limit = await attempt(`agent-join:${key}`, { limit: 5, windowMs: 60 * 60 * 1000 });
   if (!limit.ok) {
     return {
       error:
@@ -231,24 +247,39 @@ export async function joinAsAgent(_previous, formData) {
  * ══════════════════════════════════════════════════════════════════════════
  */
 export async function signInWithCode(_previous, formData) {
-  const { ip, userAgent } = await whereFrom();
+  const { ip, key, userAgent } = await whereFrom();
 
   /* Ten in fifteen minutes. Thirty bits of secret behind that is far past
      anything a guess reaches, and it leaves room for somebody mistyping their
-     own code four times in the dark. */
-  const limit = rateLimit(`agent-code:${ip}`, { limit: 10, windowMs: 15 * 60 * 1000 });
-  if (!limit.ok) {
+     own code four times in the dark.
+
+     ── AND THE COUNT NOW HOLDS ACROSS INSTANCES AND CANNOT BE SIDESTEPPED ──
+     Two changes, and without either of them the paragraph above was not
+     true. The key was the first entry of `x-forwarded-for`, which the caller
+     sends, so a fresh one on every request meant no limit at all; and the
+     counter lived in one process's memory, so a platform running forty
+     instances handed out forty budgets. An agent code is the whole of an
+     agent's credential — there is no password behind it — so this is the
+     limiter in the product that most had to be real. */
+  const gate = await attempt(`agent-code:${key}`, { limit: 10, windowMs: 15 * 60 * 1000 });
+  if (!gate.ok) {
     return { error: "Too many attempts from this connection. Wait a few minutes and try again." };
   }
 
   const confirmed = await confirmAgentCode(formData.get("code"));
 
   if (confirmed.state === "unavailable") {
+    /* Data Bank could not be asked. That is not a wrong code and must not be
+       counted as one: an agent locked out on polling morning because the hub
+       had a bad minute is the failure this whole product is arranged to
+       avoid. */
     return {
       error: "Codes cannot be checked right now. Nothing is wrong with yours — wait a minute and try again.",
     };
   }
   if (confirmed.state !== "matched") {
+    /* A code that was checked and did not match. Only now is it spent. */
+    await spend(`agent-code:${key}`, { windowMs: 15 * 60 * 1000 });
     return { error: "That code did not match an approved agent. Check it and try again, or ask your coordinator." };
   }
 
@@ -517,7 +548,10 @@ export async function fileAgentResult(_previous, formData) {
           ? "agreed"
           : `not compared: ${sheet.record.reason ?? "unknown"}`,
     },
-    ip: (list.get("x-forwarded-for")?.split(",")[0] ?? "local").trim(),
+    ip: (() => {
+      const address = clientAddress(list);
+      return address.trusted ? address.ip : `${address.ip} (unverified)`;
+    })(),
   });
 
   /* ── AND ON TO THE HUB ──────────────────────────────────────────────────
