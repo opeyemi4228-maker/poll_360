@@ -174,12 +174,8 @@ export function Team({ role, capabilities }) {
         <p className="font-display text-[1.125rem] leading-snug font-extrabold tracking-[-0.02em] text-dash-ink">
           Nobody clears their own work.
         </p>
-        <p className="mt-2 text-[0.875rem] leading-relaxed text-dash-muted">
-          It is checked on the item rather than on the role, so it holds however the accounts are
-          configured and it holds for the super administrator — who is, on any long night, the
-          person most likely to be signed in when it is late and there is nobody else about. The
-          same rule the count already lives under: whoever verifies a return is never the person
-          who filed it.
+        <p className="mt-1.5 text-[0.8125rem] leading-snug text-dash-muted">
+          Checked on the item, so it holds for every account, including the administrator.
         </p>
       </Card>
 
@@ -237,9 +233,8 @@ export function Team({ role, capabilities }) {
           </ul>
         )}
         <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
-          Accounts are issued from the administrator&rsquo;s console, one at a time, and a
-          broadcast account can be narrowed to one contest and one piece of the country when it is
-          issued. This screen reads permissions; it does not grant them.
+          Accounts are issued from the administrator&rsquo;s console. This screen reads
+          permissions; it does not grant them.
         </p>
       </Card>
     </div>
@@ -303,36 +298,28 @@ export function Platforms({ items }) {
       </div>
 
       <Card title="Setting a platform up" subtitle="Done once, by your administrator, in the deployment's settings">
-        <ul className="grid gap-3 text-[0.8125rem] leading-relaxed text-dash-muted md:grid-cols-2">
+        <ul className="grid gap-2 text-[0.8125rem] leading-snug text-dash-muted md:grid-cols-2">
           <li className="border-l-2 border-dash-line pl-3">
-            <span className="font-bold text-dash-ink">Facebook and Instagram.</span> A Facebook Page,
-            with the Instagram business account linked to it, and a long-lived Page access token
-            that can publish. The Page id, the Instagram account id and the token go into settings.
+            <span className="font-bold text-dash-ink">Facebook, Instagram.</span> A Page, the linked
+            Instagram account, and a Page token that can publish.
           </li>
           <li className="border-l-2 border-dash-line pl-3">
-            <span className="font-bold text-dash-ink">X.</span> A developer app with read and write
-            access on a plan that allows posting, and the four keys for the account that posts.
+            <span className="font-bold text-dash-ink">X.</span> An app with write access, on a plan
+            that allows posting, and its four keys.
           </li>
           <li className="border-l-2 border-dash-line pl-3">
-            <span className="font-bold text-dash-ink">Threads.</span> A Threads app with publishing
-            access, the profile&rsquo;s user id and its long-lived token.
+            <span className="font-bold text-dash-ink">Threads.</span> The profile&rsquo;s user id and
+            a long-lived token.
           </li>
           <li className="border-l-2 border-dash-line pl-3">
-            <span className="font-bold text-dash-ink">Telegram.</span> A bot from @BotFather, made an
-            administrator of your channel, and the channel&rsquo;s @name.
+            <span className="font-bold text-dash-ink">Telegram.</span> A bot made an administrator of
+            the channel, and the channel&rsquo;s name.
           </li>
           <li className="border-l-2 border-dash-line pl-3 md:col-span-2">
-            <span className="font-bold text-dash-ink">Everything else.</span> WhatsApp, LinkedIn,
-            TikTok and YouTube are reached through a relay: one web address in your own automation
-            tool that receives every post — picture, caption per platform, place and time — and
-            passes it on. Deliveries are signed so the tool can check they came from here.
+            <span className="font-bold text-dash-ink">Everywhere else.</span> One signed webhook into
+            your own automation tool, which passes each post on.
           </li>
         </ul>
-        <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
-          Every token can be withdrawn by removing it from settings, and every post sent is in the
-          audit log with who published it, when, and what each platform answered. Nothing is ever
-          published that one person wrote and a second has not cleared.
-        </p>
       </Card>
     </div>
   );

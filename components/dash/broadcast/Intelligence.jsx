@@ -135,9 +135,7 @@ export function DataViz({ places, national, raceLabel }) {
         )}
 
         <p className="mt-4 border-t border-dash-line pt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
-          The right-hand column is how many returns each bar is computed from, and it is not
-          optional decoration: a 62% share off eleven booths and a 62% share off nine hundred are
-          the same bar and different claims. Read it out with the figure.
+          The column on the right is how many returns each bar rests on. Read it out with the figure.
         </p>
       </Card>
 
@@ -258,11 +256,9 @@ export function Trends({ trends, raceLabel }) {
         <p className="text-[0.875rem] leading-relaxed text-dash-muted">
           Everything above is about <span className="font-semibold text-dash-ink">our returns</span>{" "}
           for the {raceLabel.toLowerCase()}, not about the commission&rsquo;s count and not about
-          the election. &ldquo;Furthest through&rdquo; means our agents in that state have filed
-          the largest share of the booths we expect from them; it does not mean the state has
-          finished counting, and the two will not match. A state at the top of the stalled list has
-          not stopped voting — our people there have stopped filing, which is worth ringing
-          somebody about and is not a headline.
+          &ldquo;Furthest through&rdquo; is the share of booths our agents have filed, not how
+          far the count has got. A stalled state means our people have stopped filing — worth a
+          phone call, not a headline.
         </p>
       </Card>
     </div>
@@ -352,8 +348,7 @@ export function ResultsIntel({ places, national, rows, declaredRows, raceLabel }
               </p>
               <p className="mt-2 text-[0.875rem] leading-relaxed text-dash-muted">
                 {formatNumber(national.verified)} of {formatNumber(national.filed)} returns.
-                Everything not in that fraction is a figure somebody filed and nobody has yet
-                confirmed against the sheet it came off.
+                The rest is filed and not yet checked against its sheet.
               </p>
               <div className="mt-3 h-3 overflow-hidden rounded-sm bg-dash-bg">
                 <span
@@ -451,11 +446,7 @@ export function ResultsIntel({ places, national, rows, declaredRows, raceLabel }
           </div>
         )}
         <p className="mt-4 border-t border-dash-line pt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
-          A difference is not an accusation and must never be broadcast as one. Our figure is drawn
-          from the booths our agents have filed, which is a smaller and differently-distributed set
-          than the whole state — most of the gap on this table at any hour is coverage, not
-          dispute. It becomes a story when it survives our coverage reaching the declaration&rsquo;s,
-          and not before.
+          A difference is not an accusation and must never be broadcast as one.
         </p>
       </Card>
     </div>
@@ -564,8 +555,7 @@ export function Claims({ items, race, national }) {
               <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
                 The data check is the step this product is unusually good at: it holds{" "}
                 {formatNumber(national.filed)} returns from named booths, with positions and
-                photographed sheets behind them, so a claim about a specific polling unit can be
-                held against what the booth actually filed.
+                photographed sheets behind them.
               </p>
             )}
           </Card>

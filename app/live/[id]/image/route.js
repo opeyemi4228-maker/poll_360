@@ -1,3 +1,4 @@
+import { hasCard, isPublic } from "@/lib/broadcast";
 import { broadcastItems } from "@/lib/db";
 import { postImageBytes } from "@/lib/graphic";
 
@@ -27,7 +28,10 @@ const SHAPES = new Set(["wide", "square", "story"]);
 export async function GET(request, { params }) {
   const { id } = await params;
   const item = await broadcastItems.get(String(id ?? "")).catch(() => null);
-  if (!item || item.kind !== "SOCIAL" || item.state !== "ON_AIR") {
+  /* Public, and on air, and something that actually has a card: a strap or a
+     programme carries no figures, and drawing one produces a blank sheet with
+     a masthead on it, which is a worse answer than no answer. */
+  if (!isPublic(item) || !hasCard(item)) {
     return new Response("Not found.", { status: 404 });
   }
 

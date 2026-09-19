@@ -81,52 +81,45 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
         title="RAW → VERIFIED → CLEARED → ON AIR"
         subtitle={`${raceLabel} · every stage is a person doing something`}
       >
-        <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {/* ── THE FUNNEL, DRAWN ──────────────────────────────────────────
+            Four counts in a row make a reader do the subtraction. A funnel
+            does it for them: each bar is the stage as a share of what was
+            received, so the drop between filed and cleared — the gap this
+            desk exists to close — is the shape of the picture rather than a
+            sum somebody has to work out. */}
+        <ol className="flex flex-col gap-2.5">
           {pipeline.stages.map((stage, index) => {
+            const received = pipeline.stages[0]?.count || 1;
+            const share = Math.min(100, (stage.count / received) * 100);
             const previous = index > 0 ? pipeline.stages[index - 1].count : null;
             const lost = previous === null ? null : previous - stage.count;
+            const colour =
+              stage.id === "air" ? "#E4202E" : stage.id === "cleared" ? "#1E9E5A" : stage.id === "verified" ? "#F28A25" : "var(--color-dash-ink)";
             return (
-              <li
-                key={stage.id}
-                className={cn(
-                  "rounded-dash-sm border px-4 py-3.5",
-                  stage.id === "air" ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line bg-dash-card"
-                )}
-              >
-                <p
-                  className={cn(
-                    "text-[0.6875rem] font-bold tracking-[0.12em] uppercase",
-                    stage.id === "air" ? "text-white/60" : "text-dash-muted"
-                  )}
-                >
+              <li key={stage.id} className="flex items-center gap-3">
+                <span className="w-28 shrink-0 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
                   {stage.label}
-                </p>
-                <p
-                  className={cn(
-                    "figure mt-2 text-[1.75rem] leading-none font-bold tracking-[-0.02em]",
-                    stage.id === "air" ? "text-white" : "text-dash-ink"
-                  )}
-                >
-                  {formatNumber(stage.count)}
-                </p>
-                <p
-                  className={cn(
-                    "mt-2 text-[0.75rem] leading-snug",
-                    stage.id === "air" ? "text-white/70" : "text-dash-muted"
-                  )}
-                >
-                  {stage.why}
-                </p>
-                {lost !== null && lost > 0 && (
-                  <p
-                    className={cn(
-                      "mt-2 border-t pt-2 text-[0.75rem] font-semibold",
-                      stage.id === "air" ? "border-white/20 text-white/80" : "border-dash-line text-dash-muted"
-                    )}
+                </span>
+                <span className="relative flex h-9 min-w-0 flex-1 items-center overflow-hidden rounded-dash-sm bg-dash-bg">
+                  <span
+                    className="flex h-full items-center justify-end rounded-dash-sm px-3"
+                    style={{ width: `${Math.max(share, 2)}%`, background: colour }}
                   >
-                    {formatNumber(lost)} did not get this far
-                  </p>
-                )}
+                    {share > 18 && (
+                      <span className="figure text-[0.9375rem] leading-none font-extrabold text-white">
+                        {formatNumber(stage.count)}
+                      </span>
+                    )}
+                  </span>
+                  {share <= 18 && (
+                    <span className="figure pl-3 text-[0.9375rem] leading-none font-extrabold text-dash-ink">
+                      {formatNumber(stage.count)}
+                    </span>
+                  )}
+                </span>
+                <span className="w-24 shrink-0 text-right text-[0.75rem] font-semibold text-dash-muted">
+                  {lost !== null && lost > 0 ? `${formatNumber(lost)} short` : `${Math.round(share)}%`}
+                </span>
               </li>
             );
           })}
@@ -271,8 +264,8 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
 
         <p className="mt-4 border-t border-dash-line pt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
           &ldquo;Booths in&rdquo; is measured against how many polling units each state had at the last
-          general election, which is the right order of magnitude and is not this election&rsquo;s
-          register. A state this project holds no booth count for shows an em dash rather than a
+          general election, not this one&rsquo;s register. A state with no booth count shows an
+          em dash rather than a
           percentage computed against nothing.
         </p>
       </Card>

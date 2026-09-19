@@ -280,9 +280,8 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
               into the encoder&rsquo;s destinations, and press start.
             </li>
           </ol>
-          <p className="mt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
-            The stage shows only figures an editor has cleared. Until something is cleared it says the count
-            is under way, which is the honest thing to have on screen.
+          <p className="mt-3 text-[0.8125rem] leading-snug text-dash-muted">
+            The stage shows only figures an editor has cleared.
           </p>
         </Card>
 

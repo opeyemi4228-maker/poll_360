@@ -217,8 +217,7 @@ export function Scheduler({ items }) {
 
         <p className="mt-4 flex items-start gap-2 border-t border-dash-line pt-4 text-[0.8125rem] leading-relaxed text-dash-muted">
           <Clock size={15} strokeWidth={2.25} className="mt-0.5 shrink-0" />
-          Times are shown in whatever timezone this browser is set to, which on a night run from
-          one building is the right answer and on a night run from two is worth checking.
+          Times follow this browser&rsquo;s own timezone.
         </p>
       </Card>
     </div>

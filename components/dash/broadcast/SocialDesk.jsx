@@ -6,6 +6,7 @@ import { CheckCircle2, CircleAlert, CircleDashed, Loader2, PlugZap, Send } from 
 import { Card, Empty } from "@/components/dash/DashCard";
 import PlacePicker from "./PlacePicker";
 import { ItemCard, Said, useAction, useDesk } from "./Queue";
+import { Bar, Ring } from "./Gauges";
 import { checkChannels, draftItem, moveItem } from "@/app/broadcast/actions";
 import { DELIVERY, PLATFORMS, SHAPES, platformLabel } from "@/lib/broadcast";
 import { captionFor, freezeFigures, measure, stampFor, CAPTION_LIMITS } from "@/lib/stamp";
@@ -102,11 +103,8 @@ export function Channels() {
       {relay && (
         <div className="mt-3 border-t border-dash-line pt-3">
           <ChannelRow row={{ ...relay, label: "Everywhere else (relay)" }} check={result("relay")} />
-          <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
-            WhatsApp, LinkedIn, TikTok and YouTube have no way for this product to post to them
-            directly. With the relay set up, each post is handed to your own automation tool
-            (Make, Zapier, n8n) to pass on. Without it, those platforms are marked
-            &ldquo;post by hand&rdquo; and the card can be downloaded from the post.
+          <p className="mt-2 text-[0.75rem] leading-snug text-dash-muted">
+            WhatsApp, LinkedIn, TikTok and YouTube are reached through your own automation tool.
           </p>
         </div>
       )}
@@ -555,43 +553,59 @@ export function Delivery({ items }) {
           </div>
         </Card>
       )}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Written" value={formatNumber(posts.length)} />
-        <Stat label="Published" value={formatNumber(published.length)} />
-        <Stat label="Median wait to clear" value={minutes(toClear)} />
-        <Stat label="Median written to out" value={minutes(toAir)} />
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-dash border border-dash-line bg-dash-card px-5 py-4">
+        <Ring
+          value={posts.length ? (published.length / posts.length) * 100 : null}
+          label={"Written\nthat went out"}
+          tone="green"
+          figure={`${formatNumber(published.length)}/${formatNumber(posts.length)}`}
+        />
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="inline-flex items-baseline gap-2">
+            <span className="figure text-[1.125rem] font-extrabold text-dash-ink">{minutes(toClear)}</span>
+            <span className="text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">to clear</span>
+          </span>
+          <span className="inline-flex items-baseline gap-2">
+            <span className="figure text-[1.125rem] font-extrabold text-dash-ink">{minutes(toAir)}</span>
+            <span className="text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">written to out</span>
+          </span>
+        </div>
       </div>
 
-      <Card title="What each platform did" subtitle="From the platforms' own answers, not from the queue">
+      <Card title="What each platform did" subtitle="From the platforms' own answers">
         {perPlatform.length === 0 ? (
           <Empty>Nothing has been sent to a platform yet.</Empty>
         ) : (
-          <table className="w-full text-[0.8125rem]">
-            <thead>
-              <tr className="text-left text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
-                <th className="py-2 font-bold">Platform</th>
-                <th className="py-2 text-right font-bold">{DELIVERY.SENT.label}</th>
-                <th className="py-2 text-right font-bold">{DELIVERY.FAILED.label}</th>
-                <th className="py-2 text-right font-bold">Not sent</th>
-              </tr>
-            </thead>
-            <tbody>
-              {perPlatform.map((row) => (
-                <tr key={row.id} className="border-t border-dash-line">
-                  <td className="py-2 font-semibold text-dash-ink">{row.label}</td>
-                  <td className="figure py-2 text-right text-dash-ink">{formatNumber(row.out)}</td>
-                  <td className={cn("figure py-2 text-right", row.failed ? "font-bold text-red-700" : "text-dash-muted")}>
-                    {formatNumber(row.failed)}
-                  </td>
-                  <td className="figure py-2 text-right text-dash-muted">{formatNumber(row.waiting)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="space-y-3">
+            {perPlatform.map((row) => (
+              <li key={row.id} className="flex items-center gap-3">
+                <span className="w-24 shrink-0 text-[0.8125rem] font-bold text-dash-ink">{row.label}</span>
+                <Bar
+                  className="flex-1"
+                  height={14}
+                  parts={[
+                    { label: "posted", value: row.out, tone: "green" },
+                    { label: "failed", value: row.failed, tone: "red" },
+                    { label: "not sent", value: row.waiting, tone: "orange" },
+                  ]}
+                />
+                <span className="figure w-12 shrink-0 text-right text-[0.9375rem] font-extrabold text-dash-ink">
+                  {formatNumber(row.out)}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
-        <p className="mt-3 border-t border-dash-line pt-3 text-[0.75rem] leading-relaxed text-dash-muted">
-          Reach, views and engagement stay with each platform and are read in its own dashboard.
-          They are not drawn here, and not drawn as zero.
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-dash-line pt-3 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-[#1E9E5A]" /> posted
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-[#E4202E]" /> failed
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="size-2 rounded-full bg-[#F28A25]" /> not sent
+          </span>
         </p>
       </Card>
 
@@ -625,14 +639,6 @@ function ByFormat({ posts }) {
   );
 }
 
-function Stat({ label, value }) {
-  return (
-    <div className="rounded-dash border border-dash-line bg-dash-card px-4 py-3.5">
-      <p className="text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">{label}</p>
-      <p className="figure mt-1.5 text-[1.5rem] leading-none font-bold text-dash-ink">{value}</p>
-    </div>
-  );
-}
 
 /**
  * The card, drawn by the server, with an answer when it cannot be.

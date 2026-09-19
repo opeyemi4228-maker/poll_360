@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, BarChart3, Check, Copy, ExternalLink, Flag, MapPin, PenLine, Radio, Send } from "lucide-react";
+import { AlertTriangle, BarChart3, ExternalLink, Flag, MapPin, PenLine, Radio, Send } from "lucide-react";
 
 import { Card, Empty } from "@/components/dash/DashCard";
 import { useDesk } from "./Queue";
+import { Pip, Ring, Spark } from "./Gauges";
 import PublishingList from "./PublishingList";
 import { PostComposer } from "./SocialDesk";
 import { DELIVERY, platformLabel } from "@/lib/broadcast";
@@ -68,6 +69,27 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
   const published = posts.filter((item) => item.state === "ON_AIR" || item.state === "OFF_AIR");
   const failing = published.filter((item) => Object.values(deliveries[item.id] ?? {}).some((row) => row.status === "FAILED"));
   const connected = channels.filter((row) => row.configured).length;
+
+  const live = posts.filter((item) => item.state === "ON_AIR");
+
+  /* The last six hours, half hour by half hour: when this desk was saying
+     something and when it went quiet.
+
+     The edge is the room's own reading of the clock, handed down with the
+     night's timeline — a component may not read the clock while it is
+     describing a picture, and one that did would draw a different strip on
+     the server and in the browser. */
+  const perHalfHour = (() => {
+    const slots = new Array(12).fill(0);
+    const clock = timeline?.at ? new Date(timeline.at).getTime() : Math.max(0, ...published.map((item) => new Date(item.airedAt ?? item.createdAt).getTime()));
+    const edge = Math.floor(clock / 1_800_000) * 1_800_000;
+    for (const item of published) {
+      const at = new Date(item.airedAt ?? item.createdAt).getTime();
+      const back = Math.floor((edge - at) / 1_800_000);
+      if (back >= 0 && back < slots.length) slots[slots.length - 1 - back] += 1;
+    }
+    return slots;
+  })();
 
   /* How many results each state had when the desk last published about it,
      read from the figures frozen into that post. */
@@ -175,13 +197,40 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ─────────────────────────────────────────────────── the strip */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_repeat(4,1fr)]">
-        <WireCard wire={wire} />
-        <Tile label="Published tonight" value={formatNumber(published.filter((row) => row.state === "ON_AIR").length)} />
-        <Tile label="Waiting on an editor" value={formatNumber(waiting.length)} tone={waiting.length ? "warn" : null} />
-        <Tile label="Need resending" value={formatNumber(failing.length)} tone={failing.length ? "alert" : null} />
-        <Tile label="Platforms set up" value={`${connected} / ${channels.length}`} tone={connected ? null : "warn"} />
+      {/* ── THE NIGHT, AS A SHAPE ────────────────────────────────────────
+          One row, read at a glance from across the room: how much of the
+          count is in, how the publishing has gone half-hour by half-hour,
+          and the two counts that need a person. */}
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-dash border border-dash-line bg-dash-card px-5 py-4">
+        <Ring value={national?.reporting ?? null} label={`Polling units\ncounted`} tone="orange" />
+
+        <div className="min-w-40 flex-1">
+          <p className="flex items-baseline justify-between gap-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+            Published tonight
+            <span className="figure text-[1.125rem] leading-none font-extrabold text-dash-ink">
+              {formatNumber(live.length)}
+            </span>
+          </p>
+          <Spark points={perHalfHour} className="mt-2" tone="red" />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <Pip value={formatNumber(waiting.length)} label="waiting" tone={waiting.length ? "orange" : "ink"} />
+          <Pip value={formatNumber(failing.length)} label="to resend" tone={failing.length ? "red" : "ink"} />
+          <Pip value={`${connected}/${channels.length}`} label="platforms" tone={connected ? "green" : "orange"} />
+        </div>
+
+        {wire && (
+          <a
+            href={wire}
+            target="_blank"
+            rel="noreferrer"
+            className="air-band ml-auto inline-flex h-10 items-center gap-2 rounded-full px-4 text-[0.75rem] font-bold"
+          >
+            <span className="size-2 animate-pulse rounded-full bg-red-500" />
+            Live page
+          </a>
+        )}
       </div>
 
       {/* ── READY FOR AN UPDATE ─────────────────────────────────────────
@@ -311,94 +360,6 @@ const placeByName = (name) => (STATE_BY_NAME.has(name) ? placeOf(`STATE:${STATE_
 
 const severityWord = (value) =>
   value === "CRITICAL" ? "Critical" : value === "SERIOUS" ? "Serious" : value === "WARNING" ? "Warning" : "For information";
-
-/**
- * One figure, and what it is.
- *
- * ── THE FIGURE IS THE POINT, SO IT IS THE BIGGEST THING ────────────────────
- * These are read from across a room, at a glance, between other jobs. The
- * number carries the weight, the label is small above it, and the colour is
- * used for one thing only: something that needs a person. A tile that is
- * coloured because it is interesting teaches people to ignore the colour.
- */
-function Tile({ label, value, tone = null }) {
-  return (
-    <div
-      className={cn(
-        "flex flex-col justify-between rounded-dash border-2 px-4 py-3.5",
-        tone === "alert"
-          ? "border-red-300 bg-red-50"
-          : tone === "warn"
-            ? "border-amber-300 bg-amber-50"
-            : "border-dash-line bg-dash-card"
-      )}
-    >
-      <p className="flex items-center gap-1.5 text-[0.625rem] font-bold tracking-[0.14em] text-dash-muted uppercase">
-        {tone && (
-          <span
-            aria-hidden="true"
-            className={cn("size-1.5 rounded-full", tone === "alert" ? "bg-red-600" : "bg-amber-500")}
-          />
-        )}
-        {label}
-      </p>
-      <p
-        className={cn(
-          "figure mt-2 text-[1.875rem] leading-none font-extrabold tracking-[-0.02em]",
-          tone === "alert" ? "text-red-700" : tone === "warn" ? "text-amber-800" : "text-dash-ink"
-        )}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
-
-/**
- * The public address of tonight's updates, ready to pin to every profile.
- */
-function WireCard({ wire }) {
-  const [copied, setCopied] = useState(false);
-  if (!wire) return <Tile label="Live page" value="—" />;
-  return (
-    <div className="air-band flex flex-col justify-between rounded-dash px-4 py-3.5">
-      <p className="flex items-center gap-2 text-[0.625rem] font-bold tracking-[0.12em] uppercase">
-        <span className="size-2 animate-pulse rounded-full bg-red-500" />
-        Public live page
-      </p>
-      <p className="mt-1.5 truncate font-mono text-[0.75rem] text-white/80" title={wire}>
-        {wire.replace(/^https?:\/\//, "")}
-      </p>
-      <div className="mt-2 flex gap-2">
-        <button
-          type="button"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(wire);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1800);
-            } catch {
-              /* A browser that refuses the clipboard still has the link. */
-            }
-          }}
-          className="inline-flex h-7 items-center gap-1.5 rounded-dash-sm bg-white/10 px-2.5 text-[0.6875rem] font-bold hover:bg-white/20"
-        >
-          {copied ? <Check size={13} strokeWidth={2.5} /> : <Copy size={13} strokeWidth={2.5} />}
-          {copied ? "Copied" : "Copy link"}
-        </button>
-        <a
-          href={wire}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-7 items-center gap-1.5 rounded-dash-sm bg-white/10 px-2.5 text-[0.6875rem] font-bold hover:bg-white/20"
-        >
-          <ExternalLink size={13} strokeWidth={2.5} />
-          Open
-        </a>
-      </div>
-    </div>
-  );
-}
 
 function Entry({ row, last, onWriteUp, deliveries }) {
   const stream = STREAMS[row.stream];
