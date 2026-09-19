@@ -194,7 +194,7 @@ const nextConfig = {
            the one lib/security-headers.js keeps of the pages rendered per
            request, and fails when a page appears in one and not the other.
            The test is what found this. */
-        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp|gap|agent|governors)/:path*",
+        source: "/:prefix(console|field|login|room|broadcast|admin|whatsapp|gap|agent|governors|live)/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-store, max-age=0, must-revalidate" },
         ],

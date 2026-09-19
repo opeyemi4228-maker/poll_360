@@ -57,7 +57,46 @@ function tableBody() {
   return source.slice(opens, closes);
 }
 
-const entries = () => [...tableBody().matchAll(/^\s*"(#[a-z-]+)":\s*"([a-z]+)"/gm)].map((m) => ({ hash: m[1], layer: m[2] }));
+const literalEntries = () =>
+  [...tableBody().matchAll(/^\s*"(#[a-z-]+)":\s*"([a-z]+)"/gm)].map((m) => ({ hash: m[1], layer: m[2] }));
+
+/**
+ * The broadcast desk's names, which are spread in rather than written out.
+ *
+ * ── AND WHY THE TEST HAS TO KNOW THAT ──────────────────────────────────────
+ * Twenty-six of this table's entries are not in it: they are spread from the
+ * desk's own redirect table, so that the surface names and the doors into
+ * them cannot drift apart. That is the right way to build the table and it
+ * makes it unparseable by a regex over the literal, which is how this test
+ * started reporting that the sidebar's "#centre" link had no door when it has
+ * one.
+ *
+ * Read from the same place the room reads it, and the two stay in step. The
+ * one thing asserted about the spread separately is that it is still there:
+ * a table that stopped spreading would leave this list empty and quietly
+ * shrink the test back to what it used to cover.
+ */
+function spreadEntries() {
+  const desk = readFileSync(path.join(here, "..", "components", "dash", "RoomBroadcast.jsx"), "utf8");
+  const where = desk.slice(desk.indexOf("export const WHERE = {"));
+  const found = [...where.matchAll(/^ {2}([a-z]+): \{ desk: "([a-z]+)"/gm)].map((m) => ({
+    hash: `#${m[1]}`,
+    layer: m[2],
+  }));
+  assert.ok(found.length > 20, "the broadcast desk's redirect table was not found");
+
+  /* The room keeps its own meaning for any name it already used — see
+     ROOM_OWNS in the room. Those are filtered out of the spread there, so
+     they are filtered out here, or this would assert a door the room
+     deliberately did not open. */
+  const owns = new Set(
+    [...source.matchAll(/const ROOM_OWNS = new Set\(\[([^\]]*)\]\)/g)]
+      .flatMap((m) => [...m[1].matchAll(/"([a-z]+)"/g)].map((row) => row[1]))
+  );
+  return found.filter((row) => !owns.has(row.hash.slice(1)));
+}
+
+const entries = () => [...literalEntries(), ...spreadEntries()];
 
 /** Every `{ value: "…" }` in the tab table: the layers that actually exist. */
 const tabs = () => new Set([...source.matchAll(/\{\s*value:\s*"([a-z]+)"/g)].map((m) => m[1]));

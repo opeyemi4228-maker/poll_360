@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Loader2, Zap } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 
-import { Card, Empty, Badge } from "@/components/dash/DashCard";
-import { Queue, Said, clock, useAction, useDesk } from "./Queue";
+import { Card, Empty } from "@/components/dash/DashCard";
+import { Queue, Said, useAction, useDesk } from "./Queue";
 import { draftItem } from "@/app/broadcast/actions";
-import { describeUnit } from "@/lib/broadcast";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -260,42 +260,6 @@ export default function BreakingNews({ items, incidents, race }) {
             </ol>
           </Card>
 
-          {/* ── THE FEED THIS DESK IS ALLOWED TO SEE ────────────────────
-              Kind, severity and place. Not the narrative: that is sealed, and
-              a broadcast account is deliberately not given the key. What is
-              here is enough to decide whether to send somebody, which is the
-              decision this desk actually makes. */}
-          <Card title="Just in from the field" subtitle="Reports. Not findings.">
-            {incidents.length === 0 ? (
-              <Empty>Nothing has been reported.</Empty>
-            ) : (
-              <ul className="space-y-2.5">
-                {incidents.slice(0, 8).map((row) => (
-                  <li key={row.id} className="border-l-2 border-dash-line pl-3">
-                    <p className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        tone={
-                          row.severity === "CRITICAL" ? "alert" : row.severity === "URGENT" ? "warn" : "neutral"
-                        }
-                      >
-                        {String(row.kind ?? "report").replace(/_/g, " ").toLowerCase()}
-                      </Badge>
-                      <span className="text-[0.75rem] text-dash-muted">{clock(row.createdAt)}</span>
-                    </p>
-                    <p className="mt-1 text-[0.8125rem] leading-snug text-dash-ink">
-                      {describeUnit(row.unitCode)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-3 flex items-start gap-2 border-t border-dash-line pt-3 text-[0.75rem] leading-relaxed text-dash-muted">
-              <AlertTriangle size={14} strokeWidth={2.5} className="mt-0.5 shrink-0" />
-              The written report itself is sealed and stays with the room running the count. A
-              broadcast desk is told that a report exists and where, which is what it needs to
-              send somebody, and not what somebody said.
-            </p>
-          </Card>
         </div>
       </div>
 

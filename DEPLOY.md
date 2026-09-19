@@ -22,6 +22,7 @@ Production, Preview and Development.
 | Name | Required | What it is |
 |---|---|---|
 | `DATABASE_URL` | **yes** | The Neon **pooled** connection string. Without it the app cannot start. |
+| `SECOND_DATABASE_URL` | optional | A second Neon **pooled** connection string, used as space beside the first rather than instead of it. Two things move into it and nothing else: the bytes of photographs, and the bodies of deliveries Data Bank has already acknowledged — the only rows in this product that grow without a ceiling. Every table, row and key stays where it was, and each row records where its own bytes are. Leave it out and nothing changes. **Run `npm run bytes:move` against the production database before deploying this** — with no `--commit` it moves nothing and adds the three columns the new code reads, which production does not add on boot (see `AUTO_MIGRATE` in `lib/db.js`). Then deploy, then `npm run bytes:move -- --commit` to move what is already filed. |
 | `ENCRYPTION_KEY` | **yes** | 32 random bytes, base64. Seals phone numbers and message bodies at rest. |
 | `NEXT_PUBLIC_SITE_URL` | recommended | `https://poll-360.vercel.app`, used for canonical URLs and the sitemap. Set it to a full address or leave it out entirely — **an empty value is ignored**, and the build falls back to Vercel's own address for this deployment, then to `https://poll360.ng`. It used to fail the whole build. |
 | `NEXT_PUBLIC_AGENT_URL` | optional | The agents' own domain, e.g. `https://poll360agents.com`. Add that domain to this same Vercel project, and set this for **Production only** — on previews the agent pages stay at `/agent`. Once set, the agents' pages are served at its root and `/agent/...` on the main site forwards there, while staff pages answer "not found" on it. Changing it needs a redeploy. To try it locally, set `http://agent.localhost:3001` in `.env.local` and restart `npm run dev`; browsers resolve `*.localhost` to this machine with no hosts-file edit. |
@@ -110,6 +111,58 @@ by a key that is in the source code.
 
 ---
 
+## Publishing to social media
+
+**Before the first deploy with publishing**, apply its migration to the live
+database — production does not change its own schema at boot:
+
+```
+npx prisma migrate deploy
+```
+
+It adds the `broadcast_dispatches` and `contestants` tables and one column on
+`broadcast_items`, each only if missing, so it is safe on a database that
+already has them.
+
+The broadcast desk posts a cleared update to every platform at once. Each
+platform is switched on by its settings in `.env.example` (the block headed
+*Publishing*); anything left blank shows as "not set up" and is never
+attempted.
+
+| Platform | Settings | Notes |
+|---|---|---|
+| Facebook | `FACEBOOK_PAGE_ID`, `FACEBOOK_PAGE_TOKEN` | Long-lived Page token with `pages_manage_posts`. |
+| Instagram | `INSTAGRAM_ACCOUNT_ID` (+ Page token, or `INSTAGRAM_TOKEN`) | Fetches the card from `/live/<id>/image`, so the site must be public. |
+| X | `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET` | Needs a plan that allows posting. If X refuses the picture the post still goes, with the link that shows the card. |
+| Threads | `THREADS_USER_ID`, `THREADS_TOKEN` | Fetches the card like Instagram. |
+| Telegram | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL` | The bot must be an administrator of the channel. |
+| Everything else | `BROADCAST_RELAY_URL`, `BROADCAST_RELAY_SECRET` | WhatsApp, LinkedIn, TikTok, YouTube — through your own Make, Zapier or n8n webhook. |
+
+### Going live
+
+**Studio → Go live** opens the programme on the platforms whose APIs allow it
+and hands your encoder one address and key each.
+
+| Platform | Settings | Notes |
+|---|---|---|
+| Facebook | the Page settings above | Opens a live video on the Page. |
+| YouTube | `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN` | One OAuth grant for the channel that streams, scope `youtube.force-ssl`. |
+| X, Instagram, TikTok | — | No interface for starting a live from outside their apps. Start there, then announce it from the desk. |
+
+Video leaves an encoder, never a web page. The desk opens the channel, gives
+you the stream address (sealed in the database, shown on request to an account
+that may take things to air), puts the stage up at **`/room/stage`** for you to
+capture at 1920 × 1080, and announces the programme everywhere else.
+
+After deploying, open **Room → Studio → Social** and press **Check**. It asks
+each platform who we are without posting anything, and a token that has
+expired shows red there rather than on the first result of the night.
+
+Every post has a public page at `/live/<id>`, and every election a live page
+at `/live/p/<project id>` showing everything on air — the link to pin to every
+profile. Candidates' names and photographs are added in **Studio → Candidates**
+and appear on every card drawn after that.
+
 ## Put the app next to the database
 
 `vercel.json` pins the functions to `lhr1`, London, because the Neon project is
@@ -150,6 +203,51 @@ there.
 2. Point Meta's webhook at `https://your-domain/api/whatsapp/webhook` and use
    the same `WHATSAPP_VERIFY_TOKEN` you set above.
 3. Send `RESULT` to the number from a phone and watch it appear on the desk.
+
+---
+
+## Before the night: take the rehearsal off the project
+
+Everything on Command, Situations, Timeline and Booth is built from rows filed
+into the open project. While the product is being set up those rows are
+rehearsal traffic — an agent at one booth pressing SOS to see what the room
+does, the same return filed twice to watch the tally move.
+
+On screen it is indistinguishable from the real thing. Command reports a
+share, Situations shows critical incidents open, Timeline draws a morning that
+never happened, Booth names an agent who does not exist. A campaign briefed off
+that is being briefed off a rehearsal.
+
+Count what is there, and change nothing:
+
+```
+npm run project:clear -- --project <slug>
+```
+
+It prints the rows table by table and stops. Read that list, then run it again
+with `--commit`.
+
+To take a test account off the roster at the same time, name it. Its filings
+go with it, and the account cannot be removed without them:
+
+```
+npm run project:clear -- --project <slug> \
+  --agent <id or phone> --with-their-rows --commit
+```
+
+Three things it will not do without being asked twice:
+
+- **Clear the demonstration project.** The Results tab replays it, so emptying
+  it empties that screen for good. `--include-demo` says so out loud.
+- **Remove an agent who has filed elsewhere.** It names the other projects and
+  refuses, because a return with no author is worse than a stale roster.
+  Disable the account instead if the agent was real.
+- **Touch the audit trail.** The rows are gone; the record of who removed them
+  is not.
+
+Deliveries already made to Data Bank are left as they are — a delivered row is
+the record that something left the building. Anything still queued for the
+cleared project is cancelled, so nothing can land at the hub after the clear.
 
 ---
 

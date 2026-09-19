@@ -336,7 +336,11 @@ export async function fileResult(_previous, formData) {
      as they land. */
   revalidatePath("/room");
   revalidatePath("/whatsapp");
-  revalidatePath("/broadcast");
+  /* ── AND NOT /broadcast ANY MORE ─────────────────────────────────────
+     That address is a redirect now; the desk it used to render is a head
+     inside /room, which is revalidated above. Revalidating a redirect throws
+     nothing and clears nothing, which is the kind of line that survives for
+     years being quietly useless. */
   /* The divergence room reads returns as they arrive, so a new one changes
      what it is showing. */
   revalidatePath("/gap");

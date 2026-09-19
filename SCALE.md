@@ -136,6 +136,7 @@ competing with the agents' own requests for the same file descriptors.
 | Setting | Why |
 |---|---|
 | `DATABASE_URL` / `DATABANK_DATABASE_URL` | Use the **pooled** connection string — the host with `-pooler` in it. Without it every instance opens its own connections and the database reaches its connection limit long before it reaches its capacity. The health screen says so if this looks wrong. |
+| `SECOND_DATABASE_URL` | Space beside the working database, holding the two things with no ceiling on them: photograph bytes, and the bodies of deliveries already made. On one working database of 48 MB those were 22 MB, in 38 rows, against a count of 449 returns. Pooled, like the first — it is read on the path that serves a photograph. Unset, everything stays in one database and nothing breaks. |
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Where the sign-in limit is counted. Without them it falls back to Postgres, which is correct and costs a round trip; without a database it falls back to this process's memory, which is not a limit at all across instances. |
 | `TRUSTED_PROXY_HOPS` | How many proxies sit in front of this deployment. **1 on Vercel.** Getting it wrong in one direction puts every caller in the world in one rate-limit bucket; in the other it lets anybody have a fresh one. |
 | `DATABANK_SIGNING_SECRET` | Signs every delivery to Data Bank. The same long random string on both products. Deliveries keep working while only one end has it, so it can be rolled out in either order. |

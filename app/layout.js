@@ -1,5 +1,6 @@
 import { Inter_Tight, IBM_Plex_Mono, Instrument_Serif } from "next/font/google";
-import Script from "next/script";
+import BootScript from "@/components/pwa/BootScript";
+import { bootScript } from "@/lib/boot-script";
 
 import "./globals.css";
 import AppShell from "@/components/pwa/AppShell";
@@ -119,69 +120,24 @@ export const viewport = {
  * and identical for everybody.
  */
 /**
- * The two things that have to run before anything is drawn, in one script.
+ * The two things that have to run before anything is drawn — the rail's
+ * remembered width and the service worker — live in lib/boot-script.js, which
+ * says what each does and why.
  *
- * ══════════════════════════════════════════════════════════════════════════
- *  ONE SCRIPT, BECAUSE THE POLICY CAN ONLY REACH WHAT THE FRAMEWORK EMITS
+ * ── WHY IT IS NOT next/script ANY MORE ─────────────────────────────────────
+ * It was rendered with `beforeInteractive`, on the understanding that the
+ * framework places such a script in the HTML to run during parse. In the App
+ * Router it does not: an inline `beforeInteractive` script is queued on
+ * `self.__next_s` and executed by the framework once its own bundle has
+ * loaded, which is after the first paint. The rail this was written to hold
+ * still snapped on a slow connection.
  *
- *  The rail attribute was set by a `beforeInteractive` script and the worker
- *  was registered by a raw <script> element beside it. Under the enforced
- *  content security policy that stopped working: the framework lifts a
- *  `beforeInteractive` script into the document it is assembling and gives it
- *  the request's nonce, and it has no way to reach a bare element a component
- *  rendered. So the worker registration was the one script on every
- *  signed-in page carrying no nonce, and the browser refused to run it.
- *
- *  Nothing would have reported that. A worker that fails to register raises
- *  no error — the symptom is the offline support quietly not being there, on
- *  the product whose users are standing at a booth on a network that barely
- *  works. Which is, word for word, the failure described below as having
- *  happened once already.
- *
- *  Both jobs therefore share one script the framework owns. Each still runs
- *  during parse, ahead of anything being painted, which is what both needed
- *  anyway. Verified by reading the rendered HTML: on a page rendered for a
- *  request, every script tag on it carries that request's nonce.
- * ══════════════════════════════════════════════════════════════════════════
- *
- * ── WHAT IT DOES, IN ORDER ─────────────────────────────────────────────────
- *
- *   THE RAIL      The dashboards remember whether their rail is collapsed,
- *                 and a remembered choice that arrives one frame late is
- *                 worse than none: the room watched the rail snap shut every
- *                 time it loaded a page. The attribute both the rail and the
- *                 sheet are sized from is set here, during parse. It reads
- *                 one key, writes one attribute and swallows its own errors,
- *                 because a browser with storage switched off should still
- *                 get a dashboard.
- *
- *   THE WORKER    Registration used to live inside AppShell, whose chunk was
- *                 never loaded by any route in a production build: the page
- *                 hydrated, eleven chunks arrived, and /sw.js was never
- *                 requested at all. The product shipped with its offline
- *                 support, its install prompt and its update notice quietly
- *                 switched off. Here it cannot be deferred, code-split away
- *                 or lost behind a component that fails to mount.
- *
- *                 The build id rides along, so each deploy is a distinct
- *                 script to the browser and the worker names its caches after
- *                 itself. Without it the file is byte-identical forever and a
- *                 device that has visited once never takes another version.
- *
- *                 In development the worker serves chunks from before the
- *                 last edit and the page dies on a missing module factory, so
- *                 it is removed rather than installed.
- *
- * Authored here in full. No user input reaches any of it.
+ * It also broke hydration on every page rendered per request, because the
+ * framework gave it the request's nonce on the server and had none to give it
+ * on the client. It is a plain inline script now, allowed by its hash — see
+ * components/pwa/BootScript.jsx and the script-src list in
+ * lib/security-headers.js.
  */
-const boot = [
-  `try{if(localStorage.getItem('poll360:rail-collapsed')==='1')document.documentElement.dataset.rail='collapsed'}catch(e){}`,
-  process.env.NODE_ENV === "production"
-    ? `if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('/sw.js?v=${
-        process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"
-      }').catch(function(){})})}`
-    : `if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(x){x.unregister()})})}`,
-].join("");
 
 export default function RootLayout({ children }) {
   return (
@@ -192,7 +148,23 @@ export default function RootLayout({ children }) {
          hang; this says the smoothness is deliberate and silences the warning
          without giving up the anchor scrolling. */
       data-scroll-behavior="smooth"
+      /* Read by the boot script to version the service worker's address, so
+         each deploy is a distinct worker. It is here rather than written into
+         the script because a script that changed every deploy would need a
+         new CSP hash every deploy. See lib/boot-script.js. */
+      data-build={process.env.NEXT_PUBLIC_BUILD_ID ?? "dev"}
       className={`${interTight.variable} ${plexMono.variable} ${instrumentSerif.variable}`}
+      /* ── THIS ELEMENT IS MEANT TO DIFFER FROM WHAT THE SERVER SENT ───────
+         The boot script sets data-rail on it during parse, before React
+         arrives — that is the whole point of the script, since a rail width
+         applied after hydration is the snap it exists to prevent. The server
+         cannot know the reader's stored preference, so React finds an
+         attribute it did not render and reports a mismatch on every load for
+         anybody who keeps the rail collapsed.
+
+         This covers <html>'s own attributes and nothing beneath it: a real
+         mismatch anywhere in the page is still reported. */
+      suppressHydrationWarning
     >
       <body className="antialiased">
         {/* ── THE RAIL'S WIDTH, BEFORE THE FIRST PAINT ────────────────────
@@ -213,28 +185,15 @@ export default function RootLayout({ children }) {
             because a browser with storage switched off should still get a
             dashboard. Authored here, no user input reaches it.
 
-            ── AND WHY IT IS next/script AND NOT A RAW TAG ──────────────────
-            It was a bare <script>, which is the obvious way to write this and
-            the one React 19 refuses to let pass quietly: a script element
-            rendered by a component is never executed on the client, so React
-            warns on every load that the thing cannot possibly do what it
-            looks like it does. The warning is right about the mechanism and
-            wrong about the intent — the tag was only ever meant to run in the
-            server's HTML, which is exactly where it did run.
-
-            `beforeInteractive` says that intent out loud instead of implying
-            it. Next injects the script into the initial HTML from the server,
-            ahead of any of its own modules, which is the behaviour this
-            comment has been describing all along; and because Next owns the
-            injection rather than React rendering an element, the console
-            stops reporting a defect that was not one. It must live in the
-            root layout, which is where it already was and where the note
-            above explains it has to be. */}
-        <Script
-          id="poll360-boot"
-          strategy="beforeInteractive"
-          dangerouslySetInnerHTML={{ __html: boot }}
-        />
+            ── AND WHY IT IS NOT next/script ──────────────────────────────
+            `beforeInteractive` was meant to put this in the server's HTML to
+            run during parse. It queues it for the framework's bundle to run
+            instead, after the first paint, and it put a nonce on it that
+            broke hydration on every page. So it is a plain inline script,
+            allowed by its hash — see lib/boot-script.js — and rendered by a
+            component that keeps React from warning about a script it is not
+            meant to run. */}
+        <BootScript html={bootScript()} />
 
         {/* First tab stop on every page. */}
         <a href="#main" className="skip-link">

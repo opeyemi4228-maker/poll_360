@@ -53,13 +53,14 @@ test("staff pages do not open on the agents' address", () => {
 
 test("the long spelling on the agents' address is tidied to the short one", () => {
   const response = proxy(request("https://poll360agents.com/agent/pending?code=AB"));
-  assert.equal(response.status, 308);
+  assert.equal(response.status, 307);
   assert.equal(response.headers.get("location"), "https://poll360agents.com/pending?code=AB");
 });
 
 test("the main site sends old agent links across, and leaves everything else alone", () => {
   const moved = proxy(request("https://poll360.ng/agent/join?ref=sheet"));
-  assert.equal(moved.status, 308);
+  /* Temporary: a browser must ask again, so a corrected setting reaches it. */
+  assert.equal(moved.status, 307);
   assert.equal(moved.headers.get("location"), "https://poll360agents.com/join?ref=sheet");
 
   assert.equal(proxy(request("https://poll360.ng/agent")).headers.get("location"), "https://poll360agents.com/");

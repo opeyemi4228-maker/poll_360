@@ -1,9 +1,9 @@
 "use client";
 
-import { Activity, ArrowRight } from "lucide-react";
+import { Activity } from "lucide-react";
 
-import { Card, Empty, Badge } from "@/components/dash/DashCard";
-import { clock } from "./Queue";
+import { Card, Empty } from "@/components/dash/DashCard";
+
 import { kindLabel } from "@/lib/broadcast";
 import { formatNumber, formatShare } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -27,16 +27,6 @@ import { cn } from "@/lib/utils";
  * ══════════════════════════════════════════════════════════════════════════
  */
 
-/** The layers of a broadcast picture, bottom to top. */
-const LAYERS = [
-  { id: "FULLSCREEN", label: "Full frame", surface: "graphics" },
-  { id: "MAP", label: "Map", surface: "mapstudio" },
-  { id: "GRAPHIC", label: "Graphic", surface: "graphics" },
-  { id: "VIDEO", label: "Video", surface: "video" },
-  { id: "LOWER_THIRD", label: "Lower third", surface: "ticker" },
-  { id: "BANNER", label: "Breaking strap", surface: "breaking" },
-  { id: "TICKER", label: "Ticker", surface: "ticker" },
-];
 
 export default function ControlRoom({ items, load, national, raceLabel, onGo }) {
   const on = (kind) => items.find((item) => item.kind === kind && item.state === "ON_AIR") ?? null;
@@ -190,46 +180,6 @@ export default function ControlRoom({ items, load, national, raceLabel, onGo }) 
         </div>
       </div>
 
-      {/* ── EVERY CHANNEL, AND THE DOOR TO ITS BENCH ─────────────────────── */}
-      <Card title="The layers" subtitle="What is on each, and where it is made">
-        <ul className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          {LAYERS.map((layer) => {
-            const live = on(layer.id);
-            const waiting = items.filter(
-              (item) => item.kind === layer.id && (item.state === "CLEARED" || item.state === "REVIEW")
-            );
-            return (
-              <li key={layer.id}>
-                <button
-                  type="button"
-                  onClick={() => onGo(layer.surface)}
-                  className={cn(
-                    "flex w-full items-start gap-3 rounded-dash-sm border px-3.5 py-3 text-left transition-colors",
-                    live ? "border-dash-ink bg-dash-bg" : "border-dash-line hover:border-dash-ink"
-                  )}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
-                        {layer.label}
-                      </span>
-                      {live && <Badge tone="ink">On air</Badge>}
-                    </span>
-                    <span className="mt-1.5 block truncate text-[0.875rem] font-semibold text-dash-ink">
-                      {live ? live.title : "—"}
-                    </span>
-                    <span className="mt-0.5 block text-[0.75rem] text-dash-muted">
-                      {live?.airedAt ? `since ${clock(live.airedAt)} · ` : ""}
-                      {waiting.length} waiting
-                    </span>
-                  </span>
-                  <ArrowRight size={15} strokeWidth={2.5} className="mt-1 shrink-0 text-dash-muted" />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </Card>
     </div>
   );
 }
@@ -258,102 +208,5 @@ function Alert({ tone, children }) {
       <Activity size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" />
       <span>{children}</span>
     </li>
-  );
-}
-
-/* ────────────────────────────────────────────────── live video control ──── */
-
-/**
- * Streams.
- *
- * ══════════════════════════════════════════════════════════════════════════
- *  A HEALTH PANEL WITH NO ENCODER BEHIND IT IS A LIE WITH A GREEN LIGHT
- *
- *  Bitrate, connection state, viewer counts and stream health are not things
- *  this product can derive from anything it holds. They come from an encoder,
- *  an ingest endpoint and a platform's own API, and none of the three is
- *  wired to this repository.
- *
- *  There are two honest options: leave the screen out, or build the half that
- *  is real and say plainly what the other half needs. Leaving it out is worse,
- *  because the scheduling half — which streams are planned, who cleared them,
- *  which are running — is genuinely useful and is exactly what a desk loses
- *  track of first on a long night. So it is here, and the meters are not
- *  drawn at all rather than drawn empty.
- * ══════════════════════════════════════════════════════════════════════════
- */
-export function StreamControl({ items, onGo }) {
-  const streams = items.filter(
-    (item) => item.kind === "PROGRAMME" && item.payload?.stream
-  );
-  const programmes = items.filter((item) => item.kind === "PROGRAMME");
-
-  return (
-    <div className="space-y-4">
-      <Card title="Scheduled streams" subtitle="Planned live output, cleared the way everything else is">
-        {programmes.length === 0 ? (
-          <Empty>
-            Nothing is scheduled. Slots are added on the scheduler; mark one as a stream and it
-            appears here.
-          </Empty>
-        ) : (
-          <ul className="space-y-2.5">
-            {programmes.slice(0, 10).map((item) => (
-              <li
-                key={item.id}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-dash-sm border border-dash-line px-3.5 py-3"
-              >
-                <span className="figure w-12 shrink-0 text-[0.875rem] font-bold text-dash-ink">
-                  {item.scheduledFor ? clock(item.scheduledFor) : "—:—"}
-                </span>
-                <span className="min-w-0 flex-1 text-[0.875rem] text-dash-ink">{item.title}</span>
-                <Badge tone={item.state === "ON_AIR" ? "ink" : "neutral"}>
-                  {item.state.replace("_", " ").toLowerCase()}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        )}
-        <button
-          type="button"
-          onClick={() => onGo("scheduler")}
-          className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-ink uppercase hover:border-dash-ink"
-        >
-          Open the scheduler
-          <ArrowRight size={13} strokeWidth={2.5} />
-        </button>
-      </Card>
-
-      <Card title="Stream health" subtitle="What this would take, rather than a meter with nothing behind it">
-        <p className="text-[0.875rem] leading-relaxed text-dash-muted">
-          Bitrate, connection state, dropped frames, viewer counts and stream duration all come
-          from an encoder and a platform&rsquo;s API. Neither is connected to this product, so none
-          of those meters is drawn — a health panel reading zero and a health panel reading
-          nothing look the same on a wall, and only one of them is true.
-        </p>
-        <ul className="mt-3 space-y-2 text-[0.875rem] leading-relaxed text-dash-muted">
-          <li className="border-l-2 border-dash-line pl-3">
-            <span className="font-bold text-dash-ink">An ingest endpoint.</span> RTMP or SRT, with
-            a key per source, so the desk knows which encoder is which.
-          </li>
-          <li className="border-l-2 border-dash-line pl-3">
-            <span className="font-bold text-dash-ink">A platform grant per destination.</span>{" "}
-            YouTube and Facebook both report viewers and health; both need an OAuth grant that a
-            person renews.
-          </li>
-          <li className="border-l-2 border-dash-line pl-3">
-            <span className="font-bold text-dash-ink">Somewhere to put the numbers.</span> Health
-            is a time series, not a current value: what matters at 11pm is that the bitrate has
-            been falling for ten minutes, not what it is this second.
-          </li>
-        </ul>
-        {streams.length > 0 && (
-          <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] text-dash-muted">
-            {formatNumber(streams.length)} slot{streams.length === 1 ? " is" : "s are"} marked as a
-            stream tonight.
-          </p>
-        )}
-      </Card>
-    </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Radio } from "lucide-react";
+import { Clock } from "lucide-react";
 
 import { Card, Empty, Badge } from "@/components/dash/DashCard";
 import { Composer, Field, ItemCard, Queue, clock, inputClass, useDesk } from "./Queue";
@@ -93,27 +93,6 @@ export function Playout({ items, order, onGo }) {
         </Card>
       </div>
 
-      {/* ── THE ONE ROUTE THAT SKIPS NOTHING ─────────────────────────────
-          There is no emergency button here that bypasses clearance, and that
-          is deliberate. What an operator gets instead is a direct route to
-          the breaking desk, where the same three steps happen quickly with a
-          second person present. A product that ships a "straight to air"
-          control ships a control that will be used at 2am by somebody tired. */}
-      <Card title="Something has just happened">
-        <p className="text-[0.875rem] leading-relaxed text-dash-muted">
-          There is no control on this desk that puts words on a screen without a second person
-          seeing them. The breaking desk is the fast path, not a different one: it is the same
-          three steps, laid out so they take under a minute.
-        </p>
-        <button
-          type="button"
-          onClick={() => onGo("breaking")}
-          className="mt-3 inline-flex h-10 items-center gap-2 rounded-dash-sm border-2 border-red-600 bg-red-600 px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-red-700"
-        >
-          <Radio size={15} strokeWidth={2.5} />
-          Open the breaking desk
-        </button>
-      </Card>
     </div>
   );
 }

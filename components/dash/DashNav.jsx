@@ -227,23 +227,28 @@ const SECTIONS = [
         ],
       },
       {
-        href: "/broadcast",
+        /* ── THE BROADCAST DESK IS IN THE ROOM NOW ───────────────────────
+           It was an arm of its own at /broadcast with six heads; it is one
+           head of the situation room with four dashboards — see
+           components/dash/RoomBroadcast.jsx. So these point into /room, and
+           the hashes are the desk's own surface names, which the room
+           understands because it spreads them out of the desk's redirect
+           table. Five of twenty-eight are listed, because this is a rail and
+           not a site map, and what belongs on it is the handful somebody
+           arrives looking for.
+
+           /broadcast itself still answers and lands here, for every link
+           written while it was a page of its own. */
+        href: "/room#broadcast",
         label: "Broadcast",
         icon: Radio,
         capability: "broadcast:render",
-        /* ── DOORS INTO AN ARM WITH SIX HEADS ────────────────────────────
-           The same arrangement as the situation room above: the surfaces are
-           local state rather than routes, and a hash is the only thing a link
-           from out here can carry in — see HASH_LAYERS in
-           components/dash/BroadcastRoom.jsx. Five of twenty-eight are listed,
-           because this is a rail and not a site map, and what belongs on it is
-           the handful somebody arrives looking for. */
         children: [
-          { href: "/broadcast#centre", label: "Command centre", icon: Activity, capability: "broadcast:render" },
-          { href: "/broadcast#results", label: "Live results", icon: BarChart3, capability: "broadcast:render" },
-          { href: "/broadcast#ticker", label: "Ticker", icon: Captions, capability: "broadcast:draft" },
-          { href: "/broadcast#breaking", label: "Breaking", icon: Zap, capability: "broadcast:draft" },
-          { href: "/broadcast#approvals", label: "Approvals", icon: ShieldCheck, capability: "broadcast:clear" },
+          { href: "/room#centre", label: "Command centre", icon: Activity, capability: "broadcast:render" },
+          { href: "/room#liveresults", label: "Live results", icon: BarChart3, capability: "broadcast:render" },
+          { href: "/room#ticker", label: "Ticker", icon: Captions, capability: "broadcast:draft" },
+          { href: "/room#breaking", label: "Breaking", icon: Zap, capability: "broadcast:draft" },
+          { href: "/room#approvals", label: "Approvals", icon: ShieldCheck, capability: "broadcast:clear" },
         ],
       },
       {

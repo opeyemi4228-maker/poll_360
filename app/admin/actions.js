@@ -8,7 +8,7 @@ import { hashPassword, passphrase } from "@/lib/password";
 import { requireCapability, log } from "@/lib/guard";
 import { decideAgent } from "@/lib/databank-agents";
 import { currentElection, currentRace } from "@/lib/election-scope";
-import { ROLE_KEYS } from "@/lib/roles";
+import { ISSUABLE_ROLES } from "@/lib/roles";
 import { isRace, raceLabel } from "@/lib/races";
 import { resolveTerritory } from "@/lib/constituencies";
 import { describeTerritory, levelForRace } from "@/lib/territory";
@@ -57,7 +57,15 @@ export async function issueAccount(_previous, formData) {
   if (!name) errors.name = "Give the account a name.";
   if (!email && !phone) errors.email = "An email or a phone number is required to sign in.";
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) errors.email = "That is not an email address.";
-  if (!ROLE_KEYS.includes(role)) errors.role = "Pick a room.";
+  /* ── ISSUABLE, NOT MERELY A ROLE THAT EXISTS ──────────────────────────
+     Checked against the shorter list on purpose. `ROLE_KEYS` includes two
+     entries nobody issues — a viewer, which is what an account is before it
+     is given a room, and the retired staff booth role, which cannot sign in
+     at all. Validating against the long list let a form post name either of
+     them and produced an account that authenticates and then opens nothing,
+     which reads to the person holding it as a broken product rather than as a
+     mistake at issue time. */
+  if (!ISSUABLE_ROLES.includes(role)) errors.role = "Pick a room.";
   if (role === "PU_AGENT" && !scope) errors.scope = "A coordinator must be tied to one polling unit.";
 
   let territory = null;

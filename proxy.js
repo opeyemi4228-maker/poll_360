@@ -21,8 +21,10 @@ const FIELD_PAGES = ["/field", "/governors"];
  * cannot be used as a second way into the rooms.
  *
  * ── THE MAIN ADDRESS ───────────────────────────────────────────────────────
- * /agent/... is sent across permanently. Those addresses are on briefing
- * sheets and home screens, and a dead link on polling morning costs a booth.
+ * /agent/... is sent across, temporarily rather than permanently: those
+ * addresses are on briefing sheets and home screens, and a dead link on polling
+ * morning costs a booth — see the note above `MOVED` for why a permanent one
+ * cost exactly that.
  *
  * Only reads are moved. A form post is answered where it was sent, because a
  * redirected post loses what somebody typed standing at a booth.
@@ -46,6 +48,20 @@ const FIELD_PAGES = ["/field", "/governors"];
  *  guessed at here.
  * ══════════════════════════════════════════════════════════════════════════
  */
+/* ── TEMPORARY, NOT PERMANENT, AND THIS COST A LIVE DEPLOYMENT ──────────────
+   These hops used to answer 308. A browser is entitled to remember a permanent
+   redirect for ever and stop asking, which is exactly what happened: a
+   deployment was set to an agents' domain that had not been added to the
+   project yet, every /agent/... link was permanently pinned to an address that
+   answered nothing, and correcting the setting could not reach the browsers
+   that had already cached it — people had to clear site data to escape.
+
+   307 keeps the method and the body, is asked again every time, and costs one
+   redirect per visit. That is the right trade for an address that is a
+   deployment setting: settings change, and a wrong one must be recoverable by
+   changing it back. */
+const MOVED = 307;
+
 export function proxy(request) {
   const { pathname, search } = request.nextUrl;
   const onAgentHost = Boolean(agentHost) && addressedTo(request) === agentHost;
@@ -86,7 +102,7 @@ function route(request, { onAgentHost, pathname, search, nonce, headers }) {
     /* The long form of an address on the short address: tidy it, so there is
        only ever one spelling of each page to bookmark. */
     if (underAgent && isRead) {
-      return NextResponse.redirect(new URL(inner + search, request.url), 308);
+      return NextResponse.redirect(new URL(inner + search, request.url), MOVED);
     }
     const target = new URL(request.url);
     target.pathname = pathname === "/" ? "/agent" : `/agent${pathname}`;
@@ -94,7 +110,7 @@ function route(request, { onAgentHost, pathname, search, nonce, headers }) {
   }
 
   if (underAgent && isRead) {
-    return NextResponse.redirect(agentUrl(inner) + search, 308);
+    return NextResponse.redirect(agentUrl(inner) + search, MOVED);
   }
 
   return next(request, nonce, headers);
@@ -155,7 +171,7 @@ function forwarding(request, nonce, headers) {
  * ── ON EVERY ANSWER, INCLUDING THE REDIRECTS ───────────────────────────────
  * A redirect is a response a browser acts on, and one that can be framed,
  * sniffed or downgraded exactly like any other. Dressing only the rewrites
- * would leave every 308 from this file bare, which is the sort of gap nobody
+ * would leave every redirect from this file bare, which is the sort of gap nobody
  * finds because the pages all look right.
  */
 function dress(response, { headers, id }) {

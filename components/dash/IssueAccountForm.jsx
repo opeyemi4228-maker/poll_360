@@ -7,7 +7,7 @@ import { Check, Copy, KeyRound, Loader2, TriangleAlert } from "lucide-react";
 import Button from "@/components/ui/Button";
 import TerritoryPicker from "@/components/access/TerritoryPicker";
 import { issueAccount } from "@/app/admin/actions";
-import { ROLES } from "@/lib/roles";
+import { ISSUABLE_ROLES, ROLES } from "@/lib/roles";
 
 /**
  * Issue an account for one of the rooms.
@@ -17,7 +17,15 @@ import { ROLES } from "@/lib/roles";
  * photograph the screen, and a credential that is easy to hand over correctly
  * is a credential less likely to be sent over WhatsApp in three parts.
  */
-const ISSUABLE = ["PU_AGENT", "BROADCASTER", "SITUATION_ROOM", "SUPER_ADMIN"];
+/* ── THE LIST IS NOT KEPT HERE ─────────────────────────────────────────────
+   It was, and it went stale the day the roles collapsed: this form went on
+   offering a broadcast desk and a staff booth account after both had stopped
+   being things anybody could sign in as. An administrator issuing one got a
+   credential that worked on no screen.
+
+   lib/roles.js knows which roles are issuable because it is the file that
+   decides what a role is. See ISSUABLE_ROLES there. */
+const ISSUABLE = ISSUABLE_ROLES;
 
 export default function IssueAccountForm({
   places = [],
@@ -29,7 +37,7 @@ export default function IssueAccountForm({
   requestId = null,
 }) {
   const [state, formAction] = useActionState(issueAccount, {});
-  const [role, setRole] = useState(initial.role ?? "BROADCASTER");
+  const [role, setRole] = useState(initial.role ?? ISSUABLE[0]);
   const [copied, setCopied] = useState(false);
 
   if (state?.issued) {

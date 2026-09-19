@@ -40,6 +40,7 @@ const NAMES = [
   "WHATSAPP_APP_SECRET",
   "DATABASE_URL",
   "DATABANK_DATABASE_URL",
+  "SECOND_DATABASE_URL",
 ];
 
 let saved;
@@ -85,6 +86,49 @@ describe("the sealing key", () => {
     const { checkEnvironment } = await load();
 
     assert.equal(about(checkEnvironment(), "Sealing key"), undefined);
+  });
+});
+
+describe("the second database", () => {
+  const WORKING = "postgresql://u:p@ep-one-pooler.eu-west-2.aws.neon.tech/neondb";
+
+  it("says nothing when there is no second database, which is most deployments", async () => {
+    process.env.DATABASE_URL = WORKING;
+    const { checkEnvironment } = await load();
+
+    assert.equal(about(checkEnvironment(), "The second database"), undefined);
+  });
+
+  it("says nothing when it is genuinely a second database", async () => {
+    process.env.DATABASE_URL = WORKING;
+    process.env.SECOND_DATABASE_URL = "postgresql://u:p@ep-two-pooler.eu-west-2.aws.neon.tech/neondb";
+    const { checkEnvironment } = await load();
+
+    assert.equal(about(checkEnvironment(), "The second database"), undefined);
+  });
+
+  it("catches one pointed at the database it was meant to be relieving", async () => {
+    /* Everything works. Photographs write, the health screen reports a second
+       database holding them, and not one byte has left the database that ran
+       out of room. There is no symptom at all, which is the entire reason
+       this check exists. */
+    process.env.DATABASE_URL = WORKING;
+    process.env.SECOND_DATABASE_URL = WORKING;
+    const { checkEnvironment } = await load();
+
+    const finding = about(checkEnvironment(), "The second database");
+    assert.ok(finding, "a second database that is the first one was not reported");
+    assert.match(finding.says, /same database/);
+  });
+
+  it("sees through the pooled and direct hosts of one database", async () => {
+    /* They differ by "-pooler" and nothing else. Compared as typed they look
+       like two databases, and this check would pass while freeing nothing. */
+    process.env.DATABASE_URL = WORKING;
+    process.env.SECOND_DATABASE_URL = "postgresql://u:p@ep-one.eu-west-2.aws.neon.tech/neondb";
+    const { checkEnvironment } = await load();
+
+    assert.ok(about(checkEnvironment(), "The second database"));
   });
 });
 

@@ -13,6 +13,7 @@ import {
   MapPin,
   ShieldCheck,
   Percent,
+  Radio,
   Store,
   TrendingDown,
   TrendingUp,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 
 import TopShell from "./TopShell";
+import RoomBroadcast, { DESK_IDS, WHERE as BROADCAST_WHERE } from "./RoomBroadcast";
 import { useGreeting } from "./useGreeting";
 import ScopeMap, { CATEGORICAL, LABEL, PARTY_LAYERS, legendFor, describe, magnitude, partyCode, heatPointsFor } from "./ScopeMap";
 import GoogleLayer, { googleAvailable } from "./GoogleLayer";
@@ -296,6 +298,48 @@ export const MODES = [
       },
     ],
   },
+  /* ══════════════════════════════════════════════════════════════════════
+     BROADCAST: THE THIRD HEAD, AND WHY IT IS IN THIS ROOM AT ALL
+
+     It was a separate product with a separate login — /broadcast, six heads
+     of its own, twenty-eight surfaces. The split was between a newsroom and a
+     campaign, and it was the wrong split for the people using it: a collation
+     room counts its own returns and puts its own figures on air, and two
+     accounts meant the clearance queue was always on the one they were not
+     signed into.
+
+     Four dashboards here, not twenty-eight. What is inside each, and the
+     table proving nothing was dropped on the way, are in
+     components/dash/RoomBroadcast.jsx.
+
+     The editorial protection did not live in the login and does not move:
+     nobody may clear their own work, and that is checked on the item. See
+     app/broadcast/actions.js.
+     ══════════════════════════════════════════════════════════════════════ */
+  {
+    id: "broadcast",
+    label: "Broadcast",
+    icon: Radio,
+    why: "What goes out: the running order, the count on its way to air, and the record of who passed it.",
+    groups: [
+      {
+        id: "onair",
+        label: "On air",
+        tabs: [
+          { value: "aircontrol", label: "Control" },
+          { value: "airresults", label: "Results" },
+        ],
+      },
+      {
+        id: "desk",
+        label: "The desk",
+        tabs: [
+          { value: "airstudio", label: "Studio" },
+          { value: "airrecord", label: "Record" },
+        ],
+      },
+    ],
+  },
 ];
 
 /** Every tab, flat, each carrying the head and the group it came from. */
@@ -416,6 +460,32 @@ const compact = (value) =>
  * control of this screen, and a hash left in the address bar must never argue
  * with the last thing somebody pressed.
  */
+/**
+ * The broadcast desk's old surface names, as hashes into the room.
+ *
+ * ── TWO OF THE TWENTY-EIGHT ARE NAMES THIS ROOM ALREADY OWNS ───────────────
+ * `#stream` and `#trends` were in HASH_LAYERS before the desk moved in, and
+ * they mean something else here: the incident stream, and the analytical
+ * record since 1999. Spread in blindly, the desk's versions would have won —
+ * a later key silently overwrites an earlier one, which is the trap this file
+ * has now been bitten by twice and documents in two separate places.
+ *
+ * So the room keeps its own names and the desk's two are dropped rather than
+ * renamed. Both surfaces are still one press away inside their desk; what is
+ * not acceptable is a link somebody wrote a year ago quietly changing where
+ * it goes. The rest — twenty-six of them — are the desk's alone and pass
+ * straight through.
+ */
+const ROOM_OWNS = new Set(["stream", "trends"]);
+
+function broadcastHashes() {
+  return Object.fromEntries(
+    Object.entries(BROADCAST_WHERE)
+      .filter(([name]) => !ROOM_OWNS.has(name))
+      .map(([name, found]) => [`#${name}`, found.desk])
+  );
+}
+
 const HASH_LAYERS = {
   /* ── THE COMMAND CENTRE'S NAMES OUTLIVE THE COMMAND CENTRE ─────────────
      That screen is gone. The links to it are not: they are in bookmarks, in
@@ -560,6 +630,25 @@ const HASH_LAYERS = {
      ══════════════════════════════════════════════════════════════════════ */
   "#governs": "analytics",
   "#governors": "analytics",
+  /* ══════════════════════════════════════════════════════════════════════
+     THE BROADCAST DESK'S TWENTY-EIGHT NAMES, NOT WRITTEN OUT BY HAND
+
+     /broadcast was a product with its own six heads and its own hashes, and
+     every one of those names is in a bookmark, a rail link or a message sent
+     during a bulletin. They are doors into this room now.
+
+     Spread from the same table the desk itself navigates by, rather than
+     retyped: twenty-eight hand-written entries is twenty-eight chances to
+     send "#approvals" to the wrong desk, and the one thing worse than a dead
+     hash is a live one that opens the wrong screen confidently. See
+     components/dash/RoomBroadcast.jsx.
+     ══════════════════════════════════════════════════════════════════════ */
+  ...broadcastHashes(),
+  /* The desks' own names, so a link can ask for one directly. */
+  "#broadcast": "aircontrol",
+  "#gallery": "aircontrol",
+  "#runningorder": "aircontrol",
+  "#onair": "airresults",
 };
 
 /**
@@ -753,6 +842,16 @@ export default function SituationRoom({
   races = [],
   filedByRace = {},
   onRace,
+  /* ── EVERYTHING THE BROADCAST HEAD DRAWS, IN ONE PROP ───────────────────
+     Assembled on the server alongside the rest of the room — see
+     app/room/page.jsx — and handed down whole rather than as fifteen props
+     nothing else in this component reads. Null where no project is open, in
+     which case the head says so rather than drawing four empty desks that
+     look like a quiet night. */
+  broadcast = null,
+  /* The contest's name in words. The desk prints it on straps and graphics,
+     where "GOVERNORSHIP" is not a thing anybody puts on air. */
+  raceLabel = "Presidential",
 }) {
   /* ── ONE PIECE OF STATE, NOT TWO ────────────────────────────────────────
      The head is derived from the open surface rather than stored beside it.
@@ -2059,6 +2158,60 @@ export default function SituationRoom({
           territory={territory}
           ground={ground}
         />
+      /* ── THE BROADCAST DESK, ALL FOUR OF IT ──────────────────────────────
+         One branch rather than four, because the four are one component with
+         a `view` — see components/dash/RoomBroadcast.jsx. It draws its own
+         section row and nothing else in this chain, which is right: a gallery
+         wall does not want the room's map frame and metric strip above a
+         running order. */
+      ) : DESK_IDS.includes(layer) ? (
+        broadcast ? (
+          <RoomBroadcast
+            view={layer}
+            user={user}
+            may={broadcast.may}
+            project={project}
+            race={race}
+            raceLabel={raceLabel}
+            ground={ground}
+            items={broadcast.items}
+            audit={broadcast.audit}
+            rows={broadcast.rows}
+            places={broadcast.places}
+            national={broadcast.national}
+            trends={broadcast.trends}
+            incidents={incidents}
+            photoCount={broadcast.photoCount}
+            coordinators={coordinators}
+            watchSummary={watchSummary}
+            declaredRows={broadcast.declaredRows}
+            capabilities={broadcast.capabilities}
+            shapes={shapes}
+            load={broadcast.load}
+            order={broadcast.order}
+            pipeline={broadcast.pipeline}
+            suggestions={broadcast.suggestions}
+            deliveries={broadcast.deliveries}
+            channels={broadcast.channels}
+            wire={broadcast.wire}
+            contestants={broadcast.contestants}
+            liveChannels={broadcast.liveChannels}
+            stageUrl={broadcast.stageUrl}
+            timeline={timeline}
+            onGo={setLayer}
+          />
+        ) : (
+          /* ── SAYING SO, RATHER THAN DRAWING AN EMPTY DESK ───────────────
+             The desk is built from the broadcast queue, which the room fetches
+             alongside everything else. If that is not there — no project open
+             — four empty dashboards look exactly like a desk nobody has used
+             tonight, which is a different and much more reassuring thing than
+             the truth. */
+          <p className="rounded-dash border border-dash-line bg-dash-card p-6 text-[0.9375rem] text-dash-muted">
+            The broadcast desk opens once a project is selected. Choose one from the
+            switcher above.
+          </p>
+        )
       ) : (
       <>
       {/* --------------------------------------------------------- metrics

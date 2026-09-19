@@ -1,11 +1,12 @@
 "use client";
 
 import { createContext, useCallback, useContext, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, Loader2, Pencil, Send, Trash2, Radio, Undo2, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, ExternalLink, Loader2, MapPin, Pencil, RotateCw, Send, Trash2, Radio, Undo2, X } from "lucide-react";
 
 import { Badge, Empty } from "@/components/dash/DashCard";
-import { draftItem, discardDraft, editDraft, moveItem } from "@/app/broadcast/actions";
-import { JOURNEY, MOVES, kindLabel, stateLabel, stateTone } from "@/lib/broadcast";
+import { draftItem, discardDraft, editDraft, moveItem, resendPost } from "@/app/broadcast/actions";
+import { DELIVERY, JOURNEY, MOVES, kindLabel, platformLabel, stateLabel, stateTone } from "@/lib/broadcast";
+import { stampFor } from "@/lib/stamp";
 import { cn } from "@/lib/utils";
 
 /**
@@ -32,10 +33,16 @@ import { cn } from "@/lib/utils";
 
 /* Who is looking, and what they may do — read by every card without being
    threaded through six components that have no other use for it. */
-const DeskContext = createContext({ user: null, may: {} });
+const DeskContext = createContext({ user: null, may: {}, deliveries: {}, channels: [], wire: null });
 
-export function DeskProvider({ user, may, children }) {
-  const value = useMemo(() => ({ user, may: may ?? {} }), [user, may]);
+/* `deliveries` is what each platform did with each post and `channels` is
+   which platforms are set up — carried here for the same reason `may` is:
+   every card needs them and nothing between the room and the card does. */
+export function DeskProvider({ user, may, deliveries, channels, wire, children }) {
+  const value = useMemo(
+    () => ({ user, may: may ?? {}, deliveries: deliveries ?? {}, channels: channels ?? [], wire: wire ?? null }),
+    [user, may, deliveries, channels, wire]
+  );
   return <DeskContext.Provider value={value}>{children}</DeskContext.Provider>;
 }
 
@@ -59,7 +66,9 @@ export function useAction() {
         const answer = await job();
         if (answer?.error) setSaid({ tone: "alert", text: answer.error });
         else {
-          setSaid(null);
+          /* A publish answers with what happened on each platform, and that
+             sentence is the one the person who pressed it needs to read. */
+          setSaid(answer?.said ? { tone: answer.sent?.some((row) => row.status === "FAILED") ? "alert" : "good", text: answer.said } : null);
           onDone?.(answer);
         }
       });
@@ -77,11 +86,19 @@ export function Said({ said }) {
     <p
       className={cn(
         "mt-3 flex items-start gap-2 rounded-dash-sm px-3 py-2.5 text-[0.8125rem] leading-relaxed",
-        said.tone === "alert" ? "bg-red-50 text-red-700" : "bg-dash-bg text-dash-muted"
+        said.tone === "alert"
+          ? "bg-red-50 text-red-700"
+          : said.tone === "good"
+            ? "bg-emerald-50 text-emerald-800"
+            : "bg-dash-bg text-dash-muted"
       )}
       role="status"
     >
-      <AlertTriangle size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" />
+      {said.tone === "good" ? (
+        <Check size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" />
+      ) : (
+        <AlertTriangle size={15} strokeWidth={2.5} className="mt-0.5 shrink-0" />
+      )}
       {said.text}
     </p>
   );
@@ -124,6 +141,7 @@ export function ItemCard({ item, compact = false, children }) {
         : may.air;
 
   const move = (to, note = null) => run(() => moveItem({ id: item.id, to, note }));
+  const social = item.kind === "SOCIAL";
 
   return (
     <article
@@ -154,8 +172,26 @@ export function ItemCard({ item, compact = false, children }) {
               {item.body}
             </p>
           )}
+          {social && <StampLine item={item} />}
         </div>
+        {/* ── THE PICTURE BEING CLEARED IS THE PICTURE BEING SENT ────────
+            Drawn by the same function the platforms receive, from the
+            figures frozen into the post. Not on compact cards, where a
+            thumbnail would push the controls off a gallery screen. */}
+        {social && !compact && (
+          <a href={`/api/graphic/post/${item.id}`} target="_blank" rel="noreferrer" className="block w-28 shrink-0 sm:w-36">
+            {/* eslint-disable-next-line @next/next/no-img-element -- our own authenticated route */}
+            <img
+              src={`/api/graphic/post/${item.id}`}
+              alt={`The card for ${item.title}`}
+              loading="lazy"
+              className="w-full rounded-dash-sm border border-dash-line bg-white"
+            />
+          </a>
+        )}
       </div>
+
+      {social && <Deliveries item={item} />}
 
       {children}
 
@@ -221,7 +257,7 @@ export function ItemCard({ item, compact = false, children }) {
                 className={moveClass(to)}
               >
                 {pending ? <Loader2 size={14} className="animate-spin" /> : moveIcon(to)}
-                {moveWord(to)}
+                {social ? socialWord(to, item) : moveWord(to)}
               </button>
             );
           })}
@@ -327,6 +363,168 @@ export function ItemCard({ item, compact = false, children }) {
 
       <Said said={said} />
     </article>
+  );
+}
+
+/* A social post's buttons say what they do to the outside world, because
+   for a post "take to air" means "publish on every platform it is aimed at". */
+const socialWord = (to, item) =>
+  to === "ON_AIR"
+    ? "Publish everywhere"
+    : to === "CLEARED" && item.payload?.sendOnClear
+      ? "Clear and publish"
+      : to === "OFF_AIR"
+        ? "Withdraw from live page"
+        : moveWord(to);
+
+/** Where and when, as the post will carry it. */
+function StampLine({ item }) {
+  const stamp = item.payload?.stamp ?? stampFor({ scope: item.scope, at: item.createdAt });
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] font-semibold text-dash-muted">
+      <span className="inline-flex items-center gap-1 text-red-600">
+        <MapPin size={13} strokeWidth={2.5} aria-hidden="true" />
+        {stamp.place.name}
+      </span>
+      {stamp.time && (
+        <span className="inline-flex items-center gap-1">
+          <Clock size={13} strokeWidth={2.5} aria-hidden="true" />
+          {stamp.time}
+        </span>
+      )}
+      {item.payload?.sendOnClear && item.state !== "ON_AIR" && item.state !== "OFF_AIR" && (
+        <span className="rounded-full bg-dash-bg px-2 py-0.5 text-dash-ink">Publishes when cleared</span>
+      )}
+    </p>
+  );
+}
+
+/**
+ * What each platform did with this post.
+ *
+ * One chip per platform it was aimed at: before it goes out the chip says
+ * whether that platform is set up; afterwards it says what the platform
+ * answered, links to the post where there is one, and carries the reason
+ * where there is not. A post that failed somewhere can be resent to just
+ * those platforms — never to the ones it already reached.
+ */
+function Deliveries({ item }) {
+  const { deliveries, channels, may, wire } = useDesk();
+  const { pending, said, run } = useAction();
+  const done = deliveries[item.id] ?? {};
+  const aimed = item.platforms ?? [];
+  if (!aimed.length) return null;
+
+  const setUp = (id) => {
+    const direct = channels.find((row) => row.id === id);
+    if (direct) return direct.configured;
+    return channels.find((row) => row.id === "relay")?.configured ?? false;
+  };
+  const retry = aimed.filter((id) => done[id] && done[id].status !== "SENT" && done[id].status !== "RELAYED");
+  const out = item.state === "ON_AIR" || item.state === "OFF_AIR";
+
+  return (
+    <div className="mt-3">
+      <ul className="flex flex-wrap gap-1.5">
+        {aimed.map((id) => {
+          const row = done[id];
+          const tone = row ? DELIVERY[row.status]?.tone : setUp(id) ? "neutral" : "warn";
+          const text = row ? DELIVERY[row.status]?.label ?? row.status : setUp(id) ? "Ready" : "Not set up";
+          const chip = (
+            <>
+              <span className="font-bold text-dash-ink">{platformLabel(id)}</span>
+              <span
+                className={cn(
+                  tone === "good" && "text-emerald-700",
+                  tone === "alert" && "text-red-700",
+                  tone === "warn" && "text-amber-700",
+                  (!tone || tone === "neutral") && "text-dash-muted"
+                )}
+              >
+                {text}
+              </span>
+              {row?.remoteUrl && <ExternalLink size={12} strokeWidth={2.5} aria-hidden="true" />}
+            </>
+          );
+          const className = cn(
+            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem]",
+            tone === "alert" ? "border-red-200 bg-red-50" : tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-dash-line bg-dash-card"
+          );
+          return (
+            <li key={id} title={row?.error ?? row?.note ?? undefined}>
+              {row?.remoteUrl ? (
+                <a href={row.remoteUrl} target="_blank" rel="noreferrer" className={cn(className, "hover:border-dash-ink")}>
+                  {chip}
+                </a>
+              ) : (
+                <span className={className}>{chip}</span>
+              )}
+            </li>
+          );
+        })}
+        {out && wire && item.state === "ON_AIR" && (
+          <li>
+            <a
+              href={`/live/${item.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-full border border-dash-line bg-dash-card px-2.5 py-1 text-[0.6875rem] font-bold text-dash-ink hover:border-dash-ink"
+            >
+              Live page
+              <ExternalLink size={12} strokeWidth={2.5} aria-hidden="true" />
+            </a>
+          </li>
+        )}
+      </ul>
+
+      {/* The reasons, in words, for anything that did not go. A tooltip is
+          not enough: a failure at 21:40 has to be readable on a wall. */}
+      {aimed.some((id) => done[id]?.status === "FAILED") && (
+        <ul className="mt-2 space-y-1 text-[0.75rem] leading-snug text-red-700">
+          {aimed
+            .filter((id) => done[id]?.status === "FAILED")
+            .map((id) => (
+              <li key={id}>
+                <span className="font-bold">{platformLabel(id)}:</span> {done[id].error}
+              </li>
+            ))}
+        </ul>
+      )}
+
+      {/* ── THE FILE, FOR WHERE THIS DESK CANNOT POST ───────────────────
+          WhatsApp status, TikTok and YouTube take a person's hand unless the
+          relay is set up. Each shape is the same card, drawn for its screen. */}
+      <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-dash-muted">
+        <span className="font-semibold">Download the card:</span>
+        {[
+          ["square", "Square"],
+          ["story", "Story"],
+          ["wide", "Wide"],
+        ].map(([shape, label]) => (
+          <a
+            key={shape}
+            href={`/api/graphic/post/${item.id}?shape=${shape}`}
+            download={`poll360-${item.id.slice(0, 8)}-${shape}.png`}
+            className="font-bold text-dash-ink hover:underline"
+          >
+            {label}
+          </a>
+        ))}
+      </p>
+
+      {item.state === "ON_AIR" && may.air && retry.length > 0 && (
+        <button
+          type="button"
+          disabled={pending}
+          onClick={() => run(() => resendPost({ id: item.id, platforms: retry }))}
+          className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-ink uppercase hover:border-dash-ink disabled:opacity-40"
+        >
+          {pending ? <Loader2 size={13} className="animate-spin" /> : <RotateCw size={13} strokeWidth={2.5} />}
+          Send again to {retry.map(platformLabel).join(", ")}
+        </button>
+      )}
+      <Said said={said} />
+    </div>
   );
 }
 

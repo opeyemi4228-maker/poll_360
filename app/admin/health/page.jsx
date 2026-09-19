@@ -190,8 +190,38 @@ export default async function HealthPage() {
                   { label: "Accounts", value: state.counts.users },
                   { label: "Projects", value: state.counts.elections },
                 ]}
-                caption="Photographs are the only thing here that grows without bound, and they are held in the database rather than in object storage — a deliberate trade, and that figure is what decides when it has to stop being one."
+                caption="Photographs are the only thing here that grows without bound, and they are held in a database rather than in object storage — a deliberate trade, and that figure is what decides when it has to stop being one."
               />
+
+              {/* ── AND WHICH DATABASE THE HEAVY PART IS IN ──────────────
+                  The figures above are the whole deployment's, wherever the
+                  bytes actually sit. This says where that is. A deployment
+                  with a second database and a deployment without one look
+                  identical on every other line of this page, and the
+                  difference between them is how much room the working
+                  database has left. */}
+              {state.secondDatabase?.configured ? (
+                <dl className="mt-5">
+                  <Field label="The second database">
+                    {state.secondDatabase.reachable ? (
+                      <>
+                        Holding {formatNumber(state.secondDatabase.photographs)} photographs and{" "}
+                        {formatNumber(state.secondDatabase.deliveries)} delivered bodies —{" "}
+                        {megabytes(
+                          state.secondDatabase.photographBytes + state.secondDatabase.deliveryBytes
+                        )}{" "}
+                        of weight that is not in the working database.
+                        <span className="mt-1 block text-dash-muted">{state.secondDatabase.host}</span>
+                      </>
+                    ) : (
+                      <span className="text-amber-700">
+                        Configured, and it did not answer. Photographs whose bytes were moved there
+                        cannot be served until it does. {state.secondDatabase.why}
+                      </span>
+                    )}
+                  </Field>
+                </dl>
+              ) : null}
             </>
           )}
         </Card>

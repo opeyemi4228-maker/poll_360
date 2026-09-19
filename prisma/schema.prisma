@@ -608,6 +608,8 @@ model BroadcastItem {
   note         String?
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(3)
+  /// Held while a post is being sent, so two presses cannot send it twice.
+  sendingUntil DateTime? @map("sending_until") @db.Timestamptz(3)
 
   election Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
   author   User?    @relation("BroadcastCreatedBy", fields: [createdBy], references: [id])
@@ -617,6 +619,45 @@ model BroadcastItem {
   @@index([electionId, kind, createdAt])
   @@index([electionId, scheduledFor])
   @@map("broadcast_items")
+}
+
+/// What each platform did with a post. One row per attempt, never updated:
+/// a resend is a second row. See lib/publish.js for what each status means.
+model BroadcastDispatch {
+  id         String   @id
+  itemId     String   @map("item_id")
+  electionId String   @map("election_id")
+  /// facebook · instagram · x · threads · telegram · whatsapp · linkedin · tiktok · youtube
+  platform   String
+  /// SENT · RELAYED · FAILED · NOT_CONNECTED · BY_HAND
+  status     String
+  remoteId   String?  @map("remote_id")
+  remoteUrl  String?  @map("remote_url")
+  error      String?
+  note       String?
+  byId       String?  @map("by_id")
+  byName     String?  @map("by_name")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([electionId, itemId, createdAt], map: "broadcast_dispatches_item")
+  @@map("broadcast_dispatches")
+}
+
+/// Who is standing for each party in a contest, with a portrait drawn on the
+/// result cards. The portrait is a small JPEG held as a data address.
+model Contestant {
+  id          String   @id
+  electionId  String   @map("election_id")
+  race        String
+  party       String
+  name        String
+  runningMate String?  @map("running_mate")
+  photo       String?
+  updatedBy   String?  @map("updated_by")
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([electionId, race, party])
+  @@map("contestants")
 }
 
 model Coordinator {

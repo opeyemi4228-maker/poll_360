@@ -362,6 +362,20 @@
   --animate-orb-breathe: orb-breathe 2.2s var(--ease-out-quart) infinite;
   --animate-ai-sweep: ai-sweep 2.2s linear infinite;
   --animate-ai-rise: ai-rise 0.42s var(--ease-out-quart) both;
+  --animate-stage-crawl: stage-crawl 38s linear infinite;
+
+  /* The stage's bottom crawl. Three copies of the lines are laid end to end
+     and the strip is moved by exactly one copy, so it repeats seamlessly and
+     never shows a gap — and it is CSS rather than script because a browser
+     source in an encoder runs for hours in a tab nobody is looking at. */
+  @keyframes stage-crawl {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-33.3333%);
+    }
+  }
 
   @keyframes marquee {
     from {

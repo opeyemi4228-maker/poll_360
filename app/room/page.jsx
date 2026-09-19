@@ -13,7 +13,10 @@ import { IS_VIEW, LANDING } from "@/lib/room-views";
 import { lgasOf, resolveTerritory } from "@/lib/constituencies";
 import { holdersOf, lastResultFor } from "@/lib/seats";
 import { RACES, raceLabel } from "@/lib/races";
-import { results, incidents, media, declared, sheetReads, units, unitUpdates } from "@/lib/db";
+import { results, incidents, media, declared, sheetReads, units, unitUpdates, audit, broadcastItems, broadcastDispatches, contestants } from "@/lib/db";
+import { readiness } from "@/lib/publish";
+import { liveReadiness } from "@/lib/live-video";
+import { site } from "@/lib/site";
 import { figuresFor, situationsFor } from "@/lib/intake";
 import { hubReturns } from "@/lib/hub-returns";
 import { watch } from "@/lib/watch";
@@ -27,6 +30,9 @@ import { unitCards } from "@/lib/unit-card";
 import { integrityOf } from "@/lib/anomalies";
 import { unseal } from "@/lib/crypto";
 import { parties, others, DECLARED, states2023 } from "@/lib/election2023";
+import { STATES } from "@/lib/units";
+import { byState, clearance, deskLoad, latestDeliveries, reportingTrends, rollUp, runningOrder, tickerLines } from "@/lib/broadcast";
+import { capabilitiesOf, can } from "@/lib/roles";
 import { buildBoard } from "@/lib/replay";
 import { liveBoard, liveTree } from "@/lib/live-board";
 import nation from "@/public/geo/map/nation.json";
@@ -87,6 +93,10 @@ export default async function RoomPage() {
     registrySize,
     statuses,
     dayUpdates,
+    deskItems,
+    auditLog,
+    deskDispatches,
+    deskContestants,
   ] = await Promise.all([
     incidents.recent(40, project?.id, territory),
     watch.coordinators(project?.id, race, territory),
@@ -134,6 +144,19 @@ export default async function RoomPage() {
        what the timeline's morning is made of, and it joins this wait rather
        than adding a round trip of its own. */
     project ? unitUpdates.recent(project.id, territory) : [],
+    /* ── WHAT THE BROADCAST HEAD DRAWS ──────────────────────────────────
+       The desk's own queue — every strap, graphic, post and running order
+       made tonight — and the log of what was done to them. Two more entries
+       in a wait this page was already paying for, rather than the two extra
+       round trips a separate /broadcast page used to cost. The desk was its
+       own product with its own login; it is a head in this room now, so its
+       data joins the room's one wait. See components/dash/RoomBroadcast.jsx. */
+    project ? broadcastItems.all(project.id) : [],
+    audit.recent(120),
+    /* What each platform did with each post — the evidence behind every
+       "posted" the desk shows. See lib/publish.js. */
+    project ? broadcastDispatches.all(project.id) : [],
+    project ? contestants.all(project.id, race) : [],
   ]);
 
   /* ── THREE THINGS A MAP CAN BE, AND THEY ARE NOT INTERCHANGEABLE ─────────
@@ -421,6 +444,97 @@ export default async function RoomPage() {
      connection in the room is worst. One pass over rows already in hand costs
      nothing and makes the card open with no network at all. See
      lib/unit-card.js for what is kept and what is deliberately trimmed. */
+  /* ══════════════════════════════════════════════════════════════════════
+     THE BROADCAST DESK, ASSEMBLED HERE RATHER THAN IN THE BROWSER
+
+     Every one of these is a pure function over rows already in hand — see
+     lib/broadcast.js — and they are computed on the server for the same
+     reason the pulse, the pipeline and the night's clock are: a browser on a
+     gallery wall should be drawing, not rolling four thousand returns up by
+     state every fifteen seconds.
+
+     It also keeps one promise the old separate desk could not. /broadcast
+     built `places` from its own query and this room built its board from
+     another, so the two could report different numbers of states reporting
+     for the same contest at the same moment. There is one set of rows now and
+     both are derived from it.
+     ══════════════════════════════════════════════════════════════════════ */
+  /* How many polling units each state had at the last general election, keyed
+     by INEC's state number so it joins to the unit codes returns carry. It is
+     the right order of magnitude and it is not this election's register, which
+     is why every screen quoting it says what it is measured against. */
+  const boothsByState = Object.fromEntries(
+    STATES.map((state) => [
+      state.number,
+      states2023.find((row) => row.code === state.code)?.booths ?? 0,
+    ])
+  );
+
+  const deskPlaces = byState({ rows: ourRows, booths: boothsByState });
+  const deskNational = rollUp(deskPlaces, ground);
+  const deskLoadNow = deskLoad(deskItems);
+  const expected = deskPlaces.reduce((sum, place) => sum + (place.expected ?? 0), 0);
+
+  const broadcast = project
+    ? {
+        items: deskItems,
+        /* ── WHAT WENT OUT, AND WHERE IT CAN GO ─────────────────────────
+           The latest attempt per platform per post, and whether each
+           platform is set up. Setup is read from settings on the server and
+           handed over as names only — never a token — and it says "set up",
+           not "connected": the desk's own check asks the platforms. */
+        deliveries: latestDeliveries(deskDispatches),
+        channels: readiness(process.env, { siteUrl: site.url }),
+        wire: `${site.url}/live/p/${project.id}`,
+        /* Which platforms a live programme can be opened on tonight, and the
+           address of the picture an encoder captures. See lib/live-video.js. */
+        liveChannels: liveReadiness(process.env),
+        stageUrl: `${site.url}/room/stage`,
+        contestants: deskContestants,
+        /* ── THE DESK'S OWN LOG, NOT THE PRODUCT'S ────────────────────
+           The audit table is global and holds account issuance, verification
+           and everything else. A timeline full of somebody else's work is a
+           timeline nobody reads, and this is narrowed to exactly what the
+           question "how did that get on air" needs. */
+        audit: auditLog.filter((row) => String(row.action ?? "").startsWith("broadcast:")),
+        rows: ourRows,
+        places: deskPlaces,
+        national: deskNational,
+        trends: reportingTrends({ places: deskPlaces, rows: ourRows }),
+        load: deskLoadNow,
+        order: runningOrder(deskItems),
+        pipeline: {
+          ...clearance({
+            rows: ourRows,
+            clearances: deskItems.filter((item) => item.kind === "CLEARANCE"),
+            expected,
+          }),
+          /* The approval side of the same thing, so the results desk does not
+             filter the queue itself and reach a different answer. */
+          pending: deskItems.filter(
+            (item) => item.kind === "CLEARANCE" && item.state === "REVIEW"
+          ),
+        },
+        suggestions: tickerLines({
+          places: deskPlaces,
+          incidents: feed,
+          national: deskNational,
+          race,
+        }),
+        declaredRows,
+        photoCount: Object.keys(photoMap).length,
+        capabilities: capabilitiesOf(user.role),
+        /* Read from the same table the guard consults, so a control is never
+           offered that the action would refuse. The action checks again: a
+           hidden button is a courtesy, not a permission. */
+        may: {
+          draft: can(user.role, "broadcast:draft"),
+          clear: can(user.role, "broadcast:clear"),
+          air: can(user.role, "broadcast:air"),
+        },
+      }
+    : null;
+
   const cards = unitCards({
     rows: ourRows,
     incidents: feed,
@@ -501,6 +615,9 @@ export default async function RoomPage() {
          beside the incident feed and never merged into it. */
       hubReports={hubReports}
       booth={booth}
+      /* The whole broadcast head, in one prop — assembled above. */
+      broadcast={broadcast}
+      raceLabel={raceLabel(race)}
       coordinators={coordinators}
       watchSummary={watchSummary}
       photos={photoMap}

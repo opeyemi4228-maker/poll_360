@@ -1,6 +1,8 @@
 import { ImageResponse } from "next/og";
 
 import { raceLabel } from "@/lib/races";
+import { contestants } from "@/lib/db";
+import { renderCard } from "@/lib/cards";
 import { register } from "@/lib/site";
 
 /**
@@ -301,3 +303,59 @@ export function countGraphic({ project, race, tally, standings, shape }) {
     }
   );
 }
+
+/**
+ * The post as bytes, for the platforms that take an upload and for every
+ * address that serves the card.
+ *
+ * Drawn in the Poll360 look — see lib/cards.jsx — with the contest's
+ * candidates, whose faces are looked up at render time: a portrait added at
+ * nine is on every card drawn after nine, including the ones cleared before.
+ * The figures are not looked up; they are the ones frozen into the post.
+ */
+export async function postImageBytes(item, shape = null) {
+  const people = {};
+  if (item?.electionId && item?.race) {
+    for (const row of await contestants.all(item.electionId, item.race).catch(() => [])) people[row.party] = row;
+  }
+
+  /* ── DRAWN ONCE, SERVED MANY TIMES ─────────────────────────────────────
+     A published card is fetched by every platform that shows it, every
+     preview of its link and every reader of the live page, and drawing one
+     costs a fraction of a second of a server's whole attention. Its figures
+     are frozen, so the only things that can change the picture are the
+     post's words and the candidates' faces — and both are in the key. */
+  const key = item?.id
+    ? [
+        item.id,
+        shape ?? item.payload?.shape ?? "square",
+        item.title,
+        item.body ?? "",
+        item.payload?.format ?? "",
+        item.payload?.headline ?? "",
+        Object.values(people)
+          .map((row) => `${row.party}:${row.name}:${row.photo?.length ?? 0}`)
+          .join("|"),
+      ].join("\u0000")
+    : null;
+  if (key && drawn.has(key)) {
+    const bytes = drawn.get(key);
+    drawn.delete(key);
+    drawn.set(key, bytes);
+    return bytes;
+  }
+
+  const response = renderCard({ item, shape, contestants: people });
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (key) {
+    drawn.set(key, bytes);
+    while (drawn.size > DRAWN_MAX) drawn.delete(drawn.keys().next().value);
+  }
+  return bytes;
+}
+
+/* Least recently used, sixty cards: a few megabytes, which covers a busy
+   night's live page several times over. Per server process, which is fine —
+   a miss costs one drawing, not a wrong picture. */
+const DRAWN_MAX = 60;
+const drawn = new Map();

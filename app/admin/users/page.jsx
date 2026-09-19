@@ -8,7 +8,7 @@ import { Ranked, Split } from "@/components/dash/SystemCharts";
 import Button from "@/components/ui/Button";
 import { requireCapability } from "@/lib/guard";
 import { users } from "@/lib/db";
-import { ROLE_KEYS, ROLES, capabilitiesOf } from "@/lib/roles";
+import { ROLE_KEYS, ROLES, capabilitiesOf, isStranded } from "@/lib/roles";
 import { resolveTerritory } from "@/lib/constituencies";
 import { describeTerritory } from "@/lib/territory";
 import { raceLabel } from "@/lib/races";
@@ -141,7 +141,22 @@ export default async function UsersPage() {
                     </span>
                   </Cell>
 
-                  <Cell>{ROLES[row.role]?.label ?? row.role}</Cell>
+                  <Cell>
+                    {ROLES[row.role]?.label ?? row.role}
+                    {/* ── AN ACCOUNT NOBODY CAN USE, SAID OUT LOUD ────────
+                        A role this build no longer has holds no permission at
+                        all: the account signs in, lands on the viewer's
+                        console, and every control it expects is missing. That
+                        reads as a broken product unless somebody is told, and
+                        the person who can fix it is the one reading this
+                        table. */}
+                    {isStranded(row.role) && (
+                      <span className="mt-1 block rounded-dash-sm bg-amber-50 px-2 py-1 text-[0.75rem] leading-snug font-semibold text-amber-800">
+                        This role was retired. The account can sign in and can do nothing — issue a
+                        new one for whoever uses it.
+                      </span>
+                    )}
+                  </Cell>
 
                   <Cell muted>
                     {/* Three different narrowings, and they are not the same

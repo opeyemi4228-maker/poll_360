@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/session";
+import { homeFor } from "@/lib/roles";
 
 /**
  * Who is signed in, for the chrome.
@@ -31,18 +32,14 @@ export async function GET() {
   );
 }
 
-/** Each role lands somewhere different; the chrome links to the right one. */
-export function homeFor(role) {
-  switch (role) {
-    case "SUPER_ADMIN":
-      return "/admin";
-    case "PU_AGENT":
-      return "/field";
-    case "BROADCASTER":
-      return "/broadcast";
-    case "SITUATION_ROOM":
-      return "/room";
-    default:
-      return "/console";
-  }
-}
+/* ── WHERE A ROLE LANDS IS NOT DECIDED HERE ────────────────────────────────
+   This file used to carry its own copy of the answer, as a switch over role
+   names. It was correct on the day it was written and wrong the moment the
+   roles table changed underneath it: the broadcast desk was folded into the
+   room, `homeFor` in lib/roles.js started returning /room, and this copy went
+   on sending the chrome to /broadcast — a link to a page the reader is no
+   longer entitled to open, produced by the one part of the product whose
+   whole job is telling the chrome where to point.
+
+   Two tables answering one question is a bug with a delay on it. There is one
+   now, in lib/roles.js, and this imports it. */

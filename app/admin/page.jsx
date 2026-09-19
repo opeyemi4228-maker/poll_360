@@ -184,7 +184,7 @@ export default async function AdminPage() {
             filed={byRace}
           />
           <LiveRefresh seconds={20} label="Live" />
-          <Button href="/broadcast" variant="dashOutline" size="sm">
+          <Button href="/room#broadcast" variant="dashOutline" size="sm">
             Broadcast desk
           </Button>
         </>

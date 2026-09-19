@@ -1,14 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Download, Loader2, Share2 } from "lucide-react";
+import { useDeferredValue, useMemo, useState } from "react";
+import { CheckCircle2, CircleAlert, CircleDashed, Loader2, PlugZap, Send } from "lucide-react";
 
-import { Card, Empty, Badge } from "@/components/dash/DashCard";
-import AutoPublish from "./AutoPublish";
-import PostCard from "./PostCard";
-import { Queue, Said, useAction, useDesk } from "./Queue";
-import { draftItem } from "@/app/broadcast/actions";
-import { PLATFORMS, SHAPES } from "@/lib/broadcast";
+import { Card, Empty } from "@/components/dash/DashCard";
+import PlacePicker from "./PlacePicker";
+import { ItemCard, Said, useAction, useDesk } from "./Queue";
+import { checkChannels, draftItem, moveItem } from "@/app/broadcast/actions";
+import { DELIVERY, PLATFORMS, SHAPES, platformLabel } from "@/lib/broadcast";
+import { captionFor, freezeFigures, measure, stampFor, CAPTION_LIMITS } from "@/lib/stamp";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -16,165 +16,212 @@ import { cn } from "@/lib/utils";
  * The social desk.
  *
  * ══════════════════════════════════════════════════════════════════════════
- *  THIS PRODUCT MAKES THE POST. A PERSON SENDS IT.
+ *  ONE POST, EVERY PLATFORM, TWO PEOPLE
  *
- *  Every screen here stops one step short of publishing, and the step it stops
- *  short of is deliberate rather than unfinished. Posting to Facebook, X,
- *  Instagram or TikTok needs an app, an OAuth grant and a stored token per
- *  account, and a desk that hands those tokens to software is handing it the
- *  ability to publish an election result in the organisation's name with
- *  nobody watching. On a night when a wrong figure is unrecoverable, that is
- *  not a feature worth having.
+ *  This desk now publishes. A post is written once — the card, the words, the
+ *  place and the minute — and when it is taken to air it goes to every
+ *  platform it is aimed at in the same moment, each in the caption length that
+ *  platform takes, each linking back to one public page that carries the whole
+ *  update. See lib/publish.js for how, and what each platform needs.
  *
- *  So the desk composes, adapts and clears, and then hands over a file and a
- *  caption. The person who presses send is the editorial control, and it stays
- *  where it is. Everything below is honest about which half is which: no
- *  screen shows a connection status it cannot verify, and no screen reports a
- *  post as sent.
- *
- *  ── WHAT IS THEREFORE MISSING, AND WHY THAT IS SAID OUT LOUD ────────────
- *  Reach, impressions, engagement and follower counts all come back from a
- *  platform's own API, through the same grant. Without it there are no
- *  numbers, and a dashboard drawing zeroes where it means "unknown" is worse
- *  than one that says so.
+ *  What did not change is the part that matters. Nothing is published that
+ *  one person wrote and another has not cleared; the writer can ask for it to
+ *  go the moment it is cleared, but the clearing is still somebody else's.
+ *  And nothing on these screens says a post went out unless the platform
+ *  answered with the post — a failure is shown as a failure, with the reason,
+ *  on the card, where the desk is already looking.
  * ══════════════════════════════════════════════════════════════════════════
  */
 
 /** What a social post can be, in the words a producer uses. */
-const FORMATS = [
-  { id: "result-card", label: "Result card", shape: "square", why: "The count, as it stands, with its coverage." },
-  { id: "breaking-card", label: "Breaking card", shape: "square", why: "One line, red, for something that has just happened." },
-  { id: "map", label: "Map", shape: "wide", why: "The country or one state, in one of six modes." },
-  { id: "infographic", label: "Infographic", shape: "square", why: "A figure and what it means." },
-  { id: "short-video", label: "Short video", shape: "story", why: "Vertical. Reels, Shorts, TikTok." },
-  { id: "comparison", label: "Candidate comparison", shape: "wide", why: "Two or more, side by side." },
-  { id: "turnout", label: "Turnout", shape: "square", why: "Votes cast against the register." },
-  { id: "statistic", label: "Statistical graphic", shape: "wide", why: "A trend, with its denominator." },
+export const FORMATS = [
+  { id: "result-card", label: "Result", shape: "square", why: "The best card for the place: a map for a state or an LGA, the candidates for the country, bars for a ward or a polling unit." },
+  { id: "faces", label: "Candidates", shape: "square", why: "A column per candidate, with their face, their party's colour and their votes." },
+  { id: "map", label: "Map", shape: "square", why: "Each LGA — or each state — in the colour of whoever leads it, with the figure on it." },
+  { id: "bars", label: "Bar chart", shape: "square", why: "Every party's votes as bars, with the totals underneath." },
+  { id: "turnout", label: "Turnout", shape: "square", why: "Votes cast against the register, on the 360 dial." },
+  { id: "breaking-card", label: "Breaking", shape: "square", why: "One line, red, for something that has just happened." },
+  { id: "situation", label: "Situation update", shape: "square", why: "What is happening on the ground, and where." },
+  { id: "incident", label: "Incident alert", shape: "square", why: "A report exists. Worded as a report, not a finding." },
   { id: "quote", label: "Quote", shape: "square", why: "Somebody said something. Attributed." },
-  { id: "incident", label: "Incident alert", shape: "square", why: "A report exists. Worded as a report." },
 ];
 
-/* ───────────────────────────────────────────────── social command centre ── */
+/* The formats whose card is their words rather than a chart. The renderer
+   keeps the same list — see lib/graphic.jsx. */
+const TEXT_LED = new Set(["breaking-card", "incident", "quote", "situation"]);
 
-export function SocialCommand({ items, onGo }) {
-  const posts = items.filter((item) => item.kind === "SOCIAL");
+/* ────────────────────────────────────────────────────────── the channels ── */
 
-  const buckets = [
-    { id: "DRAFT", label: "Draft", rows: posts.filter((row) => row.state === "DRAFT") },
-    { id: "REVIEW", label: "Pending approval", rows: posts.filter((row) => row.state === "REVIEW") },
-    { id: "CLEARED", label: "Cleared, not sent", rows: posts.filter((row) => row.state === "CLEARED") },
-    { id: "ON_AIR", label: "Handed over", rows: posts.filter((row) => row.state === "ON_AIR") },
-    { id: "REJECTED", label: "Refused", rows: posts.filter((row) => row.state === "REJECTED") },
-  ];
+/**
+ * Which platforms this desk can reach tonight, and whether they answer.
+ *
+ * ── "SET UP" AND "CONNECTED" ARE DIFFERENT WORDS ON PURPOSE ────────────────
+ * Set up is read from the deployment's settings: the credentials are there.
+ * Connected is only ever shown after pressing Check, which asks each platform
+ * who we are without posting anything — the difference between a token that
+ * exists and one that works, which is the thing to find out at six in the
+ * evening rather than at the first result.
+ */
+export function Channels() {
+  const { channels, may } = useDesk();
+  const { pending, said, run } = useAction();
+  const [checked, setChecked] = useState(null);
 
-  /* How much of the queue is aimed at each platform. This is a real number —
-     it is what the desk intends — and it is carefully not called "published". */
-  const byPlatform = Object.fromEntries(PLATFORMS.map((row) => [row.id, 0]));
-  for (const post of posts) for (const id of post.platforms ?? []) if (id in byPlatform) byPlatform[id] += 1;
+  const direct = channels.filter((row) => row.id !== "relay");
+  const relay = channels.find((row) => row.id === "relay");
+  const result = (id) => checked?.channels.find((row) => row.id === id)?.check ?? null;
 
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
-        {buckets.map((bucket) => (
-          <div key={bucket.id} className="rounded-dash border border-dash-line bg-dash-card px-4 py-3.5">
-            <p className="text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
-              {bucket.label}
-            </p>
-            <p className="figure mt-1.5 text-[1.5rem] leading-none font-bold text-dash-ink">
-              {formatNumber(bucket.rows.length)}
-            </p>
-          </div>
+    <Card
+      title="Where posts go"
+      subtitle={
+        checked
+          ? `Checked at ${new Date(checked.checkedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`
+          : "Press check to ask each platform if it is answering"
+      }
+      action={
+        may.draft ? (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => run(() => checkChannels(), { onDone: (answer) => setChecked(answer) })}
+            className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-ink uppercase hover:border-dash-ink disabled:opacity-40"
+          >
+            {pending ? <Loader2 size={13} className="animate-spin" /> : <PlugZap size={13} strokeWidth={2.5} />}
+            Check
+          </button>
+        ) : null
+      }
+    >
+      <ul className="space-y-2">
+        {direct.map((row) => (
+          <ChannelRow key={row.id} row={row} check={result(row.id)} />
         ))}
-      </div>
+      </ul>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_24rem]">
-        <Card
-          title="The queue"
-          subtitle="Everything this desk has written for a platform tonight"
-          action={
-            <button
-              type="button"
-              onClick={() => onGo("content")}
-              className="text-[0.75rem] font-bold tracking-[0.06em] text-dash-muted uppercase hover:text-dash-ink"
-            >
-              Compose
-            </button>
-          }
-        >
-          <Queue items={posts} empty="Nothing has been written for social tonight." />
-        </Card>
-
-        <div className="space-y-4">
-          {/* ── THE DISPATCH SWITCH ──────────────────────────────────────
-              First in this column, above the platform table it governs: the
-              table describes what each platform can carry, and this decides
-              whether anything goes to it without a person. A control placed
-              below the thing it controls is a control people find last. */}
-          <AutoPublish cleared={buckets.find((row) => row.id === "CLEARED")?.rows.length ?? 0} />
-
-          {/* ── THE PLATFORMS, HONESTLY ─────────────────────────────────── */}
-          <Card title="Platforms" subtitle="What each can carry, and what it would take">
-            <ul className="space-y-2.5">
-              {PLATFORMS.map((row) => (
-                <li key={row.id} className="border-l-2 border-dash-line pl-3">
-                  <p className="flex flex-wrap items-center gap-2">
-                    <span className="text-[0.875rem] font-bold text-dash-ink">{row.label}</span>
-                    <Badge>not connected</Badge>
-                    {byPlatform[row.id] > 0 && (
-                      <span className="text-[0.75rem] text-dash-muted">
-                        {byPlatform[row.id]} queued
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-0.5 text-[0.75rem] leading-snug text-dash-muted">{row.carries}</p>
-                  <p className="mt-0.5 text-[0.75rem] leading-snug text-dash-muted">{row.needs}</p>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-3 border-t border-dash-line pt-3 text-[0.8125rem] leading-relaxed text-dash-muted">
-              Every one of these says &ldquo;not connected&rdquo; from one fact rather than from a
-              status light nobody can verify. This repository holds no publishing token for any
-              platform, so nothing here can report a post as sent — which is the failure a
-              connected-looking dashboard produces on the one night it matters.
-            </p>
-          </Card>
-
-          <Card title="Reach, engagement and views">
-            <p className="text-[0.875rem] leading-relaxed text-dash-muted">
-              Not drawn. Every one of those figures comes back from a platform&rsquo;s own API
-              through the same grant that would let this product post, and there is none. A
-              dashboard showing zero where it means &ldquo;we do not know&rdquo; teaches a desk to
-              distrust every other figure on it, including the ones that are real.
-            </p>
-          </Card>
+      {relay && (
+        <div className="mt-3 border-t border-dash-line pt-3">
+          <ChannelRow row={{ ...relay, label: "Everywhere else (relay)" }} check={result("relay")} />
+          <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
+            WhatsApp, LinkedIn, TikTok and YouTube have no way for this product to post to them
+            directly. With the relay set up, each post is handed to your own automation tool
+            (Make, Zapier, n8n) to pass on. Without it, those platforms are marked
+            &ldquo;post by hand&rdquo; and the card can be downloaded from the post.
+          </p>
         </div>
-      </div>
-    </div>
+      )}
+
+      <Said said={said} />
+    </Card>
   );
 }
 
-/* ────────────────────────────────────────────────────── content studio ──── */
+function ChannelRow({ row, check }) {
+  const state = check
+    ? check.ok === true
+      ? { icon: CheckCircle2, tone: "good", text: `Connected · ${check.account}` }
+      : check.ok === null
+        ? { icon: CircleDashed, tone: "neutral", text: check.account }
+        : { icon: CircleAlert, tone: "alert", text: check.error }
+    : row.configured
+      ? { icon: CircleDashed, tone: "neutral", text: row.warning ?? "Set up. Not checked yet." }
+      : { icon: CircleAlert, tone: "warn", text: "Not set up" };
+  const Icon = state.icon;
 
-export function ContentStudio({ items, race, national, places }) {
-  const { may } = useDesk();
+  return (
+    <li className="flex items-start gap-2.5">
+      <Icon
+        size={17}
+        strokeWidth={2.25}
+        className={cn(
+          "mt-0.5 shrink-0",
+          state.tone === "good" && "text-emerald-600",
+          state.tone === "alert" && "text-red-600",
+          state.tone === "warn" && "text-amber-600",
+          state.tone === "neutral" && "text-dash-muted"
+        )}
+      />
+      <div className="min-w-0">
+        <p className="text-[0.875rem] font-bold text-dash-ink">{row.label}</p>
+        <p className="text-[0.75rem] leading-snug text-dash-muted">{state.text}</p>
+        {!row.configured && row.missing?.length > 0 && (
+          <p className="mt-0.5 text-[0.6875rem] leading-snug text-dash-muted">
+            Your administrator adds: <span className="font-mono">{row.missing.join(", ")}</span>
+          </p>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/* ────────────────────────────────────────────────────────── the composer ── */
+
+/**
+ * Write one post for every platform.
+ *
+ * Shared by the studio and the live desk, so there is one way to write a post
+ * and the stamp, the figures and the send-on-clear choice cannot be present
+ * on one screen and missing on the other.
+ *
+ * @param preset  prefill — { format, scope, headline, body } — from the live
+ *                desk's "write this up" on a field event
+ */
+export function PostComposer({ race, national, places, preset = null, onSent, compact = false }) {
+  const { may, channels } = useDesk();
   const { pending, said, run, setSaid } = useAction();
 
-  const [format, setFormat] = useState(FORMATS[0].id);
-  const [scope, setScope] = useState("NATION");
-  const [caption, setCaption] = useState("");
-  const [platforms, setPlatforms] = useState(() => new Set(["facebook", "x"]));
-  /* The format proposes a shape; the producer can override it, because one
-     post genuinely goes out square to a feed and wide to a timeline. */
+  /* Aimed, by default, at everything that can actually be reached tonight:
+     every direct platform that is set up, and — when the relay is — the
+     platforms only it can reach. Nothing set up at all, and it starts on the
+     two a results night uses most so the choice is visible, not empty. */
+  const reachable = useMemo(() => {
+    const direct = channels.filter((row) => row.id !== "relay" && row.configured).map((row) => row.id);
+    const relayed = channels.find((row) => row.id === "relay")?.configured
+      ? PLATFORMS.filter((row) => row.route === "relay").map((row) => row.id)
+      : [];
+    const all = [...direct, ...relayed];
+    return all.length ? all : ["facebook", "x"];
+  }, [channels]);
+
+  const [format, setFormat] = useState(preset?.format ?? FORMATS[0].id);
+  const [scope, setScope] = useState(preset?.scope ?? "NATION");
+  const [headline, setHeadline] = useState(preset?.headline ?? "");
+  const [caption, setCaption] = useState(preset?.body ?? "");
+  const [platforms, setPlatforms] = useState(() => new Set(reachable));
   const [shape, setShape] = useState(null);
-  /* Read once in a lazy initialiser. A card that stamps itself with the clock
-     during render claims to be current every time React happens to redraw it. */
-  const [stamp] = useState(() => Date.now());
+  const [sendOnClear, setSendOnClear] = useState(true);
+  const [look, setLook] = useState("x");
+  /* Read once. The server sets the real stamp when the post is saved; this
+     is the preview's idea of "about now". */
+  const [at] = useState(() => Date.now());
 
   const picked = FORMATS.find((row) => row.id === format) ?? FORMATS[0];
-  /* The override wins where there is one, otherwise the format's own shape. */
-  const chosen = { ...picked, shape: shape ?? picked.shape };
+  const chosenShape = shape ?? picked.shape;
   const place = places.find((row) => row.scope === scope);
-  const figures = place ?? national;
+  /* Only the country and the states are in the room's own figures; below that
+     the caption preview carries no figures rather than the wrong ones. */
+  const figures = scope === "NATION" ? national : place ?? null;
+  const frozen = useMemo(() => freezeFigures(figures), [figures]);
+  const stamp = useMemo(() => stampFor({ scope, at }), [scope, at]);
+  const textLed = TEXT_LED.has(format);
+
+  /* The preview address, deferred so typing does not ask the server for a
+     new picture on every keystroke. */
+  const previewNow = `/api/graphic/preview?${new URLSearchParams({
+    scope,
+    format,
+    shape: chosenShape,
+    headline: headline.trim(),
+    body: textLed ? caption.trim() : "",
+    ...(race ? { race } : {}),
+  })}`;
+  const preview = useDeferredValue(previewNow);
+  /* The figures behind the caption preview: the state or the country from
+     the room, where the place is one of those. */
+  const filedByState = useMemo(
+    () => Object.fromEntries(places.map((row) => [row.number, row.filed])),
+    [places]
+  );
 
   const toggle = (id) =>
     setPlatforms((current) => {
@@ -184,397 +231,271 @@ export function ContentStudio({ items, race, national, places }) {
       return next;
     });
 
-  /* ── THE CAPTION THE DESK WOULD OTHERWISE FORGET TO WRITE ──────────────
-     Offered rather than imposed, and it carries the two things a post about a
-     parallel count must say: how much is in, and whose count it is. */
-  const suggested = figures
-    ? `${figures.name}: ${figures.parties[0]?.id ?? "no leader yet"}${
-        figures.parties[0] ? ` ${Math.round(figures.parties[0].share)}%` : ""
-      } on ${formatNumber(figures.filed)} returns${
-        figures.reporting === null ? "" : `, ${Math.round(figures.reporting)}% of booths in`
-      }. Poll360 parallel count, not a declaration.`
+  /* The caption the figures would write, carrying the two things a post
+     about a parallel count must say: how much is in, and whose count it is.
+     (The stamp and the basis line are added to every caption anyway.) */
+  const suggested = figures?.parties?.length
+    ? `${figures.name}: ${figures.parties
+        .slice(0, 3)
+        .map((party) => `${party.id} ${Math.round(party.share * 10) / 10}%`)
+        .join(", ")}.`
     : "";
 
+  const captionPreview = captionFor({
+    platform: look,
+    body: caption,
+    figures: frozen,
+    stamp,
+    link: "https://…/live/…",
+  });
+
+  const title =
+    headline.trim() ||
+    (textLed ? caption.trim().split(/[.!?\n]/)[0].slice(0, 90) : null) ||
+    `${picked.label}: ${place?.name ?? (scope === "NATION" ? "Nationwide" : stamp.place.name)}`;
+
+  const submit = (review) =>
+    run(
+      async () => {
+        const drafted = await draftItem({
+          kind: "SOCIAL",
+          title,
+          body: caption.trim(),
+          race,
+          scope,
+          platforms: [...platforms],
+          payload: {
+            format,
+            shape: chosenShape,
+            headline: headline.trim() || null,
+            sendOnClear,
+          },
+        });
+        if (drafted?.error || !review) return drafted;
+        const moved = await moveItem({ id: drafted.id, to: "REVIEW" });
+        return moved?.error ? moved : { ok: true };
+      },
+      {
+        onDone: () => {
+          setCaption("");
+          setHeadline("");
+          setSaid({
+            tone: "good",
+            text: review
+              ? sendOnClear
+                ? `With an editor. It publishes to ${platforms.size} platform${platforms.size === 1 ? "" : "s"} the moment they clear it.`
+                : "With an editor. Once cleared, it waits for somebody to press Publish."
+              : "Saved as a draft.",
+          });
+          onSent?.();
+        },
+      }
+    );
+
+  if (!may.draft) {
+    return <Empty>This account can read the desk and not write to it.</Empty>;
+  }
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-      <Card title="Compose" subtitle="One post, adapted per platform on the next screen">
-        {!may.draft ? (
-          <Empty>This account can read the social desk and not write to it.</Empty>
-        ) : (
-          <>
-            <fieldset>
-              <legend className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
-                Format
-              </legend>
-              <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                {FORMATS.map((row) => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => setFormat(row.id)}
-                    aria-pressed={format === row.id}
-                    className={cn(
-                      "rounded-dash-sm border px-3 py-2 text-left transition-colors",
-                      format === row.id
-                        ? "border-dash-ink bg-dash-bg"
-                        : "border-dash-line hover:border-dash-ink"
-                    )}
-                  >
-                    <span className="block text-[0.8125rem] font-semibold text-dash-ink">
-                      {row.label}
-                    </span>
-                    <span className="block text-[0.75rem] leading-snug text-dash-muted">
-                      {row.why}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
-            <label className="mt-4 block">
-              <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
-                About where
-              </span>
-              <select
-                value={scope}
-                onChange={(event) => setScope(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 text-[0.875rem] text-dash-ink"
-              >
-                <option value="NATION">Everywhere this desk may read</option>
-                {places.map((row) => (
-                  <option key={row.scope} value={row.scope}>
-                    {row.name} · {row.filed} filed
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="mt-3 block">
-              <span className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
-                  Caption
-                </span>
-                {suggested && (
-                  <button
-                    type="button"
-                    onClick={() => setCaption(suggested)}
-                    className="text-[0.75rem] font-semibold text-dash-ink hover:underline"
-                  >
-                    Use the one from the figures
-                  </button>
-                )}
-              </span>
-              <textarea
-                value={caption}
-                onChange={(event) => setCaption(event.target.value)}
-                rows={4}
-                placeholder={suggested || "What this post says."}
-                className="mt-1.5 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 py-2 text-[0.875rem] leading-relaxed text-dash-ink focus:border-dash-ink focus:outline-none"
-              />
-            </label>
-
-            <fieldset className="mt-4">
-              <legend className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
-                For which platforms
-              </legend>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {PLATFORMS.map((row) => (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => toggle(row.id)}
-                    aria-pressed={platforms.has(row.id)}
-                    className={cn(
-                      "h-9 rounded-dash-sm border px-3 text-[0.75rem] font-semibold transition-colors",
-                      platforms.has(row.id)
-                        ? "border-dash-ink bg-dash-ink text-white"
-                        : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
-                    )}
-                  >
-                    {row.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
+    <div className={cn("grid gap-4", !compact && "xl:grid-cols-[1fr_22rem]")}>
+      <div>
+        {/* ─────────────────────────────────────────────── what kind */}
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Kind of post">
+          {FORMATS.map((row) => (
             <button
+              key={row.id}
               type="button"
-              disabled={pending || !caption.trim() || platforms.size === 0}
-              onClick={() =>
-                run(
-                  () =>
-                    draftItem({
-                      kind: "SOCIAL",
-                      title: `${chosen.label} — ${place?.name ?? "everywhere"}`,
-                      body: caption.trim(),
-                      race,
-                      scope,
-                      platforms: [...platforms],
-                      payload: { format: chosen.id, shape: chosen.shape },
-                    }),
-                  {
-                    onDone: () => {
-                      setCaption("");
-                      setSaid({
-                        tone: "good",
-                        text: "Drafted. It is cleared like everything else, and then a person posts it.",
-                      });
-                    },
-                  }
-                )
-              }
-              className="mt-4 inline-flex h-10 items-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
+              role="radio"
+              aria-checked={format === row.id}
+              title={row.why}
+              onClick={() => setFormat(row.id)}
+              className={cn(
+                "h-9 rounded-dash-sm border px-3 text-[0.75rem] font-semibold transition-colors",
+                format === row.id
+                  ? "border-dash-ink bg-dash-ink text-white"
+                  : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
+              )}
             >
-              {pending ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} strokeWidth={2.5} />}
-              Save as draft
+              {row.label}
             </button>
-            <Said said={said} />
-          </>
-        )}
-      </Card>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[0.75rem] text-dash-muted">{picked.why}</p>
 
-      {/* ── THE PREVIEW ──────────────────────────────────────────────────── */}
-      <div className="space-y-4">
-        <Card
-          title="The post"
-          subtitle={`${chosen.label} · ${SHAPES.find((row) => row.id === chosen.shape)?.size}`}
-        >
-          {/* ── WHAT YOU CLEAR IS WHAT YOU SEND ────────────────────────────
-              This was a black rectangle captioned "a sketch of the layout,
-              not the file". A producer cannot clear a sketch: the whole job
-              of this desk is catching the card where the coverage figure fell
-              off the bottom or the party colour is wrong, and neither of those
-              is visible in a sketch. It draws the real thing now, from the
-              same figures the renderer uses. */}
-          <PostCard
-            figures={figures}
-            shape={chosen.shape}
-            format={chosen.id}
-            at={stamp}
-            className="mx-auto w-full max-w-72"
+        {/* ─────────────────────────────────────────────────── where */}
+        <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_16rem]">
+          <PlacePicker value={scope} onChange={setScope} filedByState={filedByState} />
+          <label className="block">
+            <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+              Headline <span className="font-normal normal-case tracking-normal">(optional)</span>
+            </span>
+            <input
+              value={headline}
+              onChange={(event) => setHeadline(event.target.value)}
+              maxLength={120}
+              placeholder={textLed ? "Taken from the first line" : "The place's name"}
+              className="mt-1.5 h-10 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 text-[0.875rem] text-dash-ink"
+            />
+          </label>
+        </div>
+
+        {/* The stamp, shown before it is written, because it is part of what
+            the editor is going to be asked to clear. */}
+        <p className="mt-2 text-[0.75rem] font-semibold text-dash-muted">
+          <span className="text-red-600">📍 {stamp.place.name}</span>
+          <span className="figure ml-2 font-normal">{stamp.coords}</span>
+          <span className="ml-3">🕒 stamped when saved</span>
+        </p>
+
+        {/* ─────────────────────────────────────────────── the words */}
+        <label className="mt-3 block">
+          <span className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+              {textLed ? "What happened" : "Caption"}
+            </span>
+            {suggested && !textLed && (
+              <button type="button" onClick={() => setCaption(suggested)} className="text-[0.75rem] font-semibold text-dash-ink hover:underline">
+                Write it from the figures
+              </button>
+            )}
+          </span>
+          <textarea
+            value={caption}
+            onChange={(event) => setCaption(event.target.value)}
+            rows={compact ? 3 : 4}
+            placeholder={
+              textLed
+                ? "Voting has been suspended at three polling units in Ward 4 after ballot boxes were seized. Security agencies are on the way."
+                : suggested || "What this post says."
+            }
+            className="mt-1.5 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 py-2 text-[0.875rem] leading-relaxed text-dash-ink focus:border-dash-ink focus:outline-none"
           />
+        </label>
 
-          {/* The shape is a property of the platform, not of the post, so it
-              can be checked here rather than discovered after export. */}
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {SHAPES.map((row) => (
+        {/* ────────────────────────────────────────────── the platforms */}
+        <fieldset className="mt-3">
+          <legend className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">Publish to</legend>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {PLATFORMS.map((row) => {
+              const on = platforms.has(row.id);
+              const ready = reachable.includes(row.id);
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => toggle(row.id)}
+                  aria-pressed={on}
+                  title={ready ? "Set up" : row.route === "relay" ? "Needs the relay, or a person" : "Not set up yet"}
+                  className={cn(
+                    "inline-flex h-9 items-center gap-1.5 rounded-dash-sm border px-3 text-[0.75rem] font-semibold transition-colors",
+                    on ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn("size-1.5 rounded-full", ready ? "bg-emerald-500" : "bg-amber-500")}
+                  />
+                  {row.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-1.5 flex gap-3 text-[0.6875rem] text-dash-muted">
+            <button type="button" onClick={() => setPlatforms(new Set(PLATFORMS.map((row) => row.id)))} className="font-semibold hover:text-dash-ink">
+              All
+            </button>
+            <button type="button" onClick={() => setPlatforms(new Set(reachable))} className="font-semibold hover:text-dash-ink">
+              Only what is set up
+            </button>
+          </div>
+        </fieldset>
+
+        <label className="mt-3 flex items-start gap-2.5 rounded-dash-sm border border-dash-line bg-dash-bg px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={sendOnClear}
+            onChange={(event) => setSendOnClear(event.target.checked)}
+            className="mt-0.5 size-4 accent-[var(--color-dash-ink)]"
+          />
+          <span className="text-[0.8125rem] leading-snug text-dash-ink">
+            <span className="font-bold">Publish the moment an editor clears it.</span>{" "}
+            <span className="text-dash-muted">
+              Otherwise it waits, cleared, for somebody to press Publish.
+            </span>
+          </span>
+        </label>
+
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={pending || !(caption.trim() || headline.trim()) || platforms.size === 0}
+            onClick={() => submit(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
+          >
+            {pending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} strokeWidth={2.5} />}
+            Send to an editor
+          </button>
+          <button
+            type="button"
+            disabled={pending || !(caption.trim() || headline.trim()) || platforms.size === 0}
+            onClick={() => submit(false)}
+            className="inline-flex h-10 items-center gap-2 rounded-dash-sm border border-dash-line px-4 text-[0.75rem] font-bold tracking-[0.08em] text-dash-ink uppercase hover:border-dash-ink disabled:opacity-40"
+          >
+            Save as draft
+          </button>
+        </div>
+        <Said said={said} />
+      </div>
+
+      {/* ───────────────────────────────────────────────────── the preview */}
+      <div className="space-y-3">
+        {/* ── THE FILE ITSELF ──────────────────────────────────────────
+            Drawn by the server with the builder and renderer the saved post
+            will use, so this is not a likeness of the card: it is the card. */}
+        <CardPreview src={preview} updating={preview !== previewNow} />
+        <div className="flex flex-wrap justify-center gap-1.5">
+          {SHAPES.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              onClick={() => setShape(row.id)}
+              aria-pressed={chosenShape === row.id}
+              title={row.why}
+              className={cn(
+                "h-8 rounded-full border px-3 text-[0.75rem] font-semibold transition-colors",
+                chosenShape === row.id ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
+              )}
+            >
+              {row.label}
+            </button>
+          ))}
+        </div>
+
+        {/* What the caption becomes on each platform, cut to fit. */}
+        <div className="rounded-dash-sm border border-dash-line bg-dash-card">
+          <div className="flex flex-wrap gap-1 border-b border-dash-line p-1.5">
+            {PLATFORMS.filter((row) => platforms.has(row.id)).map((row) => (
               <button
                 key={row.id}
                 type="button"
-                onClick={() => setShape(row.id)}
-                aria-pressed={shape === row.id}
-                title={row.why}
+                onClick={() => setLook(row.id)}
                 className={cn(
-                  "h-8 rounded-full border px-3 text-[0.75rem] font-semibold transition-colors",
-                  shape === row.id
-                    ? "border-dash-ink bg-dash-ink text-white"
-                    : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
+                  "rounded-dash-sm px-2 py-1 text-[0.6875rem] font-bold",
+                  look === row.id ? "bg-dash-ink text-white" : "text-dash-muted hover:text-dash-ink"
                 )}
               >
                 {row.label}
               </button>
             ))}
           </div>
-
-          <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">
-            Drawn from the same figures the export uses, at the moment this screen was opened.
-            The rendered file comes from the graphics bench.
+          <p className="p-3 text-[0.75rem] leading-relaxed whitespace-pre-line text-dash-ink">{captionPreview}</p>
+          <p className="border-t border-dash-line px-3 py-1.5 text-right text-[0.6875rem] text-dash-muted">
+            {measure(captionPreview, look)} / {CAPTION_LIMITS[look] ?? "—"} characters on {platformLabel(look)}
           </p>
-        </Card>
-
-        <Card title="What goes out with it, always">
-          <ul className="space-y-2 text-[0.8125rem] leading-relaxed text-dash-muted">
-            <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">The coverage.</span> A share with no
-              denominator beside it is a different claim from the one the count supports.
-            </li>
-            <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">Whose count it is.</span> A parallel count
-              is a second source. It is never posted as a declaration.
-            </li>
-            <li className="border-l-2 border-dash-line pl-3">
-              <span className="font-bold text-dash-ink">The time.</span> A post with no stamp
-              outlives the figure in it.
-            </li>
-          </ul>
-        </Card>
+        </div>
       </div>
     </div>
   );
-}
-
-/* ───────────────────────────────────────────── multi-platform publishing ── */
-
-/**
- * One cleared thing, made into the several shapes the platforms need.
- *
- * ── THE ADAPTATION IS REAL; THE DELIVERY IS A PERSON ───────────────────────
- * Dimensions, caption length and format genuinely differ per platform, and
- * getting them wrong is how a result card goes out with the coverage figure
- * cropped off the bottom. That part is arithmetic and this screen does it.
- * The last step is a download and a person, for the reason at the top of this
- * file.
- */
-export function MultiPlatform({ items, race }) {
-  const { may } = useDesk();
-  const { pending, said, run, setSaid } = useAction();
-  const [source, setSource] = useState(null);
-  /* The graphic is stamped with the moment it was asked for, so a download
-     is a fresh render rather than whatever the browser cached. Read once in
-     a lazy initialiser: a clock read during render is a value that changes
-     every time the component happens to re-draw. */
-  const [stamp] = useState(() => Date.now());
-
-  /* Anything cleared is adaptable: a result graphic, a map, a breaking strap.
-     Drafts are not offered, because adapting something nobody has passed is
-     four more items nobody has passed. */
-  const ready = items.filter(
-    (item) =>
-      (item.state === "CLEARED" || item.state === "ON_AIR") &&
-      ["GRAPHIC", "MAP", "FULLSCREEN", "BANNER", "SOCIAL"].includes(item.kind)
-  );
-
-  const chosen = ready.find((item) => item.id === source) ?? ready[0] ?? null;
-
-  const adaptations = chosen
-    ? PLATFORMS.map((platform) => ({
-        platform,
-        shape: SHAPES.find((row) => row.id === platform.shape),
-        caption: trimFor(platform.id, chosen.body ?? chosen.title),
-      }))
-    : [];
-
-  return (
-    <div className="space-y-4">
-      <Card title="Take one cleared item to every platform" subtitle="Dimensions and captions adapt; the sending does not">
-        {ready.length === 0 ? (
-          <Empty>
-            Nothing is cleared. Only items an editor has passed can be adapted — adapting a draft
-            just makes seven drafts.
-          </Empty>
-        ) : (
-          <>
-            <label className="block">
-              <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
-                Which item
-              </span>
-              <select
-                value={chosen?.id ?? ""}
-                onChange={(event) => setSource(event.target.value)}
-                className="mt-1.5 h-10 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 text-[0.875rem] text-dash-ink"
-              >
-                {ready.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.title}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {chosen && (
-              <>
-                {/* ── THE FAN-OUT, DRAWN ────────────────────────────────── */}
-                <ul className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                  {adaptations.map((row) => (
-                    <li
-                      key={row.platform.id}
-                      className="rounded-dash-sm border border-dash-line px-3.5 py-3"
-                    >
-                      <p className="flex items-center justify-between gap-2">
-                        <span className="text-[0.875rem] font-bold text-dash-ink">
-                          {row.platform.label}
-                        </span>
-                        <span className="text-[0.6875rem] tracking-[0.06em] text-dash-muted uppercase">
-                          {row.shape?.size}
-                        </span>
-                      </p>
-                      <p className="mt-1.5 text-[0.8125rem] leading-snug text-dash-muted">
-                        {row.caption}
-                      </p>
-                      <p className="mt-1.5 text-[0.6875rem] text-dash-muted">{row.platform.carries}</p>
-                    </li>
-                  ))}
-                </ul>
-
-                {may.draft && (
-                  <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-dash-line pt-4">
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() =>
-                        run(
-                          async () => {
-                            for (const row of adaptations) {
-                              const answer = await draftItem({
-                                kind: "SOCIAL",
-                                title: `${chosen.title} — ${row.platform.label}`,
-                                body: row.caption,
-                                race,
-                                scope: chosen.scope,
-                                platforms: [row.platform.id],
-                                payload: {
-                                  from: chosen.id,
-                                  shape: row.platform.shape,
-                                  adapted: true,
-                                },
-                              });
-                              if (answer?.error) return answer;
-                            }
-                            return { ok: true };
-                          },
-                          {
-                            onDone: () =>
-                              setSaid({
-                                tone: "good",
-                                text: `${adaptations.length} posts drafted, one per platform. Each is cleared separately.`,
-                              }),
-                          }
-                        )
-                      }
-                      className="inline-flex h-10 items-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
-                    >
-                      {pending ? <Loader2 size={15} className="animate-spin" /> : <Share2 size={15} strokeWidth={2.5} />}
-                      Draft the set
-                    </button>
-                    <a
-                      href={`/api/graphic?shape=wide&race=${encodeURIComponent(race ?? "")}&t=${stamp}`}
-                      download
-                      className="inline-flex h-10 items-center gap-2 rounded-dash-sm border border-dash-line px-4 text-[0.75rem] font-bold tracking-[0.08em] text-dash-ink uppercase hover:border-dash-ink"
-                    >
-                      <Download size={15} strokeWidth={2.5} />
-                      Download the file
-                    </a>
-                  </div>
-                )}
-                <Said said={said} />
-              </>
-            )}
-          </>
-        )}
-      </Card>
-
-      <Card title="Adapted sets" subtitle="Posts produced from a cleared item">
-        <Queue
-          items={items.filter((item) => item.kind === "SOCIAL" && item.payload?.adapted)}
-          empty="No adapted sets yet."
-        />
-      </Card>
-    </div>
-  );
-}
-
-/**
- * A caption cut to what a platform will actually show.
- *
- * The limits are the ones that bite in practice rather than the documented
- * maxima: what matters is where the text is truncated in a feed, because a
- * caption whose coverage figure falls after the fold is a caption without a
- * coverage figure.
- */
-function trimFor(platform, text) {
-  const body = String(text ?? "").trim();
-  const limit = platform === "x" ? 240 : platform === "tiktok" ? 140 : platform === "instagram" ? 180 : 280;
-  return body.length <= limit ? body : `${body.slice(0, limit - 1).trimEnd()}…`;
 }
 
 /* ───────────────────────────────────────────────────── social analytics ─── */
@@ -582,92 +503,125 @@ function trimFor(platform, text) {
 /**
  * Measuring what went out.
  *
- * ══════════════════════════════════════════════════════════════════════════
- *  TWO HALVES, AND ONLY ONE OF THEM IS OURS TO MEASURE
- *
- *  Reach, impressions, views, likes, comments, shares, saves, watch time,
- *  completion and follower growth are all held by the platform and returned
- *  through its API. This product holds none of them, so none is drawn — see
- *  the note at the head of this file for why a zero standing in for "unknown"
- *  is the more damaging of the two options.
- *
- *  What this desk *can* measure, and what no platform can tell it, is its own
- *  output: how much was written, how much survived an editor, how long it took
- *  to clear, and what it was about. That is a real measure of a night's work
- *  and it is the half a newsroom usually cannot see at all, because it lives
- *  in six people's heads.
- * ══════════════════════════════════════════════════════════════════════════
+ * Two things this desk can measure itself and no platform can tell it: how
+ * the night's work moved through the desk, and what each platform did when it
+ * was sent something. Reach and engagement are held by the platforms and need
+ * a further permission to read back, so they are not drawn — and not drawn as
+ * zero, which would teach a desk to distrust the real figures beside them.
  */
-export function SocialAnalytics({ items }) {
+export function Delivery({ items }) {
+  const { deliveries } = useDesk();
   const posts = items.filter((item) => item.kind === "SOCIAL");
+  /* Posts that are out and did not reach somewhere they were aimed: the
+     only list on this screen somebody has to act on, so it comes first. */
+  const failing = posts.filter(
+    (post) => post.state === "ON_AIR" && Object.values(deliveries[post.id] ?? {}).some((row) => row.status === "FAILED")
+  );
 
   const cleared = posts.filter((row) => row.clearedAt && row.state !== "REJECTED");
-  const refused = posts.filter((row) => row.state === "REJECTED");
+  const published = posts.filter((row) => row.airedAt);
 
-  /* How long clearance took, in minutes, for the ones that got it. The median
-     rather than the mean: one strap left in the queue over a two-hour
-     programme drags an average into meaninglessness. */
-  const waits = cleared
-    .map((row) => (new Date(row.clearedAt) - new Date(row.createdAt)) / 60000)
-    .filter((value) => Number.isFinite(value) && value >= 0)
-    .sort((a, b) => a - b);
-  const median = waits.length ? waits[Math.floor(waits.length / 2)] : null;
+  /* Median, not mean: one post left in the queue over a two-hour programme
+     drags an average into meaninglessness. */
+  const median = (values) => {
+    const sorted = values.filter((value) => Number.isFinite(value) && value >= 0).sort((a, b) => a - b);
+    return sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+  };
+  const toClear = median(cleared.map((row) => (new Date(row.clearedAt) - new Date(row.createdAt)) / 60000));
+  const toAir = median(published.map((row) => (new Date(row.airedAt) - new Date(row.createdAt)) / 60000));
 
+  /* Per platform: what was attempted, and what the platform took. */
+  const perPlatform = PLATFORMS.map((platform) => {
+    const rows = posts.map((post) => deliveries[post.id]?.[platform.id]).filter(Boolean);
+    return {
+      ...platform,
+      tried: rows.length,
+      out: rows.filter((row) => row.status === "SENT" || row.status === "RELAYED").length,
+      failed: rows.filter((row) => row.status === "FAILED").length,
+      waiting: rows.filter((row) => row.status === "NOT_CONNECTED" || row.status === "BY_HAND").length,
+    };
+  }).filter((row) => row.tried > 0);
+
+  const minutes = (value) => (value === null ? "—" : `${Math.round(value)} min`);
+
+  return (
+    <div className="space-y-4">
+      {failing.length > 0 && (
+        <Card title="Did not reach every platform" subtitle="The reason is on each post. Send again once it is fixed.">
+          <div className="grid gap-2.5 lg:grid-cols-2">
+            {failing.map((item) => (
+              <ItemCard key={item.id} item={item} compact />
+            ))}
+          </div>
+        </Card>
+      )}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Written" value={formatNumber(posts.length)} />
+        <Stat label="Published" value={formatNumber(published.length)} />
+        <Stat label="Median wait to clear" value={minutes(toClear)} />
+        <Stat label="Median written to out" value={minutes(toAir)} />
+      </div>
+
+      <Card title="What each platform did" subtitle="From the platforms' own answers, not from the queue">
+        {perPlatform.length === 0 ? (
+          <Empty>Nothing has been sent to a platform yet.</Empty>
+        ) : (
+          <table className="w-full text-[0.8125rem]">
+            <thead>
+              <tr className="text-left text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
+                <th className="py-2 font-bold">Platform</th>
+                <th className="py-2 text-right font-bold">{DELIVERY.SENT.label}</th>
+                <th className="py-2 text-right font-bold">{DELIVERY.FAILED.label}</th>
+                <th className="py-2 text-right font-bold">Not sent</th>
+              </tr>
+            </thead>
+            <tbody>
+              {perPlatform.map((row) => (
+                <tr key={row.id} className="border-t border-dash-line">
+                  <td className="py-2 font-semibold text-dash-ink">{row.label}</td>
+                  <td className="figure py-2 text-right text-dash-ink">{formatNumber(row.out)}</td>
+                  <td className={cn("figure py-2 text-right", row.failed ? "font-bold text-red-700" : "text-dash-muted")}>
+                    {formatNumber(row.failed)}
+                  </td>
+                  <td className="figure py-2 text-right text-dash-muted">{formatNumber(row.waiting)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p className="mt-3 border-t border-dash-line pt-3 text-[0.75rem] leading-relaxed text-dash-muted">
+          Reach, views and engagement stay with each platform and are read in its own dashboard.
+          They are not drawn here, and not drawn as zero.
+        </p>
+      </Card>
+
+      <Card title="By kind of post">
+        <ByFormat posts={posts} />
+      </Card>
+    </div>
+  );
+}
+
+function ByFormat({ posts }) {
   const byFormat = new Map();
   for (const post of posts) {
     const key = post.payload?.format ?? "unspecified";
     byFormat.set(key, (byFormat.get(key) ?? 0) + 1);
   }
-
+  if (byFormat.size === 0) return <Empty>Nothing has been written for social tonight.</Empty>;
   return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Written" value={formatNumber(posts.length)} />
-        <Stat label="Cleared" value={formatNumber(cleared.length)} />
-        <Stat label="Refused" value={formatNumber(refused.length)} />
-        <Stat
-          label="Median wait to clear"
-          value={median === null ? "—" : `${Math.round(median)} min`}
-        />
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="What was written about" subtitle="By format, which is the closest this desk has to a subject">
-          {byFormat.size === 0 ? (
-            <Empty>Nothing has been written for social tonight.</Empty>
-          ) : (
-            <ul className="space-y-2">
-              {[...byFormat.entries()]
-                .sort((a, b) => b[1] - a[1])
-                .map(([format, count]) => (
-                  <li key={format} className="flex items-baseline justify-between gap-3">
-                    <span className="text-[0.875rem] text-dash-ink">
-                      {FORMATS.find((row) => row.id === format)?.label ?? "Not specified"}
-                    </span>
-                    <span className="figure text-[0.9375rem] font-bold text-dash-ink">
-                      {formatNumber(count)}
-                    </span>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </Card>
-
-        <Card title="Platform figures" subtitle="Reach, views, engagement, followers">
-          <p className="text-[0.875rem] leading-relaxed text-dash-muted">
-            Not drawn, and deliberately not drawn as zero. Every one of those numbers is returned
-            by a platform through the grant that would also let this product post, and there is
-            none — so a chart of them would be a chart of nothing, on the screen a newsroom uses
-            to decide what worked.
-          </p>
-          <p className="mt-3 text-[0.875rem] leading-relaxed text-dash-muted">
-            The figures above are measured from this desk&rsquo;s own queue and are real: they say
-            how much was made, how much survived an editor, and how long the clearing took. On a
-            long night the last of those is the one that actually changes how a desk works.
-          </p>
-        </Card>
-      </div>
-    </div>
+    <ul className="space-y-2">
+      {[...byFormat.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([format, count]) => (
+          <li key={format} className="flex items-baseline justify-between gap-3">
+            <span className="text-[0.875rem] text-dash-ink">
+              {FORMATS.find((row) => row.id === format)?.label ?? "Other"}
+            </span>
+            <span className="figure text-[0.9375rem] font-bold text-dash-ink">{formatNumber(count)}</span>
+          </li>
+        ))}
+    </ul>
   );
 }
 
@@ -676,6 +630,59 @@ function Stat({ label, value }) {
     <div className="rounded-dash border border-dash-line bg-dash-card px-4 py-3.5">
       <p className="text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">{label}</p>
       <p className="figure mt-1.5 text-[1.5rem] leading-none font-bold text-dash-ink">{value}</p>
+    </div>
+  );
+}
+
+/**
+ * The card, drawn by the server, with an answer when it cannot be.
+ *
+ * ── A BROKEN PICTURE EXPLAINS NOTHING ──────────────────────────────────────
+ * The renderer refuses an account that may not write for the desk, and a
+ * browser draws that refusal as an empty box with a torn-page icon — which
+ * says "this product is broken" rather than "your account cannot do this".
+ * So the failure is caught and written out, with the one thing that fixes it.
+ */
+function CardPreview({ src, updating }) {
+  const [broken, setBroken] = useState(false);
+
+  return (
+    <div className="relative mx-auto w-full max-w-80 overflow-hidden rounded-dash-sm border border-dash-line bg-[#F5EEDC]">
+      {broken ? (
+        <div className="flex aspect-square flex-col items-center justify-center gap-2 p-5 text-center">
+          <p className="text-[0.875rem] font-bold text-dash-ink">The card could not be drawn.</p>
+          <p className="text-[0.8125rem] leading-relaxed text-dash-muted">
+            Either this account is not allowed to make cards, or the figures for this place could not
+            be read. An administrator can check the account on Users and roles.
+          </p>
+          <button
+            type="button"
+            onClick={() => setBroken(false)}
+            className="mt-1 inline-flex h-9 items-center rounded-dash-sm border border-dash-line px-3 text-[0.75rem] font-bold text-dash-ink hover:border-dash-ink"
+          >
+            Try again
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* No `key`: replacing the element blanks the box while the next
+              picture is drawn, and a preview that flashes empty on every
+              keystroke reads as broken. Swapping the address keeps the last
+              card on screen until the new one has loaded. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- our own authenticated renderer */}
+          <img
+            src={src}
+            alt="The card as it will be sent"
+            className="block w-full"
+            onError={() => setBroken(true)}
+          />
+          {updating && (
+            <span className="absolute top-2 right-2 rounded-full bg-dash-ink px-2 py-0.5 text-[0.625rem] font-bold text-white">
+              Updating…
+            </span>
+          )}
+        </>
+      )}
     </div>
   );
 }

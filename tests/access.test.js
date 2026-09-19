@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { ROLES, ROLE_KEYS, can, dashboardsFor, homeFor, mayOpen } from "../lib/roles.js";
+import { RETIRED_ROLES, ROLES, ROLE_KEYS, can, dashboardsFor, homeFor, isStranded, mayOpen } from "../lib/roles.js";
 
 /**
  * Who can open what, pinned.
@@ -63,7 +63,11 @@ const GUARDED = [
   "/admin/api",
   "/admin/settings",
   "/field",
-  "/broadcast",
+  /* ── /broadcast IS NOT GUARDED ANY MORE, BECAUSE IT IS NOT A PAGE ──────
+     It redirects into the room's Broadcast head and reads nothing on the way,
+     so there is nothing there to protect: /room runs the check it used to.
+     Listing it here would assert that the guard refuses a redirect, which is
+     a rule about a door rather than about a room. */
   "/room",
   "/whatsapp",
   "/gap",
@@ -71,13 +75,24 @@ const GUARDED = [
   "/console",
 ];
 
-/** What each role is allowed to open, and nothing else. */
+/**
+ * What each role is allowed to open, and nothing else.
+ *
+ * ── TWO ROLES FEWER THAN THIS ONCE HAD ────────────────────────────────────
+ * BROADCASTER and WHATSAPP_DESK are gone. They were separate logins for two
+ * jobs the collation room was already doing, and the broadcast desk is a head
+ * inside /room now rather than an address of its own. Their capabilities were
+ * not deleted — they were folded into SITUATION_ROOM, which is why that row
+ * is unchanged: it already held everything both of them could do.
+ *
+ * PU_AGENT stays in the table and is deliberately not issuable. It cannot
+ * sign in, so nobody reaches these routes as one; what it still does is name
+ * the author of every row a staff booth account ever filed. See lib/roles.js.
+ */
 const MATRIX = {
   SUPER_ADMIN: GUARDED,
   PU_AGENT: ["/field", "/governors"],
-  BROADCASTER: ["/broadcast", "/gap", "/governors"],
   SITUATION_ROOM: ["/room", "/whatsapp", "/gap", "/governors"],
-  WHATSAPP_DESK: ["/whatsapp", "/governors"],
   VIEWER: ["/console", "/governors"],
 };
 
@@ -122,7 +137,7 @@ describe("the access matrix", () => {
   }
 
   it("never lets a desk into the administrator's rooms", () => {
-    for (const role of ["PU_AGENT", "BROADCASTER", "SITUATION_ROOM", "WHATSAPP_DESK", "VIEWER"]) {
+    for (const role of ["PU_AGENT", "SITUATION_ROOM", "VIEWER"]) {
       assert.equal(mayOpen(role, "/admin"), false, `${role} opened /admin`);
       assert.equal(mayOpen(role, "/admin/coordinators"), false, `${role} opened the coordinator queue`);
 
@@ -218,5 +233,31 @@ describe("capabilities", () => {
         assert.ok(dashboardsFor(role).includes("/gap"), `${role} may read the gap and cannot open it`);
       }
     }
+  });
+});
+
+describe("roles that were merged away", () => {
+  /**
+   * The broadcast desk and the WhatsApp desk stopped being roles when they
+   * became heads inside the situation room, and accounts issued under them
+   * are still in the database. They must not be answered as the room — it
+   * unseals incident narratives and can change figures — so they hold
+   * nothing, land on the viewer's console, and are named as stranded so an
+   * administrator re-issues them rather than being left to guess why a desk
+   * is empty.
+   */
+  for (const role of RETIRED_ROLES) {
+    it(`${role} holds nothing until it is re-issued`, () => {
+      assert.ok(isStranded(role), "it is recognised as an account to re-issue");
+      assert.equal(homeFor(role), "/console");
+      for (const capability of ["broadcast:draft", "results:file", "incidents:read", "whatsapp:read"]) {
+        assert.equal(can(role, capability), false, `${role} held ${capability}`);
+      }
+      assert.equal(mayOpen(role, "/room"), false, "it cannot open the room");
+    });
+  }
+
+  it("does not call a role in use stranded", () => {
+    for (const role of ROLE_KEYS) assert.equal(isStranded(role), false, `${role} was called stranded`);
   });
 });
