@@ -66,7 +66,10 @@ const source = readFileSync(
 function desks() {
   const block = source.slice(source.indexOf("export const DESKS = {"), source.indexOf("export const DESK_IDS"));
   const found = {};
-  for (const match of block.matchAll(/^ {2}([a-z]+): \{\n\s*label: "([^"]+)",\n\s*sections: \[([\s\S]*?)\n {4}\],/gm)) {
+  /* Tolerant about what else a dashboard carries — a `why` line, an icon —
+     and strict about the two things this file is checking: its label and the
+     sections inside it. */
+  for (const match of block.matchAll(/^ {2}([a-z]+): \{\n\s*label: "([^"]+)",[\s\S]*?\n\s*sections: \[([\s\S]*?)\n {4}\],/gm)) {
     found[match[1]] = {
       label: match[2],
       sections: [...match[3].matchAll(/id: "([a-z]+)"/g)].map((row) => row[1]),

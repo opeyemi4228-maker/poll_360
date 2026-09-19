@@ -549,6 +549,77 @@
 }
 
 /* ------------------------------------------------------------------
+   The broadcast desk
+   ------------------------------------------------------------------
+   Everywhere else in this product is a working surface: white paper,
+   black type, colour used only where it carries a fact. The broadcast
+   desk is a different job. It makes the thing an audience sees, and a
+   desk that looks nothing like its own output is a desk where nobody
+   can tell at a glance whether a card is right.
+
+   So the desk wears what it prints — see lib/cards.jsx: cream paper,
+   navy ink, the brand's red, and green, orange and blue as the three
+   accents. It is done by redefining the dashboard's own tokens inside
+   one container rather than by restyling forty components, which means
+   every card, table, tab and button on the desk moves together and
+   nothing can be left behind in the old palette.
+------------------------------------------------------------------- */
+.air-desk {
+  /* The page, the cards and the rules between them. */
+  --color-dash-bg: #f2ead6;
+  --color-dash-card: #fffdf7;
+  --color-dash-line: #e2d7bd;
+  /* Type: navy rather than black, because it sits on cream. */
+  --color-dash-ink: #14213d;
+  --color-dash-muted: #6b6a5f;
+
+  /* The three accents, for anything that needs a colour of its own. */
+  --air-red: #e4202e;
+  --air-green: #1e9e5a;
+  --air-orange: #f28a25;
+  --air-blue: #2f6fde;
+
+  background: var(--color-dash-bg);
+  color: var(--color-dash-ink);
+}
+
+/* The desk's own header band: navy, edge to edge, so the eye lands on
+   the output before the controls. */
+.air-band {
+  background: var(--color-dash-ink);
+  color: #fffdf7;
+}
+
+/* ---- The desk's cards -------------------------------------------
+   Every panel on the desk is a card component shared with the rest of
+   the product, so the difference is made here rather than by passing
+   a class through forty call sites. Three things: a warm rule and a
+   tinted head so a panel reads as a sheet with a masthead, a little
+   lift so it sits on the cream rather than in it, and a heading one
+   step larger — these screens are read standing up.
+------------------------------------------------------------------- */
+.air-desk section {
+  box-shadow: 0 1px 0 oklch(20% 0.02 265 / 0.04), 0 8px 20px -18px oklch(20% 0.02 265 / 0.5);
+}
+
+.air-desk section > header {
+  background: color-mix(in oklab, var(--color-dash-bg) 42%, #ffffff);
+  border-color: var(--color-dash-line);
+}
+
+.air-desk section > header h2 {
+  font-size: 1rem;
+  letter-spacing: -0.015em;
+}
+
+/* Figures carry the weight on this desk: every total, share and count
+   is something somebody may be about to read out loud. */
+.air-desk .figure {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ------------------------------------------------------------------
    Base
 ------------------------------------------------------------------- */
 @layer base {

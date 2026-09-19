@@ -312,18 +312,39 @@ const placeByName = (name) => (STATE_BY_NAME.has(name) ? placeOf(`STATE:${STATE_
 const severityWord = (value) =>
   value === "CRITICAL" ? "Critical" : value === "SERIOUS" ? "Serious" : value === "WARNING" ? "Warning" : "For information";
 
+/**
+ * One figure, and what it is.
+ *
+ * ── THE FIGURE IS THE POINT, SO IT IS THE BIGGEST THING ────────────────────
+ * These are read from across a room, at a glance, between other jobs. The
+ * number carries the weight, the label is small above it, and the colour is
+ * used for one thing only: something that needs a person. A tile that is
+ * coloured because it is interesting teaches people to ignore the colour.
+ */
 function Tile({ label, value, tone = null }) {
   return (
     <div
       className={cn(
-        "rounded-dash border px-4 py-3.5",
-        tone === "alert" ? "border-red-200 bg-red-50" : tone === "warn" ? "border-amber-200 bg-amber-50" : "border-dash-line bg-dash-card"
+        "flex flex-col justify-between rounded-dash border-2 px-4 py-3.5",
+        tone === "alert"
+          ? "border-red-300 bg-red-50"
+          : tone === "warn"
+            ? "border-amber-300 bg-amber-50"
+            : "border-dash-line bg-dash-card"
       )}
     >
-      <p className="text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">{label}</p>
+      <p className="flex items-center gap-1.5 text-[0.625rem] font-bold tracking-[0.14em] text-dash-muted uppercase">
+        {tone && (
+          <span
+            aria-hidden="true"
+            className={cn("size-1.5 rounded-full", tone === "alert" ? "bg-red-600" : "bg-amber-500")}
+          />
+        )}
+        {label}
+      </p>
       <p
         className={cn(
-          "figure mt-1.5 text-[1.5rem] leading-none font-bold",
+          "figure mt-2 text-[1.875rem] leading-none font-extrabold tracking-[-0.02em]",
           tone === "alert" ? "text-red-700" : tone === "warn" ? "text-amber-800" : "text-dash-ink"
         )}
       >
@@ -340,7 +361,7 @@ function WireCard({ wire }) {
   const [copied, setCopied] = useState(false);
   if (!wire) return <Tile label="Live page" value="—" />;
   return (
-    <div className="flex flex-col justify-between rounded-dash border border-dash-ink bg-dash-ink px-4 py-3.5 text-white">
+    <div className="air-band flex flex-col justify-between rounded-dash px-4 py-3.5">
       <p className="flex items-center gap-2 text-[0.625rem] font-bold tracking-[0.12em] uppercase">
         <span className="size-2 animate-pulse rounded-full bg-red-500" />
         Public live page

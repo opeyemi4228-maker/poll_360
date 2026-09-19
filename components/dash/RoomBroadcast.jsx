@@ -82,6 +82,7 @@ import { cn } from "@/lib/utils";
 export const DESKS = {
   aircontrol: {
     label: "Control",
+    why: "Write it, clear it, put it out — and watch the night.",
     sections: [
       { id: "live", label: "Live", icon: Megaphone },
       { id: "onair", label: "On air", icon: Radio },
@@ -91,6 +92,7 @@ export const DESKS = {
   },
   airresults: {
     label: "Results",
+    why: "Whether the count may be read out, and what it says.",
     sections: [
       { id: "clearance", label: "Clearance", icon: ShieldCheck },
       { id: "analysis", label: "Analysis", icon: BarChart3 },
@@ -99,6 +101,7 @@ export const DESKS = {
   },
   airstudio: {
     label: "Studio",
+    why: "The programme, the picture and the people on the cards.",
     sections: [
       { id: "golive", label: "Go live", icon: Monitor },
       { id: "ticker", label: "Ticker", icon: Type },
@@ -107,6 +110,7 @@ export const DESKS = {
   },
   airrecord: {
     label: "Record",
+    why: "What each platform did, who did what, and what is connected.",
     sections: [
       { id: "delivery", label: "Delivery", icon: Send },
       { id: "audit", label: "Audit", icon: Activity },
@@ -188,11 +192,46 @@ export default function RoomBroadcast({
 
   return (
     <DeskProvider user={user} may={may} deliveries={deliveries} channels={channels} wire={wire}>
-      <div className="flex flex-col gap-3">
+      {/* ── THE DESK WEARS WHAT IT PRINTS ──────────────────────────────────
+          `air-desk` redefines the dashboard's own colour tokens for
+          everything inside it — see app/globals.css. The desk is cream and
+          navy, like the cards it makes, so a producer can see at a glance
+          that they are looking at output rather than at the count. */}
+      <div className="air-desk flex flex-col gap-3 rounded-dash p-3 sm:p-4">
+        {/* ── THE BAND ────────────────────────────────────────────────────
+            Which dashboard this is, what it is for, and — because it is the
+            one address the whole operation points at — the public live page,
+            one press from every screen on the desk. */}
+        <div className="air-band flex flex-wrap items-center justify-between gap-3 rounded-dash px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Mark />
+            <div>
+              <p className="font-display text-[1.0625rem] leading-none font-extrabold tracking-[-0.01em]">
+                {desk.label}
+              </p>
+              <p className="mt-1 text-[0.75rem] leading-none text-white/65">{desk.why}</p>
+            </div>
+          </div>
+          {wire && (
+            <a
+              href={wire}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center gap-2 rounded-full bg-white/10 px-3.5 text-[0.75rem] font-bold text-white hover:bg-white/20"
+            >
+              <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
+              Live page
+            </a>
+          )}
+        </div>
+
+        {/* ── THE SECTIONS ────────────────────────────────────────────────
+            A row of tabs rather than a menu, because a destination behind a
+            control nobody opens is a destination that stops existing. */}
         <div
           role="tablist"
           aria-label={`${desk.label} sections`}
-          className="flex flex-wrap gap-1 rounded-dash border border-dash-line bg-dash-card p-1"
+          className="flex flex-wrap gap-1.5 rounded-dash border border-dash-line bg-dash-card p-1.5"
         >
           {desk.sections.map((item) => {
             const active = section === item.id;
@@ -204,12 +243,14 @@ export default function RoomBroadcast({
                 aria-selected={active}
                 onClick={() => setSection(item.id)}
                 className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-dash-sm px-3 py-2 text-[0.8125rem] font-bold whitespace-nowrap transition-colors",
+                  "flex flex-1 items-center justify-center gap-2 rounded-dash-sm px-3.5 py-2.5 text-[0.8125rem] font-bold whitespace-nowrap transition-colors",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
-                  active ? "bg-dash-ink text-white" : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
+                  active
+                    ? "bg-dash-ink text-white shadow-e2"
+                    : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
                 )}
               >
-                <item.icon size={15} strokeWidth={2.25} />
+                <item.icon size={16} strokeWidth={2.25} />
                 {item.label}
               </button>
             );
@@ -348,3 +389,29 @@ export const WHERE = {
   platforms: { desk: "airrecord", section: "setup" },
   health: { desk: "airrecord", section: "setup" },
 };
+
+/**
+ * The 360 mark: three arcs in the brand's accents around a red core.
+ *
+ * The same mark the cards carry (lib/cards.jsx draws it into the picture),
+ * so the desk and its output are plainly the same product.
+ */
+function Mark({ size = 30 }) {
+  const arc = (from, to) => {
+    const point = (turn) => {
+      const angle = (turn * 360 - 90) * (Math.PI / 180);
+      return [15 + 11 * Math.cos(angle), 15 + 11 * Math.sin(angle)];
+    };
+    const [x0, y0] = point(from);
+    const [x1, y1] = point(to);
+    return `M ${x0} ${y0} A 11 11 0 0 1 ${x1} ${y1}`;
+  };
+  return (
+    <svg width={size} height={size} viewBox="0 0 30 30" aria-hidden="true" className="shrink-0">
+      <path d={arc(0.02, 0.31)} stroke="#1E9E5A" strokeWidth={4} fill="none" strokeLinecap="round" />
+      <path d={arc(0.35, 0.64)} stroke="#F28A25" strokeWidth={4} fill="none" strokeLinecap="round" />
+      <path d={arc(0.68, 0.97)} stroke="#2F6FDE" strokeWidth={4} fill="none" strokeLinecap="round" />
+      <circle cx={15} cy={15} r={4.2} fill="#E4202E" />
+    </svg>
+  );
+}
