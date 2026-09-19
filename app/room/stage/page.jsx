@@ -69,7 +69,7 @@ export default async function StagePage() {
   const onAir = items.filter((item) => item.state === "ON_AIR");
 
   return (
-    <main className="min-h-screen bg-[#0C1629] text-white">
+    <main className="min-h-screen bg-blue-950 text-white">
       {/* The refresh is the only moving part, and it is invisible on the
           stage itself: it sits in the corner for the operator and is small
           enough to crop out of a capture. */}

@@ -75,7 +75,7 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
           >
             <ul className="space-y-3">
               {open.map((row) => (
-                <li key={row.platform} className="rounded-dash border border-emerald-200 bg-emerald-50/60 p-3.5">
+                <li key={row.platform} className="rounded-dash border tone-ok p-3.5">
                   <p className="flex flex-wrap items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-[0.9375rem] font-bold text-dash-ink">
                       <span className="size-2 animate-pulse rounded-full bg-red-600" />
@@ -218,7 +218,7 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
                               aria-hidden="true"
                               className={cn(
                                 "mt-1 size-2.5 shrink-0 rounded-full",
-                                row.opens ? (ready ? "bg-emerald-500" : "bg-amber-500") : "bg-dash-line"
+                                row.opens ? (ready ? "dot-ok" : "dot-warn") : "bg-dash-line"
                               )}
                             />
                             <span className="min-w-0">

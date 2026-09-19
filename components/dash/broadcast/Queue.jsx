@@ -89,7 +89,7 @@ export function Said({ said }) {
         said.tone === "alert"
           ? "bg-red-50 text-red-700"
           : said.tone === "good"
-            ? "bg-emerald-50 text-emerald-800"
+            ? "tone-ok"
             : "bg-dash-bg text-dash-muted"
       )}
       role="status"
@@ -435,9 +435,9 @@ function Deliveries({ item }) {
               <span className="font-bold text-dash-ink">{platformLabel(id)}</span>
               <span
                 className={cn(
-                  tone === "good" && "text-emerald-700",
+                  tone === "good" && "ink-ok",
                   tone === "alert" && "text-red-700",
-                  tone === "warn" && "text-amber-700",
+                  tone === "warn" && "ink-warn",
                   (!tone || tone === "neutral") && "text-dash-muted"
                 )}
               >
@@ -448,7 +448,7 @@ function Deliveries({ item }) {
           );
           const className = cn(
             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem]",
-            tone === "alert" ? "border-red-200 bg-red-50" : tone === "good" ? "border-emerald-200 bg-emerald-50" : "border-dash-line bg-dash-card"
+            tone === "alert" ? "border-red-200 bg-red-50" : tone === "good" ? "tone-ok" : "border-dash-line bg-dash-card"
           );
           return (
             <li key={id} title={row?.error ?? row?.note ?? undefined}>

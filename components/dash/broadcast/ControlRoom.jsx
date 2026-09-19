@@ -201,7 +201,7 @@ function Alert({ tone, children }) {
         tone === "alert"
           ? "bg-red-50 text-red-700"
           : tone === "warn"
-            ? "bg-amber-50 text-amber-900"
+            ? "tone-warn"
             : "bg-dash-bg text-dash-muted"
       )}
     >

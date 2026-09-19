@@ -1,5 +1,6 @@
 import { formatNumber, formatShare } from "@/lib/utils";
 import { kindLabel } from "@/lib/broadcast";
+import BrandMark from "@/components/ui/BrandMark";
 
 /**
  * The picture that goes out: the stage, drawn for a camera rather than a desk.
@@ -18,6 +19,8 @@ import { kindLabel } from "@/lib/broadcast";
 
 /* Party colours for a dark stage: the same hues as the cards, lifted for
    contrast against navy. A party's colour follows the party, never its rank. */
+/* Party colours are data, not chrome: a party is drawn in its own colour.
+   Everything else on the stage is the brand — navy, white, the red. */
 const PARTY = {
   APC: "#4D9BF0",
   PDP: "#F2555F",
@@ -57,9 +60,7 @@ export default function Stage({ project, raceLabel, ground, national, places, pi
       {/* ─────────────────────────────────────────────────────────── head */}
       <header className="flex items-center justify-between px-[3.2%] pt-[2.6%]">
         <div className="flex items-center gap-[1.4vh]">
-          <span className="flex size-[4.4vh] items-center justify-center rounded-full bg-red-600 text-[2vh] font-black">
-            P
-          </span>
+          <BrandMark className="size-[4.4vh] shrink-0" />
           <div>
             <p className="font-display text-[3vh] leading-none font-black tracking-[-0.02em]">POLL360</p>
             <p className="text-[1.5vh] font-semibold text-white/60">{project?.title ?? "No project open"}</p>
@@ -183,7 +184,7 @@ export default function Stage({ project, raceLabel, ground, national, places, pi
       {/* ── THE LOWER THIRD, THE STRAP AND THE CRAWL ─────────────────────── */}
       <footer className="mt-auto">
         {third && (
-          <div className="mx-[3.2%] mb-[1.2vh] inline-flex max-w-[70%] flex-col rounded-[1vh] bg-white px-[2vh] py-[1.2vh] text-[#0C1629]">
+          <div className="mx-[3.2%] mb-[1.2vh] inline-flex max-w-[70%] flex-col rounded-[1vh] bg-white px-[2vh] py-[1.2vh] text-blue-950">
             <span className="font-display text-[2.6vh] leading-tight font-black">{third.title}</span>
             {third.body && <span className="text-[1.8vh] leading-snug">{third.body}</span>}
           </div>
@@ -196,7 +197,7 @@ export default function Stage({ project, raceLabel, ground, national, places, pi
           </div>
         )}
 
-        <div className="flex items-stretch bg-[#14213D]">
+        <div className="flex items-stretch bg-blue-950">
           <span className="flex shrink-0 items-center bg-red-600 px-[2.4vh] text-[1.6vh] font-black tracking-[0.2em] uppercase">
             Poll360
           </span>

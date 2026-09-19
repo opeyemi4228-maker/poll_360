@@ -53,8 +53,8 @@ const LEVELS = [
 const STATUS = {
   DRAFT: { label: "Draft", tone: "bg-dash-bg text-dash-muted border-dash-line" },
   REJECTED: { label: "Sent back", tone: "bg-red-50 text-red-700 border-red-200" },
-  REVIEW: { label: "Waiting for editor", tone: "bg-amber-50 text-amber-800 border-amber-200" },
-  CLEARED: { label: "Ready to go live", tone: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+  REVIEW: { label: "Waiting for editor", tone: "tone-warn border-[color-mix(in_oklab,var(--color-flagged)_40%,#fff)]" },
+  CLEARED: { label: "Ready to go live", tone: "tone-ok border-[color-mix(in_oklab,var(--color-verified)_40%,#fff)]" },
   ON_AIR: { label: "Live", tone: "bg-red-600 text-white border-red-600" },
   OFF_AIR: { label: "Withdrawn", tone: "bg-dash-bg text-dash-muted border-dash-line" },
 };
@@ -424,7 +424,7 @@ function Tile({ item, picked, onPick, mine, done }) {
                     aria-hidden="true"
                     className={cn(
                       "size-1.5 rounded-full",
-                      tone === "good" ? "bg-emerald-500" : tone === "alert" ? "bg-red-500" : tone === "warn" ? "bg-amber-500" : "bg-dash-line"
+                      tone === "good" ? "dot-ok" : tone === "alert" ? "bg-red-500" : tone === "warn" ? "dot-warn" : "bg-dash-line"
                     )}
                   />
                   {platformLabel(id)}
@@ -460,7 +460,7 @@ function Tile({ item, picked, onPick, mine, done }) {
                 "inline-flex h-10 w-full items-center justify-center gap-2 rounded-dash-sm px-3 text-[0.8125rem] font-extrabold transition-colors disabled:cursor-default",
                 action.tone === "red" && "bg-red-600 text-white hover:bg-red-500",
                 action.tone === "ink" && "bg-dash-ink text-white hover:bg-black",
-                action.tone === "amber" && "bg-amber-500 text-dash-ink hover:bg-amber-400",
+                action.tone === "amber" && "dot-warn text-dash-ink hover:dot-warn",
                 action.tone === "quiet" && "border border-dash-line text-dash-ink hover:border-dash-ink",
                 action.disabled && "border border-dash-line bg-dash-bg text-dash-muted"
               )}

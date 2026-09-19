@@ -19,12 +19,15 @@
 
 import { cn } from "@/lib/utils";
 
+/* The product's own colours, and only those: the ink for a plain figure,
+   the brand red for anything live, and the two status colours this product
+   uses everywhere else — verified and flagged. */
 const TONES = {
   ink: "var(--color-dash-ink)",
-  red: "#E4202E",
-  green: "#1E9E5A",
-  orange: "#F28A25",
-  blue: "#2F6FDE",
+  red: "var(--color-red-500)",
+  green: "var(--color-verified)",
+  orange: "var(--color-flagged)",
+  blue: "var(--color-blue-900)",
 };
 
 /** A ring, filled to `value` per cent. The figure sits inside it. */

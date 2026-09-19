@@ -327,6 +327,58 @@
   --radius-dash: 12px;
   --radius-dash-sm: 8px;
 
+  /* ---- The three status ramps, in the brand's own hues -----------
+     Tailwind ships amber, emerald and sky, and sixty-six files across
+     this product reach for them to mean "wants a look", "checked" and
+     "for information". Those are the right meanings and the wrong
+     colours: they belong to Tailwind, not to Poll360, and a screen in
+     colours the brand does not own looks like somebody else's product.
+
+     So the ramps themselves are redefined here, around the two status
+     hues this product already had — flagged and verified — and the
+     brand's royal blue. Every existing `bg-amber-50`, `text-emerald-700`
+     and `border-sky-400` in the product keeps its meaning and changes
+     its colour, in one place, with nothing left behind.
+  ------------------------------------------------------------------- */
+  /* Wants a look. Was amber; now the product's flagged hue. */
+  --color-amber-50: oklch(97% 0.022 55);
+  --color-amber-100: oklch(94% 0.05 55);
+  --color-amber-200: oklch(88.5% 0.09 55);
+  --color-amber-300: oklch(82% 0.125 55);
+  --color-amber-400: oklch(76% 0.152 55);
+  --color-amber-500: oklch(70% 0.17 55);
+  --color-amber-600: oklch(60% 0.163 55);
+  --color-amber-700: oklch(50% 0.14 55);
+  --color-amber-800: oklch(40% 0.112 55);
+  --color-amber-900: oklch(32% 0.09 55);
+  --color-amber-950: oklch(22% 0.062 55);
+
+  /* Checked by a person. Was emerald; now the product's verified hue. */
+  --color-emerald-50: oklch(97% 0.018 200);
+  --color-emerald-100: oklch(94% 0.036 200);
+  --color-emerald-200: oklch(89% 0.06 200);
+  --color-emerald-300: oklch(83% 0.085 200);
+  --color-emerald-400: oklch(77.5% 0.1 200);
+  --color-emerald-500: oklch(72% 0.11 200);
+  --color-emerald-600: oklch(62% 0.105 200);
+  --color-emerald-700: oklch(52% 0.092 200);
+  --color-emerald-800: oklch(42% 0.075 200);
+  --color-emerald-900: oklch(34% 0.06 200);
+  --color-emerald-950: oklch(23% 0.042 200);
+
+  /* For information. Was sky; now the brand's royal blue. */
+  --color-sky-50: var(--color-blue-50);
+  --color-sky-100: var(--color-blue-100);
+  --color-sky-200: var(--color-blue-200);
+  --color-sky-300: var(--color-blue-300);
+  --color-sky-400: var(--color-blue-400);
+  --color-sky-500: var(--color-blue-500);
+  --color-sky-600: var(--color-blue-600);
+  --color-sky-700: var(--color-blue-700);
+  --color-sky-800: var(--color-blue-800);
+  --color-sky-900: var(--color-blue-900);
+  --color-sky-950: var(--color-blue-950);
+
   /* ---- Dashboard surfaces: white and black ----------------------
      A results desk is read in daylight as often as at 2am, and a
      black-on-white sheet is what every figure in this business has
@@ -551,59 +603,46 @@
 /* ------------------------------------------------------------------
    The broadcast desk
    ------------------------------------------------------------------
-   Everywhere else in this product is a working surface: white paper,
-   black type, colour used only where it carries a fact. The broadcast
-   desk is a different job. It makes the thing an audience sees, and a
-   desk that looks nothing like its own output is a desk where nobody
-   can tell at a glance whether a card is right.
+   The desk is the product's own palette and nothing else: the ink
+   scale for surfaces and type, the brand red for anything live, the
+   navy block for a band, and the three status colours this product
+   already uses everywhere — live, verified, flagged. No invented
+   greens, ambers or creams: a screen in colours the brand does not
+   own is a screen that looks like somebody else's product.
 
-   So the desk wears what it prints — see lib/cards.jsx: cream paper,
-   navy ink, the brand's red, and green, orange and blue as the three
-   accents. It is done by redefining the dashboard's own tokens inside
-   one container rather than by restyling forty components, which means
-   every card, table, tab and button on the desk moves together and
-   nothing can be left behind in the old palette.
+   Party colours are the one exception, and they are not chrome: a
+   party is drawn in its own colour inside a chart or a card, because
+   there the colour is the data. See lib/party-fill.js.
 ------------------------------------------------------------------- */
 .air-desk {
-  /* The page, the cards and the rules between them. */
-  --color-dash-bg: #f2ead6;
-  --color-dash-card: #fffdf7;
-  --color-dash-line: #e2d7bd;
-  /* Type: navy rather than black, because it sits on cream. */
-  --color-dash-ink: #14213d;
-  --color-dash-muted: #6b6a5f;
-
-  /* The three accents, for anything that needs a colour of its own. */
-  --air-red: #e4202e;
-  --air-green: #1e9e5a;
-  --air-orange: #f28a25;
-  --air-blue: #2f6fde;
+  --color-dash-bg: var(--color-ink-50);
+  --color-dash-card: #ffffff;
+  --color-dash-line: var(--color-ink-200);
+  --color-dash-ink: var(--color-ink-900);
+  --color-dash-muted: var(--color-ink-500);
 
   background: var(--color-dash-bg);
   color: var(--color-dash-ink);
 }
 
-/* The desk's own header band: navy, edge to edge, so the eye lands on
-   the output before the controls. */
+/* The desk's band: the brand's navy block, the same one the website
+   uses to hold a statement. */
 .air-band {
-  background: var(--color-dash-ink);
-  color: #fffdf7;
+  background: var(--color-blue-950);
+  color: #ffffff;
 }
 
 /* ---- The desk's cards -------------------------------------------
-   Every panel on the desk is a card component shared with the rest of
-   the product, so the difference is made here rather than by passing
-   a class through forty call sites. Three things: a warm rule and a
-   tinted head so a panel reads as a sheet with a masthead, a little
-   lift so it sits on the cream rather than in it, and a heading one
-   step larger — these screens are read standing up.
+   Panels read as sheets with a masthead, lifted a little off the
+   page, with headings a step larger — these screens are read
+   standing up.
 ------------------------------------------------------------------- */
 .air-desk section {
   box-shadow: 0 1px 0 oklch(20% 0.02 265 / 0.04), 0 8px 20px -18px oklch(20% 0.02 265 / 0.5);
 }
 
 .air-desk section > header {
-  background: color-mix(in oklab, var(--color-dash-bg) 42%, #ffffff);
+  background: var(--color-ink-50);
   border-color: var(--color-dash-line);
 }
 
@@ -612,11 +651,42 @@
   letter-spacing: -0.015em;
 }
 
-/* Figures carry the weight on this desk: every total, share and count
-   is something somebody may be about to read out loud. */
 .air-desk .figure {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+}
+
+/* ---- The three states, in the product's own status colours -------
+   Used for the same three things everywhere on the desk: something
+   is out and well (verified), something wants a person (flagged),
+   something failed or is live on a transmitter (the red).
+------------------------------------------------------------------- */
+.tone-ok {
+  background: color-mix(in oklab, var(--color-verified) 12%, #ffffff);
+  border-color: color-mix(in oklab, var(--color-verified) 40%, #ffffff);
+  color: color-mix(in oklab, var(--color-verified) 55%, #000000);
+}
+
+.tone-warn {
+  background: color-mix(in oklab, var(--color-flagged) 12%, #ffffff);
+  border-color: color-mix(in oklab, var(--color-flagged) 40%, #ffffff);
+  color: color-mix(in oklab, var(--color-flagged) 55%, #000000);
+}
+
+.ink-ok {
+  color: color-mix(in oklab, var(--color-verified) 60%, #000000);
+}
+
+.ink-warn {
+  color: color-mix(in oklab, var(--color-flagged) 60%, #000000);
+}
+
+.dot-ok {
+  background: var(--color-verified);
+}
+
+.dot-warn {
+  background: var(--color-flagged);
 }
 
 /* ------------------------------------------------------------------

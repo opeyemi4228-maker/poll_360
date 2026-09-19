@@ -17,6 +17,7 @@ import {
   Zap,
 } from "lucide-react";
 
+import BrandMark from "@/components/ui/BrandMark";
 import { DeskProvider } from "./broadcast/Queue";
 import LiveDesk from "./broadcast/LiveDesk";
 import Contestants from "./broadcast/Contestants";
@@ -204,7 +205,8 @@ export default function RoomBroadcast({
             one press from every screen on the desk. */}
         <div className="air-band flex flex-wrap items-center justify-between gap-3 rounded-dash px-4 py-3">
           <div className="flex items-center gap-3">
-            <Mark />
+            {/* The product's own mark, at the size the masthead uses it. */}
+            <BrandMark className="size-9 shrink-0" />
             <div>
               <p className="font-display text-[1.0625rem] leading-none font-extrabold tracking-[-0.01em]">
                 {desk.label}
@@ -389,29 +391,3 @@ export const WHERE = {
   platforms: { desk: "airrecord", section: "setup" },
   health: { desk: "airrecord", section: "setup" },
 };
-
-/**
- * The 360 mark: three arcs in the brand's accents around a red core.
- *
- * The same mark the cards carry (lib/cards.jsx draws it into the picture),
- * so the desk and its output are plainly the same product.
- */
-function Mark({ size = 30 }) {
-  const arc = (from, to) => {
-    const point = (turn) => {
-      const angle = (turn * 360 - 90) * (Math.PI / 180);
-      return [15 + 11 * Math.cos(angle), 15 + 11 * Math.sin(angle)];
-    };
-    const [x0, y0] = point(from);
-    const [x1, y1] = point(to);
-    return `M ${x0} ${y0} A 11 11 0 0 1 ${x1} ${y1}`;
-  };
-  return (
-    <svg width={size} height={size} viewBox="0 0 30 30" aria-hidden="true" className="shrink-0">
-      <path d={arc(0.02, 0.31)} stroke="#1E9E5A" strokeWidth={4} fill="none" strokeLinecap="round" />
-      <path d={arc(0.35, 0.64)} stroke="#F28A25" strokeWidth={4} fill="none" strokeLinecap="round" />
-      <path d={arc(0.68, 0.97)} stroke="#2F6FDE" strokeWidth={4} fill="none" strokeLinecap="round" />
-      <circle cx={15} cy={15} r={4.2} fill="#E4202E" />
-    </svg>
-  );
-}

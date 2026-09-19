@@ -622,10 +622,10 @@ function Verdicts({ item, may, pending, run }) {
             className={cn(
               "inline-flex h-9 items-center gap-1.5 rounded-dash-sm border px-3 text-[0.75rem] font-bold tracking-[0.06em] uppercase transition-colors disabled:opacity-40",
               row.tone === "good"
-                ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-600"
+                ? "tone-ok ink-ok hover:border-[var(--color-verified)]"
                 : row.tone === "alert"
                   ? "border-red-200 bg-red-50 text-red-700 hover:border-red-600"
-                  : "border-amber-200 bg-amber-50 text-amber-900 hover:border-amber-500"
+                  : "tone-warn ink-warn hover:border-[var(--color-flagged)]"
             )}
           >
             {pending && <Loader2 size={13} className="animate-spin" />}

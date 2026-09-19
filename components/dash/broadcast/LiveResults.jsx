@@ -94,7 +94,13 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
             const previous = index > 0 ? pipeline.stages[index - 1].count : null;
             const lost = previous === null ? null : previous - stage.count;
             const colour =
-              stage.id === "air" ? "#E4202E" : stage.id === "cleared" ? "#1E9E5A" : stage.id === "verified" ? "#F28A25" : "var(--color-dash-ink)";
+              stage.id === "air"
+                ? "var(--color-red-500)"
+                : stage.id === "cleared"
+                  ? "var(--color-verified)"
+                  : stage.id === "verified"
+                    ? "var(--color-flagged)"
+                    : "var(--color-dash-ink)";
             return (
               <li key={stage.id} className="flex items-center gap-3">
                 <span className="w-28 shrink-0 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
@@ -299,7 +305,7 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
                         over a materially different set of booths, and the desk
                         is told rather than left to notice. */}
                     {moved && (
-                      <p className="mt-2 rounded-dash-sm bg-amber-50 px-3 py-2 text-[0.8125rem] leading-relaxed text-amber-900">
+                      <p className="mt-2 rounded-dash-sm bg-[color-mix(in_oklab,var(--color-flagged)_10%,#fff)] px-3 py-2 text-[0.8125rem] leading-relaxed ink-warn">
                         Cleared at {formatNumber(row.returnsThen)} returns; there are now{" "}
                         {formatNumber(row.returnsNow)}. The figures have moved past what was
                         passed — clear it again if the newer ones are going out.

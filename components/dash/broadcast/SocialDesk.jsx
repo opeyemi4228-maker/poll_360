@@ -133,9 +133,9 @@ function ChannelRow({ row, check }) {
         strokeWidth={2.25}
         className={cn(
           "mt-0.5 shrink-0",
-          state.tone === "good" && "text-emerald-600",
+          state.tone === "good" && "ink-ok",
           state.tone === "alert" && "text-red-600",
-          state.tone === "warn" && "text-amber-600",
+          state.tone === "warn" && "ink-warn",
           state.tone === "neutral" && "text-dash-muted"
         )}
       />
@@ -391,7 +391,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
                 >
                   <span
                     aria-hidden="true"
-                    className={cn("size-1.5 rounded-full", ready ? "bg-emerald-500" : "bg-amber-500")}
+                    className={cn("size-1.5 rounded-full", ready ? "dot-ok" : "dot-warn")}
                   />
                   {row.label}
                 </button>
@@ -598,13 +598,13 @@ export function Delivery({ items }) {
         )}
         <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-dash-line pt-3 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
           <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-[#1E9E5A]" /> posted
+            <span className="size-2 rounded-full dot-ok" /> posted
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-[#E4202E]" /> failed
+            <span className="size-2 rounded-full bg-red-500" /> failed
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="size-2 rounded-full bg-[#F28A25]" /> not sent
+            <span className="size-2 rounded-full dot-warn" /> not sent
           </span>
         </p>
       </Card>

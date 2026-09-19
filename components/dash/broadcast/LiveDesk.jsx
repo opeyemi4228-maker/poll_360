@@ -249,7 +249,7 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
             >
               <PenLine size={12} strokeWidth={2.5} />
               {row.name}
-              <span className="figure font-bold text-emerald-700">+{formatNumber(row.fresh)}</span>
+              <span className="figure font-bold ink-ok">+{formatNumber(row.fresh)}</span>
             </button>
           ))}
         </div>
@@ -295,7 +295,7 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
               <span className="size-2.5 rounded-full border-2 border-red-500" /> Serious reports
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full border-2 border-amber-500" /> Other reports
+              <span className="size-2.5 rounded-full border-2 border-[var(--color-flagged)]" /> Other reports
             </li>
           </ul>
           <Silence perState={perState} onSelect={setState} />
@@ -374,7 +374,7 @@ function Entry({ row, last, onWriteUp, deliveries }) {
         className={cn(
           "relative z-10 flex size-8 shrink-0 items-center justify-center rounded-full border",
           row.stream === "published" && "border-dash-ink bg-dash-ink text-white",
-          row.stream === "field" && (serious ? "border-red-200 bg-red-50 text-red-600" : "border-amber-200 bg-amber-50 text-amber-700"),
+          row.stream === "field" && (serious ? "border-red-200 bg-red-50 text-red-600" : "tone-warn ink-warn"),
           (row.stream === "results" || row.stream === "moments") && "border-dash-line bg-dash-bg text-dash-muted"
         )}
       >
@@ -403,7 +403,7 @@ function Entry({ row, last, onWriteUp, deliveries }) {
               const label = `${platformLabel(delivery.platform)} · ${DELIVERY[delivery.status]?.label ?? delivery.status}`;
               const className = cn(
                 "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.625rem] font-semibold",
-                tone === "good" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : tone === "alert" ? "border-red-200 bg-red-50 text-red-700" : "border-amber-200 bg-amber-50 text-amber-800"
+                tone === "good" ? "tone-ok ink-ok" : tone === "alert" ? "border-red-200 bg-red-50 text-red-700" : "tone-warn ink-warn"
               );
               return delivery.remoteUrl ? (
                 <a key={delivery.platform} href={delivery.remoteUrl} target="_blank" rel="noreferrer" className={className} title={delivery.error ?? undefined}>

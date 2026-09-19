@@ -40,7 +40,7 @@ export function Playout({ items, order, onGo }) {
       </div>
 
       {order.overdue.length > 0 && (
-        <p className="rounded-dash border border-amber-200 bg-amber-50 px-4 py-3 text-[0.875rem] leading-relaxed text-amber-900">
+        <p className="rounded-dash border tone-warn px-4 py-3 text-[0.875rem] leading-relaxed ink-warn">
           <span className="font-bold">The running order has drifted.</span>{" "}
           {order.overdue.length === 1 ? "One slot is" : `${order.overdue.length} slots are`} past
           their start time with nobody having taken them to air. That is not an error — it is what
