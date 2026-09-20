@@ -430,7 +430,7 @@ function Tile({ item, picked, onPick, mine, done }) {
                   {platformLabel(id)}
                 </>
               );
-              const cls = "inline-flex items-center gap-1 rounded-full border border-dash-line px-2 py-0.5 text-[0.625rem] font-semibold text-dash-ink";
+              const cls = "inline-flex h-7 items-center gap-1 rounded-full border border-dash-line px-2 text-[0.6875rem] font-semibold text-dash-ink";
               return (
                 <li key={id} title={row ? `${DELIVERY[row.status]?.label}${row.error ? ` — ${row.error}` : ""}` : "Not sent yet"}>
                   {row?.remoteUrl ? (

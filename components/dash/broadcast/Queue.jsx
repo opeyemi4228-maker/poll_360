@@ -447,7 +447,7 @@ function Deliveries({ item }) {
             </>
           );
           const className = cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem]",
+            "inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[0.6875rem]",
             tone === "alert" ? "border-red-200 bg-red-50" : tone === "good" ? "tone-ok" : "border-dash-line bg-dash-card"
           );
           return (
@@ -468,7 +468,7 @@ function Deliveries({ item }) {
               href={`/live/${item.id}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-dash-line bg-dash-card px-2.5 py-1 text-[0.6875rem] font-bold text-dash-ink hover:border-dash-ink"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-dash-line bg-dash-card px-2.5 text-[0.6875rem] font-bold text-dash-ink hover:border-dash-ink"
             >
               Live page
               <ExternalLink size={12} strokeWidth={2.5} aria-hidden="true" />
@@ -505,7 +505,7 @@ function Deliveries({ item }) {
             key={shape}
             href={`/api/graphic/post/${item.id}?shape=${shape}`}
             download={`poll360-${item.id.slice(0, 8)}-${shape}.png`}
-            className="font-bold text-dash-ink hover:underline"
+            className="inline-flex h-8 items-center rounded-dash-sm px-2 font-bold text-dash-ink hover:bg-dash-bg"
           >
             {label}
           </a>

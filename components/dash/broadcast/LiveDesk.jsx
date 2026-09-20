@@ -239,7 +239,7 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
           decision is put in front of it rather than remembered. */}
       {may.draft && ready.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-dash border border-dash-line bg-dash-card px-4 py-3">
-          <span className="mr-1 text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Ready for an update</span>
+          <span className="mr-1 text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Ready for an update</span>
           {ready.slice(0, 8).map((row) => (
             <button
               key={row.scope}
@@ -322,7 +322,7 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
                       })
                     }
                     className={cn(
-                      "h-7 rounded-full border px-2.5 text-[0.6875rem] font-semibold",
+                      "h-8 rounded-full border px-3 text-[0.6875rem] font-semibold",
                       on ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line text-dash-muted hover:text-dash-ink"
                     )}
                   >
@@ -402,7 +402,7 @@ function Entry({ row, last, onWriteUp, deliveries }) {
               const tone = DELIVERY[delivery.status]?.tone;
               const label = `${platformLabel(delivery.platform)} · ${DELIVERY[delivery.status]?.label ?? delivery.status}`;
               const className = cn(
-                "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.625rem] font-semibold",
+                "inline-flex h-7 items-center gap-1 rounded-full border px-2 text-[0.6875rem] font-semibold",
                 tone === "good" ? "tone-ok ink-ok" : tone === "alert" ? "border-red-200 bg-red-50 text-red-700" : "tone-warn ink-warn"
               );
               return delivery.remoteUrl ? (
@@ -423,7 +423,7 @@ function Entry({ row, last, onWriteUp, deliveries }) {
           <button
             type="button"
             onClick={() => onWriteUp(row.preset)}
-            className="mt-1.5 inline-flex items-center gap-1 text-[0.75rem] font-bold text-dash-ink hover:underline"
+            className="mt-1.5 -ml-2 inline-flex h-8 items-center gap-1 rounded-dash-sm px-2 text-[0.75rem] font-bold text-dash-ink hover:bg-dash-bg"
           >
             <PenLine size={13} strokeWidth={2.5} />
             Write this up

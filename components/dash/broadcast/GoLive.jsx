@@ -302,7 +302,11 @@ function Secret({ label, value }) {
     <div className="mt-2">
       <p className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">{label}</p>
       <div className="mt-1 flex items-stretch gap-2">
-        <code className="min-w-0 flex-1 truncate rounded-dash-sm border border-dash-line bg-dash-bg px-3 py-2 font-mono text-[0.75rem] text-dash-ink">
+        {/* `w-0` as well as `min-w-0`: a flex item holding one long
+            unbreakable string still contributes that string's width to the
+            container's minimum, which on a phone pushed every card on the
+            screen wider than the screen. Zero basis and grow is the fix. */}
+        <code className="w-0 min-w-0 flex-1 truncate rounded-dash-sm border border-dash-line bg-dash-bg px-3 py-2 font-mono text-[0.75rem] text-dash-ink">
           {value}
         </code>
         <button

@@ -191,7 +191,7 @@ export default function LiveBoard({ board, className }) {
 
       {/* ----------------------------------------------------------- board */}
       <div className="grid gap-px bg-board-line lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-        <div className="bg-board p-4 sm:p-5">
+        <div className="min-w-0 bg-board p-4 sm:p-5">
           <NationMap shapes={board} byState={view.byState} />
 
           {/* Legend. Present because there is more than one series; the codes
@@ -229,7 +229,7 @@ export default function LiveBoard({ board, className }) {
 
         <div className="grid gap-px bg-board-line">
           <CoverageMeter
-            className="bg-board p-4 sm:p-5"
+            className="min-w-0 bg-board p-4 sm:p-5"
             coverage={view.coverage}
             unitsReported={view.unitsReported}
             booths={view.booths}
@@ -238,12 +238,12 @@ export default function LiveBoard({ board, className }) {
             turnout={view.turnout}
           />
           <Standings
-            className="bg-board p-4 sm:p-5"
+            className="min-w-0 bg-board p-4 sm:p-5"
             standings={view.standings}
             total={view.total}
             margin={view.margin}
           />
-          <Ticker className="bg-board p-4 sm:p-5" rows={view.ticker} />
+          <Ticker className="min-w-0 bg-board p-4 sm:p-5" rows={view.ticker} />
         </div>
       </div>
 
@@ -273,9 +273,9 @@ export default function LiveBoard({ board, className }) {
 
       {/* ---------------------------------------------- the colourless copy */}
       <div className="grid gap-px border-t border-board-line bg-board-line lg:grid-cols-[minmax(0,1fr)_21rem]">
-        <StateTable className="bg-board p-4 sm:p-5" byState={view.byState} states={board.states} />
+        <StateTable className="min-w-0 bg-board p-4 sm:p-5" byState={view.byState} states={board.states} />
 
-        <div className="bg-board p-4 sm:p-5">
+        <div className="min-w-0 bg-board p-4 sm:p-5">
           <h3 className="tag text-white/55">Reading this board</h3>
           <ul className="mt-3 space-y-3 text-[0.8125rem] leading-relaxed text-white/70">
             <li>

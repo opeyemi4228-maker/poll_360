@@ -352,7 +352,11 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
               {textLed ? "What happened" : "Caption"}
             </span>
             {suggested && !textLed && (
-              <button type="button" onClick={() => setCaption(suggested)} className="text-[0.75rem] font-semibold text-dash-ink hover:underline">
+              <button
+                type="button"
+                onClick={() => setCaption(suggested)}
+                className="-my-1 inline-flex h-9 items-center rounded-dash-sm px-2 text-[0.75rem] font-semibold text-dash-ink hover:bg-dash-bg"
+              >
                 Write it from the figures
               </button>
             )}
@@ -399,10 +403,20 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
             })}
           </div>
           <div className="mt-1.5 flex gap-3 text-[0.6875rem] text-dash-muted">
-            <button type="button" onClick={() => setPlatforms(new Set(PLATFORMS.map((row) => row.id)))} className="font-semibold hover:text-dash-ink">
+            {/* Sized for a thumb: a control under about nine millimetres
+                is one people miss on a phone in a hurry. */}
+            <button
+              type="button"
+              onClick={() => setPlatforms(new Set(PLATFORMS.map((row) => row.id)))}
+              className="inline-flex h-9 items-center rounded-dash-sm px-2 font-semibold hover:bg-dash-bg hover:text-dash-ink"
+            >
               All
             </button>
-            <button type="button" onClick={() => setPlatforms(new Set(reachable))} className="font-semibold hover:text-dash-ink">
+            <button
+              type="button"
+              onClick={() => setPlatforms(new Set(reachable))}
+              className="inline-flex h-9 items-center rounded-dash-sm px-2 font-semibold hover:bg-dash-bg hover:text-dash-ink"
+            >
               Only what is set up
             </button>
           </div>
@@ -413,7 +427,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
             type="checkbox"
             checked={sendOnClear}
             onChange={(event) => setSendOnClear(event.target.checked)}
-            className="mt-0.5 size-4 accent-[var(--color-dash-ink)]"
+            className="mt-0.5 size-5 accent-[var(--color-dash-ink)]"
           />
           <span className="text-[0.8125rem] leading-snug text-dash-ink">
             <span className="font-bold">Publish the moment an editor clears it.</span>{" "}
@@ -478,8 +492,8 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
                 type="button"
                 onClick={() => setLook(row.id)}
                 className={cn(
-                  "rounded-dash-sm px-2 py-1 text-[0.6875rem] font-bold",
-                  look === row.id ? "bg-dash-ink text-white" : "text-dash-muted hover:text-dash-ink"
+                  "inline-flex h-8 items-center rounded-dash-sm px-2.5 text-[0.6875rem] font-bold",
+                  look === row.id ? "bg-dash-ink text-white" : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
                 )}
               >
                 {row.label}

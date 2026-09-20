@@ -1,7 +1,7 @@
 "use client";
 
 import { parties, CALL_LABEL } from "@/lib/replay";
-import { formatNumber, formatShare } from "@/lib/utils";
+import { cn, formatNumber, formatShare } from "@/lib/utils";
 
 /**
  * The same data as the map, with no colour in it at all.
@@ -26,9 +26,14 @@ export default function StateTable({ byState, states, className }) {
   });
 
   return (
-    <div className={className}>
-      <div className="max-h-[26rem] overflow-y-auto overscroll-contain">
-        <table className="w-full border-collapse text-left">
+    /* ── min-w-0, OR THE PHONE SCROLLS SIDEWAYS ─────────────────────────
+       This panel is a grid item, and a grid item's minimum width is its
+       content by default: five columns of figures are wider than a phone,
+       so the panel refused to shrink and took the whole page with it. The
+       table scrolls inside its own box instead. */
+    <div className={cn("min-w-0", className)}>
+      <div className="max-h-[26rem] overflow-x-auto overflow-y-auto overscroll-contain">
+        <table className="w-full min-w-[22rem] border-collapse text-left">
           <caption className="sr-only">
             Every state, its leading party, its share and how much of it has reported. The same
             figures the map above is drawn from.
