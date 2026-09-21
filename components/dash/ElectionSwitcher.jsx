@@ -96,9 +96,9 @@ export default function ElectionSwitcher({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-label="Election project"
-        className="flex max-w-[15rem] items-center gap-2.5 rounded-full border border-dash-line bg-dash-card py-2 pr-3 pl-3.5 text-left transition-colors hover:border-dash-ink"
+        className="flex h-10 max-w-[15rem] items-center gap-2.5 rounded-full border border-dash-line bg-dash-card pr-3.5 pl-4 text-left transition-colors hover:border-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
       >
-        <Vote size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" aria-hidden="true" />
+        <Vote size={14} strokeWidth={2.5} className="shrink-0 text-dash-muted" aria-hidden="true" />
         <span className="min-w-0">
           <span className="block truncate text-[0.8125rem] leading-tight font-semibold text-dash-ink">
             {current?.title ?? "No project yet"}
@@ -107,7 +107,7 @@ export default function ElectionSwitcher({
             {current?.isDemo ? "Worked example" : (current?.status ?? "").toLowerCase() || "no status"}
           </span>
         </span>
-        <ChevronDown size={14} className="shrink-0 text-dash-muted" aria-hidden="true" />
+        <ChevronDown size={13} strokeWidth={2.5} className="shrink-0 text-dash-muted" aria-hidden="true" />
       </button>
 
       {open && (

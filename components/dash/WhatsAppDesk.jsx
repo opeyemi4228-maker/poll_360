@@ -230,7 +230,7 @@ export default function WhatsAppDesk({
                           className={cn(
                             "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold",
                             row.direction === "IN"
-                              ? "bg-emerald-50 text-emerald-800"
+                              ? "bg-ok-50 text-ok-800"
                               : "bg-dash-ink text-white"
                           )}
                         >
@@ -251,7 +251,7 @@ export default function WhatsAppDesk({
                               </span>
                             )}
                             {row.contactStatus !== "VERIFIED" && (
-                              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase text-amber-900">
+                              <span className="rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase text-flag-900">
                                 unconfirmed
                               </span>
                             )}
@@ -341,7 +341,7 @@ export default function WhatsAppDesk({
                         {row.draft.unitCode}
                       </span>
                     )}
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[0.625rem] font-bold text-amber-900">
+                    <span className="rounded-full bg-flag-100 px-2 py-0.5 text-[0.625rem] font-bold text-flag-900">
                       {STEP_LABEL[row.step] ?? row.step}
                     </span>
                     {row.draft?.held && (
@@ -407,10 +407,10 @@ export default function WhatsAppDesk({
                             className={cn(
                               "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
                               row.status === "VERIFIED"
-                                ? "bg-emerald-50 text-emerald-800"
+                                ? "bg-ok-50 text-ok-800"
                                 : row.status === "BLOCKED"
                                   ? "bg-red-100 text-red-900"
-                                  : "bg-amber-100 text-amber-900"
+                                  : "bg-flag-100 text-flag-900"
                             )}
                           >
                             {row.status === "VERIFIED" ? (
@@ -479,7 +479,7 @@ export default function WhatsAppDesk({
                       className={cn(
                         "shrink-0 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-semibold",
                         row.source === "UPLOAD"
-                          ? "bg-amber-50 text-amber-800"
+                          ? "bg-flag-50 text-flag-800"
                           : "bg-dash-bg text-dash-muted"
                       )}
                     >
@@ -609,9 +609,9 @@ export default function WhatsAppDesk({
                               className={cn(
                                 "rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
                                 changed
-                                  ? "bg-amber-100 text-amber-900"
+                                  ? "bg-flag-100 text-flag-900"
                                   : row.accepted
-                                    ? "bg-emerald-50 text-emerald-800"
+                                    ? "bg-ok-50 text-ok-800"
                                     : "bg-dash-bg text-dash-muted"
                               )}
                             >

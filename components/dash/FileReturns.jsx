@@ -149,7 +149,7 @@ export default function FileReturns({
               >
                 <span className="mt-0.5 shrink-0">
                   {has ? (
-                    <Check size={17} strokeWidth={3} className="text-emerald-600" />
+                    <Check size={17} strokeWidth={3} className="text-ok-600" />
                   ) : (
                     <CircleDashed size={17} strokeWidth={2.5} className="text-dash-muted" />
                   )}
@@ -249,7 +249,7 @@ export default function FileReturns({
                   <span className="figure text-[0.8125rem] font-bold text-dash-ink">
                     {row.unitCode}
                     {row.justNow && (
-                      <span className="ml-2 text-[0.6875rem] font-semibold text-emerald-700">
+                      <span className="ml-2 text-[0.6875rem] font-semibold text-ok-700">
                         {row.amended ? "amended" : "just now"}
                       </span>
                     )}

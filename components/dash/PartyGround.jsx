@@ -354,7 +354,7 @@ export default function PartyGround({ shapes = null }) {
                   {has && (
                     <span
                       aria-hidden="true"
-                      className={cn("size-1.5 rounded-full", item.id === party ? "bg-white/80" : "bg-emerald-500")}
+                      className={cn("size-1.5 rounded-full", item.id === party ? "bg-white/80" : "bg-ok-500")}
                     />
                   )}
                   {item.id}
@@ -1227,8 +1227,8 @@ function MemberCard({ name, kind, parent, members, share, demographics, pointer,
             {/* Apart from the bands, because it is not one. */}
             {demographics.cannotVote > 0 && (
               <p className="mt-1.5 flex items-baseline justify-between gap-2 text-[0.6875rem]">
-                <span className="text-amber-300/80">Under 18, cannot vote</span>
-                <span className="figure font-bold text-amber-300 tabular-nums">
+                <span className="text-flag-300/80">Under 18, cannot vote</span>
+                <span className="figure font-bold text-flag-300 tabular-nums">
                   {formatNumber(demographics.cannotVote)}
                 </span>
               </p>
@@ -1321,7 +1321,7 @@ function RatioPanel({ ratio, party, state, path }) {
         <span
           className={cn(
             "shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold tracking-[0.08em] uppercase",
-            ratio.estimated ? "bg-amber-100 text-amber-900" : "bg-emerald-100 text-emerald-900"
+            ratio.estimated ? "bg-flag-100 text-flag-900" : "bg-ok-100 text-ok-900"
           )}
         >
           {ratio.estimated ? "Estimated" : "Counted"}
@@ -1381,46 +1381,46 @@ function QualityPanel({ quality }) {
   const [open, setOpen] = useState(null);
 
   return (
-    <section className="overflow-hidden rounded-dash border border-amber-200 bg-amber-50">
-      <header className="flex items-baseline justify-between gap-3 border-b border-amber-200 px-4 py-3">
+    <section className="overflow-hidden rounded-dash border border-flag-200 bg-flag-50">
+      <header className="flex items-baseline justify-between gap-3 border-b border-flag-200 px-4 py-3">
         {/* Named, because there are 37 of these now and the findings below
             belong to one of them. "About this register" was unambiguous when
             there was only one register to be about. */}
         {/* Named, because there are many of these now and the findings below
             belong to one of them — or, at the country, to all of them. */}
-        <h3 className="font-display text-[0.875rem] font-extrabold text-amber-900">
+        <h3 className="font-display text-[0.875rem] font-extrabold text-flag-900">
           {quality.state === "national"
             ? `About the ${quality.party} register`
             : `About the ${quality.state} register`}
         </h3>
-        <span className="figure text-[0.75rem] font-bold text-amber-900 tabular-nums">
+        <span className="figure text-[0.75rem] font-bold text-flag-900 tabular-nums">
           {formatNumber(quality.votingAge)} of voting age
         </span>
       </header>
 
-      <ul className="divide-y divide-amber-200/70">
+      <ul className="divide-y divide-flag-200/70">
         {quality.notes.map((note) => (
           <li key={note.id}>
             <button
               type="button"
               onClick={() => setOpen(open === note.id ? null : note.id)}
               aria-expanded={open === note.id}
-              className="w-full px-4 py-2 text-left transition-colors hover:bg-amber-100/60"
+              className="w-full px-4 py-2 text-left transition-colors hover:bg-flag-100/60"
             >
               <span className="flex items-baseline gap-2">
-                <span className="flex-1 text-[0.8125rem] leading-snug text-amber-900">
+                <span className="flex-1 text-[0.8125rem] leading-snug text-flag-900">
                   {note.says}
                 </span>
                 <ChevronRight
                   size={13}
                   className={cn(
-                    "mt-0.5 shrink-0 text-amber-700 transition-transform",
+                    "mt-0.5 shrink-0 text-flag-700 transition-transform",
                     open === note.id && "rotate-90"
                   )}
                 />
               </span>
               {open === note.id && (
-                <span className="mt-1.5 block text-[0.75rem] leading-relaxed text-amber-800">
+                <span className="mt-1.5 block text-[0.75rem] leading-relaxed text-flag-800">
                   {note.why}
                 </span>
               )}

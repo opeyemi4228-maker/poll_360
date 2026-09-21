@@ -1,3 +1,5 @@
+import { Inbox } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,23 +26,23 @@ export function Card({ title, subtitle, action, children, className, padded = tr
          `scroll-mt-24` clears the sticky header, or the heading lands
          underneath it and the panel looks like it did not move. */
       className={cn(
-        "scroll-mt-24 rounded-dash border border-dash-line bg-dash-card",
+        "scroll-mt-24 overflow-hidden rounded-dash border border-dash-line bg-dash-card shadow-e2",
         className
       )}
       {...props}
     >
       {(title || action) && (
-        <header className="flex items-start justify-between gap-4 border-b border-dash-line px-5 py-4">
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-dash-line px-5 py-4 sm:px-6">
           <div className="min-w-0">
-            <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
+            <h2 className="font-display text-[1rem] leading-tight font-extrabold tracking-[-0.015em] text-dash-ink">
               {title}
             </h2>
-            {subtitle && <p className="mt-0.5 text-[0.8125rem] text-dash-muted">{subtitle}</p>}
+            {subtitle && <p className="mt-1 text-[0.8125rem] leading-snug text-dash-muted">{subtitle}</p>}
           </div>
           {action}
         </header>
       )}
-      <div className={padded ? "p-5" : ""}>{children}</div>
+      <div className={padded ? "p-5 sm:p-6" : ""}>{children}</div>
     </section>
   );
 }
@@ -54,9 +56,9 @@ export function Card({ title, subtitle, action, children, className, padded = tr
  */
 export function StatCard({ label, value, context, delta, tone = "default", icon: Icon }) {
   return (
-    <div className="rounded-dash border border-dash-line bg-dash-card p-5">
+    <div className="rounded-dash border border-dash-line bg-dash-card p-5 shadow-e2">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[0.75rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <p className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
           {label}
         </p>
         {Icon && <Icon size={16} strokeWidth={2.25} className="shrink-0 text-dash-muted" />}
@@ -96,15 +98,17 @@ export function StatCard({ label, value, context, delta, tone = "default", icon:
 export function Badge({ children, tone = "neutral" }) {
   const tones = {
     neutral: "border-dash-line bg-dash-bg text-dash-muted",
-    good: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    warn: "border-amber-200 bg-amber-50 text-amber-800",
+    /* The product's own status colours, never a stock green or amber — see
+       the note on colour in app/globals.css. */
+    good: "tone-ok",
+    warn: "tone-warn",
     alert: "border-red-200 bg-red-50 text-red-700",
     ink: "border-dash-ink bg-dash-ink text-white",
   };
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-dash-sm border px-2 py-1 text-[0.6875rem] font-bold tracking-[0.08em] uppercase",
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6875rem] leading-none font-bold tracking-[0.08em] whitespace-nowrap uppercase",
         tones[tone]
       )}
     >
@@ -113,10 +117,16 @@ export function Badge({ children, tone = "neutral" }) {
   );
 }
 
-export function Empty({ children }) {
+export function Empty({ children, icon: Icon = Inbox }) {
+  /* A drawn empty state rather than a grey strip: the outline says "this is
+     where it will appear", which is what somebody needs to know on the night
+     — that the screen works and the thing has simply not happened yet. */
   return (
-    <p className="rounded-dash-sm bg-dash-bg px-4 py-6 text-center text-[0.875rem] leading-relaxed text-dash-muted">
-      {children}
-    </p>
+    <div className="flex flex-col items-center gap-2.5 rounded-dash-sm border border-dashed border-dash-line bg-dash-bg px-5 py-8 text-center">
+      <span className="flex size-10 items-center justify-center rounded-full bg-dash-card text-dash-muted shadow-e2" aria-hidden="true">
+        <Icon size={18} strokeWidth={2} />
+      </span>
+      <p className="max-w-sm text-[0.875rem] leading-relaxed text-dash-muted">{children}</p>
+    </div>
   );
 }

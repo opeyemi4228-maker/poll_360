@@ -1543,7 +1543,7 @@ export default function Assistant({ tab = "results", projection = null }) {
             )}
 
             {reply?.synthetic && (
-              <p className="mt-1.5 text-[0.625rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
+              <p className="mt-1.5 text-[0.625rem] font-bold tracking-[0.1em] text-flag-300 uppercase">
                 Generated figure
               </p>
             )}
@@ -1552,7 +1552,7 @@ export default function Assistant({ tab = "results", projection = null }) {
                 as the words themselves. On a desk that may be reading this
                 out, where it came from is not a footnote. */}
             {reply?.kind === "web" && (
-              <p className="mt-1.5 flex items-center gap-1.5 text-[0.625rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
+              <p className="mt-1.5 flex items-center gap-1.5 text-[0.625rem] font-bold tracking-[0.1em] text-flag-300 uppercase">
                 <Globe size={10} strokeWidth={2.5} />
                 {reply.source ?? "From the web"} · not our data
               </p>
@@ -1561,7 +1561,7 @@ export default function Assistant({ tab = "results", projection = null }) {
         </div>
 
         {notice && (
-          <p className="border-t border-white/10 bg-amber-400/10 px-3.5 py-2 text-[0.75rem] text-amber-100">
+          <p className="border-t border-white/10 bg-flag-400/10 px-3.5 py-2 text-[0.75rem] text-flag-100">
             {notice}
           </p>
         )}
@@ -1611,7 +1611,7 @@ export default function Assistant({ tab = "results", projection = null }) {
 
       <div className="pointer-events-auto relative mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 pb-5 lg:px-8 lg:pb-6">
         {notice && (
-          <p className="animate-ai-rise self-start rounded-dash bg-amber-400/15 px-3.5 py-2 text-[0.8125rem] text-amber-100 backdrop-blur">
+          <p className="animate-ai-rise self-start rounded-dash bg-flag-400/15 px-3.5 py-2 text-[0.8125rem] text-flag-100 backdrop-blur">
             {notice}
           </p>
         )}
@@ -1651,12 +1651,12 @@ export default function Assistant({ tab = "results", projection = null }) {
               {reply.text}
             </p>
             {reply.synthetic && (
-              <p className="mt-2 text-[0.6875rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
+              <p className="mt-2 text-[0.6875rem] font-bold tracking-[0.1em] text-flag-300 uppercase">
                 Generated figure, not a measured one
               </p>
             )}
             {reply.kind === "web" && (
-              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] font-bold tracking-[0.1em] text-amber-300 uppercase">
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] font-bold tracking-[0.1em] text-flag-300 uppercase">
                 <Globe size={11} strokeWidth={2.5} />
                 {reply.source ?? "From the web"} · not this product&rsquo;s data
                 {reply.href && (
@@ -1664,7 +1664,7 @@ export default function Assistant({ tab = "results", projection = null }) {
                     href={reply.href}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="underline underline-offset-2 hover:text-amber-100"
+                    className="underline underline-offset-2 hover:text-flag-100"
                   >
                     Open it
                   </a>

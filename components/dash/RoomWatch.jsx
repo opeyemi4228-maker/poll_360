@@ -47,7 +47,7 @@ const HALVES = [
    this screen. Not a ramp: these are statuses and status colour is reserved. */
 const SEVERITY = [
   { id: "CRITICAL", label: "Critical", color: "var(--color-red-500)" },
-  { id: "SERIOUS", label: "Serious", color: "var(--color-amber-500)" },
+  { id: "SERIOUS", label: "Serious", color: "var(--color-flag-500)" },
   { id: "INFO", label: "Noted", color: "var(--color-ink-500)" },
 ];
 
@@ -129,7 +129,7 @@ export default function RoomWatch({
                 : alerts?.level === "SERIOUS"
                   ? "bg-red-50 text-red-700"
                   : alerts?.level === "WARNING"
-                    ? "bg-amber-50 text-amber-900"
+                    ? "bg-flag-50 text-flag-900"
                     : "bg-dash-bg text-dash-muted"
             )}
           >

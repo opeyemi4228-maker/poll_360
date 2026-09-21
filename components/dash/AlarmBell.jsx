@@ -59,7 +59,7 @@ const MUTED = "poll360:alarm-muted:SITUATION";
  */
 const TONE = {
   CRITICAL: "bg-red-500",
-  SERIOUS: "bg-amber-500",
+  SERIOUS: "bg-flag-500",
   INFO: "bg-dash-line",
 };
 
@@ -332,7 +332,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
               <button
                 type="button"
                 onClick={arm}
-                className="flex w-full items-center gap-2 border-b border-dash-line bg-amber-50 px-4 py-2.5 text-left text-[0.75rem] text-amber-900 hover:bg-amber-100"
+                className="flex w-full items-center gap-2 border-b border-dash-line bg-flag-50 px-4 py-2.5 text-left text-[0.75rem] text-flag-900 hover:bg-flag-100"
               >
                 <AlertTriangle size={13} strokeWidth={2.5} className="shrink-0" />
                 Your browser is holding the sound until you interact with the page. Click to turn it

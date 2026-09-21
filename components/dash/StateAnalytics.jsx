@@ -240,11 +240,11 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
         </div>
 
         {rows.some((row) => row.seat?.moved) && (
-          <div className="border-t border-dash-line bg-amber-50 px-4 py-3">
+          <div className="border-t border-dash-line bg-flag-50 px-4 py-3">
             {rows
               .filter((row) => row.seat?.moved)
               .map((row) => (
-                <p key={row.code} className="text-[0.8125rem] leading-relaxed text-amber-900">
+                <p key={row.code} className="text-[0.8125rem] leading-relaxed text-flag-900">
                   <span className="font-bold">
                     {row.name}: {row.seat.governor} crossed to {row.seat.current}
                   </span>{" "}
@@ -256,7 +256,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
                     timeZone: "UTC",
                   })}
                   . {row.seat.moved.note}{" "}
-                  <span className="text-amber-700">({row.seat.moved.source})</span>
+                  <span className="text-flag-700">({row.seat.moved.source})</span>
                 </p>
               ))}
           </div>
@@ -297,7 +297,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
                   <span
                     className={cn(
                       "ml-auto rounded-full px-3 py-1 text-[0.6875rem] font-bold uppercase",
-                      split ? "bg-amber-100 text-amber-900" : "bg-dash-bg text-dash-muted"
+                      split ? "bg-flag-100 text-flag-900" : "bg-dash-bg text-dash-muted"
                     )}
                   >
                     {split ? "Split ticket" : "Same party"}
@@ -368,7 +368,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
                       })}
                     </span>
                     {row.last.unverified && (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[0.625rem] font-bold tracking-wide text-amber-900 uppercase">
+                      <span className="rounded-full bg-flag-100 px-2.5 py-0.5 text-[0.625rem] font-bold tracking-wide text-flag-900 uppercase">
                         Totals unverified
                       </span>
                     )}
@@ -442,8 +442,8 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
                       is computed and shown rather than generalised, and where
                       it runs the other way it is called out. */}
                   {row.versusPresidential > 105 && (
-                    <p className="mt-3 flex gap-2.5 rounded-dash-sm border border-amber-200 bg-amber-50 px-3 py-2.5 text-[0.8125rem] leading-relaxed text-amber-900">
-                      <AlertTriangle size={15} strokeWidth={2.5} className="mt-px shrink-0 text-amber-700" />
+                    <p className="mt-3 flex gap-2.5 rounded-dash-sm border border-flag-200 bg-flag-50 px-3 py-2.5 text-[0.8125rem] leading-relaxed text-flag-900">
+                      <AlertTriangle size={15} strokeWidth={2.5} className="mt-px shrink-0 text-flag-700" />
                       <span>
                         <span className="font-bold">
                           The governorship declared more votes than the presidential here
@@ -584,7 +584,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
                       <span className="figure text-[0.8125rem] text-dash-muted tabular-nums">
                         {row.seats}
                         {change !== 0 && (
-                          <span className={change > 0 ? "text-emerald-700" : "text-red-600"}>
+                          <span className={change > 0 ? "text-ok-700" : "text-red-600"}>
                             {" "}
                             {change > 0 ? "+" : ""}
                             {change}

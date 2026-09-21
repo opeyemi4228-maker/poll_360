@@ -932,7 +932,7 @@ function HoverCard({
             incident.worst === "CRITICAL"
               ? "bg-red-50 text-red-700"
               : incident.worst === "SERIOUS"
-                ? "bg-amber-50 text-amber-800"
+                ? "bg-flag-50 text-flag-800"
                 : "bg-dash-bg text-dash-muted"
           )}
         >

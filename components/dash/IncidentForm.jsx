@@ -67,7 +67,7 @@ export default function IncidentForm() {
   if (state?.ok) {
     return (
       <p className="flex items-center gap-2 text-[0.9375rem] text-dash-ink">
-        <Check size={17} strokeWidth={3} className="text-emerald-600" />
+        <Check size={17} strokeWidth={3} className="text-ok-600" />
         Reported. It is in the situation room feed now.
       </p>
     );

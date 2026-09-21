@@ -69,11 +69,11 @@ import { cn } from "@/lib/utils";
  */
 function Awaiting({ principal }) {
   return (
-    <section className="rounded-dash border-l-4 border-l-amber-500 bg-amber-50 px-4 py-3">
-      <p className="text-[0.8125rem] leading-snug font-bold text-amber-900">
+    <section className="rounded-dash border-l-4 border-l-flag-500 bg-flag-50 px-4 py-3">
+      <p className="text-[0.8125rem] leading-snug font-bold text-flag-900">
         No transmission connected
       </p>
-      <p className="mt-1 text-[0.75rem] leading-relaxed text-amber-800">
+      <p className="mt-1 text-[0.75rem] leading-relaxed text-flag-800">
         Every figure on this screen is {principal.party}&rsquo;s own count, and nothing is coming in
         yet. The zeroes are real: this is the shape of the screen, waiting.
       </p>
@@ -278,7 +278,7 @@ export function CommandBrief({
                       "h-1.5 flex-1 rounded-[1px]",
                       index < spread.quarterStates
                         ? spread.clearsSpread
-                          ? "bg-emerald-600"
+                          ? "bg-ok-600"
                           : "bg-dash-ink"
                         : "bg-dash-line"
                     )}
@@ -577,7 +577,7 @@ export function CommandLedger({
                   <span className="figure w-14 shrink-0 text-right text-[0.8125rem] font-bold text-dash-ink tabular-nums">
                     {formatShare(row.share)}
                   </span>
-                  <span className="figure w-14 shrink-0 text-right text-[0.75rem] text-amber-700 tabular-nums">
+                  <span className="figure w-14 shrink-0 text-right text-[0.75rem] text-flag-700 tabular-nums">
                     −{formatShare(row.gap)}
                   </span>
                 </li>
@@ -709,7 +709,7 @@ function Condition({ label, value, foot, met = false, pending = false, neutral =
             aria-hidden="true"
             className={cn(
               "size-2 shrink-0 rounded-full",
-              pending ? "bg-dash-line" : met ? "bg-emerald-600" : "bg-amber-600"
+              pending ? "bg-dash-line" : met ? "bg-ok-600" : "bg-flag-600"
             )}
           />
         )}
@@ -718,7 +718,7 @@ function Condition({ label, value, foot, met = false, pending = false, neutral =
       <p
         className={cn(
           "figure mt-2 text-[1.5rem] leading-none font-bold tracking-[-0.01em]",
-          neutral || pending ? "text-dash-ink" : met ? "text-emerald-700" : "text-dash-ink"
+          neutral || pending ? "text-dash-ink" : met ? "text-ok-700" : "text-dash-ink"
         )}
       >
         {value}

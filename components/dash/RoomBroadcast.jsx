@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   Activity,
+  ArrowUpRight,
   BarChart3,
   Clock3,
   Megaphone,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 
 import BrandMark from "@/components/ui/BrandMark";
+import SectionTabs from "./SectionTabs";
 import { DeskProvider } from "./broadcast/Queue";
 import LiveDesk from "./broadcast/LiveDesk";
 import Contestants from "./broadcast/Contestants";
@@ -120,6 +122,30 @@ export const DESKS = {
   },
 };
 
+/**
+ * One count on the console. `alert` is for a queue somebody is waiting on;
+ * `live` is for output that is out now. Neither is decoration: red on this
+ * band means a person should look.
+ */
+function Meter({ label, value, alert = false, live = false }) {
+  return (
+    <div className="flex min-w-[6.5rem] flex-col justify-center px-4 py-2.5">
+      <dt className="flex items-center gap-1.5 text-[0.6875rem] font-semibold tracking-[0.08em] whitespace-nowrap text-blue-300 uppercase">
+        {live && <span className="size-1.5 animate-pulse rounded-full bg-red-500" aria-hidden="true" />}
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "figure mt-1 text-[1.375rem] leading-none font-bold tabular-nums",
+          alert || live ? "text-red-400" : "text-white"
+        )}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 /** Every desk id, for the room's tab table and the guard on `view`. */
 export const DESK_IDS = Object.keys(DESKS);
 
@@ -170,6 +196,16 @@ export default function RoomBroadcast({
   const section = remembered[view] ?? desk.sections[0].id;
   const setSection = (id) => setRemembered((current) => ({ ...current, [view]: id }));
 
+  /* Where every item on the desk stands, for the console's three counts. */
+  const pipelineCounts = useMemo(
+    () => ({
+      review: items.filter((item) => item.state === "REVIEW").length,
+      cleared: items.filter((item) => item.state === "CLEARED").length,
+      onAir: items.filter((item) => item.state === "ON_AIR").length,
+    }),
+    [items]
+  );
+
   const coverage = useMemo(
     () => ({
       filed: national?.filed ?? 0,
@@ -198,66 +234,74 @@ export default function RoomBroadcast({
           everything inside it — see app/globals.css. The desk is cream and
           navy, like the cards it makes, so a producer can see at a glance
           that they are looking at output rather than at the count. */}
-      <div className="air-desk flex flex-col gap-3 rounded-dash p-3 sm:p-4">
-        {/* ── THE BAND ────────────────────────────────────────────────────
-            Which dashboard this is, what it is for, and — because it is the
-            one address the whole operation points at — the public live page,
-            one press from every screen on the desk. */}
-        <div className="air-band flex flex-wrap items-center justify-between gap-3 rounded-dash px-4 py-3">
-          <div className="flex items-center gap-3">
-            {/* The product's own mark, at the size the masthead uses it. */}
-            <BrandMark className="size-9 shrink-0" />
-            <div>
-              <p className="font-display text-[1.0625rem] leading-none font-extrabold tracking-[-0.01em]">
-                {desk.label}
-              </p>
-              <p className="mt-1 text-[0.75rem] leading-none text-white/65">{desk.why}</p>
-            </div>
-          </div>
-          {wire && (
-            <a
-              href={wire}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex h-9 items-center gap-2 rounded-full bg-white/10 px-3.5 text-[0.75rem] font-bold text-white hover:bg-white/20"
-            >
-              <span className="size-1.5 animate-pulse rounded-full bg-red-500" />
-              Live page
-            </a>
-          )}
-        </div>
+      <div className="air-desk flex flex-col gap-4">
+        {/* ══════════════════════════════════════════════════════════════════
+            THE CONSOLE: ONE HEADER, NOT A BAND AND A STRIP
 
-        {/* ── THE SECTIONS ────────────────────────────────────────────────
-            A row of tabs rather than a menu, because a destination behind a
-            control nobody opens is a destination that stops existing. */}
-        <div
-          role="tablist"
-          aria-label={`${desk.label} sections`}
-          className="flex flex-wrap gap-1.5 rounded-dash border border-dash-line bg-dash-card p-1.5"
-        >
-          {desk.sections.map((item) => {
-            const active = section === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setSection(item.id)}
-                className={cn(
-                  "flex flex-1 items-center justify-center gap-2 rounded-dash-sm px-3.5 py-2.5 text-[0.8125rem] font-bold whitespace-nowrap transition-colors",
-                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
-                  active
-                    ? "bg-dash-ink text-white shadow-e2"
-                    : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
-                )}
+            Which desk this is, the state of the output across the whole
+            desk, the public live page, and the choice of screen — in one
+            navy block, because they are one instrument. They used to be a
+            band and a separate row of tabs floating beneath it, which read as
+            two unrelated things and put the screen switch below the fold of
+            the eye.
+
+            The three counts are the questions a producer asks before
+            anything else, in the order an item travels: is anything stuck
+            waiting for an editor, is anything cleared and ready, and what is
+            out right now. They are the same on every section, so they never
+            move while the screen under them changes.
+            ══════════════════════════════════════════════════════════════════ */}
+        <header className="air-band overflow-hidden rounded-dash">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-5 pt-5 pb-4 sm:px-6">
+            <div className="flex min-w-0 flex-1 items-center gap-3.5">
+              {/* The product's own mark, at the size the masthead uses it. */}
+              <BrandMark className="size-11 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[0.6875rem] font-bold tracking-[0.16em] text-blue-300 uppercase">
+                  Broadcast desk
+                </p>
+                <h2 className="mt-1 font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.025em]">
+                  {desk.label}
+                </h2>
+                <p className="mt-1.5 truncate text-[0.8125rem] text-blue-200">{desk.why}</p>
+              </div>
+            </div>
+
+            <dl className="flex items-stretch divide-x divide-blue-800 rounded-dash-sm border border-blue-800 bg-blue-900">
+              <Meter label="With an editor" value={pipelineCounts.review} alert={pipelineCounts.review > 0} />
+              <Meter label="Cleared" value={pipelineCounts.cleared} />
+              <Meter label="On air" value={pipelineCounts.onAir} live={pipelineCounts.onAir > 0} />
+            </dl>
+
+            {wire && (
+              <a
+                href={wire}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-11 items-center gap-2.5 rounded-full bg-white px-5 text-[0.875rem] font-bold text-blue-950 transition-colors hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
-                <item.icon size={16} strokeWidth={2.25} />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
+                <span className="size-2 animate-pulse rounded-full bg-red-500" aria-hidden="true" />
+                Live page
+                <ArrowUpRight size={16} strokeWidth={2.5} aria-hidden="true" />
+              </a>
+            )}
+          </div>
+
+          {/* ── THE SECTIONS ──────────────────────────────────────────────
+              A row of tabs rather than a menu, because a destination behind a
+              control nobody opens is a destination that stops existing. Seated
+              on the band's own floor so it is plainly the switch for this
+              desk and nothing else. */}
+          <div className="border-t border-blue-800 bg-blue-950 px-4 py-3 sm:px-5">
+            <SectionTabs
+              tone="dark"
+              label={`${desk.label} sections`}
+              items={desk.sections}
+              value={section}
+              onChange={setSection}
+            />
+          </div>
+        </header>
 
         {/* ──────────────────────────────────────────────── CONTROL ───── */}
         {view === "aircontrol" && section === "live" && (

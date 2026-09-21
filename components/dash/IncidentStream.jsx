@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
  */
 const SEVERITY = {
   CRITICAL: { tone: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500", rank: 3 },
-  SERIOUS: { tone: "bg-amber-50 text-amber-800 border-amber-200", dot: "bg-amber-500", rank: 2 },
+  SERIOUS: { tone: "bg-flag-50 text-flag-800 border-flag-200", dot: "bg-flag-500", rank: 2 },
   INFO: { tone: "bg-dash-bg text-dash-muted border-dash-line", dot: "bg-dash-line", rank: 1 },
 };
 

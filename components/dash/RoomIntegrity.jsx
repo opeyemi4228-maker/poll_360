@@ -58,7 +58,7 @@ export default function RoomIntegrity({ integrity, sheets = [], pulse, divergenc
         SEVERITY[key].tone === "alert"
           ? "var(--color-red-500)"
           : SEVERITY[key].tone === "warn"
-            ? "var(--color-amber-500)"
+            ? "var(--color-flag-500)"
             : "var(--color-ink-400)",
     }))
     .filter((row) => row.value > 0);
@@ -180,7 +180,7 @@ export default function RoomIntegrity({ integrity, sheets = [], pulse, divergenc
                     <span className="figure truncate text-[0.8125rem] font-bold text-dash-ink">
                       {sheet.unitCode}
                     </span>
-                    <span className="figure shrink-0 text-[0.75rem] font-bold text-amber-600 tabular-nums">
+                    <span className="figure shrink-0 text-[0.75rem] font-bold text-flag-600 tabular-nums">
                       {sheet.worst > 0 ? `out by ${formatNumber(sheet.worst)}` : "inconsistent"}
                     </span>
                   </div>
@@ -270,7 +270,7 @@ function Chip({ tone, children }) {
         tone === "alert"
           ? "bg-red-50 text-red-700"
           : tone === "warn"
-            ? "bg-amber-50 text-amber-800"
+            ? "bg-flag-50 text-flag-800"
             : "bg-dash-bg text-dash-muted"
       )}
     >

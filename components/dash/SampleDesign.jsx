@@ -234,7 +234,7 @@ export default function SampleDesign({ states = [], pulse = null, ground = null 
             <Split
               segments={[
                 { id: "have", label: "Covered", value: covered, color: "var(--color-ink-800)" },
-                { id: "short", label: "Short", value: short, color: "var(--color-amber-500)" },
+                { id: "short", label: "Short", value: short, color: "var(--color-flag-500)" },
               ]}
               total={plan.total || 1}
             />

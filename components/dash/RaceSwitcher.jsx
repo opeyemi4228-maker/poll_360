@@ -45,7 +45,7 @@ export default function RaceSwitcher({ race, races = [], filed = {}, pinned = fa
   if (pinned) {
     return (
       <span
-        className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-bg px-4 py-2.5 text-[0.8125rem] font-semibold text-dash-muted"
+        className="flex h-10 items-center gap-2 rounded-full border border-dash-line bg-dash-bg px-4 text-[0.8125rem] font-semibold text-dash-muted"
         title={ground ? `This account covers ${ground}.` : undefined}
       >
         <Vote size={14} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />
@@ -73,7 +73,7 @@ export default function RaceSwitcher({ race, races = [], filed = {}, pinned = fa
         aria-expanded={open}
         aria-label={`Position: ${current.label}. Change which contest is shown.`}
         className={cn(
-          "flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5",
+          "flex h-10 items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4",
           "text-[0.8125rem] font-semibold text-dash-ink transition-colors hover:border-dash-ink",
           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
           pending && "opacity-60"

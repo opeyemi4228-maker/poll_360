@@ -129,7 +129,7 @@ export default function Whiteboard({ shapes, cards, onErase, onClear, onRestore 
         </span>
 
         {flash && (
-          <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[0.6875rem] font-semibold text-emerald-300">
+          <span className="flex items-center gap-1.5 rounded-full bg-ok-500/15 px-2.5 py-1 text-[0.6875rem] font-semibold text-ok-300">
             <Check size={11} strokeWidth={3} />
             {flash}
           </span>
@@ -391,7 +391,7 @@ function Card({ card, shapes, boundaries, rowFor, onErase }) {
                quieter grey line like the others — it is its own colour, and
                it names the source and the minute it was read. */
             card.kind === "web"
-              ? "border-amber-400/25 bg-amber-400/10 text-amber-200/80"
+              ? "border-flag-400/25 bg-flag-400/10 text-flag-200/80"
               : "border-board-line text-white/30"
           )}
         >
@@ -470,7 +470,7 @@ function FromTheWeb({ card }) {
       )}
 
       {card.ambiguous && (
-        <p className="mb-2 rounded-dash-sm border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[0.75rem] leading-relaxed text-amber-100">
+        <p className="mb-2 rounded-dash-sm border border-flag-400/30 bg-flag-400/10 px-2.5 py-1.5 text-[0.75rem] leading-relaxed text-flag-100">
           Several things go by this name. Say which one and it will be looked up properly.
         </p>
       )}
@@ -482,7 +482,7 @@ function FromTheWeb({ card }) {
           href={card.href}
           target="_blank"
           rel="noreferrer noopener"
-          className="mt-3 inline-flex items-center gap-1.5 text-[0.75rem] font-semibold text-amber-200/90 underline underline-offset-2 hover:text-amber-100"
+          className="mt-3 inline-flex items-center gap-1.5 text-[0.75rem] font-semibold text-flag-200/90 underline underline-offset-2 hover:text-flag-100"
         >
           Read the rest
           <ExternalLink size={11} strokeWidth={2.5} />
@@ -574,7 +574,7 @@ function Turnout({ figures }) {
       <Headline value={formatShare(figures.turnout)} foot="of the register voted" />
       <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white/10">
         <div
-          className="h-full rounded-full bg-emerald-400"
+          className="h-full rounded-full bg-ok-400"
           style={{ width: `${Math.min(100, figures.turnout)}%` }}
         />
       </div>

@@ -128,9 +128,9 @@ export default function PartyBreakdown({
             className={cn(
               "shrink-0 rounded-full px-2.5 py-1 text-[0.625rem] font-bold uppercase",
               call.tone === "good"
-                ? "bg-emerald-50 text-emerald-800"
+                ? "bg-ok-50 text-ok-800"
                 : call.tone === "warn"
-                  ? "bg-amber-50 text-amber-800"
+                  ? "bg-flag-50 text-flag-800"
                   : "bg-dash-bg text-dash-muted"
             )}
           >

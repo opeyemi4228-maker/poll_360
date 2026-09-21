@@ -365,7 +365,7 @@ export function Card({ card, onGo }) {
                 Does it agree with itself
               </p>
               {result.balances ? (
-                <p className="mt-2 flex items-center gap-2 text-[0.875rem] font-semibold text-emerald-700">
+                <p className="mt-2 flex items-center gap-2 text-[0.875rem] font-semibold text-ok-700">
                   <CheckCircle2 size={16} strokeWidth={2.5} />
                   Every identity that could be tested holds.
                 </p>
@@ -395,7 +395,7 @@ export function Card({ card, onGo }) {
                         <span
                           className={cn(
                             "text-[0.8125rem] font-semibold",
-                            flag.severity === "IMPOSSIBLE" ? "text-red-700" : "text-amber-700"
+                            flag.severity === "IMPOSSIBLE" ? "text-red-700" : "text-flag-700"
                           )}
                         >
                           {flag.says}
@@ -434,7 +434,7 @@ export function Card({ card, onGo }) {
                       item.severity === "CRITICAL"
                         ? "text-red-600"
                         : item.severity === "SERIOUS"
-                          ? "text-amber-600"
+                          ? "text-flag-600"
                           : "text-dash-muted"
                     )}
                   />
@@ -525,8 +525,8 @@ function Status({ result, worst }) {
   const tone = worst
     ? "bg-red-600 text-white"
     : result.status === "VERIFIED"
-      ? "bg-emerald-600 text-white"
-      : "bg-amber-400 text-amber-950";
+      ? "bg-ok-600 text-white"
+      : "bg-flag-400 text-flag-950";
 
   const Icon = worst ? AlertTriangle : result.status === "VERIFIED" ? CheckCircle2 : FileText;
 

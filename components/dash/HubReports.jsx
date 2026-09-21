@@ -51,8 +51,8 @@ import { cn, formatNumber } from "@/lib/utils";
    translating it would make two products disagree about what a row says. */
 const SEVERITY = {
   CRITICAL: { tone: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500", rank: 4 },
-  HIGH: { tone: "bg-amber-50 text-amber-800 border-amber-200", dot: "bg-amber-500", rank: 3 },
-  MEDIUM: { tone: "bg-amber-50/60 text-amber-800 border-amber-200", dot: "bg-amber-400", rank: 2 },
+  HIGH: { tone: "bg-flag-50 text-flag-800 border-flag-200", dot: "bg-flag-500", rank: 3 },
+  MEDIUM: { tone: "bg-flag-50/60 text-flag-800 border-flag-200", dot: "bg-flag-400", rank: 2 },
   LOW: { tone: "bg-dash-bg text-dash-muted border-dash-line", dot: "bg-dash-line", rank: 1 },
 };
 
@@ -165,7 +165,7 @@ export default function HubReports({ hubReports = null, incidents = [] }) {
             Data Bank reports
           </h3>
           <span className="ml-auto flex items-center gap-1.5">
-            <span aria-hidden="true" className="size-1.5 animate-pulse-live rounded-full bg-sky-500" />
+            <span aria-hidden="true" className="size-1.5 animate-pulse-live rounded-full bg-blue-500" />
             <span className="figure text-[0.625rem] font-bold tracking-wider text-dash-muted uppercase">
               Live
             </span>
@@ -271,7 +271,7 @@ export default function HubReports({ hubReports = null, incidents = [] }) {
                       "rounded-full px-2 py-0.5 font-semibold",
                       matched
                         ? "bg-dash-bg text-dash-muted"
-                        : "bg-sky-50 text-sky-800"
+                        : "bg-blue-50 text-blue-800"
                     )}
                   >
                     {matched ? "Our stream has this booth" : "Not in our stream"}

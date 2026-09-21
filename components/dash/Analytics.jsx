@@ -105,8 +105,8 @@ export default function Analytics({ scopeStates = [], race = null, title = null,
             want to know how Adamawa behaves. It is labelled, once, at the
             top, so nobody reads a state figure as their seat's. */}
         {subState && ground && (
-          <p className="mb-4 flex gap-3 rounded-dash border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-[0.875rem] leading-relaxed text-dash-ink">
-            <AlertTriangle size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-amber-600" />
+          <p className="mb-4 flex gap-3 rounded-dash border-l-2 border-flag-500 bg-flag-50 px-4 py-3 text-[0.875rem] leading-relaxed text-dash-ink">
+            <AlertTriangle size={16} strokeWidth={2.5} className="mt-0.5 shrink-0 text-flag-600" />
             <span>
               Every figure below is <strong>{title ?? "the state"}</strong>&rsquo;s, not{" "}
               <strong>{ground}</strong>&rsquo;s. Nothing under a state is recorded for these
@@ -247,7 +247,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                     className={cn(
                       "figure text-[0.8125rem] font-bold tabular-nums",
                       swing[party.id] > 0
-                        ? "text-emerald-700"
+                        ? "text-ok-700"
                         : swing[party.id] < 0
                           ? "text-red-600"
                           : "text-dash-muted"
@@ -324,7 +324,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
           <span
             className={cn(
               "ml-auto shrink-0 rounded-full px-3 py-1.5 text-[0.6875rem] font-bold uppercase",
-              anyPasses ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
+              anyPasses ? "bg-ok-50 text-ok-800" : "bg-red-50 text-red-700"
             )}
           >
             {anyPasses ? `${leader.id} elected` : "Run-off"}
@@ -422,7 +422,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                         only condition this contest has. */}
                     {!spread ? (
                       party.id === leader.id ? (
-                        <span className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold text-emerald-700">
+                        <span className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold text-ok-700">
                           <Check size={13} strokeWidth={3} />
                           Leads
                         </span>
@@ -432,7 +432,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                         </span>
                       )
                     ) : party.spreadPlain ? (
-                      <span className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold text-emerald-700">
+                      <span className="inline-flex items-center gap-1.5 text-[0.75rem] font-bold text-ok-700">
                         <Check size={13} strokeWidth={3} />
                         Met
                       </span>
@@ -671,7 +671,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
           <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
             Conditions on the ground
           </h2>
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-amber-900">
+          <span className="rounded-full bg-flag-100 px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-flag-900">
             Synthetic inputs
           </span>
           <p className="w-full text-[0.75rem] text-dash-muted sm:w-auto sm:flex-1">
@@ -739,14 +739,14 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
 
           {/* The honesty panel sits in the grid rather than under it, because a
               caveat below the fold is a caveat nobody read. */}
-          <div className="flex flex-col justify-center gap-1.5 bg-amber-50 p-4">
+          <div className="flex flex-col justify-center gap-1.5 bg-flag-50 p-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle size={14} strokeWidth={2.5} className="shrink-0 text-amber-700" />
-              <span className="text-[0.8125rem] font-bold text-amber-950">
+              <AlertTriangle size={14} strokeWidth={2.5} className="shrink-0 text-flag-700" />
+              <span className="text-[0.8125rem] font-bold text-flag-950">
                 These inputs are generated
               </span>
             </div>
-            <p className="text-[0.6875rem] leading-relaxed text-amber-900">
+            <p className="text-[0.6875rem] leading-relaxed text-flag-900">
               Population, religion, rainfall, security and hardship are synthetic: modelled from
               the real register, the real geopolitical zone and real latitude so the pattern is
               coherent, but they are not a census and must not be quoted as one. Swap in a
@@ -767,7 +767,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
           <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
             State profile
           </h2>
-          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-amber-900">
+          <span className="rounded-full bg-flag-100 px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-flag-900">
             Synthetic
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-1">
@@ -835,7 +835,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                         <span
                           className={cn(
                             "figure ml-1.5 tabular-nums",
-                            model.delta > 0 ? "text-emerald-700" : "text-brand-red"
+                            model.delta > 0 ? "text-ok-700" : "text-brand-red"
                           )}
                           title={driver ? `Mostly ${driver.label}` : undefined}
                         >
@@ -883,8 +883,8 @@ Every factor it can take, where the data comes from, and how far it can be trust
                   "shrink-0 rounded-full px-2 py-0.5 text-[0.5625rem] font-bold uppercase",
                   factor.loaded
                     ? factor.generated
-                      ? "bg-amber-100 text-amber-900"
-                      : "bg-emerald-50 text-emerald-800"
+                      ? "bg-flag-100 text-flag-900"
+                      : "bg-ok-50 text-ok-800"
                     : "bg-dash-bg text-dash-muted"
                 )}
               >

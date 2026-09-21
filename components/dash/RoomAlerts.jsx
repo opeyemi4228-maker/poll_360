@@ -45,9 +45,9 @@ import { cn } from "@/lib/utils";
 const CHIP = {
   CRITICAL: "bg-red-500 text-white",
   SERIOUS: "bg-red-400 text-white",
-  WARNING: "bg-amber-500 text-amber-950",
+  WARNING: "bg-flag-500 text-flag-950",
   INFO: "bg-dash-bg text-dash-muted",
-  NORMAL: "bg-emerald-500 text-white",
+  NORMAL: "bg-ok-500 text-white",
 };
 
 const ICON = {
@@ -233,7 +233,7 @@ export default function RoomAlerts({ alerts, onGo }) {
                         : row.level === "SERIOUS"
                           ? "text-red-600"
                           : row.level === "WARNING"
-                            ? "text-amber-700"
+                            ? "text-flag-700"
                             : "text-dash-ink"
                     )}
                   >
@@ -280,7 +280,7 @@ export default function RoomAlerts({ alerts, onGo }) {
                     className={cn(
                       "flex size-8 items-center justify-center rounded-dash-sm border transition-colors",
                       done
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        ? "border-ok-200 bg-ok-50 text-ok-700"
                         : "border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
                     )}
                   >

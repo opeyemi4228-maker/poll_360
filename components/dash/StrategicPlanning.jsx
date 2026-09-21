@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Crosshair, Map as MapIcon, Users } from "lucide-react";
+import { Crosshair, Map as MapIcon, Sparkles, Users } from "lucide-react";
 
 import AddToPlan from "./AddToPlan";
+import AskPoll360 from "./AskPoll360";
+import SectionTabs from "./SectionTabs";
 import PlanningMap from "./PlanningMap";
 import PartyGround from "./PartyGround";
 import SampleDesign from "./SampleDesign";
@@ -51,7 +53,7 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
    door now: "how many of our people are in this ward" is the question this
    head is opened to answer, and it was two clicks behind a ranking nobody
    worked from. */
-const TABS = [
+export const TABS = [
   /* ── PARTY STRENGTH, WHICH IS A PLANNING QUESTION ──────────────────────
      Where a party's members actually are, from a state down to one polling
      unit, out of the party's own register — see lib/members.js.
@@ -69,9 +71,20 @@ const TABS = [
      which is the screen people were coming to this head to find. */
   { id: "map", label: "Deployment", icon: MapIcon },
   { id: "scenarios", label: "Scenarios", icon: Crosshair },
+  /* ── ASK POLL360, ON THE PLANNING SIDE TOO ────────────────────────────
+     The same desk as under Election Analytics, not a second one: a planner
+     asks about the party's strength in a region, where to focus, what a
+     swing would do, and the answer comes off the same record. The thread is
+     kept per visit and shared between the two heads, so a question asked on
+     one is still there on the other. See components/dash/AskPoll360.jsx. */
+  { id: "ask", label: "Ask Poll360", icon: Sparkles },
 ];
 
 export default function StrategicPlanning({
+  /* Held by the room when it seats the tabs beside its greeting — see the
+     same pair in components/dash/ElectionAnalytics.jsx. */
+  tab: heldTab = null,
+  onTab = null,
   /* The brief and its assumptions — the same call the analytics dashboard
      reads, so a priority here and a classification there cannot disagree. */
   brief: briefState,
@@ -86,37 +99,13 @@ export default function StrategicPlanning({
   stateResults = {},
   subState = false,
 }) {
-  const [tab, setTab] = useState(TABS[0].id);
+  const [picked, setTab] = useState(TABS[0].id);
+  const tab = heldTab ?? picked;
   const { brief, forParty } = briefState;
 
   return (
     <div className="flex flex-col gap-3">
-      <div
-        role="tablist"
-        aria-label="Strategic planning"
-        className="flex flex-wrap gap-1 rounded-dash border border-dash-line bg-dash-card p-1"
-      >
-        {TABS.map((item) => {
-          const active = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-2 rounded-dash-sm px-3 py-2 text-[0.8125rem] font-bold whitespace-nowrap transition-colors",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
-                active ? "bg-dash-ink text-white" : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
-              )}
-            >
-              <item.icon size={15} strokeWidth={2.25} />
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+      {!onTab && <SectionTabs label="Strategic planning" items={TABS} value={tab} onChange={setTab} />}
 
       {tab === "party" && <PartyGround shapes={shapes} />}
 
@@ -144,6 +133,8 @@ export default function StrategicPlanning({
           subState={subState}
         />
       )}
+
+      {tab === "ask" && <AskPoll360 desk="planning" ground={ground ?? territory?.name ?? place} />}
     </div>
   );
 }

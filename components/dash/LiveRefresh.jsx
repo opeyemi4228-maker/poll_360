@@ -217,7 +217,7 @@ export default function LiveRefresh({ seconds = 20, label = "Live" }) {
           ? `Updated ${at.toTimeString().slice(0, 8)}. Click to refresh now.`
           : "Refreshing automatically. Click to refresh now."
       }
-      className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-3 py-2 text-[0.75rem] text-dash-muted transition-colors hover:border-dash-ink hover:text-dash-ink"
+      className="flex h-10 items-center gap-2 rounded-full border border-dash-line bg-dash-card pr-4 pl-3 text-[0.8125rem] whitespace-nowrap text-dash-muted transition-colors hover:border-dash-ink hover:text-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
     >
       <span className="relative flex size-5 shrink-0 items-center justify-center">
         <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
@@ -247,7 +247,7 @@ export default function LiveRefresh({ seconds = 20, label = "Live" }) {
         />
       </span>
 
-      <span className="font-semibold">{label}</span>
+      <span className="font-semibold text-dash-ink">{label}</span>
 
       {/* The age of the figures, which is the number somebody about to read a
           total out loud actually wants. Hidden on a phone, where the ring

@@ -22,7 +22,7 @@ export default function ReadinessBanner({ state }) {
   if (state.ready) {
     return (
       <p className="mb-6 flex items-center gap-2 text-[0.75rem] text-dash-muted">
-        <ShieldCheck size={13} strokeWidth={2.5} className="shrink-0 text-emerald-600" />
+        <ShieldCheck size={13} strokeWidth={2.5} className="shrink-0 text-ok-600" />
         Deployment checks pass: no published account can sign in, and everything required is set.
       </p>
     );
@@ -32,14 +32,14 @@ export default function ReadinessBanner({ state }) {
     <section
       className={cn(
         "mb-6 rounded-dash border-2 bg-dash-card",
-        state.blocking ? "border-red-600" : "border-amber-400"
+        state.blocking ? "border-red-600" : "border-flag-400"
       )}
     >
       <header className="flex items-center gap-2.5 border-b border-dash-line px-5 py-3.5">
         {state.blocking ? (
           <ShieldAlert size={18} strokeWidth={2.25} className="shrink-0 text-red-600" />
         ) : (
-          <AlertTriangle size={18} strokeWidth={2.25} className="shrink-0 text-amber-600" />
+          <AlertTriangle size={18} strokeWidth={2.25} className="shrink-0 text-flag-600" />
         )}
         <div>
           <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
@@ -61,7 +61,7 @@ export default function ReadinessBanner({ state }) {
               aria-hidden="true"
               className={cn(
                 "mt-1.5 size-2 shrink-0 rounded-full",
-                check.severity === "critical" ? "bg-red-600" : "bg-amber-500"
+                check.severity === "critical" ? "bg-red-600" : "bg-flag-500"
               )}
             />
             <div className="min-w-0 flex-1">

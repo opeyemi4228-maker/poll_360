@@ -45,7 +45,7 @@ export default function IssueAccountForm({
     return (
       <div className="rounded-dash border-2 border-dash-ink bg-dash-card p-5">
         <p className="flex items-center gap-2 text-[0.9375rem] font-bold text-dash-ink">
-          <Check size={17} strokeWidth={3} className="text-emerald-600" />
+          <Check size={17} strokeWidth={3} className="text-ok-600" />
           {issued.name} can now sign in
         </p>
 

@@ -79,7 +79,7 @@ export default function SeatBrief({ race, raceLabel, ground, holders = [], resul
                 </div>
 
                 {seat.defected && (
-                  <p className="mt-2 flex gap-2 text-[0.8125rem] leading-relaxed text-amber-700">
+                  <p className="mt-2 flex gap-2 text-[0.8125rem] leading-relaxed text-flag-700">
                     <ArrowLeftRight size={14} strokeWidth={2.5} className="mt-0.5 shrink-0" />
                     <span>
                       Won as <strong>{seat.wonAs}</strong>, sits as <strong>{seat.party}</strong>
@@ -225,7 +225,7 @@ function LastResult({ result, contest, ground, holders = [] }) {
         </div>
       ) : (
         <p className="flex gap-2 px-5 py-5 text-[0.875rem] leading-relaxed text-dash-muted">
-          <AlertTriangle size={15} strokeWidth={2.5} className="mt-0.5 shrink-0 text-amber-600" />
+          <AlertTriangle size={15} strokeWidth={2.5} className="mt-0.5 shrink-0 text-flag-600" />
           <span>
             Who won is on record. The vote totals are not: nothing was published for this contest in
             a form this product could read, so there is no chart here rather than an invented one.

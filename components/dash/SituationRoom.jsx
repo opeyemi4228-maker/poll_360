@@ -53,8 +53,10 @@ import { useBrief } from "./Executive";
    party, the projection, the planning map, the sample — are unchanged and
    still their own files; what these add is the tab bar over them and the
    record behind it. See components/dash/ElectionAnalytics.jsx. */
-import ElectionAnalytics from "./ElectionAnalytics";
-import StrategicPlanning from "./StrategicPlanning";
+import ElectionAnalytics, { tabsFor as analyticsTabsFor } from "./ElectionAnalytics";
+import StrategicPlanning, { TABS as PLANNING_TABS } from "./StrategicPlanning";
+import SectionTabs from "./SectionTabs";
+import WallClock, { ClockProvider } from "./WallClock";
 import SampleDesign from "./SampleDesign";
 import DivergencePanel from "./DivergencePanel";
 import Analytics from "./Analytics";
@@ -537,6 +539,8 @@ const HASH_LAYERS = {
   "#sheets": "integrity",
   "#evidence": "integrity",
   "#analytics": "analytics",
+  /* Ask Poll360 is a tab of Election Analytics; the dashboard opens it. */
+  "#ask": "analytics",
   "#planning": "planning",
   "#sample": "planning",
   /* ── THE ANALYTICAL HEAD, AND EVERY NAME THAT USED TO REACH A PART ─────
@@ -900,6 +904,13 @@ export default function SituationRoom({
      itself immediately after hydration and a click from another room, which
      fires no hash event at all, is caught by the same comparison. */
   const hash = useSyncExternalStore(subscribeHash, readHash, noHash);
+
+  /* ── THE TWO ANALYTICAL DASHBOARDS' TABS, HELD HERE ─────────────────────
+     So they can sit beside the greeting rather than in a row of their own
+     under it. A link to /room#ask still opens Ask Poll360. */
+  const [analyticsPicked, setAnalyticsTab] = useState(null);
+  const analyticsTab = analyticsPicked ?? (hash === "#ask" ? "ask" : "overview");
+  const [planningTab, setPlanningTab] = useState(PLANNING_TABS[0].id);
   const [seenHash, setSeenHash] = useState("");
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -1419,38 +1430,11 @@ export default function SituationRoom({
     });
   }, [counts, briefState.brief, booth, boothPath]);
 
-  /* ------------------------------------------------------------- the search
-     Every state, always, plus the local governments of whichever state is
-     open, because "go to Jigawa" and "go to Birnin Kudu once I am in Jigawa"
-     are the two questions a room actually asks, and neither is easy to answer
-     by hunting for a shape on a map that is also changing colour. Wards and
-     units are left out on purpose: they are numbered rather than named, so
-     "Ward 07" would return thirty-seven identical rows. */
-  const searchItems = useMemo(() => {
-    const items = inScope.map((row) => ({
-      key: `state:${row.code}`,
-      label: row.name,
-      hint: "State",
-      go: () => setPath([{ code: row.code, name: row.name }]),
-    }));
-
-    if (state) {
-      for (const row of lgaRows) {
-        items.push({
-          key: `lga:${state.code}:${row.key ?? row.name}`,
-          label: row.name,
-          hint: `Local government · ${state.name}`,
-          go: () => setPath([state, { name: row.name }]),
-        });
-      }
-    }
-
-    return items;
-  }, [inScope, state, lgaRows]);
-
-  /* Searching from Coordinators or Reports means you want to see the place, so
-     the map comes back with you rather than leaving you on a tab that cannot
-     show it. */
+  /* ── NO SEARCH IN THE BAR ────────────────────────────────────────────
+     There was a place search here. It was withdrawn on the room's
+     instruction: the map, the drill trail and the tabs already reach every
+     place and every screen, and a second way in cost the tabs the width they
+     needed to show in full. components/dash/DashSearch.jsx is intact. */
   /* Reports, counted against the place they came from, so the map can say
      "three reports from here" in the same breath as the figures. Only at
      national level: an incident carries a state, not a ward. */
@@ -1466,12 +1450,6 @@ export default function SituationRoom({
     }
     return index;
   }, [incidents, level]);
-
-  const searchPick = (item) => {
-    if (!MAP_LAYERS.has(layer)) setLayer("results");
-    setPicked(null);
-    item.go();
-  };
 
   /* The shapes for the current level. Only two levels have boundaries of
      their own: the country's states, and a state's local governments. */
@@ -1916,6 +1894,10 @@ export default function SituationRoom({
   );
 
   return (
+    /* The clock's engine wraps the whole room, so a reminder set on the
+       Monitor still goes off on Analytics. Only the face is limited to the
+       Monitor and Broadcast — see components/dash/WallClock.jsx. */
+    <ClockProvider>
     <TopShell
       user={user}
       tabs={TABS}
@@ -1928,9 +1910,6 @@ export default function SituationRoom({
       active={layer}
       onTab={setLayer}
       greeting={greeting}
-      searchItems={searchItems}
-      onSearchPick={searchPick}
-      searchPlaceholder={state ? `Search ${state.name}…` : "Search a state…"}
       alerts={alerts}
       /* ── THE BELL HAS ONE DESTINATION NOW ─────────────────────────────
          It used to guess between the incident stream and the declared
@@ -1940,7 +1919,12 @@ export default function SituationRoom({
          line on it carries a door to the surface holding its detail. */
       onOpenAlerts={() => setLayer("situations")}
       subtitle={
-        layer === "pulse"
+        /* The broadcast desk names itself on its own console; the line above
+           it says which count is feeding the output, which is the one thing
+           the console does not. */
+        mode === "broadcast"
+          ? `Broadcast · ${raceLabel} · ${crumbs.at(-1).label}`
+        : layer === "pulse"
           ? `${formatNumber(pulse.filed)} return${pulse.filed === 1 ? "" : "s"} in, ${formatNumber(pulse.silence.length)} booth${pulse.silence.length === 1 ? "" : "s"} not heard from`
         : layer === "situations"
           ? escalations
@@ -1985,11 +1969,27 @@ export default function SituationRoom({
                   : "Where to focus, and what covering it costs"
                   : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
       }
+      /* The wall clock, on the two heads that watch the timetable. */
+      clock={mode === "monitor" || mode === "broadcast" ? <WallClock /> : null}
       aside={
         /* Rendered here rather than handed in from the page: both this and
            LiveRefresh are client components, so passing a ready-made element
            across the server boundary gained nothing and made these two into an
-           unkeyed array that React could not reconcile. */
+           unkeyed array that React could not reconcile.
+
+           ── WHAT SITS BESIDE THE GREETING, HEAD BY HEAD ────────────────────
+           Monitor: which project, which contest, how fresh, what the map is
+           drawing — questions about tonight's count, which only this head is
+           about — and the wall clock. Broadcast: the wall clock alone; the
+           desk carries its own state on its console. Analytics and Planning:
+           their own tabs, which used to sit in a row under an empty half of
+           this header. Clusters, the one analytical layer with no tabs,
+           keeps the row clear. */
+        mode === "broadcast" ? null : layer === "analytics" ? (
+          <SectionTabs label="Election analytics" items={analyticsTabsFor(race)} value={analyticsTab} onChange={setAnalyticsTab} />
+        ) : layer === "planning" ? (
+          <SectionTabs label="Strategic planning" items={PLANNING_TABS} value={planningTab} onChange={setPlanningTab} />
+        ) : mode === "monitor" && (
         <>
           {projects && <ElectionSwitcher {...projects} />}
           {/* Which of the day's contests is on the wall. Beside the
@@ -2003,7 +2003,7 @@ export default function SituationRoom({
               returns, or the figures the commission declared. The chip says
               which, in words, on the same row as the switch that changes it.
               A wall display somebody walks past has nothing else to go on. */}
-          <span className="flex items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 py-2.5 text-[0.8125rem] text-dash-muted">
+          <span className="flex h-10 items-center gap-2 rounded-full border border-dash-line bg-dash-card px-4 text-[0.8125rem] whitespace-nowrap text-dash-muted">
             <span
               aria-hidden="true"
               className={cn(
@@ -2014,6 +2014,7 @@ export default function SituationRoom({
             {BOARD_SOURCE[boardSource] ?? BOARD_SOURCE.replay}
           </span>
         </>
+        )
       }
     >
       {/* ── WHAT THIS WALL IS OF, BEFORE ANY FIGURE ON IT ────────────────
@@ -2098,6 +2099,8 @@ export default function SituationRoom({
            more, and lib/record.js for the record they read — 1999 to the
            Osun governorship of August 2026. */
         <ElectionAnalytics
+          tab={analyticsTab}
+          onTab={setAnalyticsTab}
           brief={briefState}
           slots={slots}
           place={crumbs.at(-1).label}
@@ -2136,6 +2139,8 @@ export default function SituationRoom({
            commitment: agents deployed and money spent. See the note over
            its group in MODES. */
         <StrategicPlanning
+          tab={planningTab}
+          onTab={setPlanningTab}
           brief={briefState}
           place={crumbs.at(-1).label}
           shapes={shapes}
@@ -2432,9 +2437,9 @@ export default function SituationRoom({
                 heat={heat && !CATEGORICAL.has(layer) && !NO_HEAT.has(layer)}
                 heatTint={
                   layer === "turnout"
-                    ? "var(--color-emerald-400)"
+                    ? "var(--color-ok-400)"
                     : layer === "density"
-                      ? "var(--color-amber-400)"
+                      ? "var(--color-flag-400)"
                       : "var(--color-red-500)"
                 }
               />
@@ -2451,7 +2456,7 @@ export default function SituationRoom({
                 outline={unitOutline}
                 parentLabel={lga?.name}
                 childWord={unitWord(level, true)}
-                tint={layer === "turnout" ? "var(--color-emerald-400)" : "var(--color-red-500)"}
+                tint={layer === "turnout" ? "var(--color-ok-400)" : "var(--color-red-500)"}
                 hovered={hovered}
                 picked={picked}
                 onHover={setHovered}
@@ -2730,6 +2735,7 @@ export default function SituationRoom({
       </>
       )}
     </TopShell>
+    </ClockProvider>
   );
 }
 
@@ -2759,28 +2765,43 @@ const unitWord = (level, singular = false) =>
         ? singular ? "ward" : "wards"
         : "polling units";
 
+/**
+ * One of the four tiles over the map.
+ *
+ * ── A FIGURE AND A NAME ARE SET DIFFERENTLY, AND LINE UP ANYWAY ───────────
+ * `small` marks a tile whose value is a place rather than a number. A number
+ * is set in the mono face, because a column of figures that is not tabular
+ * is not a column. A name set in mono reads like a code, so it takes the
+ * display face instead — at the same height, on a value row of fixed
+ * height, so the four tiles' values and footnotes sit on two straight lines
+ * across the row whichever kind each one holds. Uneven baselines across a
+ * row of four is the first thing an eye notices and the last thing anybody
+ * can name.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
 function Metric({ icon: Icon, label, value, foot, spark, tone = "ink", small = false }) {
   return (
-    <div className="rounded-dash border border-dash-line bg-dash-card px-4 py-3">
+    <div className="flex min-w-0 flex-col rounded-dash border border-dash-line bg-dash-card px-5 pt-4 pb-3.5 shadow-e2">
       <div className="flex items-center gap-2">
-        <Icon size={14} strokeWidth={2.25} className="shrink-0 text-dash-muted" />
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
-          {label}
-        </p>
+        <Icon size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" aria-hidden="true" />
+        <p className="truncate text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">{label}</p>
       </div>
-      <div className="mt-1.5 flex items-end justify-between gap-3">
+      <div className="mt-3 flex h-9 items-center justify-between gap-3">
         <p
           className={cn(
-            "figure leading-none font-bold tracking-[-0.03em] tabular-nums",
-            small ? "truncate text-[1.0625rem]" : "text-[1.5rem]",
+            "min-w-0 truncate leading-none",
+            small
+              ? "font-display text-[1.625rem] font-extrabold tracking-[-0.03em]"
+              : "figure text-[1.875rem] font-bold tracking-[-0.02em] tabular-nums",
             tone === "red" ? "text-red-600" : "text-dash-ink"
           )}
+          title={small && typeof value === "string" ? value : undefined}
         >
           {value}
         </p>
         {spark && <Sparkline values={spark} tone={tone} />}
       </div>
-      <p className="mt-1 truncate text-[0.6875rem] text-dash-muted">{foot}</p>
+      <p className="mt-2 truncate text-[0.8125rem] text-dash-muted">{foot}</p>
     </div>
   );
 }
@@ -2926,6 +2947,16 @@ function metricsFor({
     const packed = rank(1);
     const spread = rank(-1);
     const perUnit = scope.booths ? Math.round((scope.registered ?? 0) / scope.booths) : 0;
+    /* Against the average on the first tile, so the two ends are read as how
+       far from normal they are, not as two unrelated numbers. */
+    const againstAverage = (row) => {
+      const value = magnitude(row, "clusters");
+      if (!perUnit || !value) return `${formatNumber(value)} per unit`;
+      const change = Math.round(((value - perUnit) / perUnit) * 100);
+      return `${formatNumber(value)} per unit · ${
+        change === 0 ? "on the average" : `${Math.abs(change)}% ${change > 0 ? "above" : "below"} average`
+      }`;
+    };
 
     return [
       {
@@ -2938,14 +2969,14 @@ function metricsFor({
         icon: TrendingUp,
         label: "Most packed",
         value: packed?.name ?? "n/a",
-        foot: packed ? `${formatNumber(magnitude(packed, "clusters"))} per unit` : "",
+        foot: packed ? againstAverage(packed) : "",
         small: true,
       },
       {
         icon: TrendingDown,
         label: "Most spread",
         value: spread?.name ?? "n/a",
-        foot: spread ? `${formatNumber(magnitude(spread, "clusters"))} per unit` : "",
+        foot: spread ? againstAverage(spread) : "",
         small: true,
       },
       {
@@ -3223,7 +3254,7 @@ function Readout({ label, value, tone = "ink" }) {
       <span
         className={cn(
           "figure text-[0.75rem] font-bold tabular-nums",
-          tone === "warn" ? "text-amber-400" : tone === "ok" ? "text-emerald-400" : "text-white"
+          tone === "warn" ? "text-flag-400" : tone === "ok" ? "text-ok-400" : "text-white"
         )}
       >
         {value}

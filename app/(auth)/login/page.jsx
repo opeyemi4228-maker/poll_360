@@ -1,19 +1,20 @@
-import { Radio, ShieldCheck, ShieldQuestion, Siren } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 import LoginForm from "@/components/auth/LoginForm";
 import Reveal from "@/components/ui/Reveal";
+import Wordmark from "@/components/ui/Wordmark";
 import { site } from "@/lib/site";
 
 /**
  * The way in.
  *
- * Two panels: the form, and a short reminder of what is on the other side of
- * it. The form is first in the source order so a phone shows it without any
+ * Two panels on a full screen, with no masthead or footer (see the layout):
+ * the form, and a short solid panel saying what is on the other side of it.
+ * The form is first in the source order so a phone shows it without any
  * scrolling, and moves to the right on a wide screen where the eye lands last.
  *
- * Nothing on this page asks for anything the sign-in does not need. A page
- * about not collecting more than you have to would be an odd place to put a
- * newsletter box.
+ * Nothing on this page asks for anything the sign-in does not need.
  */
 export const metadata = {
   title: "Log in",
@@ -25,122 +26,84 @@ export const metadata = {
 /* Staff rooms only. Agents have their own app on their own domain, with its
    own sign-in, and this page does not mention it — see lib/agents-app.js. */
 const ROOMS = [
-  {
-    icon: Siren,
-    title: "Situation rooms",
-    body: "Every report from the field as it lands, with the ones that cannot wait at the top.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Coordinators",
-    body: "Your area's queue, with the photo beside the figures, and anything that needs a second look flagged.",
-  },
-  {
-    icon: Radio,
-    title: "Newsrooms and studios",
-    body: "The live board, the graphics for your bulletin, and a download of everything counted in your area.",
-  },
+  { title: "Situation rooms", body: "Every report as it lands." },
+  { title: "Coordinators", body: "Your area's queue, photo beside the figures." },
+  { title: "Newsrooms", body: "The live board and your bulletin graphics." },
 ];
 
 export default function LoginPage() {
   return (
-    <section className="grid lg:min-h-[calc(100vh-4.75rem)] lg:grid-cols-[1fr_1.05fr]">
+    <section className="grid min-h-dvh lg:grid-cols-[1fr_1.05fr]">
       {/* ------------------------------------------------------------ form */}
-      <div className="order-1 flex items-center bg-white lg:order-2">
-        <div className="mx-auto w-full max-w-xl px-5 py-14 sm:px-10 lg:px-16 lg:py-20">
-          <Reveal>
-            <p className="eyebrow text-content-subtle">
-              <span className="text-red-500">01</span>
-              Sign in
-            </p>
-          </Reveal>
-
-          <Reveal delay={60}>
-            <h1 className="mt-6 text-fluid-3xl text-ink-950">Welcome back</h1>
-          </Reveal>
-
-          <Reveal delay={120}>
-            <p className="mt-4 text-fluid-base leading-relaxed text-content-muted">
-              Use the email address or phone number your room registered you with.
-            </p>
-          </Reveal>
-
-          <Reveal delay={180}>
-            <LoginForm />
-          </Reveal>
+      <div className="order-1 flex flex-col bg-white lg:order-2">
+        <div className="px-5 pt-6 sm:px-10 lg:px-16 lg:pt-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 text-[0.875rem] font-semibold text-content-muted transition-colors hover:text-ink-950"
+          >
+            <ArrowLeft size={18} strokeWidth={2.25} aria-hidden="true" />
+            Back to website
+          </Link>
         </div>
-      </div>
 
-      {/* ----------------------------------------------------- what is inside */}
-      <div className="on-dark relative order-2 overflow-hidden bg-blue-950 lg:order-1">
-        <div aria-hidden="true" className="board-grid absolute inset-0 opacity-[0.18]" />
-
-        <div className="relative flex h-full flex-col justify-center px-5 py-14 sm:px-10 lg:px-16 lg:py-20">
-          <div className="mx-auto w-full max-w-xl lg:ml-auto lg:mr-0">
+        <div className="flex flex-1 items-center">
+          <div className="mx-auto w-full max-w-xl px-5 py-12 sm:px-10 lg:px-16 lg:py-16">
             <Reveal>
-              <div className="rule" />
+              <Wordmark />
             </Reveal>
 
-            <Reveal delay={70}>
-              <h2 className="mt-8 max-w-[16ch] text-fluid-3xl text-white">
-                One count, and everyone reads the same one
-              </h2>
+            <Reveal delay={60}>
+              <h1 className="mt-10 text-fluid-3xl text-ink-950">Welcome back</h1>
             </Reveal>
 
-            <Reveal delay={130}>
-              <p className="mt-5 max-w-lg text-fluid-base leading-relaxed text-white/70">
-                Whatever you signed in to do, you are looking at the same figures as everyone else
-                on the night, with the share of booths counted printed beside each one.
+            <Reveal delay={120}>
+              <p className="mt-4 text-fluid-base leading-relaxed text-content-muted">
+                Use the email address or phone number your room registered you with.
               </p>
             </Reveal>
 
-            <dl className="mt-12 grid gap-px border border-white/12 bg-white/12">
-              {ROOMS.map((room, index) => (
-                <Reveal key={room.title} delay={190 + index * 70}>
-                  <div className="flex gap-4 bg-blue-950 px-5 py-5 sm:px-6">
-                    <room.icon
-                      size={18}
-                      strokeWidth={2.25}
-                      className="mt-0.5 shrink-0 text-red-400"
-                      aria-hidden="true"
-                    />
-                    <div className="min-w-0">
-                      <dt className="text-fluid-base font-bold text-white">{room.title}</dt>
-                      <dd className="mt-1 text-[0.875rem] leading-relaxed text-white/60">
-                        {room.body}
-                      </dd>
-                    </div>
-                  </div>
-                </Reveal>
-              ))}
-            </dl>
-
-            {/* The one warning worth putting on a sign-in page for an election
-                product: the commonest way an account is lost is that somebody
-                simply asks for the password and is given it. */}
-            <Reveal delay={420}>
-              <div className="mt-12 flex gap-3.5 border-t border-white/15 pt-6">
-                <ShieldQuestion
-                  size={17}
-                  strokeWidth={2.25}
-                  className="mt-0.5 shrink-0 text-white/50"
-                  aria-hidden="true"
-                />
-                <p className="text-[0.8125rem] leading-relaxed text-white/55">
-                  Nobody from Poll360 will ever ask you for your password, not by phone, not by
-                  SMS, not on WhatsApp. If someone does, they are not us. Tell your coordinator, or
-                  write to{" "}
-                  <a
-                    href={`mailto:${site.contact.access}`}
-                    className="font-semibold text-white underline underline-offset-4 transition-colors hover:text-red-400"
-                  >
-                    {site.contact.access}
-                  </a>
-                  .
-                </p>
-              </div>
+            <Reveal delay={180}>
+              <LoginForm />
             </Reveal>
           </div>
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------- what is inside */}
+      <div className="on-dark order-2 flex items-center bg-blue-900 lg:order-1">
+        <div className="mx-auto w-full max-w-xl px-5 py-14 sm:px-10 lg:ml-auto lg:mr-0 lg:px-16 lg:py-20">
+          <Reveal>
+            <div className="h-1 w-12 bg-red-500" />
+          </Reveal>
+
+          <Reveal delay={70}>
+            <h2 className="mt-8 max-w-[16ch] text-fluid-3xl text-white">
+              One count, and everyone reads the same one
+            </h2>
+          </Reveal>
+
+          <ul className="mt-10 space-y-3">
+            {ROOMS.map((room, index) => (
+              <Reveal key={room.title} delay={130 + index * 60}>
+                <li className="bg-blue-800 px-5 py-4">
+                  <p className="font-bold text-white">{room.title}</p>
+                  <p className="mt-0.5 text-[0.875rem] text-blue-100">{room.body}</p>
+                </li>
+              </Reveal>
+            ))}
+          </ul>
+
+          {/* The one warning worth keeping: the commonest way an account is
+              lost is that somebody simply asks for the password. */}
+          <Reveal delay={330}>
+            <p className="mt-10 bg-red-500 px-5 py-4 text-[0.875rem] font-semibold text-white">
+              We will never ask for your password. Anyone who does is not us, tell{" "}
+              <a href={`mailto:${site.contact.access}`} className="underline underline-offset-4">
+                {site.contact.access}
+              </a>
+              .
+            </p>
+          </Reveal>
         </div>
       </div>
     </section>

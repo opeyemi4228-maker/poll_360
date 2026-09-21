@@ -25,7 +25,7 @@ export default function IntegrityPanel({ report, compact = false }) {
     <section className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
       <header className="flex items-center gap-3 border-b border-dash-line px-4 py-3.5">
         {clean ? (
-          <ShieldCheck size={18} strokeWidth={2.25} className="shrink-0 text-emerald-600" />
+          <ShieldCheck size={18} strokeWidth={2.25} className="shrink-0 text-ok-600" />
         ) : (
           <ShieldAlert size={18} strokeWidth={2.25} className="shrink-0 text-red-600" />
         )}
@@ -44,8 +44,8 @@ export default function IntegrityPanel({ report, compact = false }) {
             report.impossible
               ? "bg-red-50 text-red-700"
               : report.flags.length
-                ? "bg-amber-50 text-amber-800"
-                : "bg-emerald-50 text-emerald-800"
+                ? "bg-flag-50 text-flag-800"
+                : "bg-ok-50 text-ok-800"
           )}
         >
           {report.impossible
@@ -78,7 +78,7 @@ export default function IntegrityPanel({ report, compact = false }) {
                     SEVERITY[flag.severity].tone === "alert"
                       ? "bg-red-50 text-red-700"
                       : SEVERITY[flag.severity].tone === "warn"
-                        ? "bg-amber-50 text-amber-800"
+                        ? "bg-flag-50 text-flag-800"
                         : "bg-dash-bg text-dash-muted"
                   )}
                 >

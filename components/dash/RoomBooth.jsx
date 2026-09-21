@@ -70,7 +70,7 @@ const BANDS = [
   {
     id: "stuck",
     label: "Stuck",
-    colour: "var(--color-amber-500)",
+    colour: "var(--color-flag-500)",
     icon: ScanLine,
     of: (here) => here?.stuck ?? 0,
     means: "These arrived and have not got through. This is a call to our own desk, not to a booth.",
@@ -79,7 +79,7 @@ const BANDS = [
   {
     id: "checked",
     label: "Checked",
-    colour: "var(--color-emerald-500)",
+    colour: "var(--color-ok-500)",
     icon: Check,
     of: (here) => here?.verified ?? 0,
     means: "Filed, checked against the sheet, and usable in a bulletin.",
@@ -418,7 +418,7 @@ function Row({ icon: Icon, tone, code, detail, aside, chevron = false, onClick }
             strokeWidth={2.25}
             className={cn(
               "shrink-0",
-              tone === "alert" ? "text-red-600" : tone === "warn" ? "text-amber-700" : "text-dash-muted"
+              tone === "alert" ? "text-red-600" : tone === "warn" ? "text-flag-700" : "text-dash-muted"
             )}
           />
         )}

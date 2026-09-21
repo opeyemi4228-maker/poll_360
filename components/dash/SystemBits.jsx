@@ -176,7 +176,7 @@ export function Counts({ items }) {
           <dd
             className={cn(
               "figure mt-1 text-[1.375rem] leading-none font-bold",
-              item.tone === "alert" ? "text-red-600" : item.tone === "good" ? "text-emerald-700" : "text-dash-ink"
+              item.tone === "alert" ? "text-red-600" : item.tone === "good" ? "text-ok-700" : "text-dash-ink"
             )}
           >
             {item.value}

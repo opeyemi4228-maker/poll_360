@@ -169,7 +169,7 @@ function Chip({ active, tone, disabled, onClick, children }) {
           : tone === "alert"
             ? "border-red-200 bg-red-50 text-red-700"
             : tone === "warn"
-              ? "border-amber-200 bg-amber-50 text-amber-800"
+              ? "border-flag-200 bg-flag-50 text-flag-800"
               : "border-dash-line bg-dash-card text-dash-ink"
       )}
     >

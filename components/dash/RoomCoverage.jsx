@@ -44,7 +44,7 @@ export default function RoomCoverage({ pulse, ground = null, onGo, onUnit = null
   const bands = [
     { id: "matched", label: "At the booth", value: positions.matched ?? 0, color: "var(--color-ink-800)" },
     { id: "near", label: "Within 2km", value: positions.near ?? 0, color: "var(--color-ink-500)" },
-    { id: "far", label: "Further", value: positions.far ?? 0, color: "var(--color-amber-500)" },
+    { id: "far", label: "Further", value: positions.far ?? 0, color: "var(--color-flag-500)" },
     {
       id: "none",
       label: "No fix",

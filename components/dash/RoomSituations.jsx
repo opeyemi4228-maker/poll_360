@@ -122,8 +122,8 @@ export default function RoomSituations({
               worst.rank >= 4
                 ? "animate-pulse-live bg-red-500"
                 : worst.rank >= 3
-                  ? "bg-amber-500"
-                  : "bg-emerald-500"
+                  ? "bg-flag-500"
+                  : "bg-ok-500"
             )}
           />
           <div className="min-w-0">
@@ -173,7 +173,7 @@ export default function RoomSituations({
                   fresh &&
                     (accent === "red"
                       ? "ring-2 ring-red-500 ring-offset-1"
-                      : "ring-2 ring-amber-500 ring-offset-1")
+                      : "ring-2 ring-flag-500 ring-offset-1")
                 )}
               >
                 <span
@@ -183,8 +183,8 @@ export default function RoomSituations({
                     accent === "red"
                       ? "bg-red-500"
                       : accent === "amber"
-                        ? "bg-amber-500"
-                        : "bg-sky-500"
+                        ? "bg-flag-500"
+                        : "bg-blue-500"
                   )}
                 />
                 {label}
@@ -208,12 +208,12 @@ export default function RoomSituations({
             </>
           ) : half === "attention" ? (
             <>
-              <BellRing size={13} strokeWidth={2.5} className="shrink-0 text-amber-500" />
+              <BellRing size={13} strokeWidth={2.5} className="shrink-0 text-flag-500" />
               This product crossed a threshold it was told to watch. The response is a screen.
             </>
           ) : (
             <>
-              <Database size={13} strokeWidth={2.5} className="shrink-0 text-sky-500" />
+              <Database size={13} strokeWidth={2.5} className="shrink-0 text-blue-500" />
               Reports that reached the hub, for booths this room watches. The account stays in Data
               Bank.
             </>
@@ -231,7 +231,7 @@ export default function RoomSituations({
               situation.arm();
               attention.arm();
             }}
-            className="flex w-full items-center gap-2 border-t border-dash-line bg-amber-50 px-5 py-2.5 text-left text-[0.75rem] text-amber-900 hover:bg-amber-100"
+            className="flex w-full items-center gap-2 border-t border-dash-line bg-flag-50 px-5 py-2.5 text-left text-[0.75rem] text-flag-900 hover:bg-flag-100"
           >
             <AlertTriangle size={13} strokeWidth={2.5} className="shrink-0" />
             Your browser is holding the alarms until you interact with the page. Press to arm them.
@@ -268,7 +268,7 @@ export default function RoomSituations({
                     item.rank === 0
                       ? "var(--color-red-500)"
                       : item.rank === 1
-                        ? "var(--color-amber-500)"
+                        ? "var(--color-flag-500)"
                         : "var(--color-ink-400)",
                   ])
                 )}

@@ -52,7 +52,7 @@ export default function GroundBanner({ territory, ground, unresolved = false, lg
         {lgaNames.length > 0 && `, across ${lgaNames.length} local government${lgaNames.length === 1 ? "" : "s"}`}
       </span>
       {territory.shared && (
-        <span className="w-full text-amber-700">
+        <span className="w-full text-flag-700">
           {territory.shared.join(" and ")} are both elected inside this local government, and the
           line between them runs between wards, which nobody publishes in a form we hold. These
           booths are both seats&rsquo; booths.

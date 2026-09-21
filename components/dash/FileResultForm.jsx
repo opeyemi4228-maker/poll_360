@@ -373,8 +373,8 @@ export default function FileResultForm({
 
   if (state?.ok) {
     return (
-      <div className="border-2 border-emerald-300 bg-emerald-50 p-6">
-        <Check size={26} strokeWidth={2.5} className="text-emerald-600" />
+      <div className="border-2 border-ok-300 bg-ok-50 p-6">
+        <Check size={26} strokeWidth={2.5} className="text-ok-600" />
         <h3 className="mt-4 text-fluid-xl text-dash-ink">
           {state.amended
             ? `${raceLabel(state.race ?? race)} return amended`
@@ -486,9 +486,9 @@ export default function FileResultForm({
               {reading?.status === "failed" && (
                 <p
                   role="alert"
-                  className="mx-auto mt-4 flex max-w-md gap-2 border-l-2 border-amber-500 bg-amber-50 px-3 py-2.5 text-left text-[0.875rem] leading-relaxed text-dash-ink"
+                  className="mx-auto mt-4 flex max-w-md gap-2 border-l-2 border-flag-500 bg-flag-50 px-3 py-2.5 text-left text-[0.875rem] leading-relaxed text-dash-ink"
                 >
-                  <TriangleAlert size={16} className="mt-0.5 shrink-0 text-amber-600" aria-hidden="true" />
+                  <TriangleAlert size={16} className="mt-0.5 shrink-0 text-flag-600" aria-hidden="true" />
                   <span>
                     {reading.reason} Try a clearer photo, or type the figures in yourself.
                   </span>
@@ -533,7 +533,7 @@ export default function FileResultForm({
 
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 text-[0.9375rem] font-bold text-dash-ink">
-                  {read && <Sparkles size={15} strokeWidth={2.5} className="shrink-0 text-sky-700" aria-hidden="true" />}
+                  {read && <Sparkles size={15} strokeWidth={2.5} className="shrink-0 text-blue-700" aria-hidden="true" />}
                   {busy ? "Reading the sheet…" : read ? "Read from your photo" : sheet ? "Photo attached" : "No photo attached"}
                 </p>
                 <p className="mt-1 text-[0.8125rem] leading-relaxed text-dash-muted">
@@ -626,9 +626,9 @@ export default function FileResultForm({
 
           {/* ── DOES THE SHEET ADD UP? ────────────────────────────────────── */}
           {audit.findings.length > 0 && (
-            <div className="border-2 border-amber-400 bg-amber-50 px-4 py-3.5">
+            <div className="border-2 border-flag-400 bg-flag-50 px-4 py-3.5">
               <div className="flex items-start gap-3">
-                <TriangleAlert size={17} strokeWidth={2.5} className="mt-0.5 shrink-0 text-amber-700" />
+                <TriangleAlert size={17} strokeWidth={2.5} className="mt-0.5 shrink-0 text-flag-700" />
                 <div className="min-w-0">
                   <p className="text-[0.875rem] font-bold text-dash-ink">This sheet does not add up against itself.</p>
                   {audit.culprit && (
@@ -647,7 +647,7 @@ export default function FileResultForm({
                       </li>
                     ))}
                   </ul>
-                  <p className="mt-2.5 border-t border-amber-300 pt-2 text-[0.75rem] leading-relaxed text-dash-muted">
+                  <p className="mt-2.5 border-t border-flag-300 pt-2 text-[0.75rem] leading-relaxed text-dash-muted">
                     File it exactly as it is written anyway. Type what the paper says, not what balances —
                     correcting it here would destroy the only evidence that anything was wrong.
                   </p>
@@ -768,7 +768,7 @@ export default function FileResultForm({
                           }}
                           className={[
                             "min-h-11 min-w-0 flex-1 rounded-dash-sm border px-2.5 py-2 text-[0.875rem] text-dash-ink focus:border-dash-ink focus:outline-none",
-                            fromPhoto ? "border-sky-400 bg-sky-50" : "border-dash-line bg-dash-card",
+                            fromPhoto ? "border-blue-400 bg-blue-50" : "border-dash-line bg-dash-card",
                           ].join(" ")}
                         />
                       </label>
@@ -783,7 +783,7 @@ export default function FileResultForm({
             <Crosshair
               size={16}
               strokeWidth={2.5}
-              className={position.status === "fixed" ? "mt-0.5 text-emerald-600" : "mt-0.5 text-dash-muted"}
+              className={position.status === "fixed" ? "mt-0.5 text-ok-600" : "mt-0.5 text-dash-muted"}
             />
             <div className="min-w-0 text-[0.8125rem]">
               <p className="font-semibold text-dash-ink">
@@ -911,7 +911,7 @@ function Heading({ icon: Icon, title, aside }) {
  */
 function Mark({ icon: Icon, state, present, absent }) {
   const tone =
-    state === OBSERVED.PRESENT ? "text-emerald-700" : state === OBSERVED.ABSENT ? "text-red-700" : "text-dash-muted";
+    state === OBSERVED.PRESENT ? "text-ok-700" : state === OBSERVED.ABSENT ? "text-red-700" : "text-dash-muted";
   const words = state === OBSERVED.PRESENT ? present : state === OBSERVED.ABSENT ? absent : "Not clear in this photo";
   const Glyph = state === OBSERVED.PRESENT ? Check : state === OBSERVED.ABSENT ? TriangleAlert : Camera;
   return (
@@ -929,8 +929,8 @@ function SheetReading({ reading }) {
 
   if (reading.status === "failed") {
     return (
-      <p className="mt-3 flex gap-2 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-[0.8125rem] leading-relaxed text-dash-ink">
-        <TriangleAlert size={15} className="mt-0.5 shrink-0 text-amber-600" />
+      <p className="mt-3 flex gap-2 border-l-2 border-flag-500 bg-flag-50 px-3 py-2 text-[0.8125rem] leading-relaxed text-dash-ink">
+        <TriangleAlert size={15} className="mt-0.5 shrink-0 text-flag-600" />
         <span>
           {reading.reason} Type the figures in yourself — the photograph is still kept with your return.
         </span>
@@ -947,16 +947,16 @@ function SheetReading({ reading }) {
   }
 
   return (
-    <div className={["mt-3 border-l-2 px-3 py-2", unchecked ? "border-amber-500 bg-amber-50" : "border-sky-400 bg-sky-50"].join(" ")}>
+    <div className={["mt-3 border-l-2 px-3 py-2", unchecked ? "border-flag-500 bg-flag-50" : "border-blue-400 bg-blue-50"].join(" ")}>
       {unchecked && (
         <p className="flex items-center gap-2 text-[0.8125rem] font-semibold text-dash-ink">
-          <TriangleAlert size={14} strokeWidth={2.5} className="shrink-0 text-amber-600" />
+          <TriangleAlert size={14} strokeWidth={2.5} className="shrink-0 text-flag-600" />
           Read every box back before you send
         </p>
       )}
       {unchecked && reading.why && <p className="mt-1 text-[0.8125rem] leading-relaxed text-dash-ink">{reading.why}</p>}
       {reading.legibility === "poor" && (
-        <p className="mt-1 text-[0.8125rem] font-semibold text-amber-700">The picture was hard to read.</p>
+        <p className="mt-1 text-[0.8125rem] font-semibold text-flag-700">The picture was hard to read.</p>
       )}
       {reading.figures?.unitCode && (
         <p className="figure mt-1 text-[0.75rem] text-dash-muted">Sheet says unit {reading.figures.unitCode}</p>
@@ -1018,7 +1018,7 @@ function Text({ name, label, hint, value, onChange, read = false, plain = false 
           plain ? "text-[1.0625rem] font-semibold" : "figure text-[1.05rem] font-bold",
           "placeholder:text-[0.8125rem] placeholder:font-normal placeholder:tracking-normal",
           "focus:outline-none",
-          read ? "border-sky-400 bg-sky-50 focus:border-dash-ink" : "border-dash-line bg-dash-card focus:border-dash-ink",
+          read ? "border-blue-400 bg-blue-50 focus:border-dash-ink" : "border-dash-line bg-dash-card focus:border-dash-ink",
         ].join(" ")}
       />
     </div>
@@ -1048,7 +1048,7 @@ function Number({ name, label, hint, value, onChange, error, swatch, read = fals
           error
             ? "border-red-500 bg-dash-card"
             : read
-              ? "border-sky-400 bg-sky-50 focus:border-dash-ink"
+              ? "border-blue-400 bg-blue-50 focus:border-dash-ink"
               : "border-dash-line bg-dash-card focus:border-dash-ink",
         ].join(" ")}
       />
@@ -1058,7 +1058,7 @@ function Number({ name, label, hint, value, onChange, error, swatch, read = fals
 
 function FromSheet() {
   return (
-    <span className="flex items-center gap-1 font-bold tracking-normal text-sky-700 normal-case">
+    <span className="flex items-center gap-1 font-bold tracking-normal text-blue-700 normal-case">
       <ScanLine size={11} strokeWidth={2.75} aria-hidden="true" />
       from your sheet
     </span>

@@ -69,8 +69,8 @@ export default function Wallet({ balance, pending, entries, chain }) {
       </p>
 
       {state?.ok ? (
-        <p className="flex items-center gap-2 rounded-dash-sm border-2 border-emerald-300 bg-emerald-50 px-4 py-3 text-[0.875rem] text-dash-ink">
-          <Check size={17} strokeWidth={3} className="shrink-0 text-emerald-600" />
+        <p className="flex items-center gap-2 rounded-dash-sm border-2 border-ok-300 bg-ok-50 px-4 py-3 text-[0.875rem] text-dash-ink">
+          <Check size={17} strokeWidth={3} className="shrink-0 text-ok-600" />
           Requested. Your reference is{" "}
           <span className="figure font-bold">{state.reference}</span>, quote it if you need to ask
           about this payment.
@@ -117,7 +117,7 @@ export default function Wallet({ balance, pending, entries, chain }) {
             <ShieldCheck
               size={14}
               strokeWidth={2.5}
-              className={chain?.ok ? "text-emerald-600" : "text-red-600"}
+              className={chain?.ok ? "text-ok-600" : "text-red-600"}
             />
             {chain?.ok ? "Chain verified" : "Chain broken, tell an administrator"}
           </span>

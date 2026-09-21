@@ -68,9 +68,9 @@ const SKIN = {
     dot: "bg-red-500",
   },
   CHECK: {
-    on: "border-amber-500 bg-amber-500 text-white",
-    off: "border-amber-200 bg-amber-50 text-amber-900 hover:border-amber-400",
-    dot: "bg-amber-500",
+    on: "border-flag-500 bg-flag-500 text-white",
+    off: "border-flag-200 bg-flag-50 text-flag-900 hover:border-flag-400",
+    dot: "bg-flag-500",
   },
   CHASE: {
     on: "border-dash-ink bg-dash-ink text-white",
@@ -78,9 +78,9 @@ const SKIN = {
     dot: "bg-dash-ink",
   },
   CLEAR: {
-    on: "border-emerald-600 bg-emerald-600 text-white",
-    off: "border-emerald-200 bg-emerald-50 text-emerald-900 hover:border-emerald-400",
-    dot: "bg-emerald-600",
+    on: "border-ok-600 bg-ok-600 text-white",
+    off: "border-ok-200 bg-ok-50 text-ok-900 hover:border-ok-400",
+    dot: "bg-ok-600",
   },
 };
 
@@ -170,7 +170,7 @@ export default function RoomEvidence({
                 {formatNumber(blocking)} cannot go in a bulletin
               </strong>
             ) : (
-              <span className="font-semibold text-emerald-700">
+              <span className="font-semibold text-ok-700">
                 nothing is blocking a bulletin
               </span>
             )}
@@ -301,7 +301,7 @@ export default function RoomEvidence({
                                   <span
                                     className={cn(
                                       "shrink-0 text-[0.625rem] font-bold tracking-[0.06em] uppercase",
-                                      flag.severity === "IMPOSSIBLE" ? "text-red-600" : "text-amber-700"
+                                      flag.severity === "IMPOSSIBLE" ? "text-red-600" : "text-flag-700"
                                     )}
                                   >
                                     {SEVERITY[flag.severity]?.label ?? flag.severity}
@@ -349,7 +349,7 @@ export default function RoomEvidence({
                     fills={Object.fromEntries(
                       Object.entries(byState).map(([code, item]) => [
                         code,
-                        item.held ? "var(--color-red-500)" : "var(--color-amber-500)",
+                        item.held ? "var(--color-red-500)" : "var(--color-flag-500)",
                       ])
                     )}
                     notes={Object.fromEntries(

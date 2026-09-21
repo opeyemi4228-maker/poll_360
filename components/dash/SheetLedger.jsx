@@ -115,7 +115,7 @@ export default function SheetLedger({ rows = [] }) {
                     the difference between "check this sheet" and "box #8 says
                     556 and the rest of the page says 557". */}
                 {audit.culprit && (
-                  <span className="text-[0.75rem] font-bold text-amber-700">
+                  <span className="text-[0.75rem] font-bold text-flag-700">
                     Look at {audit.culprit} · {EC8A_BOXES[audit.culprit]}
                   </span>
                 )}
@@ -200,7 +200,7 @@ function hasBoxes(row) {
 }
 
 function Section({ icon: Icon, tone, title, lead, children }) {
-  const colour = tone === "red" ? "text-red-600" : "text-amber-600";
+  const colour = tone === "red" ? "text-red-600" : "text-flag-600";
 
   return (
     <div>

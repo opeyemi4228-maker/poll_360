@@ -1,9 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BarChart3, LineChart, Target } from "lucide-react";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import { BarChart3, LineChart, Sparkles, Target } from "lucide-react";
 
+import AskPoll360 from "./AskPoll360";
+import { hashServerSnapshot, hashSnapshot, subscribeHash } from "@/lib/ask/thread";
 import Executive from "./Executive";
+import SectionTabs from "./SectionTabs";
 import Strongholds from "./Strongholds";
 import PartyStrength from "./PartyStrength";
 import RulingParty from "./RulingParty";
@@ -56,7 +59,7 @@ import { cn, formatShare } from "@/lib/utils";
    ground each campaign stands on is the strategic brief's own subject. What
    is left is the record — the count, the candidates, and what happened
    before — which is what somebody opens an analytics head to read. */
-const TABS = [
+export const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3 },
   { id: "candidates", label: "Candidates", icon: LineChart },
   /* ── HISTORICAL HAS GONE ───────────────────────────────────────────────
@@ -65,9 +68,25 @@ const TABS = [
      map that goes down to the polling unit. Links to /room#historical still
      arrive here; see HASH_LAYERS in SituationRoom. */
   { id: "strongholds", label: "Strongholds", icon: Target },
+  /* ── ASK POLL360 ───────────────────────────────────────────────────────
+     Any question the three tabs above answer, and the ones they do not,
+     asked in words and answered from the same record — with the tables and
+     a branded file to take away. See components/dash/AskPoll360.jsx and
+     lib/ask/. Reached directly at /room#ask. */
+  { id: "ask", label: "Ask Poll360", icon: Sparkles },
 ];
 
+/** The tabs as the room shows them: a seat race calls Candidates "Seats". */
+export const tabsFor = (race) =>
+  TABS.map((item) => (item.id === "candidates" && race !== "PRESIDENTIAL" ? { ...item, label: "Seats" } : item));
+
 export default function ElectionAnalytics({
+  /* ── WHEN THE ROOM HOLDS THE TABS ─────────────────────────────────────
+     The room seats this dashboard's tabs beside its greeting, where the
+     empty half of the header was. When it does, it passes the tab and the
+     setter and this component draws no bar of its own. */
+  tab: heldTab = null,
+  onTab = null,
   /* The brief and its assumptions, from `useBrief` — the same computation the
      map is coloured by, so the Overview and Geography tabs cannot disagree. */
   brief: briefState,
@@ -94,41 +113,21 @@ export default function ElectionAnalytics({
   onGo,
   pathOf,
 }) {
-  const [tab, setTab] = useState(TABS[0].id);
+  /* ── A LINK TO /room#ask OPENS THE TAB IT NAMES ────────────────────────
+     Read from the address rather than copied into state on mount; a tab the
+     reader picks wins over it from then on. */
+  const hash = useSyncExternalStore(subscribeHash, hashSnapshot, hashServerSnapshot);
+  const [picked, setTab] = useState(null);
+  const tab = heldTab ?? picked ?? (hash === "#ask" ? "ask" : TABS[0].id);
   const presidential = race === "PRESIDENTIAL";
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ── SIX TABS, NOT A DROPDOWN ───────────────────────────────────────
+      {/* ── TABS, NOT A DROPDOWN ───────────────────────────────────────────
           Every one of these is somewhere a person arrives wanting to be, and
           a destination behind a menu is a destination that stops being used.
           The same argument the room's own tab bar makes one level up. */}
-      <div
-        role="tablist"
-        aria-label="Election analytics"
-        className="flex flex-wrap gap-1 rounded-dash border border-dash-line bg-dash-card p-1"
-      >
-        {TABS.map((item) => {
-          const active = tab === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setTab(item.id)}
-              className={cn(
-                "flex flex-1 items-center justify-center gap-2 rounded-dash-sm px-3 py-2 text-[0.8125rem] font-bold whitespace-nowrap transition-colors",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
-                active ? "bg-dash-ink text-white" : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
-              )}
-            >
-              <item.icon size={15} strokeWidth={2.25} />
-              {item.id === "candidates" && !presidential ? "Seats" : item.label}
-            </button>
-          );
-        })}
-      </div>
+      {!onTab && <SectionTabs label="Election analytics" items={tabsFor(race)} value={tab} onChange={setTab} />}
 
       {tab === "overview" && (
         <Executive
@@ -155,6 +154,8 @@ export default function ElectionAnalytics({
       {tab === "strongholds" && (
         <Strongholds shapes={shapes} race={race} territory={territory} ground={ground} />
       )}
+
+      {tab === "ask" && <AskPoll360 ground={ground ?? territory?.name ?? "Nigeria"} />}
 
     </div>
   );

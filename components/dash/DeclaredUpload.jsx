@@ -132,7 +132,7 @@ export default function DeclaredUpload() {
           partial upload is the commonest outcome and the one most worth being
           specific about. */}
       {state?.problems?.length > 0 && (
-        <div className="border-l-2 border-amber-500 bg-amber-50 px-4 py-3">
+        <div className="border-l-2 border-flag-500 bg-flag-50 px-4 py-3">
           <p className="text-[0.875rem] font-semibold text-dash-ink">
             {formatNumber(state.problems.length)} line
             {state.problems.length === 1 ? "" : "s"} could not be read
@@ -163,9 +163,9 @@ function Saved({ state }) {
   const levels = Object.entries(state.totals?.byLevel ?? {});
 
   return (
-    <div className="border-l-2 border-emerald-400 bg-emerald-50 px-4 py-3">
+    <div className="border-l-2 border-ok-400 bg-ok-50 px-4 py-3">
       <p className="flex gap-2 text-[0.875rem] font-semibold text-dash-ink">
-        <Check size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-emerald-600" />
+        <Check size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-ok-600" />
         {formatNumber(state.written)} declared figure{state.written === 1 ? "" : "s"} saved
       </p>
 

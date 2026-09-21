@@ -69,7 +69,7 @@ export default function RoomGround({
           ? "var(--color-ink-700)"
           : rate >= 20
             ? "var(--color-ink-500)"
-            : "var(--color-amber-500)";
+            : "var(--color-flag-500)";
     notes[row.code] = `${formatShare(rate)} of ${formatNumber(row.assigned)} filed`;
   }
 

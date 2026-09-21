@@ -31,9 +31,9 @@ export default function PayAgentForm() {
 
   if (state?.ok) {
     return (
-      <div className="rounded-dash-sm border-2 border-emerald-300 bg-emerald-50 p-4">
+      <div className="rounded-dash-sm border-2 border-ok-300 bg-ok-50 p-4">
         <p className="flex items-center gap-2 text-[0.9375rem] font-bold text-dash-ink">
-          <Check size={17} strokeWidth={3} className="text-emerald-600" />
+          <Check size={17} strokeWidth={3} className="text-ok-600" />
           Written to the ledger for {state.name}
         </p>
         <p className="figure mt-2 text-[0.8125rem] text-dash-muted">

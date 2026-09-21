@@ -283,6 +283,36 @@
   --color-verified: oklch(72% 0.11 200); /* checked by a human above */
   --color-flagged: oklch(70% 0.17 55); /* wants a look */
 
+  /* ---- Status, as scales ----------------------------------------
+     The two status colours above, stepped out into full ramps so a
+     tinted panel, its border and its words can all be drawn in the
+     product's own status colours. These replace every stock emerald
+     and amber the dashboards used to reach for: a screen in colours the
+     brand does not own is a screen that looks like somebody else's
+     product. `ok` is verified, `flag` is flagged. */
+  --color-ok-50: oklch(97.5% 0.016 200);
+  --color-ok-100: oklch(94.5% 0.033 200);
+  --color-ok-200: oklch(89% 0.059 200);
+  --color-ok-300: oklch(81% 0.091 200);
+  --color-ok-400: oklch(73% 0.117 200);
+  --color-ok-500: oklch(65% 0.13 200);
+  --color-ok-600: oklch(56% 0.13 200);
+  --color-ok-700: oklch(47% 0.117 200);
+  --color-ok-800: oklch(39% 0.104 200);
+  --color-ok-900: oklch(31% 0.085 200);
+  --color-ok-950: oklch(22% 0.065 200);
+  --color-flag-50: oklch(97.5% 0.022 55);
+  --color-flag-100: oklch(94.5% 0.045 55);
+  --color-flag-200: oklch(89% 0.081 55);
+  --color-flag-300: oklch(81% 0.126 55);
+  --color-flag-400: oklch(73% 0.162 55);
+  --color-flag-500: oklch(65% 0.18 55);
+  --color-flag-600: oklch(56% 0.18 55);
+  --color-flag-700: oklch(47% 0.162 55);
+  --color-flag-800: oklch(39% 0.144 55);
+  --color-flag-900: oklch(31% 0.117 55);
+  --color-flag-950: oklch(22% 0.09 55);
+
   /* ---- Type -----------------------------------------------------
      Three families, one job each, no overlap:
        display/sans, Inter Tight. Tight enough at 900 to hold a

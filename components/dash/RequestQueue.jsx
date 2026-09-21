@@ -103,7 +103,7 @@ function Ground({ request }) {
   if (!request.ground) {
     return (
       <p className="mt-2 flex gap-2 text-[0.8125rem] text-dash-muted">
-        <TriangleAlert size={14} strokeWidth={2.5} className="mt-0.5 shrink-0 text-amber-600" />
+        <TriangleAlert size={14} strokeWidth={2.5} className="mt-0.5 shrink-0 text-flag-600" />
         No ground recorded. This request predates the picker, or names a place we no longer hold —
         choose one below before issuing.
       </p>
@@ -127,7 +127,7 @@ function Ground({ request }) {
       )}
 
       {request.shared && (
-        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-amber-700">
+        <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-flag-700">
           {request.shared.join(" and ")} are both elected inside this local government and we hold
           no ward boundaries, so an account here covers both seats&rsquo; booths.
         </p>

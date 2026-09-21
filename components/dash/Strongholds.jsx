@@ -615,7 +615,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
               Changes the wins and vote shares. Strength always reads both 2019 and 2023.
             </p>
             {reading && (
-              <p className="mt-2 rounded-dash-sm border border-amber-300 bg-amber-50 px-2.5 py-2 text-[0.6875rem] leading-snug text-amber-900">
+              <p className="mt-2 rounded-dash-sm border border-flag-300 bg-flag-50 px-2.5 py-2 text-[0.6875rem] leading-snug text-flag-900">
                 {reading}
               </p>
             )}

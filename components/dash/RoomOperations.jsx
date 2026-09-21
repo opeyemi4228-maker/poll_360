@@ -136,16 +136,16 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
                 <li
                   key={stage.id}
                   title={stage.why}
-                  className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5"
+                  className="flex items-center gap-2 rounded-full border border-flag-200 bg-flag-50 px-3 py-1.5"
                 >
-                  <span className="figure text-[0.875rem] font-bold text-amber-800 tabular-nums">
+                  <span className="figure text-[0.875rem] font-bold text-flag-800 tabular-nums">
                     {formatNumber(stage.held)}
                   </span>
-                  <span className="text-[0.75rem] font-semibold text-amber-900">
+                  <span className="text-[0.75rem] font-semibold text-flag-900">
                     at {stage.label.toLowerCase()}
                   </span>
                   {stage.p50 != null && (
-                    <span className="figure text-[0.75rem] text-amber-700 tabular-nums">
+                    <span className="figure text-[0.75rem] text-flag-700 tabular-nums">
                       {clock(stage.p50)}
                     </span>
                   )}
@@ -198,7 +198,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
               <h3 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
                 Where the backlog is
               </h3>
-              <span className="figure text-[0.8125rem] font-bold text-amber-700 tabular-nums">
+              <span className="figure text-[0.8125rem] font-bold text-flag-700 tabular-nums">
                 {formatNumber(stuck.length)}
               </span>
             </div>
@@ -237,7 +237,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
                         <span
                           className={cn(
                             "font-bold",
-                            row.stuck ? "text-amber-700" : "text-dash-ink"
+                            row.stuck ? "text-flag-700" : "text-dash-ink"
                           )}
                         >
                           {formatNumber(row.stuck)}
@@ -320,7 +320,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
                   <span
                     className={cn(
                       "figure text-[0.6875rem] font-semibold tabular-nums",
-                      kpis.wait.p90 > 120 ? "text-amber-700" : "text-dash-muted"
+                      kpis.wait.p90 > 120 ? "text-flag-700" : "text-dash-muted"
                     )}
                   >
                     nine in ten · {clock(kpis.wait.p90)}
@@ -390,7 +390,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
                       <span
                         className={cn(
                           "figure text-[0.8125rem] font-bold tabular-nums",
-                          row.minutes >= 90 ? "text-amber-700" : "text-dash-muted"
+                          row.minutes >= 90 ? "text-flag-700" : "text-dash-muted"
                         )}
                       >
                         {row.minutes != null ? clock(row.minutes) : "—"}

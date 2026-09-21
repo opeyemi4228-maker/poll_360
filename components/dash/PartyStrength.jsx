@@ -848,7 +848,7 @@ export default function PartyStrength({ shapes, territory = null, ground = null 
                       <span className="truncate text-[0.8125rem] font-semibold text-dash-ink">
                         {row.name}
                         {row.won && (
-                          <span className="ml-1.5 text-[0.625rem] font-bold text-emerald-700 uppercase">
+                          <span className="ml-1.5 text-[0.625rem] font-bold text-ok-700 uppercase">
                             led
                           </span>
                         )}

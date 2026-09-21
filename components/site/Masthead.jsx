@@ -18,10 +18,8 @@ import { cn } from "@/lib/utils";
  * separates from the hero without ever having a shadow under it.
  */
 export default function Masthead() {
-  /* On the sign-in page the "Log in" button would only point at itself, so it
-     is dropped there and the mobile drawer closes on every navigation. */
+  /* The mobile drawer closes on every navigation. */
   const pathname = usePathname();
-  const onLogin = pathname === "/login";
 
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -82,7 +80,7 @@ export default function Masthead() {
           <div className="flex items-center gap-3">
             {/* Signed-in state is resolved in the browser, not on the server,
                 so these pages stay public and cacheable. See AuthNav. */}
-            {!onLogin && <AuthNav />}
+            <AuthNav />
 
             <button
               type="button"

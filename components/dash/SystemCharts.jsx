@@ -72,16 +72,16 @@ import {
    not a fourth category, it is the absence of one — "shut off", "nothing
    here", "never used" — and grey is what that should look like. */
 const TONE_FILL = {
-  good: "var(--color-emerald-600)",
-  warn: "var(--color-amber-600)",
+  good: "var(--color-ok-600)",
+  warn: "var(--color-flag-600)",
   alert: "var(--color-red-600)",
   ink: "var(--color-dash-ink)",
   neutral: "var(--color-dash-line)",
 };
 
 const TONE_TEXT = {
-  good: "text-emerald-700",
-  warn: "text-amber-700",
+  good: "text-ok-700",
+  warn: "text-flag-700",
   alert: "text-red-600",
   ink: "text-dash-ink",
   neutral: "text-dash-muted",
@@ -549,7 +549,7 @@ export function Recency({ rows, now, label, caption, className }) {
                   <span
                     className={cn(
                       "absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-dash-card",
-                      stale ? "bg-amber-600" : "bg-emerald-600"
+                      stale ? "bg-flag-600" : "bg-ok-600"
                     )}
                     style={{ left: `${place(row.minutes) * 100}%` }}
                   />

@@ -39,8 +39,8 @@ import { cn } from "@/lib/utils";
 const TONE = {
   [OBSERVED.PRESENT]: {
     icon: Check,
-    className: "text-emerald-700",
-    dot: "bg-emerald-500",
+    className: "text-ok-700",
+    dot: "bg-ok-500",
   },
   [OBSERVED.ABSENT]: {
     icon: TriangleAlert,

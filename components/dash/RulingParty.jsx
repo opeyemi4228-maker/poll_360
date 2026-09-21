@@ -425,13 +425,13 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
             )}
 
             {councils.stale && (
-              <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
+              <p className="mt-2 rounded-dash-sm bg-flag-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-flag-900">
                 {councils.stale}
               </p>
             )}
 
             {councils.unknown?.length > 0 && (
-              <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
+              <p className="mt-2 rounded-dash-sm bg-flag-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-flag-900">
                 The source names {councils.unknown.join(", ")}, which this map does not draw in this
                 state. Either the spelling differs or the council belongs somewhere else, and
                 neither is safe to colour from.
@@ -439,7 +439,7 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
             )}
 
             {councils.mismatch && (
-              <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
+              <p className="mt-2 rounded-dash-sm bg-flag-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-flag-900">
                 The source counts {councils.mismatch.claimed} councils here and the boundary file
                 draws {councils.mismatch.actual}. One of the two is wrong, so neither is allowed to
                 colour this map.
@@ -486,7 +486,7 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
               <p className="mt-2 text-[0.75rem] leading-relaxed text-dash-muted">{active.moved.note}</p>
             )}
             {active.rumoured && (
-              <p className="mt-2 rounded-dash-sm bg-amber-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-amber-900">
+              <p className="mt-2 rounded-dash-sm bg-flag-50 px-2.5 py-2 text-[0.75rem] leading-relaxed text-flag-900">
                 {active.rumoured.note}
               </p>
             )}

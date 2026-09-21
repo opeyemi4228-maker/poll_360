@@ -941,7 +941,7 @@ export default function Executive({
                         <td
                           className={cn(
                             "figure py-2 text-right tabular-nums",
-                            row.margin > 0 ? "text-emerald-700" : row.margin < 0 ? "text-red-700" : "text-dash-muted"
+                            row.margin > 0 ? "text-ok-700" : row.margin < 0 ? "text-red-700" : "text-dash-muted"
                           )}
                         >
                           {signed(row.margin)}
@@ -949,7 +949,7 @@ export default function Executive({
                         <td
                           className={cn(
                             "figure py-2 text-right tabular-nums",
-                            row.swing > 0 ? "text-emerald-700" : row.swing < 0 ? "text-red-700" : "text-dash-muted"
+                            row.swing > 0 ? "text-ok-700" : row.swing < 0 ? "text-red-700" : "text-dash-muted"
                           )}
                         >
                           {signed(row.swing)}
@@ -1026,7 +1026,7 @@ function Big({ label, value, sub, tone = "ink", accent = null, bar = null }) {
       <p
         className={cn(
           "figure mt-0.5 truncate text-[1.375rem] leading-tight font-extrabold tracking-[-0.02em] tabular-nums",
-          tone === "good" ? "text-emerald-700" : tone === "alert" ? "text-red-700" : "text-dash-ink"
+          tone === "good" ? "text-ok-700" : tone === "alert" ? "text-red-700" : "text-dash-ink"
         )}
       >
         {value}

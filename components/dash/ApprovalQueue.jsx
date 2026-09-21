@@ -55,7 +55,7 @@ function Applicant({ person }) {
     return (
       <li className="py-4">
         <p className="flex items-start gap-2.5 text-[0.875rem] text-dash-ink">
-          <Check size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-emerald-600" />
+          <Check size={16} strokeWidth={3} className="mt-0.5 shrink-0 text-ok-600" />
           <span>
             <span className="font-semibold">{approveState.name}</span> is approved for{" "}
             <span className="figure">{approveState.scope}</span>.

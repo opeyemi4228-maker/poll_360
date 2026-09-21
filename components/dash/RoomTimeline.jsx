@@ -101,7 +101,7 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
             <span
               className={cn(
                 "figure text-[1.25rem] leading-none font-bold tabular-nums",
-                quietFor != null && quietFor > 45 ? "text-amber-700" : "text-dash-ink"
+                quietFor != null && quietFor > 45 ? "text-flag-700" : "text-dash-ink"
               )}
             >
               {quietFor == null ? "—" : `${Math.round(quietFor)}m`}
@@ -178,7 +178,7 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
                             style={{
                               height: `${slot.updates ? Math.max(12, ((slot.updates ?? 0) / busiest) * 100) : 1}%`,
                               background: slot.updates
-                                ? "var(--color-sky-500)"
+                                ? "var(--color-blue-500)"
                                 : "var(--color-dash-line)",
                             }}
                           />
@@ -201,7 +201,7 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
                               background: slot.loud
                                 ? "var(--color-red-500)"
                                 : slot.incidents
-                                  ? "var(--color-amber-500)"
+                                  ? "var(--color-flag-500)"
                                   : "var(--color-dash-line)",
                             }}
                           />
@@ -228,8 +228,8 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
             and the chart's whole content is stated once in words. */}
         <footer className="flex flex-wrap items-center gap-x-5 gap-y-1.5 border-t border-dash-line px-5 py-2.5 text-[0.75rem] text-dash-muted">
           <Key colour="var(--color-dash-ink)" label="Returns filed" value={totalFiled} />
-          <Key colour="var(--color-sky-500)" label="Updates from agents" value={totalUpdates} />
-          <Key colour="var(--color-amber-500)" label="Reports from the field" value={totalReports} />
+          <Key colour="var(--color-blue-500)" label="Updates from agents" value={totalUpdates} />
+          <Key colour="var(--color-flag-500)" label="Reports from the field" value={totalReports} />
           <Key colour="var(--color-red-500)" label="Most recent half-hour" />
           <span className="ml-auto">{SLOT_MINUTES} minutes to a column, running to now.</span>
         </footer>

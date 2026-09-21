@@ -1541,7 +1541,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
               Where to work next
             </h3>
             {!lens.real && (
-              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase text-amber-900">
+              <span className="rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase text-flag-900">
                 Synthetic
               </span>
             )}
@@ -1796,7 +1796,7 @@ function HoverCard({ detail, status, pointer }) {
           {mark.label}
         </span>
         {detail.estimate && (
-          <span className="ml-auto text-[0.5625rem] font-bold tracking-[0.08em] text-amber-300/80 uppercase">
+          <span className="ml-auto text-[0.5625rem] font-bold tracking-[0.08em] text-flag-300/80 uppercase">
             Estimate
           </span>
         )}
@@ -2039,7 +2039,7 @@ function PlaceDetail({ detail, status, whole, ground, basis }) {
           </p>
         </div>
         {detail?.estimate && (
-          <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-amber-900 uppercase">
+          <span className="shrink-0 rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-flag-900 uppercase">
             Estimate
           </span>
         )}

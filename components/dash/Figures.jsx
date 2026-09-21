@@ -68,8 +68,8 @@ export const RAMP = [
 export const TONE = {
   ink: "var(--color-dash-ink)",
   muted: "var(--color-dash-line)",
-  good: "var(--color-emerald-500)",
-  warn: "var(--color-amber-500)",
+  good: "var(--color-ok-500)",
+  warn: "var(--color-flag-500)",
   /* One step lighter than `alert`, same hue. Ordinal, not a second accent. */
   serious: "var(--color-red-400)",
   alert: "var(--color-red-500)",
@@ -78,10 +78,10 @@ export const TONE = {
 const TEXT_TONE = {
   ink: "text-dash-ink",
   muted: "text-dash-muted",
-  good: "text-emerald-600",
+  good: "text-ok-600",
   /* amber-700 rather than -500: text on the surface has to clear contrast,
      and the fill tone above does not. */
-  warn: "text-amber-700",
+  warn: "text-flag-700",
   serious: "text-red-600",
   alert: "text-red-700",
 };
@@ -115,19 +115,19 @@ export function Tile({
     <Tag
       {...(onClick ? { type: "button", onClick } : {})}
       className={cn(
-        "rounded-dash border border-dash-line bg-dash-card p-4 text-left",
+        "rounded-dash border border-dash-line bg-dash-card p-5 text-left shadow-e2",
         onClick &&
-          "transition-colors hover:border-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
+          "transition-[border-color,box-shadow] hover:border-dash-ink hover:shadow-e3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
       )}
     >
       <span className="flex items-start justify-between gap-2">
-        <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <span className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
           {label}
         </span>
         {Icon && <Icon size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" />}
       </span>
 
-      <span className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+      <span className="mt-3 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
         <span
           className={cn(
             "figure leading-none font-bold tracking-[-0.03em] tabular-nums",
@@ -150,7 +150,7 @@ export function Tile({
         </span>
       )}
 
-      {foot && <span className="mt-2 block text-[0.75rem] text-dash-muted">{foot}</span>}
+      {foot && <span className="mt-2 block text-[0.8125rem] leading-snug text-dash-muted">{foot}</span>}
     </Tag>
   );
 }
@@ -162,7 +162,7 @@ export function Delta({ value, suffix = "" }) {
     <span
       className={cn(
         "figure rounded-full px-1.5 py-0.5 text-[0.75rem] font-bold tabular-nums",
-        value > 0 ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+        value > 0 ? "bg-ok-50 text-ok-700" : "bg-red-50 text-red-700"
       )}
     >
       {value > 0 ? "+" : "−"}
@@ -333,21 +333,21 @@ export function Columns({ points, height = 96, tone = "ink", label = (point) => 
 export function Panel({ title, figure, foot, children, className, ...props }) {
   return (
     <section
-      className={cn("rounded-dash border border-dash-line bg-dash-card p-4", className)}
+      className={cn("rounded-dash border border-dash-line bg-dash-card p-5 shadow-e2", className)}
       {...props}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <h3 className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
           {title}
         </h3>
         {figure && (
-          <span className="figure shrink-0 text-[0.8125rem] font-bold text-dash-ink tabular-nums">
+          <span className="figure shrink-0 text-[0.875rem] font-bold text-dash-ink tabular-nums">
             {figure}
           </span>
         )}
       </div>
-      <div className="mt-3">{children}</div>
-      {foot && <p className="mt-2.5 text-[0.75rem] text-dash-muted">{foot}</p>}
+      <div className="mt-4">{children}</div>
+      {foot && <p className="mt-3 text-[0.8125rem] leading-snug text-dash-muted">{foot}</p>}
     </section>
   );
 }
@@ -359,14 +359,14 @@ export function Readout({ label, value, sub = null, tone = "ink", onClick }) {
     <Tag
       {...(onClick ? { type: "button", onClick } : {})}
       className={cn(
-        "flex w-full items-baseline justify-between gap-3 py-1 text-left",
+        "flex w-full items-baseline justify-between gap-3 py-1.5 text-left",
         onClick &&
           "rounded-dash-sm px-1 transition-colors hover:bg-dash-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
       )}
     >
-      <span className="truncate text-[0.8125rem] text-dash-muted">{label}</span>
+      <span className="truncate text-[0.875rem] text-dash-muted">{label}</span>
       <span className="flex shrink-0 items-baseline gap-1.5">
-        <span className={cn("figure text-[0.9375rem] font-bold tabular-nums", TEXT_TONE[tone])}>
+        <span className={cn("figure text-[1rem] font-bold tabular-nums", TEXT_TONE[tone])}>
           {value}
         </span>
         {sub && <span className="text-[0.75rem] text-dash-muted">{sub}</span>}
@@ -652,7 +652,7 @@ export function Funnel({ stages, height = 44, gap = 3, onPick }) {
               {next && (
                 <path
                   d={`M${x} ${y + height} L${x + w} ${y + height} L${xNext + wNext} ${y + height + gap} L${xNext} ${y + height + gap} Z`}
-                  fill={held ? "var(--color-amber-500)" : "var(--color-dash-line)"}
+                  fill={held ? "var(--color-flag-500)" : "var(--color-dash-line)"}
                   opacity={held ? 0.5 : 1}
                 />
               )}
@@ -662,7 +662,7 @@ export function Funnel({ stages, height = 44, gap = 3, onPick }) {
                 width={Math.max(2, w)}
                 height={height}
                 rx={4}
-                fill={held ? "var(--color-amber-500)" : "var(--color-dash-ink)"}
+                fill={held ? "var(--color-flag-500)" : "var(--color-dash-ink)"}
                 className={cn("transition-all duration-700", onPick && "cursor-pointer")}
                 onClick={onPick ? () => onPick(stage.id) : undefined}
               >

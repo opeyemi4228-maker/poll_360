@@ -127,7 +127,7 @@ export function Finding({ flag, compact = false }) {
             severity.tone === "alert"
               ? "bg-red-50 text-red-700"
               : severity.tone === "warn"
-                ? "bg-amber-50 text-amber-800"
+                ? "bg-flag-50 text-flag-800"
                 : "bg-dash-bg text-dash-muted"
           )}
         >
@@ -170,7 +170,7 @@ function Header({ tone, badge }) {
         strokeWidth={2.25}
         className={cn(
           "shrink-0",
-          tone === "alert" ? "text-red-600" : tone === "good" ? "text-emerald-600" : "text-dash-muted"
+          tone === "alert" ? "text-red-600" : tone === "good" ? "text-ok-600" : "text-dash-muted"
         )}
       />
       <div className="min-w-0">
@@ -186,9 +186,9 @@ function Header({ tone, badge }) {
           tone === "alert"
             ? "bg-red-50 text-red-700"
             : tone === "warn"
-              ? "bg-amber-50 text-amber-800"
+              ? "bg-flag-50 text-flag-800"
               : tone === "good"
-                ? "bg-emerald-50 text-emerald-800"
+                ? "bg-ok-50 text-ok-800"
                 : "bg-dash-bg text-dash-muted"
         )}
       >

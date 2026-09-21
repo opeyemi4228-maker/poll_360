@@ -333,7 +333,7 @@ export default function Behaviour({ shapes }) {
                     />
                   </div>
                   {swing.merged && (
-                    <p className="mt-1 text-[0.625rem] leading-relaxed text-amber-700">
+                    <p className="mt-1 text-[0.625rem] leading-relaxed text-flag-700">
                       {swing.merged}
                     </p>
                   )}
@@ -485,19 +485,19 @@ export default function Behaviour({ shapes }) {
       </Panel>
 
       {/* ─────────────────────────────────────────────────────── the gaps */}
-      <section className="rounded-dash border border-amber-200 bg-amber-50 px-4 py-3">
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-amber-900 uppercase">
+      <section className="rounded-dash border border-flag-200 bg-flag-50 px-4 py-3">
+        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-flag-900 uppercase">
           What this record does not contain
         </p>
         <ul className="mt-2 space-y-1.5">
           {GAPS.map((gap) => (
-            <li key={gap.year} className="text-[0.8125rem] leading-relaxed text-amber-900">
+            <li key={gap.year} className="text-[0.8125rem] leading-relaxed text-flag-900">
               <span className="font-bold">{gap.year}</span> has {gap.has} and not {gap.missing}.{" "}
               {gap.why} It is on every chart here and on none of the maps.
             </li>
           ))}
         </ul>
-        <p className="mt-2 text-[0.75rem] leading-relaxed text-amber-900/80">
+        <p className="mt-2 text-[0.75rem] leading-relaxed text-flag-900/80">
           Nothing on this screen is modelled or filled in. Where a figure could not be computed
           from a declared result it is absent, and its absence is named rather than smoothed.
         </p>

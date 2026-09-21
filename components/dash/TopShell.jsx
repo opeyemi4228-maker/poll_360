@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 
 import BrandMark from "@/components/ui/BrandMark";
 import AlarmBell from "./AlarmBell";
-import DashSearch from "./DashSearch";
 import SignOutButton from "@/components/auth/SignOutButton";
 import { ROLES } from "@/lib/roles";
 import { cn } from "@/lib/utils";
@@ -44,12 +43,15 @@ export default function TopShell({
   subtitle,
   children,
   aside,
-  /* The two live controls in the bar. Both are optional: a dashboard with
-     nowhere to search and nothing to be alarmed about simply omits them, and
-     the bar closes up around the gap. */
-  searchItems,
-  onSearchPick,
-  searchPlaceholder,
+  /* ── THE WALL CLOCK'S SEAT: THE BAR, NOT THE PAGE ─────────────────────
+     It sat in the greeting row, first sharing a line with four controls and
+     then with a row of its own — and every rem it took there was a rem the
+     map lost, on the screens where the map is the point. In the sticky bar
+     it costs the map nothing, and it is on screen however far down anybody
+     has scrolled, which is what a room clock is for. */
+  clock = null,
+  /* The alarm bell. Optional: a dashboard with nothing to be alarmed about
+     omits it and the bar closes up around the gap. */
   alerts,
   onOpenAlerts,
 }) {
@@ -136,49 +138,11 @@ export default function TopShell({
               between them and never more than one, because on a night where
               somebody has to reach a screen inside a live broadcast, a surface
               two clicks deep is a surface nobody uses. */}
+          {/* Collapsed only where the tabs need the width: the Monitor carries
+              eight, Analytics and Broadcast three or four, and on those two
+              the whole choice fits beside its tabs with room to spare. */}
           {modes && (
-            <div
-              role="group"
-              aria-label="What this room is doing"
-              className="flex shrink-0 items-center rounded-full border border-dash-line bg-dash-bg p-1"
-            >
-              {modes.map((item) => {
-                const Icon = item.icon;
-                const on = mode === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => onMode?.(item.id)}
-                    aria-pressed={on}
-                    title={item.why}
-                    className={cn(
-                      "inline-flex h-9 items-center gap-2 rounded-full px-3 text-[0.8125rem] font-bold whitespace-nowrap transition-colors lg:px-4",
-                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
-                      on
-                        ? "bg-dash-ink text-white shadow-sm"
-                        : "text-dash-muted hover:text-dash-ink"
-                    )}
-                  >
-                    {Icon && <Icon size={15} strokeWidth={2.5} className="shrink-0" />}
-                    {/* The label goes before the icon does. A two-letter room
-                        is unreadable; an icon on its own at least keeps the
-                        press target where the eye last saw it. */}
-                    <span className="hidden sm:inline">{item.label}</span>
-                    {item.badge ? (
-                      <span
-                        className={cn(
-                          "inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] font-bold tabular-nums",
-                          on ? "bg-white text-dash-ink" : "bg-brand-red text-white"
-                        )}
-                      >
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
+            <ModeSwitch modes={modes} mode={mode} onMode={onMode} collapsed={(tabGroups ? tabGroups.reduce((sum, group) => sum + group.tabs.length, 0) : (tabs?.length ?? 0)) > COLLAPSE_AFTER} />
           )}
 
           {/* One rounded track with the active tab a solid block inside it, so
@@ -248,18 +212,7 @@ export default function TopShell({
               meant to be. Now the slack falls either side of the tabs and the
               gutters match. */}
           <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
-            {searchItems && (
-              /* A 44px control that drops its field open when it is asked for.
-                 It was an open 14rem field, which is 14rem the tabs beside it
-                 did not have; see components/dash/DashSearch.jsx for why that
-                 trade was the wrong way round.
-
-                 Being one circle also means there is no longer a width at
-                 which it has to be dropped altogether. It used to vanish below
-                 `sm`, which took the search away from precisely the device
-                 that has no map to click. */
-              <DashSearch items={searchItems} onPick={onSearchPick} placeholder={searchPlaceholder} />
-            )}
+            {clock}
 
             {alerts && <AlarmBell incidents={alerts} onOpenStream={onOpenAlerts} />}
 
@@ -372,14 +325,14 @@ export default function TopShell({
       {/* -------------------------------------------------------- greeting */}
       {/* Tighter than a marketing header on purpose: on a 13-inch laptop every
           rem spent here is a rem the map does not get. */}
-      <div className="flex flex-wrap items-end justify-between gap-3 px-4 pt-3 pb-2.5 lg:px-6">
-        <div>
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-4 pt-3 pb-2.5 lg:px-6">
+        <div className="min-w-0">
           <h1 className="font-display text-[1.25rem] leading-none font-extrabold tracking-[-0.035em] text-dash-ink">
             {greeting}
           </h1>
           {subtitle && <p className="mt-1.5 text-[0.875rem] text-dash-muted">{subtitle}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">{aside}</div>
+        {aside && <div className="flex flex-wrap items-center justify-end gap-2">{aside}</div>}
       </div>
 
       <main id="main" className="px-4 pb-3 lg:px-6 lg:pb-4">
@@ -395,6 +348,211 @@ export default function TopShell({
           around pictures rather than prose — a talking window that answers in
           sentences is the wrong shape for a room that is trying to stop
           reading like a script. */}
+    </div>
+  );
+}
+
+/* ═════════════════════════════════════════════════════════ MODE SWITCH ═══ */
+
+/**
+ * The room's three heads, collapsed to the one that is open.
+ *
+ * ── WHY IT COLLAPSED ──────────────────────────────────────────────────────
+ * Three full-width buttons spent a third of the bar on a choice made a few
+ * times a night, and the price was paid by the tabs — the choice made every
+ * minute — which were cut off after Timeline on a laptop. The head you are in
+ * is what the bar needs to say; the other two are one press away, in a menu
+ * that says what each is for, which three bare labels never did.
+ *
+ * A head with something waiting is not hidden by the collapse: its count
+ * rides on the closed button as a red dot, and is printed in the menu.
+ *
+ * Arrow keys move through the menu, Enter picks, Escape closes and returns
+ * focus to the button — the behaviour anybody expects of a menu.
+ * ───────────────────────────────────────────────────────────────────────────
+ */
+/* More tabs than this under the open head and the switch folds to one button. */
+const COLLAPSE_AFTER = 5;
+
+function ModeSwitch({ modes, mode, onMode, collapsed = true }) {
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef(null);
+  const buttonRef = useRef(null);
+  const itemRefs = useRef([]);
+  const current = modes.find((item) => item.id === mode) ?? modes[0];
+  const Icon = current.icon;
+  const elsewhere = modes.some((item) => item.id !== current.id && item.badge);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (event) => !boxRef.current?.contains(event.target) && setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    const index = Math.max(0, modes.findIndex((item) => item.id === current.id));
+    itemRefs.current[index]?.focus();
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [open, modes, current.id]);
+
+  const close = () => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
+
+  const onKeyDown = (event) => {
+    const items = itemRefs.current.filter(Boolean);
+    const at = items.indexOf(document.activeElement);
+    if (event.key === "Escape") {
+      event.preventDefault();
+      close();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      items[(at + step + items.length) % items.length]?.focus();
+    } else if (event.key === "Tab") {
+      setOpen(false);
+    }
+  };
+
+  const pick = (id) => {
+    setOpen(false);
+    if (id !== current.id) onMode?.(id);
+    buttonRef.current?.focus();
+  };
+
+  /* ── OPEN, WHERE THERE IS ROOM ───────────────────────────────────────
+     A head with few tabs shows all three heads as one segmented control:
+     every choice visible, one press each, nothing to open. */
+  if (!collapsed) {
+    return (
+      <div
+        role="group"
+        aria-label="Sections"
+        className="flex shrink-0 items-center gap-0.5 rounded-full border border-dash-line bg-dash-bg p-1"
+      >
+        {modes.map((item) => {
+          const ItemIcon = item.icon;
+          const on = item.id === current.id;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => pick(item.id)}
+              aria-pressed={on}
+              title={item.why}
+              className={cn(
+                "inline-flex h-9 items-center gap-2 rounded-full px-3 text-[0.8125rem] font-bold whitespace-nowrap transition-colors lg:px-4",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+                on ? "bg-dash-ink text-white" : "text-dash-muted hover:bg-dash-card hover:text-dash-ink"
+              )}
+            >
+              {ItemIcon && <ItemIcon size={15} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />}
+              <span className="hidden sm:inline">{item.label}</span>
+              {item.badge ? (
+                <span
+                  className={cn(
+                    "figure inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[0.6875rem] font-bold tabular-nums",
+                    on ? "bg-white text-dash-ink" : "bg-brand-red text-white"
+                  )}
+                >
+                  {item.badge}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={boxRef} className="relative shrink-0">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" && !open) {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Section: ${current.label}. Change section.`}
+        className={cn(
+          "relative inline-flex h-11 items-center gap-2 rounded-full bg-dash-ink pr-3 pl-4 text-[0.875rem] font-bold whitespace-nowrap text-white transition-colors hover:bg-black",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
+        )}
+      >
+        {Icon && <Icon size={16} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />}
+        <span className="hidden sm:inline">{current.label}</span>
+        {current.badge ? (
+          <span className="figure inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[0.6875rem] font-bold text-dash-ink tabular-nums">
+            {current.badge}
+          </span>
+        ) : null}
+        <ChevronDown
+          size={15}
+          strokeWidth={2.5}
+          className={cn("shrink-0 text-white/70 transition-transform duration-200", open && "rotate-180")}
+          aria-hidden="true"
+        />
+        {elsewhere && (
+          <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-brand-red ring-2 ring-dash-card" aria-hidden="true" />
+        )}
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          aria-label="Sections"
+          onKeyDown={onKeyDown}
+          className="absolute left-0 z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-dash border border-dash-line bg-dash-card p-1.5 shadow-e3"
+        >
+          {modes.map((item, index) => {
+            const ItemIcon = item.icon;
+            const on = item.id === current.id;
+            return (
+              <button
+                key={item.id}
+                ref={(node) => (itemRefs.current[index] = node)}
+                type="button"
+                role="menuitemradio"
+                aria-checked={on}
+                onClick={() => pick(item.id)}
+                className={cn(
+                  "flex w-full items-start gap-3 rounded-dash-sm px-3 py-3 text-left transition-colors outline-none",
+                  "hover:bg-dash-bg focus-visible:bg-dash-bg focus-visible:ring-2 focus-visible:ring-dash-ink",
+                  on && "bg-dash-bg"
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-9 shrink-0 items-center justify-center rounded-full",
+                    on ? "bg-dash-ink text-white" : "border border-dash-line bg-dash-card text-dash-ink"
+                  )}
+                  aria-hidden="true"
+                >
+                  {ItemIcon && <ItemIcon size={16} strokeWidth={2.25} />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center gap-2">
+                    <span className="text-[0.9375rem] font-bold text-dash-ink">{item.label}</span>
+                    {item.badge ? (
+                      <span className="figure inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-red px-1.5 text-[0.6875rem] font-bold text-white tabular-nums">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </span>
+                  {item.why && (
+                    <span className="mt-0.5 block text-[0.8125rem] leading-snug text-dash-muted">{item.why}</span>
+                  )}
+                </span>
+                {on && <Check size={16} strokeWidth={3} className="mt-2.5 shrink-0 text-dash-ink" aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
