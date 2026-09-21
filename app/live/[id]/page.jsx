@@ -69,7 +69,9 @@ export default async function LivePostPage({ params }) {
   const item = await load(id);
   if (!item) notFound();
 
-  const deliveries = Object.values(latestDeliveries(await broadcastDispatches.forItem(item.id))[item.id] ?? {});
+  /* A footnote, not the post: see the same line in app/live/p/[project]/page.jsx. */
+  const history = await broadcastDispatches.forItem(item.id).catch(() => []);
+  const deliveries = Object.values(latestDeliveries(history)[item.id] ?? {});
 
   return (
     /* The same cream the card is drawn on, so the card sits on the page

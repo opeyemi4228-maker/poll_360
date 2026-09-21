@@ -155,8 +155,8 @@ export default async function RoomPage() {
     audit.recent(120),
     /* What each platform did with each post — the evidence behind every
        "posted" the desk shows. See lib/publish.js. */
-    project ? broadcastDispatches.all(project.id) : [],
-    project ? contestants.all(project.id, race) : [],
+    project ? broadcastDispatches.all(project.id).catch(() => []) : [],
+    project ? contestants.all(project.id, race).catch(() => []) : [],
   ]);
 
   /* ── THREE THINGS A MAP CAN BE, AND THEY ARE NOT INTERCHANGEABLE ─────────

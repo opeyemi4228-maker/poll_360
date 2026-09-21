@@ -45,7 +45,11 @@ export default async function LiveWirePage({ params }) {
   if (!election) notFound();
 
   const items = await broadcastItems.live(election.id);
-  const deliveries = latestDeliveries(await broadcastDispatches.all(election.id));
+  /* Where each post went is a footnote to the post, not the post. A database
+     that has not been given the table that records it yet (see DEPLOY.md,
+     "Publishing to social media") would otherwise take the whole wire down
+     over a line of small print, so the wire goes out without it. */
+  const deliveries = latestDeliveries(await broadcastDispatches.all(election.id).catch(() => []));
   /* A programme is not an entry in a feed — it is a thing happening now — so
      it is lifted out of the list and given the top of the page. */
   const programme = programmeOnAir(items);
