@@ -25,8 +25,8 @@
     "_comment:db:indexes": "Builds the performance indexes without locking the tables. Run it against a live database BEFORE deploying: the statements in lib/db.js then find them already there and the deploy stays quick. --check says what is missing and builds nothing.",
     "db:indexes": "node --env-file-if-exists=.env.local scripts/create-indexes.mjs",
     "seed:election": "node scripts/seed-election.mjs",
-  "_comment:project:clear": "Returns a project to a clean slate: every return, situation report, booth movement and machine reading filed into it. Counts and changes nothing without --commit. Use it to take a rehearsal's test traffic off a live project before the night.",
-  "project:clear": "node --env-file-if-exists=.env.local scripts/clear-project.mjs",
+    "_comment:project:clear": "Returns a project to a clean slate: every return, situation report, booth movement and machine reading filed into it. Counts and changes nothing without --commit. Use it to take a rehearsal's test traffic off a live project before the night.",
+    "project:clear": "node --env-file-if-exists=.env.local scripts/clear-project.mjs",
     "_comment:seed:adamawa": "One state, four campaigns. Creates the Adamawa project, loads the declared figures lib/adamawa.js holds, and issues four accounts pinned to a governorship, a senatorial district, a federal constituency and a local government. Prints their passwords once. Runs a dry run without --commit.",
     "seed:adamawa": "node --env-file=.env.local scripts/seed-adamawa.mjs",
     "verify:board": "node --env-file=.env.local scripts/verify-board.mjs",
@@ -48,7 +48,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.545.0",
-    "next": "^16.2.12",
+    "next": "^16.3.5",
     "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -61,10 +61,14 @@
     "@tailwindcss/postcss": "^4.3.3",
     "dotenv": "^17.4.2",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.2.12",
+    "eslint-config-next": "^16.3.5",
     "globals": "^14.0.0",
     "postcss": "^8.5.23",
     "prisma": "^7.9.1",
     "tailwindcss": "^4.3.3"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2",
+    "mysql2": "^3.24.4"
   }
 }
