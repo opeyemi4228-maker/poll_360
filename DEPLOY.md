@@ -37,6 +37,11 @@ Production, Preview and Development.
 | `GOOGLE_VISION_API_KEY` | optional | An optical reader, used when there is no Anthropic key. Better than the built-in one on printed forms, no better on handwriting. |
 | `SHEET_READER` | optional | `claude`, `google`, `local`, or `off`. Overrides the choice above. `off` puts the bot back to asking its questions. |
 | `SHEET_READER_MODEL` | optional | Which model reads the sheet. Defaults to `claude-opus-5`. |
+| `ASK_MODEL` | optional | Which model Ask Poll360 uses when `ANTHROPIC_API_KEY` is set. Defaults to `claude-opus-5`. Without a key, Ask Poll360 answers with its own reader. |
+| `ASK_EFFORT` | optional | How hard that model thinks: `low`, `medium` (default), `high`. |
+| `ASK_MODEL_DAILY` | optional | Questions per account per day that may go to the model. Defaults to 300; past it the account is answered by Poll360's own reader, never refused. `0` keeps the model off. |
+| `ASK_LIMIT` | optional | Questions per account per ten minutes, across every instance. Defaults to 40. |
+| `ASK_SIGNING_SECRET` | optional | Seals Ask Poll360 answers so a downloaded brief can only print what was answered. Falls back to `ENCRYPTION_KEY`; with neither, seals last one process and downloads fail across instances. |
 | `SHEET_READER_EFFORT` | optional | How much care it takes over the digits: `low` to `max`, default `high`. |
 | `SHEET_READER_CACHE` | optional | Where the local reader keeps its language file. Defaults to the system temporary directory, which is right almost everywhere. |
 | `NEXT_PUBLIC_GOOGLE_MAPS_KEY` | optional | Turns on the Google and Satellite grounds under the Voters, Turnout and Clusters layers. Without it those controls are not rendered and the room draws its own map, which is the default either way. |

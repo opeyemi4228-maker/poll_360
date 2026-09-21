@@ -44,6 +44,16 @@ const nextConfig = {
      external it is resolved by Node the ordinary way and simply works. */
   serverExternalPackages: ["tesseract.js"],
 
+  /* ── ASK POLL360 READS THE MAP'S OWN FILES ─────────────────────────────────
+     Wards and polling units live in public/geo, where the browser fetches
+     them. Ask Poll360 answers from the same files on the server
+     (lib/ask/ground.js), and a deployed function only carries the files it is
+     told about — without this the question works locally and fails live. */
+  outputFileTracingIncludes: {
+    "/api/ask": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
+    "/api/ask/export": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
+  },
+
   /* ── A BUILD NEEDS A NAME THE BROWSER CAN SEE ─────────────────────────────
      The service worker caches under a version string. That string was written
      by hand, so it stayed the same across every deploy, and a browser decides
