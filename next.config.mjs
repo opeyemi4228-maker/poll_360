@@ -51,7 +51,8 @@ const nextConfig = {
      told about — without this the question works locally and fails live. */
   outputFileTracingIncludes: {
     "/api/ask": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
-    "/api/ask/export": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
+    "/api/ask/rows": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
+    "/api/ask/export": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*", "./public/geo/map/**/*", "./public/geo/lga/**/*"],
   },
 
   /* ── A BUILD NEEDS A NAME THE BROWSER CAN SEE ─────────────────────────────

@@ -15,12 +15,15 @@ import {
   Sliders,
   Type,
   UserRound,
+  Volume2,
+  VolumeX,
   Zap,
 } from "lucide-react";
 
 import BrandMark from "@/components/ui/BrandMark";
 import SectionTabs from "./SectionTabs";
 import { DeskProvider } from "./broadcast/Queue";
+import { useArrivals, useEmbargoRelease, useNow } from "./broadcast/DeskClock";
 import LiveDesk from "./broadcast/LiveDesk";
 import Contestants from "./broadcast/Contestants";
 import GoLive from "./broadcast/GoLive";
@@ -129,14 +132,14 @@ export const DESKS = {
  */
 function Meter({ label, value, alert = false, live = false }) {
   return (
-    <div className="flex min-w-[6.5rem] flex-col justify-center px-4 py-2.5">
-      <dt className="flex items-center gap-1.5 text-[0.6875rem] font-semibold tracking-[0.08em] whitespace-nowrap text-blue-300 uppercase">
+    <div className="flex min-w-[5.5rem] flex-1 flex-col justify-center px-3.5 py-2 sm:flex-none">
+      <dt className="flex items-center gap-1.5 text-[0.625rem] font-semibold tracking-[0.08em] whitespace-nowrap text-blue-300 uppercase">
         {live && <span className="size-1.5 animate-pulse rounded-full bg-red-500" aria-hidden="true" />}
         {label}
       </dt>
       <dd
         className={cn(
-          "figure mt-1 text-[1.375rem] leading-none font-bold tabular-nums",
+          "figure mt-1 text-[1.25rem] leading-none font-bold tabular-nums",
           alert || live ? "text-red-400" : "text-white"
         )}
       >
@@ -196,6 +199,12 @@ export default function RoomBroadcast({
   const section = remembered[view] ?? desk.sections[0].id;
   const setSection = (id) => setRemembered((current) => ({ ...current, [view]: id }));
 
+  /* The desk's one clock, the chime for new work, and embargoes lifting on
+     time — see broadcast/DeskClock.js. */
+  const now = useNow();
+  const arrivals = useArrivals(items, { userId: user?.id, enabled: Boolean(may?.clear) });
+  useEmbargoRelease(items, { now, mayAir: Boolean(may?.air) });
+
   /* Where every item on the desk stands, for the console's three counts. */
   const pipelineCounts = useMemo(
     () => ({
@@ -228,7 +237,7 @@ export default function RoomBroadcast({
   };
 
   return (
-    <DeskProvider user={user} may={may} deliveries={deliveries} channels={channels} wire={wire}>
+    <DeskProvider user={user} may={may} deliveries={deliveries} channels={channels} wire={wire} now={now}>
       {/* ── THE DESK WEARS WHAT IT PRINTS ──────────────────────────────────
           `air-desk` redefines the dashboard's own colour tokens for
           everything inside it — see app/globals.css. The desk is cream and
@@ -252,54 +261,69 @@ export default function RoomBroadcast({
             move while the screen under them changes.
             ══════════════════════════════════════════════════════════════════ */}
         <header className="air-band overflow-hidden rounded-dash">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-4 px-5 pt-5 pb-4 sm:px-6">
-            <div className="flex min-w-0 flex-1 items-center gap-3.5">
-              {/* The product's own mark, at the size the masthead uses it. */}
-              <BrandMark className="size-11 shrink-0" />
+          {/* ── ONE BAND ──────────────────────────────────────────────────
+              It was a band with a large title and a tagline, and the section
+              tabs on a floor of their own beneath it — a third of the first
+              screen spent saying which desk this is, when the room's own
+              tab row above already says so. Now: which desk, the sections,
+              the three counts and the way out to the public page, on one
+              band that reads left to right in the order a producer works. */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 sm:px-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <BrandMark className="size-9 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[0.6875rem] font-bold tracking-[0.16em] text-blue-300 uppercase">
-                  Broadcast desk
-                </p>
-                <h2 className="mt-1 font-display text-[1.5rem] leading-none font-extrabold tracking-[-0.025em]">
+                <p className="text-[0.625rem] font-bold tracking-[0.16em] text-blue-300 uppercase">Broadcast desk</p>
+                <h2 className="font-display text-[1.125rem] leading-tight font-extrabold tracking-[-0.02em]" title={desk.why}>
                   {desk.label}
                 </h2>
-                <p className="mt-1.5 truncate text-[0.8125rem] text-blue-200">{desk.why}</p>
               </div>
             </div>
 
-            <dl className="flex items-stretch divide-x divide-blue-800 rounded-dash-sm border border-blue-800 bg-blue-900">
-              <Meter label="With an editor" value={pipelineCounts.review} alert={pipelineCounts.review > 0} />
-              <Meter label="Cleared" value={pipelineCounts.cleared} />
-              <Meter label="On air" value={pipelineCounts.onAir} live={pipelineCounts.onAir > 0} />
-            </dl>
-
-            {wire && (
-              <a
-                href={wire}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-11 items-center gap-2.5 rounded-full bg-white px-5 text-[0.875rem] font-bold text-blue-950 transition-colors hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-              >
-                <span className="size-2 animate-pulse rounded-full bg-red-500" aria-hidden="true" />
-                Live page
-                <ArrowUpRight size={16} strokeWidth={2.5} aria-hidden="true" />
-              </a>
-            )}
-          </div>
-
-          {/* ── THE SECTIONS ──────────────────────────────────────────────
-              A row of tabs rather than a menu, because a destination behind a
-              control nobody opens is a destination that stops existing. Seated
-              on the band's own floor so it is plainly the switch for this
-              desk and nothing else. */}
-          <div className="border-t border-blue-800 bg-blue-950 px-4 py-3 sm:px-5">
             <SectionTabs
               tone="dark"
+              size="sm"
               label={`${desk.label} sections`}
               items={desk.sections}
               value={section}
               onChange={setSection}
+              className="order-last w-full min-w-0 lg:order-none lg:w-auto lg:flex-1"
             />
+
+            <div className="ml-auto flex items-center gap-2">
+              <dl className="flex items-stretch divide-x divide-blue-800 rounded-dash-sm border border-blue-800 bg-blue-900">
+                <Meter label="With an editor" value={pipelineCounts.review} alert={pipelineCounts.review > 0} />
+                <Meter label="Cleared" value={pipelineCounts.cleared} />
+                <Meter label="On air" value={pipelineCounts.onAir} live={pipelineCounts.onAir > 0} />
+              </dl>
+
+              {/* The chime for new work, for the people who clear it. Its
+                  state is remembered on this device only. */}
+              {may?.clear && (
+                <button
+                  type="button"
+                  onClick={() => arrivals.setMuted(!arrivals.muted)}
+                  aria-pressed={!arrivals.muted}
+                  title={arrivals.muted ? "Sound is off for new items" : "A sound plays when something new is waiting for you"}
+                  aria-label={arrivals.muted ? "Turn on the sound for new items" : "Turn off the sound for new items"}
+                  className="flex size-10 shrink-0 items-center justify-center rounded-full border border-blue-800 text-blue-200 hover:bg-blue-800 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                >
+                  {arrivals.muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+                </button>
+              )}
+
+              {wire && (
+                <a
+                  href={wire}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-white px-4 text-[0.8125rem] font-bold text-blue-950 transition-colors hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                >
+                  <span className="size-2 animate-pulse rounded-full bg-red-500" aria-hidden="true" />
+                  Live page
+                  <ArrowUpRight size={15} strokeWidth={2.5} aria-hidden="true" />
+                </a>
+              )}
+            </div>
           </div>
         </header>
 

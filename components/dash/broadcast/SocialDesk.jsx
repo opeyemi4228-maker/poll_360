@@ -1,14 +1,14 @@
 "use client";
 
 import { useDeferredValue, useMemo, useState } from "react";
-import { CheckCircle2, CircleAlert, CircleDashed, Loader2, PlugZap, Send } from "lucide-react";
+import { CheckCircle2, CircleAlert, CircleDashed, Loader2, PlugZap, Send, Timer } from "lucide-react";
 
 import { Card, Empty } from "@/components/dash/DashCard";
 import PlacePicker from "./PlacePicker";
 import { ItemCard, Said, useAction, useDesk } from "./Queue";
-import { Bar, Ring } from "./Gauges";
+import { Bar } from "./Gauges";
 import { checkChannels, draftItem, moveItem } from "@/app/broadcast/actions";
-import { DELIVERY, PLATFORMS, SHAPES, platformLabel } from "@/lib/broadcast";
+import { DELIVERY, PLATFORMS, SHAPES, TEMPLATES, embargoAtWAT, fillTemplate, platformLabel } from "@/lib/broadcast";
 import { captionFor, freezeFigures, measure, stampFor, CAPTION_LIMITS } from "@/lib/stamp";
 import { formatNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -189,6 +189,9 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
   const [shape, setShape] = useState(null);
   const [sendOnClear, setSendOnClear] = useState(true);
   const [look, setLook] = useState("x");
+  /* "Hold until" — a time on the Lagos clock, empty for no embargo. */
+  const [holdUntil, setHoldUntil] = useState("");
+  const [template, setTemplate] = useState(null);
   /* Read once. The server sets the real stamp when the post is saved; this
      is the preview's idea of "about now". */
   const [at] = useState(() => Date.now());
@@ -267,6 +270,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
             shape: chosenShape,
             headline: headline.trim() || null,
             sendOnClear,
+            embargoUntil: holdUntil ? embargoAtWAT(holdUntil, Date.now()) : null,
           },
         });
         if (drafted?.error || !review) return drafted;
@@ -277,6 +281,8 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
         onDone: () => {
           setCaption("");
           setHeadline("");
+          setHoldUntil("");
+          setTemplate(null);
           setSaid({
             tone: "good",
             text: review
@@ -297,6 +303,35 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
   return (
     <div className={cn("grid gap-4", !compact && "xl:grid-cols-[1fr_22rem]")}>
       <div>
+        {/* ── START FROM ─────────────────────────────────────────────────
+            The updates every election night needs, worded once. Picking one
+            fills the kind, the headline and the words for the place chosen
+            below; everything is still editable and still goes to an editor. */}
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Start from</span>
+          {TEMPLATES.map((row) => (
+            <button
+              key={row.id}
+              type="button"
+              aria-pressed={template === row.id}
+              onClick={() => {
+                setTemplate(row.id);
+                setFormat(row.format);
+                setHeadline(row.headline ?? "");
+                setCaption(fillTemplate(row, place?.name ?? (scope === "NATION" ? "Nigeria" : stamp.place.name)));
+              }}
+              className={cn(
+                "h-8 rounded-full border px-3 text-[0.75rem] font-semibold transition-colors",
+                template === row.id
+                  ? "border-blue-600 bg-blue-50 text-blue-900"
+                  : "border-dashed border-dash-line text-dash-muted hover:border-dash-ink hover:text-dash-ink"
+              )}
+            >
+              {row.label}
+            </button>
+          ))}
+        </div>
+
         {/* ─────────────────────────────────────────────── what kind */}
         <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Kind of post">
           {FORMATS.map((row) => (
@@ -437,6 +472,36 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
           </span>
         </label>
 
+        {/* ── NOT BEFORE ─────────────────────────────────────────────────
+            For what the desk knows is coming: written and cleared early,
+            held until the minute. The server refuses to air it sooner. */}
+        <div className="mt-2 flex flex-wrap items-center gap-2.5 rounded-dash-sm border border-dash-line px-3 py-2">
+          <Timer size={16} strokeWidth={2.25} className="text-dash-muted" aria-hidden="true" />
+          <label htmlFor="hold-until" className="text-[0.8125rem] font-bold text-dash-ink">
+            Hold until
+          </label>
+          <input
+            id="hold-until"
+            type="time"
+            value={holdUntil}
+            onChange={(event) => setHoldUntil(event.target.value)}
+            className="figure h-9 rounded-dash-sm border border-dash-line bg-dash-card px-2 text-[0.8125rem] text-dash-ink"
+          />
+          <span className="text-[0.75rem] text-dash-muted">
+            {holdUntil ? (
+              <>
+                WAT. It cannot go out before then
+                {sendOnClear ? ", and goes out then if cleared." : "."}{" "}
+                <button type="button" onClick={() => setHoldUntil("")} className="font-bold text-dash-ink underline underline-offset-2">
+                  Remove
+                </button>
+              </>
+            ) : (
+              "Optional. Leave empty to release as soon as it is cleared."
+            )}
+          </span>
+        </div>
+
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -521,6 +586,17 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
  * a further permission to read back, so they are not drawn — and not drawn as
  * zero, which would teach a desk to distrust the real figures beside them.
  */
+/** One figure on the delivery strip, with the sentence that says what it is. */
+function Stat({ label, value, note }) {
+  return (
+    <div className="px-5 py-4">
+      <dt className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">{label}</dt>
+      <dd className="figure mt-1.5 text-[1.625rem] leading-none font-extrabold text-dash-ink">{value}</dd>
+      <dd className="mt-1.5 text-[0.75rem] leading-snug text-dash-muted">{note}</dd>
+    </div>
+  );
+}
+
 export function Delivery({ items }) {
   const { deliveries } = useDesk();
   const posts = items.filter((item) => item.kind === "SOCIAL");
@@ -567,24 +643,24 @@ export function Delivery({ items }) {
           </div>
         </Card>
       )}
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-4 rounded-dash border border-dash-line bg-dash-card px-5 py-4">
-        <Ring
-          value={posts.length ? (published.length / posts.length) * 100 : null}
-          label={"Written\nthat went out"}
-          tone="green"
-          figure={`${formatNumber(published.length)}/${formatNumber(posts.length)}`}
+      {/* ── FOUR FIGURES, EACH WITH ITS OWN SENTENCE ─────────────────────
+          They were a ring and two dashes under clipped labels ("written to
+          out"), which a producer had to decode. Each now says in words what
+          it counts, and a figure that cannot be worked out yet says so. */}
+      <dl className="grid grid-cols-2 overflow-hidden rounded-dash border border-dash-line bg-dash-line lg:grid-cols-4 [&>div]:bg-dash-card">
+        <Stat
+          label="Published"
+          value={`${formatNumber(published.length)}`}
+          note={posts.length ? `of ${formatNumber(posts.length)} written tonight` : "Nothing written yet"}
         />
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <span className="inline-flex items-baseline gap-2">
-            <span className="figure text-[1.125rem] font-extrabold text-dash-ink">{minutes(toClear)}</span>
-            <span className="text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">to clear</span>
-          </span>
-          <span className="inline-flex items-baseline gap-2">
-            <span className="figure text-[1.125rem] font-extrabold text-dash-ink">{minutes(toAir)}</span>
-            <span className="text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">written to out</span>
-          </span>
-        </div>
-      </div>
+        <Stat label="Typical wait for an editor" value={minutes(toClear)} note={toClear === null ? "Shown once something is cleared" : "From writing to cleared, middle value"} />
+        <Stat label="Typical time to go out" value={minutes(toAir)} note={toAir === null ? "Shown once something is out" : "From writing to published, middle value"} />
+        <Stat
+          label="Corrections"
+          value={formatNumber(posts.filter((row) => row.payload?.corrects && row.airedAt).length)}
+          note="Corrections and withdrawals that went out"
+        />
+      </dl>
 
       <Card title="What each platform did" subtitle="From the platforms' own answers">
         {perPlatform.length === 0 ? (

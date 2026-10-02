@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, BarChart3, ExternalLink, Flag, MapPin, PenLine, Radio, Send } from "lucide-react";
+import { AlertTriangle, BarChart3, Check, ChevronDown, ExternalLink, Flag, MapPin, PenLine, Radio, Send } from "lucide-react";
 
 import { Card, Empty } from "@/components/dash/DashCard";
 import { useDesk } from "./Queue";
@@ -43,7 +43,7 @@ const STREAMS = {
 };
 
 export default function LiveDesk({ items = [], incidents = [], timeline = null, places = [], national = null, race, shapes = null }) {
-  const { deliveries, channels, wire, may } = useDesk();
+  const { deliveries, channels, may } = useDesk();
 
   /* A prefill from "write this up", and a key that remounts the composer so
      the prefill is taken rather than merged into whatever was half-typed. */
@@ -51,24 +51,27 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
   const [presetKey, setPresetKey] = useState(0);
   const [state, setState] = useState(null);
   const [show, setShow] = useState(() => new Set(Object.keys(STREAMS)));
+  /* ── THE COMPOSER OPENS ON DEMAND ────────────────────────────────────────
+     It was the whole first screen, which put the queue — the list an editor
+     works — below the fold on every visit. Closed, it is one bar; it opens by
+     itself on a desk with nothing written yet, and from every "write this
+     up" on the page. */
+  const [writing, setWriting] = useState(() => !items.some((item) => item.kind === "SOCIAL"));
 
   const writeUp = (next) => {
     setPreset(next);
     setPresetKey((key) => key + 1);
+    setWriting(true);
     if (typeof window !== "undefined") {
       document.getElementById("live-compose")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
   const posts = items.filter((item) => item.kind === "SOCIAL");
-  /* ── THE ONE PLACE THE DESK'S WORK WAITS FOR AN EDITOR ─────────────────
-     Every kind — a post, a strap, a graphic, a claim — because the editor
-     is one person working one list. Once cleared, an item moves to On air,
-     which is where things are taken out; it is never in both. */
-  const waiting = items.filter((item) => item.state === "REVIEW");
   const published = posts.filter((item) => item.state === "ON_AIR" || item.state === "OFF_AIR");
   const failing = published.filter((item) => Object.values(deliveries[item.id] ?? {}).some((row) => row.status === "FAILED"));
   const connected = channels.filter((row) => row.configured).length;
+  const corrections = posts.filter((item) => item.payload?.corrects && item.state === "ON_AIR").length;
 
   const live = posts.filter((item) => item.state === "ON_AIR");
 
@@ -214,23 +217,13 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
           <Spark points={perHalfHour} className="mt-2" tone="red" />
         </div>
 
+        {/* The queue's own counts are on the console above; these are the
+            two things only this screen shows. */}
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          <Pip value={formatNumber(waiting.length)} label="waiting" tone={waiting.length ? "orange" : "ink"} />
           <Pip value={formatNumber(failing.length)} label="to resend" tone={failing.length ? "red" : "ink"} />
-          <Pip value={`${connected}/${channels.length}`} label="platforms" tone={connected ? "green" : "orange"} />
+          <Pip value={`${connected}/${channels.length}`} label="platforms set up" tone={connected ? "green" : "orange"} />
+          {corrections > 0 && <Pip value={formatNumber(corrections)} label="corrections out" tone="orange" />}
         </div>
-
-        {wire && (
-          <a
-            href={wire}
-            target="_blank"
-            rel="noreferrer"
-            className="air-band ml-auto inline-flex h-10 items-center gap-2 rounded-full px-4 text-[0.75rem] font-bold"
-          >
-            <span className="size-2 animate-pulse rounded-full bg-red-500" />
-            Live page
-          </a>
-        )}
       </div>
 
       {/* ── READY FOR AN UPDATE ─────────────────────────────────────────
@@ -256,27 +249,60 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
       )}
 
       {/* ── WRITE ONE ───────────────────────────────────────────────────── */}
-      <div id="live-compose" className="scroll-mt-24">
-        <Card
-          title="Release an update"
-          subtitle={
-            preset
-              ? "Started from the timeline. Check the words before sending."
-              : "Stamped with the place and the minute, sent everywhere you choose once cleared"
-          }
-        >
-          <PostComposer
-            key={presetKey}
-            race={race}
-            national={national}
-            places={places}
-            preset={preset}
-            onSent={() => setPreset(null)}
-          />
-        </Card>
-      </div>
+      {may.draft && (
+        <div id="live-compose" className="scroll-mt-24">
+          {writing ? (
+            <Card
+              title="Write an update"
+              subtitle={
+                preset
+                  ? "Started from the timeline. Check the words before sending."
+                  : "Start from a template or from nothing. Stamped with the place and the minute, and sent once an editor clears it."
+              }
+              action={
+                <button
+                  type="button"
+                  onClick={() => setWriting(false)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-dash-sm px-3 text-[0.75rem] font-bold text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
+                >
+                  <ChevronDown size={15} className="rotate-180" />
+                  Close
+                </button>
+              }
+            >
+              <PostComposer
+                key={presetKey}
+                race={race}
+                national={national}
+                places={places}
+                preset={preset}
+                onSent={() => setPreset(null)}
+              />
+            </Card>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setWriting(true)}
+              className="group flex w-full items-center gap-4 rounded-dash border border-dash-line bg-dash-card px-5 py-4 text-left transition-colors hover:border-dash-ink"
+            >
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-dash-ink text-white">
+                <PenLine size={17} strokeWidth={2.5} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[0.9375rem] font-extrabold text-dash-ink">Write an update</span>
+                <span className="block truncate text-[0.8125rem] text-dash-muted">
+                  A result, a situation update or an alert — from a template or from nothing
+                </span>
+              </span>
+              <span className="hidden h-9 items-center rounded-full border border-dash-line px-4 text-[0.75rem] font-bold text-dash-ink group-hover:border-dash-ink sm:inline-flex">
+                Open
+              </span>
+            </button>
+          )}
+        </div>
+      )}
 
-      {/* ── THEN SEND THEM, ONE OR MANY ─────────────────────────────────── */}
+      {/* ── THEN CLEAR THEM AND SEND THEM, ONE OR MANY ────────────────────── */}
       <PublishingList items={items} />
 
       {/* ──────────────────────────────────────────── map and timeline */}
@@ -322,10 +348,20 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
                       })
                     }
                     className={cn(
-                      "h-8 rounded-full border px-3 text-[0.6875rem] font-semibold",
-                      on ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line text-dash-muted hover:text-dash-ink"
+                      "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[0.6875rem] font-bold transition-colors",
+                      on ? "border-dash-ink bg-dash-card text-dash-ink" : "border-dashed border-dash-line text-dash-muted hover:text-dash-ink"
                     )}
                   >
+                    {/* A switch, not a button: the tick says it is on. */}
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "flex size-3.5 items-center justify-center rounded-[4px] border",
+                        on ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line"
+                      )}
+                    >
+                      {on && <Check size={10} strokeWidth={3.5} />}
+                    </span>
                     {row.label}
                   </button>
                 );

@@ -1,5 +1,6 @@
 "use client";
 
+import PoweredBy from "@/components/ui/PoweredBy";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown } from "lucide-react";
@@ -337,6 +338,7 @@ export default function TopShell({
 
       <main id="main" className="px-4 pb-3 lg:px-6 lg:pb-4">
         {children}
+        <PoweredBy className="mt-6 border-t border-dash-line pt-3" />
       </main>
 
       {/* ── THE ASSISTANT IS OFF ──────────────────────────────────────────

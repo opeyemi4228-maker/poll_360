@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Wordmark from "@/components/ui/Wordmark";
+import PoweredBy from "@/components/ui/PoweredBy";
 import { site, footerNav, register } from "@/lib/site";
 import { formatNumber } from "@/lib/utils";
 
@@ -58,10 +59,13 @@ export default function Footer() {
         <div className="rule-hair" />
 
         <div className="flex flex-col gap-4 py-9 text-[0.8125rem] leading-relaxed text-white/50 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
-          <p>
-            © {new Date().getFullYear()} {site.name}. Built for Nigeria&rsquo;s{" "}
-            <span className="figure">{formatNumber(register.pollingUnits)}</span> polling units.
-          </p>
+          <div className="space-y-1">
+            <p>
+              © {new Date().getFullYear()} {site.name}. Built for Nigeria&rsquo;s{" "}
+              <span className="figure">{formatNumber(register.pollingUnits)}</span> polling units.
+            </p>
+            <PoweredBy tone="dark" className="text-[0.8125rem]" />
+          </div>
           <p>
             Boundaries: geoBoundaries (gbOpen), CC BY 4.0. Register: INEC, {register.states}{" "}
             states, <span className="figure">{formatNumber(register.lgas)}</span> LGAs,{" "}

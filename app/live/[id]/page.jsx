@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import LiveUpdate from "@/components/live/LiveUpdate";
 import { broadcastDispatches, broadcastItems } from "@/lib/db";
-import { hasCard, isPublic, latestDeliveries } from "@/lib/broadcast";
+import { hasCard, isPublicPage, latestDeliveries } from "@/lib/broadcast";
 import { basisLine, stampFor } from "@/lib/stamp";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +27,7 @@ export const dynamic = "force-dynamic";
  */
 async function load(id) {
   const item = await broadcastItems.get(String(id ?? "")).catch(() => null);
-  return isPublic(item) ? item : null;
+  return isPublicPage(item) ? item : null;
 }
 
 export async function generateMetadata({ params }) {

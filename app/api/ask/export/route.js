@@ -10,6 +10,9 @@ import { holds } from "@/lib/ask/sign";
 import { fileStem } from "@/lib/ask/format";
 import { briefPdf } from "@/lib/ask/files/pdf";
 import { briefCsv, briefXml } from "@/lib/ask/files/tables";
+import { analyse } from "@/lib/ask/insight";
+import { visualise } from "@/lib/ask/visual";
+import { geometryFor } from "@/lib/ask/geometry";
 
 /**
  * An Ask Poll360 answer, as a file.
@@ -80,7 +83,10 @@ export async function POST(request) {
   }
   /* Higher levels first and whole, while the file's budget lasts. The PDF
      prints its own shorter extract of each. */
-  let budget = body.format === "pdf" ? Infinity : FILE_BUDGET;
+  /* This route answers with one response, and a response has a size ceiling;
+     the screen builds the complete files itself (see components/dash/
+     AskPoll360.jsx). What comes from here is the head of each table. */
+  let budget = FILE_BUDGET;
   const sections = results.flatMap((result) =>
     result.sections.map((section) => {
       const take = Math.max(0, Math.min(section.rows.length, FILE_CEILING, budget));
@@ -95,11 +101,19 @@ export async function POST(request) {
   const understood = results[0]?.understood ?? [];
   const scopeName = results[0]?.scope?.name ?? "Nigeria";
   const madeAt = new Date();
-  const input = { payload, sections, understood, scopeName, madeAt };
+  /* The analysis is worked out again from the same fresh rows, never taken
+     from the browser — see lib/ask/insight.js. */
+  const analysis = results[0] ? analyse(results[0]) : null;
+  const visual = results[0] ? visualise(results[0]) : null;
+  const geometry = body.format === "pdf" ? await geometryFor(visual?.map) : null;
+  const input = { payload, sections, understood, scopeName, madeAt, analysis, visual, geometry };
 
   let file;
   try {
-    if (body.format === "pdf") file = briefPdf(input);
+    if (body.format === "pdf") {
+      const { deflateSync } = await import("node:zlib");
+      file = Buffer.concat(await briefPdf(input, { compress: async (bytes) => deflateSync(bytes) }));
+    }
     else if (body.format === "csv") file = briefCsv(input);
     else file = briefXml(input);
   } catch (error) {

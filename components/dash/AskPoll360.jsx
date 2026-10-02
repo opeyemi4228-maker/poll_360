@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   ArrowUp,
   Braces,
@@ -18,7 +18,11 @@ import {
 } from "lucide-react";
 
 import BrandMark from "@/components/ui/BrandMark";
-import { LEVEL_WORDS, fmtCell, fmtInt, isNumeric } from "@/lib/ask/format";
+import AskVisuals from "./AskVisuals";
+import { LEVEL_WORDS, fileStem, fmtCell, fmtInt, isNumeric } from "@/lib/ask/format";
+import { briefCsv, briefXml } from "@/lib/ask/files/tables";
+import { briefPdf } from "@/lib/ask/files/pdf";
+import { outlineFile, regionsFor } from "@/lib/ask/regions";
 import { askThread } from "@/lib/ask/thread";
 import { cn } from "@/lib/utils";
 
@@ -47,11 +51,7 @@ const PLANNING_STARTERS = [
   {
     group: "Party strength",
     icon: MapPinned,
-    questions: [
-      "How strong is our party in the North West?",
-      "ADC members in Kano by LGA",
-      "Strongest region for the PDP",
-    ],
+    questions: ["How strong is our party in the North West?", "ADC members in Kano by LGA", "Strongest region for the PDP"],
   },
   {
     group: "Where to go",
@@ -67,8 +67,8 @@ const PLANNING_STARTERS = [
     icon: TrendingUp,
     questions: [
       "What if Atiku gains 5 points and Tinubu loses 3?",
-      "Does Atiku meet Section 134?",
-      "What if turnout rises 10% and Atiku gains 3 points?",
+      "Strategy to win Kano",
+      "Who governs each state?",
     ],
   },
 ];
@@ -86,19 +86,15 @@ const STARTERS = [
   {
     group: "Ground",
     icon: MapPinned,
-    questions: [
-      "Which LGAs in Kano did Atiku win in 2023?",
-      "Primary strongholds in Gombe",
-      "Top 20 biggest polling units in Lagos",
-    ],
+    questions: ["Which LGAs in Kano did Atiku win in 2023?", "Primary strongholds in Gombe", "Top 20 biggest polling units in Lagos"],
   },
   {
     group: "Plan",
     icon: TrendingUp,
     questions: [
-      "Where should Atiku focus in the North Central?",
-      "What if Atiku gains 5 points and Tinubu loses 3?",
-      "Where did Atiku lose ground since 2019?",
+      "Chances of Atiku winning 2027",
+      "Can Atiku win if Obi and Kwankwaso join him?",
+      "Which states can Atiku flip in 2027?",
     ],
   },
 ];
@@ -131,7 +127,10 @@ export default function AskPoll360({ ground = "Nigeria", desk = "analytics" }) {
           body: JSON.stringify({
             question,
             previous: last?.plans?.[0] ?? null,
-            history: thread.slice(-3).map((turn) => ({ question: turn.question, headline: turn.answer?.headline })),
+            history: thread.slice(-3).map((turn) => ({
+              question: turn.question,
+              headline: turn.answer?.headline,
+            })),
           }),
         });
         const reply = await response.json().catch(() => null);
@@ -171,9 +170,7 @@ export default function AskPoll360({ ground = "Nigeria", desk = "analytics" }) {
                 : "Election analytics and planning, answered from the record. Every figure is worked out by Poll360 and checked before you read it — nothing is guessed."}
             </p>
           </div>
-          <span className="rounded-full border border-white/20 px-3 py-1 text-[0.75rem] font-semibold text-white/85">
-            Reading: {ground}
-          </span>
+          <span className="rounded-full border border-white/20 px-3 py-1 text-[0.75rem] font-semibold text-white/85">Reading: {ground}</span>
         </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-red-500" aria-hidden="true" />
       </header>
@@ -339,7 +336,11 @@ function AnswerCard({ turn, onAsk }) {
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           {provenances.map((label) => (
-            <Badge key={label.label} tone={label.label === "Counted" || label.label === "Register" ? "blue" : label.label === "Scenario" ? "flag" : "ink"} title={label.note}>
+            <Badge
+              key={label.label}
+              tone={label.label === "Counted" || label.label === "Register" ? "blue" : label.label === "Scenario" ? "flag" : "ink"}
+              title={label.note}
+            >
               {label.label} · {label.note}
             </Badge>
           ))}
@@ -426,6 +427,10 @@ function AnswerCard({ turn, onAsk }) {
         </div>
       )}
 
+      {turn.visual && <AskVisuals visual={turn.visual} />}
+
+      {turn.analysis && (turn.analysis.numbers?.length > 0 || turn.analysis.breakdown?.bars?.length > 0) && <Analysis analysis={turn.analysis} />}
+
       {turn.sections?.length > 0 && (
         <div className="border-b border-dash-line">
           {turn.sections.length > 1 && (
@@ -448,7 +453,7 @@ function AnswerCard({ turn, onAsk }) {
               ))}
             </div>
           )}
-          {section && <Table key={`${turn.id}-${active}`} section={section} />}
+          {section && <Table key={`${turn.id}-${active}`} section={section} turn={turn} index={active} />}
         </div>
       )}
 
@@ -489,6 +494,92 @@ function AnswerCard({ turn, onAsk }) {
   );
 }
 
+/* ══════════════════════════════════════════════════════════════ analysis */
+
+const BAR_TONE = {
+  held: "bg-blue-600",
+  cleared: "bg-blue-500",
+  slipped: "bg-blue-300",
+  reach: "bg-flagged",
+  beyond: "bg-ink-300",
+  ink: "bg-blue-900",
+};
+
+/**
+ * The analysis under an answer: the figures that explain it, and one picture
+ * of how the places spread. Computed on the server (lib/ask/insight.js); this
+ * only lays it out.
+ */
+function Analysis({ analysis }) {
+  const { numbers = [], breakdown = null } = analysis;
+  const bars = breakdown?.bars ?? [];
+  const signed = Boolean(breakdown?.signed);
+  const top = Math.max(...bars.map((bar) => (signed ? Math.abs(bar.value ?? 0) : (bar.max ?? bar.value ?? 0))), 1);
+
+  return (
+    <div className={cn("grid border-b border-dash-line", bars.length > 0 && numbers.length > 0 && "lg:grid-cols-[1.1fr_1fr]")}>
+      {numbers.length > 0 && (
+        <section className="px-4 py-4 sm:px-5">
+          <h4 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">By the numbers</h4>
+          <dl className="mt-2.5 grid gap-x-5 gap-y-3 sm:grid-cols-2">
+            {numbers.map((entry) => (
+              <div key={entry.label} className="border-l-2 border-dash-line pl-3">
+                <dt className="text-[0.75rem] leading-snug text-dash-muted">{entry.label}</dt>
+                <dd
+                  className={cn(
+                    "figure mt-0.5 font-display text-[1.0625rem] font-bold tabular-nums",
+                    entry.tone === "warn" ? "text-red-500" : "text-dash-ink"
+                  )}
+                >
+                  {entry.value}
+                </dd>
+                {entry.note && <dd className="text-[0.6875rem] leading-snug text-dash-muted">{entry.note}</dd>}
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      {bars.length > 0 && (
+        <section className={cn("px-4 py-4 sm:px-5", numbers.length > 0 && "border-t border-dash-line lg:border-t-0 lg:border-l")}>
+          <h4 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">Breakdown</h4>
+          <p className="mt-1 text-[0.8125rem] font-semibold text-dash-ink">{breakdown.title}</p>
+          <ul className="mt-3 space-y-1.5">
+            {bars.map((bar) => {
+              const value = Number(bar.value ?? 0);
+              const width = Math.max(0, Math.min(100, (Math.abs(value) / (signed ? top : (bar.max ?? top))) * (signed ? 50 : 100)));
+              return (
+                <li key={bar.label} className="grid grid-cols-[minmax(0,8.5rem)_1fr_auto] items-center gap-2.5 text-[0.75rem]">
+                  <span className="truncate text-dash-muted" title={bar.label}>
+                    {bar.label}
+                  </span>
+                  <span className="relative h-2.5 bg-ink-100" aria-hidden="true">
+                    {signed && <span className="absolute inset-y-0 left-1/2 w-px bg-ink-300" />}
+                    <span
+                      className={cn("absolute inset-y-0", BAR_TONE[bar.tone] ?? BAR_TONE.ink)}
+                      style={
+                        signed
+                          ? value >= 0
+                            ? { left: "50%", width: `${width}%` }
+                            : { right: "50%", width: `${width}%` }
+                          : { left: 0, width: `${width}%` }
+                      }
+                    />
+                  </span>
+                  <span className="figure min-w-[3.5rem] text-right font-semibold text-dash-ink tabular-nums">{bar.display}</span>
+                </li>
+              );
+            })}
+          </ul>
+          {breakdown.line && (
+            <p className="mt-2 text-[0.6875rem] text-dash-muted">Blue at or over the {breakdown.line}; orange within five points of it.</p>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
 const BADGE = {
   blue: "bg-blue-50 text-blue-800 border-blue-100",
   ink: "bg-ink-100 text-ink-700 border-ink-200",
@@ -498,7 +589,10 @@ const BADGE = {
 
 function Badge({ tone = "ink", title, children }) {
   return (
-    <span title={title} className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.6875rem] font-semibold", BADGE[tone])}>
+    <span
+      title={title}
+      className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[0.6875rem] font-semibold", BADGE[tone])}
+    >
       {children}
     </span>
   );
@@ -515,47 +609,161 @@ const STATUS_PILL = {
   unknown: "bg-ink-50 text-ink-400",
 };
 
-function Table({ section }) {
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState(null);
+/** The answer as the server sealed it — what every page and file is asked for with. */
+const sealed = (turn) => ({
+  id: turn.id,
+  question: turn.question,
+  askedAt: turn.askedAt,
+  engine: turn.engine,
+  plans: turn.plans,
+  answer: turn.answer,
+});
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let list = q
-      ? section.rows.filter((row) =>
-          section.columns.some((column) => column.kind === "text" && String(row[column.key] ?? "").toLowerCase().includes(q))
-        )
-      : section.rows;
-    if (sort) {
-      const column = section.columns.find((entry) => entry.key === sort.key);
-      list = [...list].sort((a, b) => {
-        const x = column?.kind === "status" ? a.status_label : a[sort.key];
-        const y = column?.kind === "status" ? b.status_label : b[sort.key];
-        if (x === null || x === undefined) return 1;
-        if (y === null || y === undefined) return -1;
-        return (x > y ? 1 : x < y ? -1 : 0) * (sort.dir === "asc" ? 1 : -1);
-      });
+async function fetchRows(turn, section, { offset = 0, limit = 100, query = "", sort = null } = {}) {
+  const response = await fetch("/api/ask/rows", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      payload: sealed(turn),
+      token: turn.token,
+      section,
+      offset,
+      limit,
+      query,
+      sort,
+    }),
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok || !body) throw new Error(body?.error ?? "Those rows could not be read just now.");
+  return body;
+}
+
+const PAGE = 100;
+
+/**
+ * Every row of a table, a page at a time.
+ *
+ * The answer arrives with its first rows; every other page, every search and
+ * every sort is read from the server across all the rows — all 176,623
+ * polling units if that is what the answer holds — so nothing is hidden
+ * behind "the first 250".
+ */
+function Table({ section, turn, index }) {
+  const [page, setPage] = useState(0);
+  const [query, setQuery] = useState("");
+  const [applied, setApplied] = useState({ query: "", sort: null });
+  const [view, setView] = useState(() => ({
+    rows: section.rows.slice(0, PAGE),
+    matched: section.total,
+  }));
+  const [loading, setLoading] = useState(false);
+  const [problem, setProblem] = useState(null);
+  const timer = useRef(null);
+  const asked = useRef(0);
+
+  const load = useCallback(
+    async (nextPage, nextApplied) => {
+      setPage(nextPage);
+      setApplied(nextApplied);
+      setProblem(null);
+      /* The first page as it arrived, when nothing is searched or sorted. */
+      if (nextPage === 0 && !nextApplied.query && !nextApplied.sort && section.rows.length >= Math.min(PAGE, section.total)) {
+        setView({ rows: section.rows.slice(0, PAGE), matched: section.total });
+        return;
+      }
+      const ticket = (asked.current += 1);
+      setLoading(true);
+      try {
+        const result = await fetchRows(turn, index, {
+          offset: nextPage * PAGE,
+          limit: PAGE,
+          query: nextApplied.query,
+          sort: nextApplied.sort,
+        });
+        if (ticket === asked.current) setView({ rows: result.rows, matched: result.matched });
+      } catch (failure) {
+        if (ticket === asked.current) setProblem(failure.message);
+      } finally {
+        if (ticket === asked.current) setLoading(false);
+      }
+    },
+    [section, turn, index]
+  );
+
+  const pages = Math.max(1, Math.ceil(view.matched / PAGE));
+  const from = view.matched ? page * PAGE + 1 : 0;
+  const to = Math.min(view.matched, (page + 1) * PAGE);
+  const sort = applied.sort;
+
+  /* A table arranged by state (or local government) is headed at each one —
+     while it is read in that arrangement. A search or a sort re-orders the
+     rows, and the headings would then mislead, so they step aside. */
+  const groups = section.groups ?? null;
+  const banded = Boolean(groups?.length) && !applied.query && !applied.sort;
+  const groupFor = (at) => {
+    let low = 0;
+    let high = groups.length - 1;
+    while (low < high) {
+      const mid = (low + high + 1) >> 1;
+      if (groups[mid].first <= at) low = mid;
+      else high = mid - 1;
     }
-    return list;
-  }, [section, query, sort]);
+    return groups[low];
+  };
+  const bandAt = (at, top) => {
+    const group = groupFor(at);
+    if (group.first === at) return { group, continued: false };
+    return top ? { group, continued: true } : null;
+  };
+  const current = banded ? groupFor(page * PAGE) : null;
 
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-5">
         <p className="text-[0.8125rem] font-semibold text-dash-ink">{section.title}</p>
-        <label className="flex h-9 items-center gap-2 rounded-dash-sm border border-dash-line px-2.5 text-dash-muted focus-within:border-blue-300">
-          <Search size={14} aria-hidden="true" />
-          <span className="sr-only">Find in this table</span>
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Find a place"
-            className="w-36 bg-transparent text-[0.8125rem] text-dash-ink outline-none placeholder:text-dash-muted/70"
-          />
-        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          {groups?.length > 1 && (
+            <label className="flex h-9 items-center gap-2 rounded-dash-sm border border-dash-line px-2.5 text-[0.8125rem] text-dash-muted focus-within:border-blue-300">
+              <span>Go to</span>
+              <select
+                value={current ? String(current.first) : ""}
+                onChange={(event) => {
+                  const first = Number(event.target.value);
+                  setQuery("");
+                  clearTimeout(timer.current);
+                  load(Math.floor(first / PAGE), { query: "", sort: null });
+                }}
+                className="max-w-[14rem] bg-transparent font-semibold text-dash-ink outline-none"
+              >
+                {!current && <option value="">{section.group?.name === "state" ? "A state" : "A local government"}</option>}
+                {groups.map((group) => (
+                  <option key={group.first} value={String(group.first)}>
+                    {group.name} ({fmtInt(group.count)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="flex h-9 items-center gap-2 rounded-dash-sm border border-dash-line px-2.5 text-dash-muted focus-within:border-blue-300">
+            {loading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Search size={14} aria-hidden="true" />}
+            <span className="sr-only">Find in this table</span>
+            <input
+              value={query}
+              onChange={(event) => {
+                const next = event.target.value;
+                setQuery(next);
+                clearTimeout(timer.current);
+                /* Searched across every row, not only the page on screen. */
+                timer.current = setTimeout(() => load(0, { query: next.trim(), sort: applied.sort }), 350);
+              }}
+              placeholder={`Find among all ${fmtInt(section.total)}`}
+              className="w-44 bg-transparent text-[0.8125rem] text-dash-ink outline-none placeholder:text-dash-muted/70"
+            />
+          </label>
+        </div>
       </div>
 
-      <div className="max-h-[32rem] overflow-auto border-t border-dash-line">
+      <div className={cn("max-h-[32rem] overflow-auto border-t border-dash-line transition-opacity", loading && "opacity-60")}>
         <table className="w-full min-w-[44rem] border-collapse text-[0.8125rem]">
           <thead className="sticky top-0 z-[1] bg-blue-900 text-white">
             <tr>
@@ -571,11 +779,19 @@ function Table({ section }) {
                     <button
                       type="button"
                       onClick={() =>
-                        setSort((current) =>
-                          current?.key === column.key
-                            ? { key: column.key, dir: current.dir === "desc" ? "asc" : "desc" }
-                            : { key: column.key, dir: isNumeric(column) ? "desc" : "asc" }
-                        )
+                        load(0, {
+                          query: applied.query,
+                          sort:
+                            sort?.key === column.key
+                              ? {
+                                  key: column.key,
+                                  dir: sort.dir === "desc" ? "asc" : "desc",
+                                }
+                              : {
+                                  key: column.key,
+                                  dir: isNumeric(column) ? "desc" : "asc",
+                                },
+                        })
                       }
                       className="inline-flex items-center gap-1 hover:text-white/80"
                     >
@@ -588,28 +804,59 @@ function Table({ section }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={`${row.key ?? row.name}-${index}`} className="border-b border-dash-line odd:bg-white even:bg-ink-50/70 hover:bg-blue-50/60">
-                {section.columns.map((column) => (
-                  <td
-                    key={column.key}
-                    className={cn(
-                      "px-3 py-1.5 align-middle whitespace-nowrap",
-                      isNumeric(column) || column.numericLook ? "figure text-right tabular-nums" : "text-left",
-                      column.main && "font-semibold text-dash-ink",
-                      column.mono && "font-mono text-[0.75rem] text-dash-muted",
-                      !column.main && !column.mono && !isNumeric(column) && "text-dash-muted"
-                    )}
-                  >
-                    <Cell column={column} row={row} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-            {!rows.length && (
+            {view.rows.map((row, rowIndex) => {
+              const opens = banded ? bandAt(page * PAGE + rowIndex, rowIndex === 0) : null;
+              return (
+                <Fragment key={`${row.key ?? row.name}-${rowIndex}`}>
+                  {opens && (
+                    <tr className="border-b border-dash-line bg-blue-50">
+                      <td colSpan={section.columns.length} className="border-l-[3px] border-l-navy-900 px-3 py-1.5">
+                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="font-bold text-navy-900">
+                            {opens.group.name}
+                            {opens.continued ? ", continued" : ""}
+                          </span>
+                          {opens.group.role && (
+                            <span
+                              className={cn(
+                                "inline-flex rounded-full px-2 py-0.5 text-[0.6875rem] font-bold",
+                                STATUS_PILL[opens.group.tone] ?? STATUS_PILL.unknown
+                              )}
+                            >
+                              {opens.group.role}
+                            </span>
+                          )}
+                          <span className="ml-auto text-[0.75rem] text-dash-muted">
+                            {fmtInt(opens.group.count)} {opens.group.count === 1 ? LEVEL_WORDS[section.level]?.one : LEVEL_WORDS[section.level]?.many}{" "}
+                            · rows {fmtInt(opens.group.first + 1)}–{fmtInt(opens.group.first + opens.group.count)}
+                          </span>
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  <tr className={cn("border-b border-dash-line hover:bg-blue-50/60", rowIndex % 2 ? "bg-ink-50/70" : "bg-white")}>
+                    {section.columns.map((column) => (
+                      <td
+                        key={column.key}
+                        className={cn(
+                          "px-3 py-1.5 align-middle whitespace-nowrap",
+                          isNumeric(column) || column.numericLook ? "figure text-right tabular-nums" : "text-left",
+                          column.main && "font-semibold text-dash-ink",
+                          column.mono && "font-mono text-[0.75rem] text-dash-muted",
+                          !column.main && !column.mono && !isNumeric(column) && "text-dash-muted"
+                        )}
+                      >
+                        <Cell column={column} row={row} />
+                      </td>
+                    ))}
+                  </tr>
+                </Fragment>
+              );
+            })}
+            {!view.rows.length && !loading && (
               <tr>
                 <td colSpan={section.columns.length} className="px-4 py-8 text-center text-dash-muted">
-                  Nothing in this table matches “{query}”.
+                  {applied.query ? `Nothing among all ${fmtInt(section.total)} matches “${applied.query}”.` : "Nothing to list here."}
                 </td>
               </tr>
             )}
@@ -617,16 +864,38 @@ function Table({ section }) {
         </table>
       </div>
 
-      <p className="px-4 py-2.5 text-[0.75rem] text-dash-muted sm:px-5">
-        {section.total > section.rows.length
-          ? `Showing the first ${fmtInt(section.rows.length)} of ${fmtInt(section.total)}. ${
-              section.total > 12000
-                ? "The CSV and XML carry up to 12,000 rows — for every polling unit on a list this long, ask for one state at a time."
-                : "The CSV and XML carry every one."
-            }`
-          : `${fmtInt(section.total)} ${section.total === 1 ? "row" : "rows"}.`}
-        {section.limited ? ` Cut at ${fmtInt(section.limited)}, as asked.` : ""}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5">
+        <p className="text-[0.75rem] text-dash-muted" aria-live="polite">
+          {view.matched
+            ? `Rows ${fmtInt(from)}–${fmtInt(to)} of ${fmtInt(view.matched)}${applied.query ? ` matching “${applied.query}” (of ${fmtInt(section.total)})` : ""}.`
+            : ""}
+          {section.limited ? ` Cut at ${fmtInt(section.limited)}, as asked.` : ""}
+          {problem ? ` ${problem}` : ""}
+        </p>
+        {pages > 1 && (
+          <div className="flex items-center gap-1" role="group" aria-label="Pages">
+            {[
+              { label: "First", to: 0, disabled: page === 0 },
+              { label: "Previous", to: page - 1, disabled: page === 0 },
+              { label: "Next", to: page + 1, disabled: page >= pages - 1 },
+              { label: "Last", to: pages - 1, disabled: page >= pages - 1 },
+            ].map((control) => (
+              <button
+                key={control.label}
+                type="button"
+                disabled={control.disabled || loading}
+                onClick={() => load(control.to, applied)}
+                className="h-8 rounded-dash-sm border border-dash-line px-2.5 text-[0.75rem] font-semibold text-dash-ink transition-colors hover:border-blue-300 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-dash-ink"
+              >
+                {control.label}
+              </button>
+            ))}
+            <span className="ml-1 text-[0.75rem] text-dash-muted tabular-nums">
+              Page {fmtInt(page + 1)} of {fmtInt(pages)}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -664,53 +933,140 @@ function Cell({ column, row }) {
 /* ══════════════════════════════════════════════════════════════ files */
 
 const FORMATS = [
-  { id: "pdf", label: "PDF brief", note: "Branded, ready to print or send", icon: FileText },
-  { id: "csv", label: "CSV", note: "Every row, opens in Excel", icon: FileSpreadsheet },
-  { id: "xml", label: "XML", note: "Structured, for other systems", icon: Braces },
+  {
+    id: "pdf",
+    label: "PDF brief",
+    note: "Branded, every row of every table",
+    icon: FileText,
+  },
+  {
+    id: "csv",
+    label: "CSV",
+    note: "Every row of every table, opens in Excel",
+    icon: FileSpreadsheet,
+  },
+  {
+    id: "xml",
+    label: "XML",
+    note: "Every row, structured for other systems",
+    icon: Braces,
+  },
 ];
 
+/* Rows fetched per request when a whole table is gathered into a file. */
+const FILE_PAGE = 10000;
+
+/* The browser's own compressor, in the form a PDF's FlateDecode reads. */
+async function deflate(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function save(name, blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/**
+ * The files.
+ *
+ * ── THE CSV AND XML CARRY EVERY ROW ─────────────────────────────────────
+ * A deployed function returns a few megabytes, and every polling unit in the
+ * country is about thirty. So the CSV and the XML are put together here, in
+ * the browser, from the answer's own rows fetched a page at a time — every
+ * row of every table, into one file. The PDF is a brief to print: it is
+ * drawn on the server and carries the head of each table.
+ */
 function Downloads({ turn }) {
   const [busy, setBusy] = useState(null);
+  const [progress, setProgress] = useState(null);
   const [problem, setProblem] = useState(null);
+
+  async function gatherEveryRow() {
+    const grand = turn.sections.reduce((sum, entry) => sum + (entry.total ?? 0), 0) || 1;
+    let done = 0;
+    const out = [];
+    for (let at = 0; at < turn.sections.length; at += 1) {
+      const meta = turn.sections[at];
+      const rows = [];
+      for (let offset = 0; offset < meta.total; offset += FILE_PAGE) {
+        const page = await fetchRows(turn, at, { offset, limit: FILE_PAGE });
+        for (const row of page.rows) rows.push(row);
+        done += page.rows.length;
+        setProgress({
+          gathering: Math.min(99, Math.round((done / grand) * 100)),
+        });
+        if (!page.rows.length) break;
+      }
+      out.push({ ...meta, rows });
+    }
+    return out;
+  }
 
   async function take(format) {
     setBusy(format);
     setProblem(null);
+    setProgress(null);
     try {
-      const response = await fetch("/api/ask/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          format,
-          token: turn.token,
-          payload: {
-            id: turn.id,
-            question: turn.question,
-            askedAt: turn.askedAt,
-            engine: turn.engine,
-            plans: turn.plans,
-            answer: turn.answer,
+      const sections = await gatherEveryRow();
+      if (format === "pdf") {
+        /* The whole brief, every row of every table, drawn here: a document of
+           thousands of pages is far over what one server response can carry. */
+        let geometry = null;
+        if (turn.visual?.map) {
+          try {
+            const outlines = await fetch(`/geo/${outlineFile(turn.visual.map)}`).then((response) => (response.ok ? response.json() : null));
+            if (outlines) geometry = regionsFor(turn.visual.map, outlines);
+          } catch {
+            geometry = null;
+          }
+        }
+        const chunks = await briefPdf(
+          {
+            payload: sealed(turn),
+            sections,
+            understood: turn.understood ?? [],
+            scopeName: turn.scope?.name ?? "Nigeria",
+            madeAt: new Date(),
+            analysis: turn.analysis ?? null,
+            visual: turn.visual ?? null,
+            geometry,
           },
-        }),
-      });
-      if (!response.ok) {
-        const text = await response.text().catch(() => "");
-        throw new Error(text || "The file could not be made.");
+          {
+            compress: deflate,
+            onProgress: ({ page, pages }) => setProgress({ drawing: true, page, pages }),
+          }
+        );
+        save(`${fileStem(turn.question)}.pdf`, new Blob(chunks, { type: "application/pdf" }));
+        return;
       }
-      const blob = await response.blob();
-      const named = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") ?? "")?.[1];
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = named ?? `poll360-ask.${format}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      const input = {
+        payload: sealed(turn),
+        sections,
+        understood: turn.understood ?? [],
+        scopeName: turn.scope?.name ?? "Nigeria",
+        madeAt: new Date(),
+        analysis: turn.analysis ?? null,
+      };
+      if (format === "csv") save(`${fileStem(turn.question)}.csv`, new Blob([briefCsv(input)], { type: "text/csv;charset=utf-8" }));
+      else
+        save(
+          `${fileStem(turn.question)}.xml`,
+          new Blob([briefXml(input)], {
+            type: "application/xml;charset=utf-8",
+          })
+        );
     } catch (failure) {
       setProblem(failure.message);
     } finally {
       setBusy(null);
+      setProgress(null);
     }
   }
 
@@ -731,7 +1087,13 @@ function Downloads({ turn }) {
             </span>
             <span>
               <span className="block text-[0.8125rem] font-bold">{format.label}</span>
-              <span className="block text-[0.6875rem] text-dash-muted group-hover:text-white/70">{format.note}</span>
+              <span className="block text-[0.6875rem] text-dash-muted group-hover:text-white/70">
+                {busy === format.id && progress
+                  ? progress.drawing
+                    ? `Drawing page ${fmtInt(progress.page)} of ${fmtInt(progress.pages)}…`
+                    : `Gathering every row… ${progress.gathering}%`
+                  : format.note}
+              </span>
             </span>
           </button>
         ))}

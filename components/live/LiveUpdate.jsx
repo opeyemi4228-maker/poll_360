@@ -1,6 +1,6 @@
-import { MapPin, Clock, Radio } from "lucide-react";
+import { MapPin, Clock, Radio, CornerDownRight, Ban } from "lucide-react";
 
-import { hasCard, kindLabel, platformLabel } from "@/lib/broadcast";
+import { correctedBy, correctionOf, hasCard, kindLabel, platformLabel } from "@/lib/broadcast";
 import { basisLine, stampFor } from "@/lib/stamp";
 
 /**
@@ -24,13 +24,47 @@ export default function LiveUpdate({ item, deliveries = [], headingLevel = "h1",
   const figures = payload.figures ?? null;
   const Heading = headingLevel;
   const posted = deliveries.filter((row) => row.status === "SENT" && row.remoteUrl);
-  const card = hasCard(item);
+  /* A correction that has gone out against this update, and — if this is
+     itself a correction — the update it puts right. */
+  const fixed = correctedBy(item);
+  const withdrawn = fixed?.mode === "retract";
+  const fixes = correctionOf(item);
+  /* A withdrawn update keeps its address but not its picture: the card is
+     the thing people repost, and the picture route no longer serves it. */
+  const card = hasCard(item) && !withdrawn;
   const breaking = item.kind === "BANNER";
   const programme = item.kind === "VIDEO" || item.kind === "PROGRAMME";
   const watch = programme ? payload.stage ?? null : null;
 
   return (
     <article className="overflow-hidden rounded-dash border border-dash-line bg-dash-card">
+      {/* ── PUT RIGHT, ON TOP ─────────────────────────────────────────────
+          Above the picture, not beneath the words: somebody who landed here
+          from a repost reads the top of the card and nothing else. */}
+      {fixed && (
+        <a
+          href={`/live/${fixed.id}`}
+          className={
+            withdrawn
+              ? "flex items-start gap-2.5 bg-red-600 px-5 py-3 text-white hover:bg-red-700 sm:px-6"
+              : "tone-warn flex items-start gap-2.5 border-b px-5 py-3 hover:brightness-95 sm:px-6"
+          }
+        >
+          {withdrawn ? (
+            <Ban size={17} strokeWidth={2.5} aria-hidden="true" className="mt-0.5 shrink-0" />
+          ) : (
+            <CornerDownRight size={17} strokeWidth={2.5} aria-hidden="true" className="mt-0.5 shrink-0" />
+          )}
+          <span className="text-[0.875rem] leading-snug">
+            <span className="font-extrabold">{withdrawn ? "Withdrawn." : "Corrected."}</span>{" "}
+            {withdrawn
+              ? "We have withdrawn this update. Read why"
+              : "Part of this update was wrong. Read the correction"}
+            <span aria-hidden="true"> →</span>
+          </span>
+        </a>
+      )}
+
       {/* The card itself, the same file every platform received. */}
       {card && (
         <>
@@ -83,6 +117,15 @@ export default function LiveUpdate({ item, deliveries = [], headingLevel = "h1",
             <span className="text-dash-muted">{kindLabel(item.kind)}</span>
           )}
         </p>
+
+        {fixes && (
+          <p className="mt-2 text-[0.8125rem] font-semibold text-dash-muted">
+            {fixes.mode === "retract" ? "Withdraws" : "Corrects"} an earlier update:{" "}
+            <a href={`/live/${fixes.id}`} className="text-dash-ink underline underline-offset-2 hover:no-underline">
+              {fixes.title}
+            </a>
+          </p>
+        )}
 
         <Heading className="mt-2 font-display text-[1.375rem] leading-tight font-extrabold tracking-[-0.02em] text-dash-ink sm:text-[1.625rem]">
           {linkTo ? (

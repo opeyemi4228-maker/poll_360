@@ -33,15 +33,17 @@ import { cn } from "@/lib/utils";
 
 /* Who is looking, and what they may do — read by every card without being
    threaded through six components that have no other use for it. */
-const DeskContext = createContext({ user: null, may: {}, deliveries: {}, channels: [], wire: null });
+const DeskContext = createContext({ user: null, may: {}, deliveries: {}, channels: [], wire: null, now: null });
 
 /* `deliveries` is what each platform did with each post and `channels` is
    which platforms are set up — carried here for the same reason `may` is:
    every card needs them and nothing between the room and the card does. */
-export function DeskProvider({ user, may, deliveries, channels, wire, children }) {
+export function DeskProvider({ user, may, deliveries, channels, wire, now = null, children }) {
+  /* `now` is the desk's one clock (see DeskClock.js): null until the page is
+     in the browser, then re-read every few seconds for the countdowns. */
   const value = useMemo(
-    () => ({ user, may: may ?? {}, deliveries: deliveries ?? {}, channels: channels ?? [], wire: wire ?? null }),
-    [user, may, deliveries, channels, wire]
+    () => ({ user, may: may ?? {}, deliveries: deliveries ?? {}, channels: channels ?? [], wire: wire ?? null, now }),
+    [user, may, deliveries, channels, wire, now]
   );
   return <DeskContext.Provider value={value}>{children}</DeskContext.Provider>;
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PoweredBy from "@/components/ui/PoweredBy";
 import { ArrowLeft } from "lucide-react";
 
 import LoginForm from "@/components/auth/LoginForm";
@@ -65,6 +66,8 @@ export default function LoginPage() {
             <Reveal delay={180}>
               <LoginForm />
             </Reveal>
+
+            <PoweredBy className="mt-10 text-content-muted" />
           </div>
         </div>
       </div>

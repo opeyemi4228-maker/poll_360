@@ -28,7 +28,8 @@ import { cn } from "@/lib/utils";
  * Arrow keys move between sections, as any tablist is expected to.
  * ───────────────────────────────────────────────────────────────────────────
  */
-export default function SectionTabs({ label, items, value, onChange, tone = "light", className }) {
+export default function SectionTabs({ label, items, value, onChange, tone = "light", size = "md", className }) {
+  const small = size === "sm";
   const dark = tone === "dark";
   const listRef = useRef(null);
 
@@ -52,7 +53,7 @@ export default function SectionTabs({ label, items, value, onChange, tone = "lig
         aria-label={label}
         onKeyDown={onKeyDown}
         className={cn(
-          "inline-flex items-center gap-1 rounded-full border p-1.5",
+          cn("inline-flex items-center gap-1 rounded-full border", small ? "p-1" : "p-1.5"),
           dark ? "border-blue-800 bg-blue-900" : "border-dash-line bg-dash-card"
         )}
       >
@@ -68,7 +69,9 @@ export default function SectionTabs({ label, items, value, onChange, tone = "lig
               tabIndex={active ? 0 : -1}
               onClick={() => onChange(item.id)}
               className={cn(
-                "inline-flex h-11 shrink-0 items-center gap-2.5 rounded-full px-5 text-[0.9375rem] font-semibold whitespace-nowrap transition-colors sm:px-6",
+                small
+                  ? "inline-flex h-9 shrink-0 items-center gap-2 rounded-full px-3.5 text-[0.8125rem] font-semibold whitespace-nowrap transition-colors sm:px-4"
+                  : "inline-flex h-11 shrink-0 items-center gap-2.5 rounded-full px-5 text-[0.9375rem] font-semibold whitespace-nowrap transition-colors sm:px-6",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2",
                 dark
                   ? active
@@ -79,7 +82,7 @@ export default function SectionTabs({ label, items, value, onChange, tone = "lig
                     : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink focus-visible:outline-dash-ink"
               )}
             >
-              {Icon && <Icon size={17} strokeWidth={2.25} aria-hidden="true" />}
+              {Icon && <Icon size={small ? 15 : 17} strokeWidth={2.25} aria-hidden="true" />}
               {item.label}
             </button>
           );

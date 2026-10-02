@@ -1,3 +1,4 @@
+import PoweredBy from "@/components/ui/PoweredBy";
 import DashRail from "./DashRail";
 import ElectionSwitcher from "./ElectionSwitcher";
 import DashDrawer from "./DashDrawer";
@@ -88,6 +89,7 @@ export default async function DashLayout({ user, title, lead, actions, screen = 
         <main id="main" className="px-5 py-6 lg:px-8 lg:py-8">
           {lead && <p className="mb-6 max-w-3xl text-[0.9375rem] text-dash-muted">{lead}</p>}
           {children}
+          <PoweredBy className="mt-10 border-t border-dash-line pt-4" />
         </main>
       </div>
 

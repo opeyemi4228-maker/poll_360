@@ -9,7 +9,20 @@ import { viewing } from "@/lib/viewing";
 import { socialPayload } from "@/lib/post-payload";
 import { isRace } from "@/lib/races";
 import { currentElection } from "@/lib/election-scope";
-import { KINDS, mayMove, stateLabel } from "@/lib/broadcast";
+import {
+  CORRECTION_MODES,
+  HOLD_MINUTES,
+  KINDS,
+  correctionOf,
+  correctionTitle,
+  embargoOf,
+  holdOf,
+  isEmbargoed,
+  mayCorrect,
+  mayMove,
+  stateLabel,
+} from "@/lib/broadcast";
+import { clockWAT } from "@/lib/stamp";
 import { captionFor, stampFor } from "@/lib/stamp";
 import { CHANNELS, readiness, sendEverywhere, verifyChannel } from "@/lib/publish";
 import { closeLive, openLive } from "@/lib/live-video";
@@ -45,6 +58,19 @@ import { site } from "@/lib/site";
  *  really matters. See lib/broadcast.js.
  * ══════════════════════════════════════════════════════════════════════════
  */
+
+/* ── WHAT ONLY THE SERVER WRITES INTO A PAYLOAD ─────────────────────────────
+   Which update a correction corrects, the correction that went out against an
+   update, and who is holding an item. A browser that could send these could
+   mark any post "corrected" or unpick a retraction, so they are stripped from
+   whatever arrives and carried across an edit from the stored row. */
+const SERVER_ONLY = ["corrects", "correctedBy", "hold"];
+const clean = (payload) =>
+  payload && typeof payload === "object"
+    ? Object.fromEntries(Object.entries(payload).filter(([key]) => !SERVER_ONLY.includes(key)))
+    : null;
+const kept = (payload) =>
+  Object.fromEntries(SERVER_ONLY.filter((key) => payload?.[key] != null).map((key) => [key, payload[key]]));
 
 /** Signed in, on this desk, holding this capability. */
 async function desk(capability) {
@@ -84,7 +110,10 @@ export async function draftItem(values) {
     scope: values?.scope ?? null,
     title,
     body: values?.body ? String(values.body) : null,
-    payload: kind === "SOCIAL" ? await socialPayload(values) : values?.payload ?? null,
+    payload:
+      kind === "SOCIAL"
+        ? await socialPayload({ ...values, payload: clean(values?.payload) })
+        : clean(values?.payload),
     platforms: values?.platforms ?? [],
     verdict: null,
     scheduledFor: values?.scheduledFor ? new Date(values.scheduledFor) : null,
@@ -144,6 +173,13 @@ export async function moveItem({ id, to, note = null, verdict = null }) {
     return { error: "Say why it was refused. The person who wrote it has to be able to fix it." };
   }
 
+  /* ── AN EMBARGO IS A RULE, NOT A REMINDER ────────────────────────────────
+     Checked here, at the press, whoever presses and however: the tick-many
+     bar, the keyboard and the card all arrive at this line. */
+  if (to === "ON_AIR" && isEmbargoed(item, Date.now())) {
+    return { error: `Embargoed until ${clockWAT(embargoOf(item))}. It cannot go out before then.` };
+  }
+
   const moved = await broadcastItems.setState(item.id, to, {
     actorId: user.id,
     actorName: user.name,
@@ -180,13 +216,17 @@ export async function moveItem({ id, to, note = null, verdict = null }) {
      the second one has been skipped. */
   let sent = null;
   let also = null;
+  if (to === "ON_AIR") await applyCorrection(item, user);
   if (item.kind === "SOCIAL" && to === "ON_AIR") {
     sent = await publishPost({ ...item, state: "ON_AIR" }, user);
+  } else if (item.kind === "SOCIAL" && to === "CLEARED" && item.payload?.sendOnClear && isEmbargoed(item, Date.now())) {
+    also = `Cleared. It is embargoed until ${clockWAT(embargoOf(item))} and goes out then, from any desk that is open.`;
   } else if (item.kind === "SOCIAL" && to === "CLEARED" && item.payload?.sendOnClear) {
     if (can(user.role, "broadcast:air")) {
       const aired = await broadcastItems.setState(item.id, "ON_AIR", { actorId: user.id, actorName: user.name, from: "CLEARED" });
       if (aired) {
         await log(user, "broadcast:on_air", item.id, { kind: item.kind, title: item.title, from: "CLEARED", automatic: true });
+        await applyCorrection(item, user);
         sent = await publishPost({ ...item, state: "ON_AIR" }, user);
       }
     } else {
@@ -223,8 +263,13 @@ export async function editDraft({ id, ...values }) {
      a draft, so an edit is not a way round `socialPayload`. */
   const payload =
     item.kind === "SOCIAL" && values.payload
-      ? await socialPayload({ scope: item.scope, race: item.race, payload: { ...(item.payload ?? {}), ...values.payload } })
-      : values.payload ?? null;
+      ? await socialPayload(
+          { scope: item.scope, race: item.race, payload: { ...(item.payload ?? {}), ...clean(values.payload) } },
+          { keep: kept(item.payload) }
+        )
+      : values.payload
+        ? { ...clean(values.payload), ...kept(item.payload) }
+        : null;
 
   await broadcastItems.update(item.id, {
     title: values.title ? String(values.title).trim() : null,
@@ -662,4 +707,163 @@ function liveSummary(live) {
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CORRECTIONS, HOLDS AND EMBARGOES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Once a correction is on air, mark the update it corrects — and, for a
+ * retraction, take that update off the wire.
+ *
+ * Only here, at air: a correction still waiting for an editor changes nothing
+ * a reader can see. The original is found by id and must belong to the same
+ * election, so a correction cannot reach across into another project.
+ */
+async function applyCorrection(item, user) {
+  const target = correctionOf(item);
+  if (!target) return;
+  const original = await broadcastItems.get(target.id);
+  if (!original || original.electionId !== item.electionId) return;
+
+  await broadcastItems.update(original.id, {
+    payload: {
+      ...(original.payload ?? {}),
+      correctedBy: { id: item.id, mode: target.mode, title: item.title, at: new Date().toISOString() },
+    },
+  });
+  if (target.mode === "retract" && original.state === "ON_AIR") {
+    await broadcastItems.setState(original.id, "OFF_AIR", {
+      actorId: user.id,
+      actorName: user.name,
+      note: "Withdrawn with a published retraction.",
+      from: "ON_AIR",
+    });
+  }
+  await log(user, `broadcast:${target.mode === "retract" ? "retracted" : "corrected"}`, original.id, {
+    title: original.title,
+    by: item.id,
+  });
+}
+
+/**
+ * Write a correction to, or a withdrawal of, an update that has gone out.
+ *
+ * It goes straight to an editor: a correction is written because something
+ * was wrong, and it is the one kind of update that must not sit forgotten in
+ * somebody's drafts. It is aimed at the same platforms as the original, and
+ * set to go out the moment it is cleared.
+ */
+export async function draftCorrection({ id, mode = "correct", body = "" }) {
+  const { user, error } = await desk("broadcast:draft");
+  if (error) return { error };
+  if (!CORRECTION_MODES[mode]) return { error: "Choose whether to correct it or withdraw it." };
+
+  const original = await broadcastItems.get(String(id ?? ""));
+  if (!original) return { error: "That update is no longer on the desk." };
+  if (!mayCorrect(original)) {
+    return { error: "Only an update that has gone out, and has not already been withdrawn, can be corrected." };
+  }
+
+  const words = String(body ?? "").trim();
+  if (words.length < 12) {
+    return {
+      error:
+        mode === "retract"
+          ? "Say why it is being withdrawn. Readers who saw it are owed the reason."
+          : "Say what the right version is. A correction that does not say what changed is not one.",
+    };
+  }
+
+  const corrects = { id: original.id, mode, title: original.title };
+  const social = original.kind !== "BANNER";
+  const newId = await broadcastItems.create({
+    electionId: original.electionId,
+    kind: social ? "SOCIAL" : "BANNER",
+    state: "DRAFT",
+    race: original.race,
+    scope: original.scope,
+    title: correctionTitle(mode, original),
+    body: words,
+    payload: social
+      ? await socialPayload(
+          {
+            scope: original.scope ?? "NATION",
+            race: original.race,
+            payload: { format: "situation", headline: CORRECTION_MODES[mode].label, sendOnClear: true },
+          },
+          { keep: { corrects } }
+        )
+      : { corrects },
+    platforms: original.platforms ?? [],
+    createdBy: user.id,
+    createdName: user.name,
+  });
+  await log(user, "broadcast:drafted", newId, { kind: "CORRECTION", title: original.title, mode });
+
+  await broadcastItems.setState(newId, "REVIEW", { actorId: user.id, actorName: user.name, from: "DRAFT" });
+  await log(user, "broadcast:review", newId, { kind: "CORRECTION", from: "DRAFT" });
+
+  revalidatePath("/room");
+  return {
+    ok: true,
+    id: newId,
+    said: `${CORRECTION_MODES[mode].label} sent to an editor. The original ${mode === "retract" ? "comes down" : "is marked"} the moment it goes out.`,
+  };
+}
+
+/**
+ * Take an item — "I've got this" — or let it go.
+ *
+ * Advice for the other editors, not a lock: it runs out by itself after a few
+ * minutes, and the database still decides which press wins.
+ */
+export async function holdItem({ id, release = false }) {
+  const { user, error } = await desk("broadcast:clear");
+  if (error) return { error };
+
+  const item = await broadcastItems.get(String(id ?? ""));
+  if (!item) return { error: "That item is no longer on the desk." };
+  if (item.state !== "REVIEW" && item.state !== "CLEARED") return { error: "Only an item waiting for an editor can be taken." };
+
+  const now = Date.now();
+  const current = holdOf(item, now);
+  if (release) {
+    if (current?.by !== user.id) return { ok: true };
+    await broadcastItems.update(item.id, { payload: { ...(item.payload ?? {}), hold: null } });
+  } else {
+    if (current && current.by !== user.id) return { error: `${current.name ?? "Another editor"} is already on this.` };
+    const until = new Date(now + HOLD_MINUTES * 60_000).toISOString();
+    await broadcastItems.update(item.id, { payload: { ...(item.payload ?? {}), hold: { by: user.id, name: user.name, until } } });
+  }
+  revalidatePath("/room");
+  return { ok: true };
+}
+
+/**
+ * Send the posts whose embargo has just lifted and whose writer asked for them
+ * to go out on clearing.
+ *
+ * Called by any open desk when a clock it is showing reaches zero, so the
+ * release does not depend on one particular person being at their screen.
+ * Several desks may call at once; the database lets exactly one move each post.
+ */
+export async function releaseEmbargoed() {
+  const { user, error } = await desk("broadcast:air");
+  if (error) return { error };
+  const project = await currentElection();
+  if (!project) return { ok: true, released: 0 };
+
+  const now = Date.now();
+  const due = (await broadcastItems.all(project.id)).filter(
+    (item) => item.state === "CLEARED" && item.payload?.sendOnClear && embargoOf(item) && !isEmbargoed(item, now)
+  );
+  let released = 0;
+  for (const item of due) {
+    const answer = await moveItem({ id: item.id, to: "ON_AIR" });
+    if (answer?.ok) released += 1;
+  }
+  if (released) await log(user, "broadcast:embargo_lifted", null, { released });
+  return { ok: true, released };
 }
