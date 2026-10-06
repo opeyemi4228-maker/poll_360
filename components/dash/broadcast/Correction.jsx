@@ -58,7 +58,7 @@ export default function Correction({ item, initial = "correct", onClose }) {
         >
           <header className="flex items-start gap-3 border-b border-dash-line px-5 py-4">
             <div className="min-w-0 flex-1">
-              <p className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Put it right</p>
+              <p className="text-[0.75rem] font-medium text-dash-muted">Put it right</p>
               <h2 id="correction-title" className="mt-1 line-clamp-2 text-[1.0625rem] leading-snug font-extrabold">
                 {item.title}
               </h2>
@@ -84,7 +84,7 @@ export default function Correction({ item, initial = "correct", onClose }) {
                     <label
                       key={id}
                       className={cn(
-                        "flex cursor-pointer flex-col gap-1 rounded-dash-sm border-2 px-3.5 py-3 transition-colors",
+                        "flex cursor-pointer flex-col gap-1 rounded-dash-sm border px-3.5 py-3 transition-colors",
                         on ? (id === "retract" ? "border-red-600 bg-red-50" : "border-dash-ink bg-dash-bg") : "border-dash-line hover:border-dash-muted"
                       )}
                     >
@@ -101,7 +101,7 @@ export default function Correction({ item, initial = "correct", onClose }) {
             </fieldset>
 
             <label className="block">
-              <span className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+              <span className="text-[0.8125rem] font-medium text-dash-muted">
                 {retract ? "Why it is being withdrawn" : "What the right version is"}
               </span>
               <textarea

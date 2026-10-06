@@ -267,3 +267,23 @@ Both of these have been shared in plaintext and should be replaced:
 Neither is in the repository. `.env.local` is gitignored and every commit is
 scanned before it is made, but a credential that has been pasted into a chat
 should be treated as public.
+
+## INEC results (IReV)
+
+The INEC results screen at `/admin/irev` gathers INEC's published sheets into
+Data Bank's "INEC Result Datas" account. For it to work on the hosted site:
+
+- `DATABANK_DATABASE_URL` must be set. It saves there and nowhere else; with
+  no address the screen says Data Bank is not connected.
+- A reader key must be set for sheets to be read into figures:
+  `ANTHROPIC_API_KEY` (reads every sheet, paid per sheet) or, failing that,
+  `OCRSPACE_API_KEY` (clear sheets only, free plan has a daily limit).
+- Nothing runs on the host by itself. Gathering, the picture check, reading
+  and comparing move forward while any dashboard page is open in front of
+  somebody. For an election night with nobody at a screen, leave this running
+  on a machine: `npm run irev -- watch --read --commit`.
+- The account's tables bring themselves up to date the first time the screen
+  is opened after a deploy. There is nothing to run by hand.
+
+Sheets are fetched from INEC's storage through `/api/irev/sheet`, so the
+site's rule of loading no image from another host is unchanged.

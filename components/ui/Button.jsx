@@ -31,14 +31,22 @@ const button = cva(
         ghost: "border-transparent bg-transparent text-content-muted hover:text-content",
 
         /* ---- Dashboard variants ---------------------------------------
-           Rounded, because the app tier has a radius and the marketing
-           site does not. See --radius-dash in globals.css. */
-        dash: "rounded-dash-sm border-dash-ink bg-dash-ink text-white hover:border-red-600 hover:bg-red-600",
+           Rounded, sentence case and one weight lighter, because the app
+           tier is a working surface and the marketing site is a poster.
+           See --radius-dash in globals.css. */
+dash: "rounded-dash-sm border border-dash-ink bg-dash-ink font-semibold tracking-normal normal-case text-white hover:border-blue-700 hover:bg-blue-700",
         dashOutline:
-          "rounded-dash-sm border-dash-line bg-dash-card text-dash-ink hover:border-dash-ink",
-        /* Sits on the black rail. */
+          "rounded-dash-sm border border-dash-line bg-dash-card font-semibold tracking-normal normal-case text-dash-ink hover:border-dash-ink",
+        /* On the white rail, and in the navy panel. Reads the dashboard
+           tokens, so it inverts with whatever surface it is placed on. */
+        /* The rail's own once-a-night actions: a line, not a box. */
+        railQuiet:
+          "justify-start gap-3 rounded-dash-sm border-transparent bg-transparent px-3 font-medium tracking-normal normal-case text-dash-muted hover:bg-dash-bg hover:text-dash-ink rail-collapsed:justify-center rail-collapsed:px-0",
+        /* The same, as a square: one icon, named by its title. */
+        railIcon:
+          "shrink-0 rounded-dash-sm border-transparent bg-transparent text-dash-muted hover:bg-dash-bg hover:text-dash-ink",
         railGhost:
-          "rounded-dash-sm border-white/20 bg-transparent text-white/80 hover:border-white/60 hover:text-white",
+          "rounded-dash-sm border border-dash-line bg-transparent font-semibold tracking-normal normal-case text-dash-muted hover:border-dash-ink hover:text-dash-ink",
       },
       size: {
         sm: "h-9 px-3.5 text-[0.6875rem]",
@@ -48,6 +56,17 @@ const button = cva(
       },
       full: { true: "w-full", false: "" },
     },
+    /* The dashboard variants are sentence case, and sentence case at the
+       poster sizes above is too small to read: those sizes were drawn for
+       tracked capitals. So the same three size names resolve a step larger
+       for the app tier, here, rather than every call site choosing again. */
+    compoundVariants: [
+      { variant: ["dash", "dashOutline", "railGhost"], size: "sm", class: "h-10 px-4 text-[0.8125rem]" },
+      { variant: "railQuiet", size: "sm", class: "h-10 px-3 text-[0.8125rem]" },
+      { variant: "railIcon", size: "sm", class: "size-10 px-0" },
+      { variant: ["dash", "dashOutline", "railGhost"], size: "md", class: "h-11 px-5 text-[0.875rem]" },
+      { variant: ["dash", "dashOutline", "railGhost"], size: "lg", class: "h-12 px-6 text-[0.9375rem]" },
+    ],
     defaultVariants: { variant: "primary", size: "md", full: false },
   }
 );

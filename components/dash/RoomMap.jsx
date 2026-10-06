@@ -137,7 +137,7 @@ export default function RoomMap({
             onClick={() => setPlaying((value) => !value)}
             disabled={reduced}
             aria-label={playing ? "Pause" : "Play"}
-            className="inline-flex size-11 items-center justify-center rounded-dash-sm border-2 border-dash-line text-dash-ink transition-colors hover:border-dash-ink disabled:opacity-30"
+            className="inline-flex size-11 items-center justify-center rounded-dash-sm border border-dash-line text-dash-ink transition-colors hover:border-dash-ink disabled:opacity-30"
           >
             {playing ? <Pause size={15} strokeWidth={2.5} /> : <Play size={15} strokeWidth={2.5} />}
           </button>
@@ -145,7 +145,7 @@ export default function RoomMap({
             type="button"
             onClick={() => setCursor(board.opening)}
             aria-label="Replay from the start"
-            className="inline-flex size-11 items-center justify-center rounded-dash-sm border-2 border-dash-line text-dash-ink transition-colors hover:border-dash-ink"
+            className="inline-flex size-11 items-center justify-center rounded-dash-sm border border-dash-line text-dash-ink transition-colors hover:border-dash-ink"
           >
             <RotateCcw size={15} strokeWidth={2.5} />
           </button>
@@ -262,7 +262,7 @@ export default function RoomMap({
 
 
           {layer === "results" && (
-            <div className="rounded-dash border border-dash-line bg-dash-card/95 p-4 shadow-sm backdrop-blur">
+            <div className="rounded-dash border border-dash-line bg-dash-card/95 p-4 shadow-e2 backdrop-blur">
               <ul className="space-y-2">
                 {view.standings.map((party) => (
                   <li key={party.id} className="flex items-center gap-2">
@@ -286,7 +286,7 @@ export default function RoomMap({
 
         {/* The reading under the pointer. */}
         {active && (
-          <div className="pointer-events-none absolute top-4 right-4 w-64 rounded-dash border border-dash-line bg-dash-card/95 p-4 shadow-sm backdrop-blur">
+          <div className="pointer-events-none absolute top-4 right-4 w-64 rounded-dash border border-dash-line bg-dash-card/95 p-4 shadow-e2 backdrop-blur">
             <p className="font-display text-[1rem] font-extrabold text-dash-ink">{active.name}</p>
             <p className="figure mt-1 text-[0.8125rem] text-dash-muted">
               {describe(active, layer)}
@@ -408,7 +408,7 @@ function Ramp({ extent, layer }) {
 
   return (
     <div className="min-w-64 flex-1">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <p className="text-[0.75rem] font-medium text-dash-muted">
         {layer === "register"
           ? "People on the register"
           : layer === "turnout"

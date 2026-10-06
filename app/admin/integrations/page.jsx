@@ -107,7 +107,7 @@ export default async function IntegrationsPage() {
           other screen in the product treats it as connected. It gets a
           banner rather than a colour on a card somebody has to scroll to. */}
       {partial.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-start gap-3 rounded-dash border-2 border-amber-300 bg-amber-50 px-5 py-4">
+        <div className="mb-6 flex flex-wrap items-start gap-3 rounded-dash border border-amber-300 bg-amber-50 px-5 py-4">
           <TriangleAlert size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-amber-700" />
           <div className="min-w-0">
             <p className="font-display text-[0.9375rem] font-extrabold text-amber-900">
@@ -140,11 +140,11 @@ export default async function IntegrationsPage() {
                   </dt>
                   <dd className="shrink-0">
                     {key.set ? (
-                      <span className="text-[0.75rem] font-bold tracking-[0.06em] text-emerald-700 uppercase">
+                      <span className="text-[0.8125rem] font-medium text-emerald-700">
                         set
                       </span>
                     ) : (
-                      <span className="text-[0.75rem] font-bold tracking-[0.06em] text-dash-muted uppercase">
+                      <span className="text-[0.8125rem] font-medium text-dash-muted">
                         not set
                       </span>
                     )}

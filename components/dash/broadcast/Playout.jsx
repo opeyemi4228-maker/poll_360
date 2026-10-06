@@ -6,7 +6,7 @@ import { Clock } from "lucide-react";
 import { Card, Empty, Badge } from "@/components/dash/DashCard";
 import { Composer, Field, ItemCard, Queue, clock, inputClass, useDesk } from "./Queue";
 import { KINDS, kindLabel } from "@/lib/broadcast";
-import { cn } from "@/lib/utils";
+import { cn, asWords } from "@/lib/utils";
 
 /**
  * Master control: the queue an operator actually drives.
@@ -78,7 +78,7 @@ export function Playout({ items, order, onGo }) {
             <div className="space-y-5">
               {groups.map((group) => (
                 <section key={group.kind}>
-                  <h3 className="mb-2 text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
+                  <h3 className="mb-2 text-[0.75rem] font-medium text-dash-muted">
                     {group.label}
                   </h3>
                   <div className="space-y-2.5">
@@ -107,7 +107,7 @@ function Slab({ label, item, live = false }) {
     >
       <p
         className={cn(
-          "flex items-center gap-2 text-[0.625rem] font-bold tracking-[0.18em] uppercase",
+          "flex items-center gap-2 text-[0.75rem] font-medium",
           live && item ? "text-white/70" : "text-dash-muted"
         )}
       >
@@ -226,5 +226,5 @@ export function Scheduler({ items }) {
 
 /** A small state badge, for lists that are not full cards. */
 export function StateChip({ item }) {
-  return <Badge tone={item.state === "ON_AIR" ? "ink" : "neutral"}>{item.state.toLowerCase()}</Badge>;
+  return <Badge tone={item.state === "ON_AIR" ? "ink" : "neutral"}>{asWords(item.state)}</Badge>;
 }

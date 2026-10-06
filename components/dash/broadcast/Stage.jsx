@@ -67,7 +67,7 @@ export default function Stage({ project, raceLabel, ground, national, places, pi
           </div>
         </div>
         <div className="flex items-center gap-[2vh]">
-          <span className="rounded-full bg-red-600 px-[1.6vh] py-[0.7vh] text-[1.5vh] font-black tracking-[0.18em] uppercase">
+          <span className="rounded-full bg-red-600 px-[1.6vh] py-[0.7vh] text-[1.5vh] font-semibold">
             Live
           </span>
           <span className="figure text-[2vh] font-bold tabular-nums">{at}</span>
@@ -192,13 +192,13 @@ export default function Stage({ project, raceLabel, ground, national, places, pi
 
         {strap && (
           <div className="flex items-center gap-[2vh] bg-red-600 px-[3.2%] py-[1.4vh]">
-            <span className="text-[1.6vh] font-black tracking-[0.2em] uppercase">Breaking</span>
+            <span className="text-[1.6vh] font-semibold">Breaking</span>
             <span className="font-display truncate text-[3vh] font-black tracking-[-0.01em]">{strap.title}</span>
           </div>
         )}
 
         <div className="flex items-stretch bg-blue-950">
-          <span className="flex shrink-0 items-center bg-red-600 px-[2.4vh] text-[1.6vh] font-black tracking-[0.2em] uppercase">
+          <span className="flex shrink-0 items-center bg-red-600 px-[2.4vh] text-[1.6vh] font-semibold">
             Poll360
           </span>
           {/* ── THE CRAWL ────────────────────────────────────────────────

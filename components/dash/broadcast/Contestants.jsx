@@ -142,7 +142,7 @@ function Row({ party, race, saved, editable }) {
               type="button"
               disabled={pending}
               onClick={() => run(() => saveContestant({ party: party.id, race, name: saved.name, runningMate: saved.runningMate, photo: null }))}
-              className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-muted uppercase hover:text-dash-ink"
+              className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.75rem] font-medium text-dash-muted hover:text-dash-ink"
             >
               Remove photo
             </button>
@@ -152,7 +152,7 @@ function Row({ party, race, saved, editable }) {
               type="button"
               disabled={pending}
               onClick={() => run(() => removeContestant({ party: party.id, race }))}
-              className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-muted uppercase hover:text-red-700"
+              className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.75rem] font-medium text-dash-muted hover:text-red-700"
             >
               <Trash2 size={12} strokeWidth={2.5} />
               Remove

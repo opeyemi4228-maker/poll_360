@@ -33,7 +33,7 @@ export default function TargetList({
 }) {
   return (
     <div className="flex flex-col gap-2 p-4">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <p className="text-[0.75rem] font-medium text-dash-muted">
         {title}
       </p>
       <p

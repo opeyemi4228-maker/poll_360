@@ -317,7 +317,7 @@ export default function PartyGround({ shapes = null }) {
       {/* ───────────────────────────────────────────────────────── the choosers */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-dash border border-dash-line bg-dash-card px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <span className="text-[0.75rem] font-medium text-dash-muted">
             Party
           </span>
           <div className="flex flex-wrap gap-1">
@@ -371,7 +371,7 @@ export default function PartyGround({ shapes = null }) {
             national outline, and nothing on the map can be reached from a
             keyboard. */}
         <label className="flex items-center gap-2">
-          <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <span className="text-[0.75rem] font-medium text-dash-muted">
             State
           </span>
           <select
@@ -427,7 +427,7 @@ export default function PartyGround({ shapes = null }) {
 
         {basis !== "register" && (
           <label className="flex items-center gap-2">
-            <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            <span className="text-[0.75rem] font-medium text-dash-muted">
               Against
             </span>
             <select
@@ -1064,7 +1064,7 @@ function Figure({ icon: Icon, label, value, says, muted = false }) {
         className={cn("mt-1 shrink-0", muted ? "text-dash-muted" : "text-dash-ink")}
       />
       <div className="min-w-0">
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           {label}
         </p>
         <p
@@ -1287,7 +1287,7 @@ function RatioPanel({ ratio, party, state, path }) {
           <h3 className="font-display text-[0.875rem] font-extrabold text-dash-ink">
             Register vs vote
           </h3>
-          <span className="rounded-full bg-dash-bg px-2 py-0.5 text-[0.625rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+          <span className="rounded-full bg-dash-bg px-2 py-0.5 text-[0.75rem] font-medium text-dash-muted">
             Not held
           </span>
         </header>
@@ -1320,7 +1320,7 @@ function RatioPanel({ ratio, party, state, path }) {
             a sentence at the foot is a sentence nobody reads. */}
         <span
           className={cn(
-            "shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold tracking-[0.08em] uppercase",
+            "shrink-0 rounded-full px-2 py-0.5 text-[0.75rem] font-medium",
             ratio.estimated ? "bg-flag-100 text-flag-900" : "bg-ok-100 text-ok-900"
           )}
         >

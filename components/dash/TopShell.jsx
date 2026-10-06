@@ -91,7 +91,7 @@ export default function TopShell({
     .join("");
 
   return (
-    <div className="min-h-screen bg-dash-bg" style={top ? { "--dash-top": `${top}px` } : undefined}>
+    <div className="dash min-h-screen" style={top ? { "--dash-top": `${top}px` } : undefined}>
       {/* ------------------------------------------------------------ bar */}
       {/* ── HOW THE WIDTH IS SPENT ────────────────────────────────────────
           Three blocks, and only the middle one is elastic: the brand and the
@@ -108,7 +108,7 @@ export default function TopShell({
           in the menu, which is where you look to check who you are signed in
           as anyway.
           ─────────────────────────────────────────────────────────────────── */}
-      <header ref={bar} className="sticky top-0 z-40 border-b border-dash-line bg-dash-card">
+      <header ref={bar} className="sticky top-0 z-40 border-b border-dash-line bg-dash-sheet">
         <div className="flex h-18 items-center gap-3 px-4 lg:px-6">
           <Link
             href="/"
@@ -160,7 +160,7 @@ export default function TopShell({
               wall display there is nothing to scroll because it all fits. */}
           <nav
             aria-label="Dashboards"
-            className="mx-auto hidden min-w-0 items-center overflow-x-auto rounded-full border border-dash-line bg-dash-bg p-1 xl:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="mx-auto hidden min-w-0 items-center overflow-x-auto rounded-full bg-dash-bg p-1 xl:flex [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {(tabGroups ?? [{ id: "all", tabs }]).map((group, index) => (
               <span key={group.id} className="flex items-center">
@@ -181,7 +181,7 @@ export default function TopShell({
                       "inline-flex h-9 items-center rounded-full px-3 text-[0.8125rem] font-semibold whitespace-nowrap transition-colors 2xl:px-3.5",
                       "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
                       active === tab.value
-                        ? "bg-dash-card text-dash-ink shadow-sm"
+                        ? "bg-dash-ink text-white shadow-e2"
                         : "text-dash-muted hover:text-dash-ink"
                     )}
                   >
@@ -194,7 +194,7 @@ export default function TopShell({
                       <span
                         className={cn(
                           "ml-1.5 inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[0.625rem] font-bold tabular-nums",
-                          active === tab.value ? "bg-dash-ink text-white" : "bg-brand-red text-white"
+                          active === tab.value ? "bg-white text-dash-ink" : "bg-red-500 text-white"
                         )}
                       >
                         {tab.badge}
@@ -229,9 +229,9 @@ export default function TopShell({
                    drawn, so the button never announces itself as two letters
                    and a chevron. */
                 aria-label={`Account: ${user.name}, ${role.label}`}
-                className="flex h-11 shrink-0 items-center gap-2.5 rounded-full border border-dash-line pr-2.5 pl-1.5 transition-colors hover:border-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink 2xl:pr-3"
+                className="flex h-11 shrink-0 items-center gap-2.5 rounded-full border border-dash-line bg-dash-card pr-2.5 pl-1.5 transition-colors hover:border-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink 2xl:pr-3"
               >
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-dash-ink font-display text-[0.75rem] font-bold text-white">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-50 font-display text-[0.75rem] font-bold text-blue-700">
                   {initials}
                 </span>
                 {/* One line each, or nothing. A long name allowed to wrap here
@@ -256,7 +256,7 @@ export default function TopShell({
                     onClick={() => setMenu(false)}
                     className="fixed inset-0 z-10 cursor-default"
                   />
-                  <div className="absolute right-0 z-20 mt-2 w-60 rounded-dash border border-dash-line bg-dash-card p-2 shadow-lg">
+                  <div className="absolute right-0 z-20 mt-2 w-60 rounded-dash border border-dash-line bg-dash-card p-2 shadow-e3">
                     {/* Who you are, said once, somewhere there is always room
                         for it however narrow the bar has become. */}
                     <div className="border-b border-dash-line px-3 pt-1 pb-3">
@@ -328,10 +328,10 @@ export default function TopShell({
           rem spent here is a rem the map does not get. */}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 px-4 pt-3 pb-2.5 lg:px-6">
         <div className="min-w-0">
-          <h1 className="font-display text-[1.25rem] leading-none font-extrabold tracking-[-0.035em] text-dash-ink">
+          <h1 className="font-display text-[1.5rem] leading-tight font-bold tracking-[-0.02em] text-dash-ink">
             {greeting}
           </h1>
-          {subtitle && <p className="mt-1.5 text-[0.875rem] text-dash-muted">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 text-[0.8125rem] text-dash-muted">{subtitle}</p>}
         </div>
         {aside && <div className="flex flex-wrap items-center justify-end gap-2">{aside}</div>}
       </div>
@@ -428,7 +428,7 @@ function ModeSwitch({ modes, mode, onMode, collapsed = true }) {
       <div
         role="group"
         aria-label="Sections"
-        className="flex shrink-0 items-center gap-0.5 rounded-full border border-dash-line bg-dash-bg p-1"
+        className="flex shrink-0 items-center gap-0.5 rounded-full bg-dash-bg p-1"
       >
         {modes.map((item) => {
           const ItemIcon = item.icon;
@@ -452,7 +452,7 @@ function ModeSwitch({ modes, mode, onMode, collapsed = true }) {
                 <span
                   className={cn(
                     "figure inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[0.6875rem] font-bold tabular-nums",
-                    on ? "bg-white text-dash-ink" : "bg-brand-red text-white"
+                    on ? "bg-white text-dash-ink" : "bg-red-500 text-white"
                   )}
                 >
                   {item.badge}
@@ -481,7 +481,7 @@ function ModeSwitch({ modes, mode, onMode, collapsed = true }) {
         aria-expanded={open}
         aria-label={`Section: ${current.label}. Change section.`}
         className={cn(
-          "relative inline-flex h-11 items-center gap-2 rounded-full bg-dash-ink pr-3 pl-4 text-[0.875rem] font-bold whitespace-nowrap text-white transition-colors hover:bg-black",
+          "relative inline-flex h-11 items-center gap-2 rounded-full bg-dash-ink pr-3 pl-4 text-[0.875rem] font-bold whitespace-nowrap text-white transition-colors hover:bg-blue-800",
           "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
         )}
       >
@@ -499,7 +499,7 @@ function ModeSwitch({ modes, mode, onMode, collapsed = true }) {
           aria-hidden="true"
         />
         {elsewhere && (
-          <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-brand-red ring-2 ring-dash-card" aria-hidden="true" />
+          <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-red-500 ring-2 ring-dash-card" aria-hidden="true" />
         )}
       </button>
 
@@ -540,7 +540,7 @@ function ModeSwitch({ modes, mode, onMode, collapsed = true }) {
                   <span className="flex items-center gap-2">
                     <span className="text-[0.9375rem] font-bold text-dash-ink">{item.label}</span>
                     {item.badge ? (
-                      <span className="figure inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-red px-1.5 text-[0.6875rem] font-bold text-white tabular-nums">
+                      <span className="figure inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[0.6875rem] font-bold text-white tabular-nums">
                         {item.badge}
                       </span>
                     ) : null}

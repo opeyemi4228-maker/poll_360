@@ -274,7 +274,7 @@ function Starters({ onAsk, groups }) {
     <section className="grid gap-3 md:grid-cols-3">
       {groups.map((group) => (
         <div key={group.group} className="rounded-dash border border-dash-line bg-dash-card p-4">
-          <h3 className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <h3 className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
             <group.icon size={14} aria-hidden="true" />
             {group.group}
           </h3>
@@ -379,7 +379,7 @@ function AnswerCard({ turn, onAsk }) {
                 index >= 1 && "lg:border-l"
               )}
             >
-              <p className="text-[0.6875rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">{tile.label}</p>
+              <p className="text-[0.75rem] font-medium text-dash-muted">{tile.label}</p>
               <p
                 className={cn(
                   "figure mt-1 truncate font-display text-[1.375rem] font-bold tabular-nums",
@@ -398,7 +398,7 @@ function AnswerCard({ turn, onAsk }) {
         <div className={cn("grid gap-0 border-b border-dash-line", turn.answer.plan?.length && "lg:grid-cols-[1.35fr_1fr]")}>
           {turn.answer.reading?.length > 0 && (
             <section className="px-4 py-4 sm:px-5">
-              <h4 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">The reading</h4>
+              <h4 className="text-[0.75rem] font-medium text-dash-muted">The reading</h4>
               <ul className="mt-2.5 space-y-2">
                 {turn.answer.reading.map((line) => (
                   <li key={line} className="flex gap-2.5 text-[0.875rem] leading-relaxed text-dash-ink">
@@ -411,7 +411,7 @@ function AnswerCard({ turn, onAsk }) {
           )}
           {turn.answer.plan?.length > 0 && (
             <section className="border-t border-dash-line bg-blue-50/60 px-4 py-4 sm:px-5 lg:border-t-0 lg:border-l">
-              <h4 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-blue-800 uppercase">For the plan</h4>
+              <h4 className="text-[0.75rem] font-medium text-blue-800">For the plan</h4>
               <ol className="mt-2.5 space-y-2">
                 {turn.answer.plan.map((line, index) => (
                   <li key={line} className="flex gap-2.5 text-[0.875rem] leading-relaxed text-dash-ink">
@@ -520,7 +520,7 @@ function Analysis({ analysis }) {
     <div className={cn("grid border-b border-dash-line", bars.length > 0 && numbers.length > 0 && "lg:grid-cols-[1.1fr_1fr]")}>
       {numbers.length > 0 && (
         <section className="px-4 py-4 sm:px-5">
-          <h4 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">By the numbers</h4>
+          <h4 className="text-[0.75rem] font-medium text-dash-muted">By the numbers</h4>
           <dl className="mt-2.5 grid gap-x-5 gap-y-3 sm:grid-cols-2">
             {numbers.map((entry) => (
               <div key={entry.label} className="border-l-2 border-dash-line pl-3">
@@ -542,7 +542,7 @@ function Analysis({ analysis }) {
 
       {bars.length > 0 && (
         <section className={cn("px-4 py-4 sm:px-5", numbers.length > 0 && "border-t border-dash-line lg:border-t-0 lg:border-l")}>
-          <h4 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">Breakdown</h4>
+          <h4 className="text-[0.75rem] font-medium text-dash-muted">Breakdown</h4>
           <p className="mt-1 text-[0.8125rem] font-semibold text-dash-ink">{breakdown.title}</p>
           <ul className="mt-3 space-y-1.5">
             {bars.map((bar) => {
@@ -1072,7 +1072,7 @@ function Downloads({ turn }) {
 
   return (
     <div className="border-b border-dash-line px-4 py-3.5 sm:px-5">
-      <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">Take it with you</p>
+      <p className="text-[0.75rem] font-medium text-dash-muted">Take it with you</p>
       <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
         {FORMATS.map((format) => (
           <button

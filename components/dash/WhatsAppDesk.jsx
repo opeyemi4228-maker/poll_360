@@ -184,7 +184,7 @@ export default function WhatsAppDesk({
             { label: "Returns filed", value: formatNumber(summary.filed ?? 0), icon: CheckCheck, foot: `${open.length} still in progress` },
           ].map((card) => (
             <section key={card.label} className="rounded-dash border border-dash-line bg-dash-card p-4">
-              <p className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <p className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
                 <card.icon size={13} strokeWidth={2.5} className="shrink-0" />
                 {card.label}
               </p>
@@ -251,7 +251,7 @@ export default function WhatsAppDesk({
                               </span>
                             )}
                             {row.contactStatus !== "VERIFIED" && (
-                              <span className="rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase text-flag-900">
+                              <span className="rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-flag-900">
                                 unconfirmed
                               </span>
                             )}
@@ -405,7 +405,7 @@ export default function WhatsAppDesk({
                         <td className="px-4 py-2">
                           <span
                             className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
+                              "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold",
                               row.status === "VERIFIED"
                                 ? "bg-ok-50 text-ok-800"
                                 : row.status === "BLOCKED"
@@ -522,13 +522,13 @@ export default function WhatsAppDesk({
             {tree && tree.units > 0 && (
               <div className="flex items-center gap-2 border-b border-dash-line px-4 py-1.5 pl-[2.1rem]">
                 <span className="min-w-0 flex-1" />
-                <span className="w-24 shrink-0 text-right text-[0.5625rem] font-bold uppercase tracking-wide text-dash-muted">
+                <span className="w-24 shrink-0 text-right text-[0.6875rem] font-medium text-dash-muted">
                   Reported
                 </span>
-                <span className="hidden w-24 shrink-0 text-right text-[0.5625rem] font-bold uppercase tracking-wide text-dash-muted md:block">
+                <span className="hidden w-24 shrink-0 text-right text-[0.6875rem] font-medium text-dash-muted md:block">
                   Accredited
                 </span>
-                <span className="w-24 shrink-0 text-right text-[0.5625rem] font-bold uppercase tracking-wide text-dash-muted">
+                <span className="w-24 shrink-0 text-right text-[0.6875rem] font-medium text-dash-muted">
                   Votes
                 </span>
               </div>
@@ -607,7 +607,7 @@ export default function WhatsAppDesk({
                           <td className="px-4 py-2">
                             <span
                               className={cn(
-                                "rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
+                                "rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold",
                                 changed
                                   ? "bg-flag-100 text-flag-900"
                                   : row.accepted

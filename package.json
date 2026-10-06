@@ -38,7 +38,9 @@
     "_comment:units": "Fetches INEC every ward and polling unit in Nigeria into public/geo/units/, one file per state, and refuses to write if the totals drift from the commission published 774 / 8,809 / 176,846.",
     "units:import": "node scripts/import-units.mjs",
     "_comment:agents:move": "Moves the agents this product held onto Data Bank’s agent list and issues codes to the approved ones. A dry run without --commit; with it, --out names the file the codes are written to, once.",
-    "agents:move": "node --env-file-if-exists=.env.local scripts/move-agents-to-databank.mjs"
+    "agents:move": "node --env-file-if-exists=.env.local scripts/move-agents-to-databank.mjs",
+    "_comment:irev": "INEC's Result Viewing Portal into Data Bank's \"INEC Result Datas\" account, from a terminal: list, gather, follow, watch, read, status, narrowed by --type, --year and --state. The screen at /admin/irev is the same engine with buttons; this is for a machine left running, above all `watch` on an election night. Saves nothing without --commit. See the top of scripts/irev.mjs.",
+    "irev": "node --env-file-if-exists=.env.local scripts/irev.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",
@@ -52,6 +54,7 @@
     "pg": "^8.23.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "sharp": "^0.35.5",
     "tailwind-merge": "^3.6.0",
     "tesseract.js": "^7.0.0",
     "zod": "^4.4.3"

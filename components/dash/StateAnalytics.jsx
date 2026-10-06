@@ -296,7 +296,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
 
                   <span
                     className={cn(
-                      "ml-auto rounded-full px-3 py-1 text-[0.6875rem] font-bold uppercase",
+                      "ml-auto rounded-full px-3 py-1 text-[0.75rem] font-semibold",
                       split ? "bg-flag-100 text-flag-900" : "bg-dash-bg text-dash-muted"
                     )}
                   >
@@ -368,7 +368,7 @@ export default function StateAnalytics({ scopeStates = [], title = null, raceLab
                       })}
                     </span>
                     {row.last.unverified && (
-                      <span className="rounded-full bg-flag-100 px-2.5 py-0.5 text-[0.625rem] font-bold tracking-wide text-flag-900 uppercase">
+                      <span className="rounded-full bg-flag-100 px-2.5 py-0.5 text-[0.75rem] font-medium text-flag-900">
                         Totals unverified
                       </span>
                     )}
@@ -633,7 +633,7 @@ function Head({ icon: Icon, title, foot }) {
 }
 
 const Label = ({ children }) => (
-  <p className="text-[0.5625rem] font-semibold tracking-[0.14em] text-dash-muted uppercase">
+  <p className="text-[0.6875rem] font-medium text-dash-muted">
     {children}
   </p>
 );

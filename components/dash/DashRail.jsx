@@ -12,12 +12,14 @@ import { ROLES } from "@/lib/roles";
 /**
  * The rail, retractable.
  *
+ * White, with the place you are standing drawn as a navy tile.
+ *
  * ── WHY IT COLLAPSES TO ICONS AND NOT TO NOTHING ───────────────────────────
  * A situation room gives the map every pixel it can, so the rail has to get
  * out of the way. But collapsing it to zero leaves somebody hunting for a
- * hamburger on a wall-mounted screen, so it collapses to a 4.5rem strip of
+ * hamburger on a wall-mounted screen, so it collapses to a 5rem strip of
  * icons instead: the navigation is still one click away and still visible,
- * and the map gains 11.5rem.
+ * and the page gains 10rem.
  *
  * ── THE WIDTH IS CSS, NOT STATE ────────────────────────────────────────────
  * The choice is remembered, and a remembered choice that arrives one frame
@@ -73,65 +75,70 @@ export default function DashRail({ user }) {
     .slice(0, 2)
     .join("");
 
+  const toggle = (
+    <button
+      type="button"
+      onClick={() => setRail(!collapsed)}
+      aria-pressed={collapsed}
+      aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
+      title={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
+      className="flex size-10 shrink-0 items-center justify-center rounded-dash-sm text-dash-muted transition-colors hover:bg-dash-bg hover:text-dash-ink focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dash-ink"
+    >
+      {collapsed ? <PanelLeftOpen size={18} strokeWidth={2} /> : <PanelLeftClose size={18} strokeWidth={2} />}
+    </button>
+  );
+
   return (
     <aside
-      className="fixed inset-y-0 left-0 z-40 hidden w-(--rail) flex-col bg-dash-rail transition-[width] duration-300 lg:flex"
+      className="fixed inset-y-0 left-0 z-40 hidden w-(--rail) flex-col border-r border-dash-line bg-dash-rail transition-[width] duration-300 lg:flex"
     >
-      {/* The rule under the brand continues the one under the topbar beside
-          it, so the two meet as a single line across the whole screen instead
-          of stopping dead at the rail's edge. */}
-      <Link
-        href="/"
-        title="Poll360"
-        className="flex h-18 shrink-0 items-center gap-2.5 border-b border-white/10 px-6 transition-opacity hover:opacity-80 focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-white rail-collapsed:justify-center rail-collapsed:gap-0 rail-collapsed:px-2"
-      >
-        <BrandMark coverage={0.62} className="size-8 shrink-0 text-white" />
-        <span className="font-display text-[1.3rem] leading-none font-extrabold tracking-[-0.045em] text-white rail-collapsed:sr-only">
-          Poll<span className="font-mono font-bold text-red-500">360</span>
-        </span>
-      </Link>
+      {/* White, like the sheet beside it, and told apart from it by one
+          hairline. The navy that used to fill this column is spent on the
+          tile that says where you are, which is the only thing in a
+          navigation that needs to shout.
+
+          The fold control sits up here beside the brand, which is where a
+          hand goes looking for it, and out of the footer, where it and the
+          sign-out between them took a fifth of the column from the links. */}
+      <div className="flex h-20 shrink-0 items-center gap-1 pr-3 pl-5 rail-collapsed:justify-center rail-collapsed:px-0">
+        <Link
+          href="/"
+          title="Poll360"
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-dash-sm transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink rail-collapsed:flex-none"
+        >
+          <BrandMark coverage={0.62} className="size-8 shrink-0 text-dash-ink" />
+          <span className="font-display text-[1.3rem] leading-none font-extrabold tracking-[-0.045em] text-dash-ink rail-collapsed:sr-only">
+            Poll<span className="font-mono font-bold text-red-500">360</span>
+          </span>
+        </Link>
+        <span className="rail-collapsed:hidden">{toggle}</span>
+      </div>
 
       <DashNav role={user.role} rail />
 
-      <div className="mt-auto border-t border-white/10 p-3">
+      {/* One row: who you are, and the way out. Collapsed, the same three
+          things stand in a column. */}
+      <div className="mt-auto flex items-center gap-1 border-t border-dash-line p-3 rail-collapsed:flex-col rail-collapsed:px-0">
         {/* Who you are, and the way to your own account. It was flat text, so
             a viewer, whose only room *is* /console, had no link to it
             anywhere in the chrome. */}
         <Link
           href="/console"
           title={`${user.name} · ${role.label}`}
-          className="mb-3 flex items-center gap-3 rounded-dash-sm px-1 py-1.5 transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white rail-collapsed:mb-2 rail-collapsed:justify-center rail-collapsed:gap-0 rail-collapsed:px-0"
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-dash-sm px-2 py-1.5 transition-colors hover:bg-dash-bg focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-dash-ink rail-collapsed:flex-none rail-collapsed:px-1"
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-white/10 font-display text-[0.8125rem] font-bold text-white">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-blue-50 font-display text-[0.8125rem] font-bold text-blue-700">
             {initials}
           </span>
           <span className="min-w-0 rail-collapsed:sr-only">
-            <span className="block truncate text-[0.8125rem] font-semibold text-white">{user.name}</span>
-            <span className="block truncate text-[0.6875rem] text-white/45">{role.label}</span>
+            <span className="block truncate text-[0.8125rem] font-semibold text-dash-ink">{user.name}</span>
+            <span className="block truncate text-[0.75rem] text-dash-muted">{role.label}</span>
           </span>
         </Link>
 
-        {/* Full width and on its own line: in an earlier version the icon and
-            the word sat on top of each other in the narrow rail. */}
-        <SignOutButton variant="railGhost" size="sm" full iconOnly={collapsed} />
+        <SignOutButton variant="railIcon" size="sm" iconOnly />
 
-        <button
-          type="button"
-          onClick={() => setRail(!collapsed)}
-          aria-pressed={collapsed}
-          aria-label={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
-          title={collapsed ? "Expand" : "Collapse"}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-dash-sm px-2 py-2.5 text-[0.75rem] font-semibold text-white/50 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
-        >
-          {collapsed ? (
-            <PanelLeftOpen size={16} strokeWidth={2.25} />
-          ) : (
-            <>
-              <PanelLeftClose size={16} strokeWidth={2.25} />
-              Collapse
-            </>
-          )}
-        </button>
+        <span className="hidden rail-collapsed:block">{toggle}</span>
       </div>
     </aside>
   );

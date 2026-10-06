@@ -86,7 +86,7 @@ export function Channels() {
             type="button"
             disabled={pending}
             onClick={() => run(() => checkChannels(), { onDone: (answer) => setChecked(answer) })}
-            className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-ink uppercase hover:border-dash-ink disabled:opacity-40"
+            className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.75rem] font-medium text-dash-ink hover:border-dash-ink disabled:opacity-40"
           >
             {pending ? <Loader2 size={13} className="animate-spin" /> : <PlugZap size={13} strokeWidth={2.5} />}
             Check
@@ -308,7 +308,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
             fills the kind, the headline and the words for the place chosen
             below; everything is still editable and still goes to an editor. */}
         <div className="mb-4 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Start from</span>
+          <span className="mr-1 text-[0.75rem] font-medium text-dash-muted">Start from</span>
           {TEMPLATES.map((row) => (
             <button
               key={row.id}
@@ -359,7 +359,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
         <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_16rem]">
           <PlacePicker value={scope} onChange={setScope} filedByState={filedByState} />
           <label className="block">
-            <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+            <span className="block text-[0.8125rem] font-medium text-dash-muted">
               Headline <span className="font-normal normal-case tracking-normal">(optional)</span>
             </span>
             <input
@@ -383,7 +383,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
         {/* ─────────────────────────────────────────────── the words */}
         <label className="mt-3 block">
           <span className="flex flex-wrap items-baseline justify-between gap-2">
-            <span className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+            <span className="text-[0.8125rem] font-medium text-dash-muted">
               {textLed ? "What happened" : "Caption"}
             </span>
             {suggested && !textLed && (
@@ -411,7 +411,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
 
         {/* ────────────────────────────────────────────── the platforms */}
         <fieldset className="mt-3">
-          <legend className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">Publish to</legend>
+          <legend className="text-[0.8125rem] font-medium text-dash-muted">Publish to</legend>
           <div className="mt-2 flex flex-wrap gap-1.5">
             {PLATFORMS.map((row) => {
               const on = platforms.has(row.id);
@@ -507,7 +507,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
             type="button"
             disabled={pending || !(caption.trim() || headline.trim()) || platforms.size === 0}
             onClick={() => submit(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
+            className="inline-flex h-10 items-center gap-2 rounded-dash-sm border ring-1 ring-dash-ink border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
           >
             {pending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} strokeWidth={2.5} />}
             Send to an editor
@@ -516,7 +516,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
             type="button"
             disabled={pending || !(caption.trim() || headline.trim()) || platforms.size === 0}
             onClick={() => submit(false)}
-            className="inline-flex h-10 items-center gap-2 rounded-dash-sm border border-dash-line px-4 text-[0.75rem] font-bold tracking-[0.08em] text-dash-ink uppercase hover:border-dash-ink disabled:opacity-40"
+            className="inline-flex h-10 items-center gap-2 rounded-dash-sm border border-dash-line px-4 text-[0.8125rem] font-medium text-dash-ink hover:border-dash-ink disabled:opacity-40"
           >
             Save as draft
           </button>
@@ -590,7 +590,7 @@ export function PostComposer({ race, national, places, preset = null, onSent, co
 function Stat({ label, value, note }) {
   return (
     <div className="px-5 py-4">
-      <dt className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">{label}</dt>
+      <dt className="text-[0.75rem] font-medium text-dash-muted">{label}</dt>
       <dd className="figure mt-1.5 text-[1.625rem] leading-none font-extrabold text-dash-ink">{value}</dd>
       <dd className="mt-1.5 text-[0.75rem] leading-snug text-dash-muted">{note}</dd>
     </div>
@@ -686,7 +686,7 @@ export function Delivery({ items }) {
             ))}
           </ul>
         )}
-        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-dash-line pt-3 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-dash-line pt-3 text-[0.75rem] font-medium text-dash-muted">
           <span className="inline-flex items-center gap-1.5">
             <span className="size-2 rounded-full dot-ok" /> posted
           </span>

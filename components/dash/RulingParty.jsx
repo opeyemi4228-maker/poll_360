@@ -360,7 +360,7 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
             is the difference between a gap and a shrug. */}
         {openState && !councilsLoading && (
           <section className="rounded-dash border border-dash-line bg-dash-card p-4">
-            <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            <p className="text-[0.75rem] font-medium text-dash-muted">
               {openState.name} · local government councils
             </p>
 
@@ -462,7 +462,7 @@ export default function RulingParty({ rows, shapes, fct, seats, moves }) {
 
         {active && !openState && (
           <section className="rounded-dash border border-dash-line bg-dash-card p-4">
-            <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            <p className="text-[0.75rem] font-medium text-dash-muted">
               {active.state}
             </p>
             <p className="mt-1 font-display text-[1.125rem] leading-tight font-extrabold text-dash-ink">

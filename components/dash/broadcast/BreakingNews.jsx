@@ -98,7 +98,7 @@ const SEVERITY = {
   INFO: { word: "For information", tone: "bg-dash-bg text-dash-muted" },
 };
 
-const LABEL = "block text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase";
+const LABEL = "block text-[0.75rem] font-medium text-dash-muted";
 const FIELD =
   "mt-2 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3.5 text-dash-ink transition-[border-color,box-shadow] placeholder:text-dash-muted/70 focus:border-dash-ink focus:ring-4 focus:ring-dash-ink/10 focus:outline-none";
 
@@ -196,7 +196,7 @@ export default function BreakingNews({ items, incidents = [], race }) {
       {/* ── WHAT IS ALREADY OUT ────────────────────────────────────────── */}
       {live.length > 0 && (
         <div className="flex items-stretch overflow-hidden rounded-dash bg-red-600 text-white">
-          <span className="flex shrink-0 items-center gap-2 bg-red-700 px-4 text-[0.6875rem] font-bold tracking-[0.18em] uppercase">
+          <span className="flex shrink-0 items-center gap-2 bg-red-700 px-4 text-[0.75rem] font-medium">
             <span className="size-2 animate-pulse rounded-full bg-white" aria-hidden="true" />
             On air now
           </span>
@@ -510,7 +510,7 @@ function OutputCard({ output, on, onToggle, headline }) {
   return (
     <label
       className={cn(
-        "group relative flex cursor-pointer flex-col overflow-hidden rounded-dash-sm border-2 bg-dash-card transition-[border-color,box-shadow]",
+        "group relative flex cursor-pointer flex-col overflow-hidden rounded-dash-sm border bg-dash-card transition-[border-color,box-shadow]",
         "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-dash-ink",
         on ? "border-dash-ink shadow-e2" : "border-dash-line hover:border-dash-muted"
       )}
@@ -557,7 +557,7 @@ function OutputCard({ output, on, onToggle, headline }) {
         <span
           aria-hidden="true"
           className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
+            "flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors",
             on ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line bg-dash-card"
           )}
         >

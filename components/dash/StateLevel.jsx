@@ -134,7 +134,7 @@ export default function StateLevel({ state, shapes, rows, onOpen }) {
         </svg>
 
         {hovered && (
-          <div className="pointer-events-none absolute top-4 left-4 rounded-dash-sm border border-dash-line bg-dash-card/95 px-3.5 py-2.5 shadow-sm backdrop-blur">
+          <div className="pointer-events-none absolute top-4 left-4 rounded-dash-sm border border-dash-line bg-dash-card/95 px-3.5 py-2.5 shadow-e2 backdrop-blur">
             <p className="text-[0.875rem] font-bold text-dash-ink">{hovered}</p>
             <p className="figure mt-0.5 text-[0.75rem] text-dash-muted">
               {formatNumber(byName.get(hovered)?.total ?? 0)} votes ·{" "}

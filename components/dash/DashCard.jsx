@@ -1,4 +1,5 @@
-import { Inbox } from "lucide-react";
+import Link from "next/link";
+import { ArrowUpRight, Inbox } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -31,21 +32,34 @@ export function Card({ title, subtitle, action, children, className, padded = tr
       )}
       {...props}
     >
+      {/* No rule under the heading. The card's own edge is the box; a second
+          line inside it turned every panel into a form with a title bar. */}
       {(title || action) && (
-        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-dash-line px-5 py-4 sm:px-6">
+        <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 px-5 pt-5 pb-4 sm:px-6">
           <div className="min-w-0">
-            <h2 className="font-display text-[1rem] leading-tight font-extrabold tracking-[-0.015em] text-dash-ink">
+            <h2 className="font-display text-[1.0625rem] leading-snug font-bold tracking-[-0.01em] text-dash-ink">
               {title}
             </h2>
-            {subtitle && <p className="mt-1 text-[0.8125rem] leading-snug text-dash-muted">{subtitle}</p>}
+            {subtitle && <p className="mt-0.5 text-[0.8125rem] leading-snug text-dash-muted">{subtitle}</p>}
           </div>
           {action}
         </header>
       )}
-      <div className={padded ? "p-5 sm:p-6" : ""}>{children}</div>
+      <div className={padded ? cn("px-5 pb-5 sm:px-6 sm:pb-6", !(title || action) && "pt-5 sm:pt-6") : ""}>
+        {children}
+      </div>
     </section>
   );
 }
+
+/* The tinted tile an icon sits in. Four tints and all four are the product's
+   own: the royal blue, the brand red, and the two status hues. */
+const TILE = {
+  default: "bg-blue-50 text-blue-600",
+  alert: "bg-red-50 text-red-600",
+  good: "bg-ok-50 text-ok-700",
+  warn: "bg-flag-50 text-flag-700",
+};
 
 /**
  * A figure and what it is.
@@ -54,19 +68,62 @@ export function Card({ title, subtitle, action, children, className, padded = tr
  * whole argument is that a total without its coverage is a different claim, so
  * the component that renders totals has a slot for the qualifier built into it.
  */
-export function StatCard({ label, value, context, delta, tone = "default", icon: Icon }) {
-  return (
-    <div className="rounded-dash border border-dash-line bg-dash-card p-5 shadow-e2">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
-          {label}
-        </p>
-        {Icon && <Icon size={16} strokeWidth={2.25} className="shrink-0 text-dash-muted" />}
+const SHARE_FILL = {
+  default: "bg-blue-500",
+  alert: "bg-red-500",
+  good: "bg-ok-500",
+  warn: "bg-flag-500",
+};
+
+/**
+ * ── A FIGURE IS A QUESTION, SO THE CARD IS A DOOR ───────────────────────────
+ * "14 disputed" makes somebody want the fourteen. Given `href` the whole card
+ * is the link to them — the largest target on the row, not a small "view"
+ * beside the number — and it says so with an arrow and by lifting under the
+ * pointer. Without `href` it is a reading and does neither: a card that looks
+ * pressable and is not teaches people to stop pressing.
+ *
+ * `share` draws how much of a whole the figure is (0 to 1), in the place a
+ * decorative sparkline would otherwise go. It is only passed where the page
+ * really holds both numbers.
+ */
+export function StatCard({
+  label,
+  value,
+  context,
+  delta,
+  tone = "default",
+  icon: Icon,
+  href,
+  share,
+  shareTone,
+  children,
+}) {
+  const body = (
+    <>
+      <div className="flex items-center gap-3">
+        {Icon && (
+          <span
+            aria-hidden="true"
+            className={cn("flex size-11 shrink-0 items-center justify-center rounded-dash-sm", TILE[tone] ?? TILE.default)}
+          >
+            <Icon size={19} strokeWidth={2} />
+          </span>
+        )}
+        <p className="min-w-0 flex-1 text-[0.875rem] leading-snug font-medium text-dash-ink">{label}</p>
+        {href && (
+          <ArrowUpRight
+            size={17}
+            strokeWidth={2}
+            aria-hidden="true"
+            className="shrink-0 self-start text-dash-muted/60 transition-[color,transform] duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-dash-ink"
+          />
+        )}
       </div>
 
       <p
         className={cn(
-          "figure mt-3 text-[2rem] leading-none font-bold tracking-[-0.02em]",
+          "figure mt-4 text-[2rem] leading-none font-semibold",
           tone === "alert" ? "text-red-600" : "text-dash-ink"
         )}
       >
@@ -74,14 +131,12 @@ export function StatCard({ label, value, context, delta, tone = "default", icon:
       </p>
 
       {(context || delta) && (
-        <p className="mt-2.5 flex items-center gap-2 text-[0.8125rem] text-dash-muted">
+        <p className="mt-2.5 flex flex-wrap items-center gap-2 text-[0.8125rem] text-dash-muted">
           {delta && (
             <span
               className={cn(
-                "figure rounded-dash-sm px-1.5 py-0.5 text-[0.75rem] font-bold",
-                delta.startsWith("-")
-                  ? "bg-red-50 text-red-700"
-                  : "bg-dash-bg text-dash-ink"
+                "figure rounded-full px-2 py-0.5 text-[0.75rem] font-semibold",
+                delta.startsWith("-") ? "bg-red-50 text-red-700" : "bg-dash-bg text-dash-ink"
               )}
             >
               {delta}
@@ -90,8 +145,40 @@ export function StatCard({ label, value, context, delta, tone = "default", icon:
           {context}
         </p>
       )}
-    </div>
+
+      {typeof share === "number" && (
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-dash-bg" aria-hidden="true">
+          <div
+            className={cn("h-full rounded-full", SHARE_FILL[shareTone ?? tone] ?? SHARE_FILL.default)}
+            /* Never drawn as nothing when it is something: one in a thousand
+               is still the one somebody came to find. */
+            style={{ width: `${share > 0 ? Math.max(2, Math.min(100, share * 100)) : 0}%` }}
+          />
+        </div>
+      )}
+
+      {children && <div className="mt-4">{children}</div>}
+    </>
   );
+
+  const surface = "block rounded-dash border border-dash-line bg-dash-card p-5 shadow-e2";
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className={cn(
+          surface,
+          "group transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-dash-ink/25 hover:shadow-e3",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
+        )}
+      >
+        {body}
+      </Link>
+    );
+  }
+
+  return <div className={surface}>{body}</div>;
 }
 
 /** Status word + colour, never colour alone. */
@@ -108,7 +195,7 @@ export function Badge({ children, tone = "neutral" }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.6875rem] leading-none font-bold tracking-[0.08em] whitespace-nowrap uppercase",
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[0.75rem] leading-none font-semibold whitespace-nowrap",
         tones[tone]
       )}
     >
@@ -122,11 +209,36 @@ export function Empty({ children, icon: Icon = Inbox }) {
      where it will appear", which is what somebody needs to know on the night
      — that the screen works and the thing has simply not happened yet. */
   return (
-    <div className="flex flex-col items-center gap-2.5 rounded-dash-sm border border-dashed border-dash-line bg-dash-bg px-5 py-8 text-center">
+    <div className="flex flex-col items-center gap-2.5 rounded-dash-sm bg-dash-bg px-5 py-8 text-center">
       <span className="flex size-10 items-center justify-center rounded-full bg-dash-card text-dash-muted shadow-e2" aria-hidden="true">
         <Icon size={18} strokeWidth={2} />
       </span>
       <p className="max-w-sm text-[0.875rem] leading-relaxed text-dash-muted">{children}</p>
     </div>
+  );
+}
+
+/**
+ * A block inside the navy panel.
+ *
+ * Not a Card: the panel is already the surface, so a block in it is a heading
+ * and what sits under it, kept apart from the next by a hairline.
+ */
+export function PanelBlock({ title, subtitle, action, children, className }) {
+  return (
+    <section className={cn("border-t border-dash-line pt-6 first:border-t-0 first:pt-0", className)}>
+      {(title || action) && (
+        <header className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="font-display text-[1.0625rem] leading-snug font-bold tracking-[-0.01em] text-dash-ink">
+              {title}
+            </h2>
+            {subtitle && <p className="mt-0.5 text-[0.8125rem] leading-snug text-dash-muted">{subtitle}</p>}
+          </div>
+          {action}
+        </header>
+      )}
+      {children}
+    </section>
   );
 }

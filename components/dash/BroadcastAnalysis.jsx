@@ -98,7 +98,7 @@ export default function BroadcastAnalysis({ declared, ours, shapes }) {
             aria-pressed={source === value}
             className={cn(
               /* 48px tall: a target for a thumb on a wall, not a mouse. */
-              "h-12 rounded-dash-sm border-2 px-5 text-[0.875rem] font-bold transition-colors",
+              "h-12 rounded-dash-sm border px-5 text-[0.875rem] font-bold transition-colors",
               source === value
                 ? "border-dash-ink bg-dash-ink text-white"
                 : "border-dash-line bg-dash-card text-dash-ink hover:border-dash-ink"
@@ -249,16 +249,16 @@ function GapPanel({ declared, ours, rows }) {
     <table className="w-full text-left">
       <thead>
         <tr className="border-b border-dash-line">
-          <th className="pb-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <th className="pb-2 text-[0.75rem] font-medium text-dash-muted">
             Party
           </th>
-          <th className="pb-2 text-right text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <th className="pb-2 text-right text-[0.75rem] font-medium text-dash-muted">
             Ours
           </th>
-          <th className="pb-2 text-right text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <th className="pb-2 text-right text-[0.75rem] font-medium text-dash-muted">
             Declared
           </th>
-          <th className="pb-2 text-right text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <th className="pb-2 text-right text-[0.75rem] font-medium text-dash-muted">
             Difference
           </th>
         </tr>

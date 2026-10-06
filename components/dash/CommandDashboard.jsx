@@ -122,7 +122,7 @@ function Sources({ sources }) {
 
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card px-4 py-3">
-      <p className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+      <p className="text-[0.75rem] font-medium text-dash-muted">
         Where these figures came from
       </p>
       <p className="mt-1.5 text-[0.8125rem] leading-relaxed text-dash-ink">
@@ -188,7 +188,7 @@ export function CommandBrief({
         <div className="flex items-center gap-4">
           <Portrait principal={principal} />
           <div className="min-w-0">
-            <p className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+            <p className="text-[0.75rem] font-medium text-dash-muted">
               {principal.room}
             </p>
             <p className="font-display text-xl leading-tight font-extrabold tracking-[-0.02em] text-dash-ink">
@@ -225,7 +225,7 @@ export function CommandBrief({
           <div className="mt-5 space-y-4 border-t border-dash-line pt-4">
             <div>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                <span className="text-[0.75rem] font-medium text-dash-muted">
                   Our share
                 </span>
                 <span className="figure text-[0.875rem] font-bold text-dash-ink">
@@ -258,7 +258,7 @@ export function CommandBrief({
 
             <div>
               <div className="flex items-baseline justify-between gap-3">
-                <span className="flex items-center gap-1.5 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                <span className="flex items-center gap-1.5 text-[0.75rem] font-medium text-dash-muted">
                   <Target size={12} strokeWidth={2.5} />
                   States at a quarter
                 </span>
@@ -390,7 +390,7 @@ function Parties({ principal, standings, ballot, total, margin }) {
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card p-5">
       <div className="flex items-baseline justify-between gap-4">
-        <h3 className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+        <h3 className="text-[0.75rem] font-medium text-dash-muted">
           Votes counted
         </h3>
         <p className="figure text-[0.875rem] font-bold text-dash-ink">
@@ -499,7 +499,7 @@ export function CommandLedger({
             code is first because it is the identifier a coordinator can act
             on: eleven characters naming state, local government, ward, unit. */}
         <section className="rounded-dash border border-dash-line bg-dash-card p-5">
-          <h3 className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+          <h3 className="text-[0.75rem] font-medium text-dash-muted">
             Latest returns
           </h3>
 
@@ -539,7 +539,7 @@ export function CommandLedger({
             a mood. Drawn only while it is still a live question. */}
         <section className="rounded-dash border border-dash-line bg-dash-card p-5">
           <div className="flex items-baseline justify-between gap-4">
-            <h3 className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+            <h3 className="text-[0.75rem] font-medium text-dash-muted">
               Nearest to a quarter
             </h3>
             {spread && !spread.clearsSpread && (
@@ -637,7 +637,7 @@ function Standing({ principal, spread, standings, byState, total }) {
 
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card p-5">
-      <h3 className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+      <h3 className="text-[0.75rem] font-medium text-dash-muted">
         Where we stand
       </h3>
 
@@ -703,7 +703,7 @@ function Standing({ principal, spread, standings, byState, total }) {
 function Condition({ label, value, foot, met = false, pending = false, neutral = false }) {
   return (
     <div className="bg-dash-card px-4 py-3.5">
-      <p className="flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+      <p className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
         {!neutral && (
           <span
             aria-hidden="true"

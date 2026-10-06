@@ -74,7 +74,7 @@ export default function RoomCoverage({ pulse, ground = null, onGo, onUnit = null
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[32rem] text-[0.8125rem]">
                   <thead>
-                    <tr className="border-b border-dash-line text-left text-[0.625rem] tracking-[0.08em] text-dash-muted uppercase">
+                    <tr className="border-b border-dash-line text-left text-[0.75rem] text-dash-muted">
                       <th className="pb-2 font-semibold">State</th>
                       <th className="pb-2 text-right font-semibold">Assigned</th>
                       <th className="pb-2 text-right font-semibold">Filed</th>

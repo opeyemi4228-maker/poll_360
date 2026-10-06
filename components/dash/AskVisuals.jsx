@@ -199,7 +199,7 @@ export function Dumbbell({ chart }) {
       <figcaption className="text-[0.8125rem] font-semibold text-dash-ink">{chart.title}</figcaption>
       <ul className="mt-1.5 flex flex-wrap gap-x-3.5 gap-y-1 text-[0.6875rem] text-dash-muted">
         <li className="flex items-center gap-1.5">
-          <span className="size-2.5 rounded-full border-2 border-ink-400 bg-white" aria-hidden="true" /> {chart.fromLabel}
+          <span className="size-2.5 rounded-full border border-ink-400 bg-white" aria-hidden="true" /> {chart.fromLabel}
         </li>
         <li className="flex items-center gap-1.5">
           <span className="size-2.5 rounded-full" style={{ background: RISE }} aria-hidden="true" /> {chart.toLabel}, higher

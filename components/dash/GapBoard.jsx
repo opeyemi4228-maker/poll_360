@@ -145,7 +145,7 @@ export default function GapBoard({ report }) {
 function Row({ label, children }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <span className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </span>
       {children}

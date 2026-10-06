@@ -746,7 +746,7 @@ export default function ScopeMap({
         aria-hidden="true"
         className={cn(
           "pointer-events-none absolute top-0 left-0 z-20 w-64 origin-top-left",
-          "rounded-dash border border-dash-line bg-dash-card p-3 shadow-lg",
+          "rounded-dash border border-dash-line bg-dash-card p-3 shadow-e3",
           "transition-opacity duration-100",
           floating && hoveredShape ? "opacity-100" : "opacity-0"
         )}
@@ -947,7 +947,7 @@ function HoverCard({
           there, Centre means this is the middle of the shape on screen. */}
       {coord && (
         <p className="mt-2.5 flex items-center gap-1.5 border-t border-dash-line pt-2.5">
-          <span className="rounded-dash-sm bg-dash-bg px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+          <span className="rounded-dash-sm bg-dash-bg px-1.5 py-0.5 text-[0.6875rem] font-medium text-dash-muted">
             {coord.label}
           </span>
           <span className="font-mono text-[0.625rem] text-dash-ink">{coord.text}</span>

@@ -88,7 +88,7 @@ export default async function RequestsPage() {
                   {request.ground ?? "no ground recorded"}
                 </span>
                 <span
-                  className={`text-[0.6875rem] font-semibold tracking-[0.1em] uppercase ${
+                  className={`text-[0.75rem] font-medium ${
                     request.status === "APPROVED" ? "text-emerald-600" : "text-dash-muted"
                   }`}
                 >

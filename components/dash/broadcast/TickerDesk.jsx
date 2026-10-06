@@ -157,7 +157,7 @@ export default function TickerDesk({ suggestions, items, race }) {
                             type="button"
                             disabled={pending}
                             onClick={() => take(line)}
-                            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-dash-sm border border-dash-line px-2.5 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-ink uppercase transition-colors hover:border-dash-ink disabled:opacity-40"
+                            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-dash-sm border border-dash-line px-2.5 text-[0.75rem] font-medium text-dash-ink transition-colors hover:border-dash-ink disabled:opacity-40"
                           >
                             {pending && made === line.id ? (
                               <Loader2 size={13} className="animate-spin" />
@@ -184,7 +184,7 @@ export default function TickerDesk({ suggestions, items, race }) {
           ) : (
             <>
               <fieldset>
-                <legend className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+                <legend className="text-[0.8125rem] font-medium text-dash-muted">
                   Which band
                 </legend>
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -208,7 +208,7 @@ export default function TickerDesk({ suggestions, items, race }) {
               </fieldset>
 
               <label className="mt-3 block">
-                <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+                <span className="block text-[0.8125rem] font-medium text-dash-muted">
                   The line
                 </span>
                 <textarea
@@ -249,7 +249,7 @@ export default function TickerDesk({ suggestions, items, race }) {
                     { onDone: () => setOwn("") }
                   )
                 }
-                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
+                className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-dash-sm border ring-1 ring-dash-ink border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
               >
                 {pending ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} strokeWidth={2.5} />}
                 Save as draft

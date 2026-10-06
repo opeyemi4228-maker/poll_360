@@ -313,6 +313,26 @@
   --color-flag-900: oklch(31% 0.117 55);
   --color-flag-950: oklch(22% 0.09 55);
 
+  /* ---- Agreement: the one green in the product -------------------
+     Verification asks a single question of every place — do our agents,
+     INEC's published sheets and the announced result say the same thing —
+     and a room reads the answer as green or red before it reads a word.
+     `ok` above is a teal, chosen so it never fights the brand red on a
+     chart; beside red on a map, at three metres, teal reads as "a
+     different party" and not as "fine". So agreement has a green of its
+     own. It leans towards blue on purpose, which keeps it apart from the
+     red for the commonest kinds of colour blindness, and nothing on that
+     screen relies on the hue alone: agreeing places breathe slowly and
+     disagreeing ones beat, and every lamp carries a tick or a cross. It
+     is not a second "good" colour and nothing else may wear it. */
+  --color-agree-50: oklch(97.5% 0.022 155);
+  --color-agree-100: oklch(94.5% 0.05 155);
+  --color-agree-200: oklch(89% 0.09 155);
+  --color-agree-400: oklch(78% 0.17 152);
+  --color-agree-500: oklch(70% 0.18 152);
+  --color-agree-600: oklch(56% 0.15 153);
+  --color-agree-700: oklch(45% 0.12 154);
+
   /* ---- Type -----------------------------------------------------
      Three families, one job each, no overlap:
        display/sans, Inter Tight. Tight enough at 900 to hold a
@@ -354,8 +374,9 @@
      its own radius, used nowhere on the marketing site. */
   --radius-card: 0px;
   --radius-panel: 0px;
-  --radius-dash: 12px;
-  --radius-dash-sm: 8px;
+  --radius-dash: 18px;
+  --radius-dash-sm: 12px;
+  --radius-dash-panel: 28px;
 
   /* ---- The three status ramps, in the brand's own hues -----------
      Tailwind ships amber, emerald and sky, and sixty-six files across
@@ -409,23 +430,32 @@
   --color-sky-900: var(--color-blue-900);
   --color-sky-950: var(--color-blue-950);
 
-  /* ---- Dashboard surfaces: white and black ----------------------
-     A results desk is read in daylight as often as at 2am, and a
-     black-on-white sheet is what every figure in this business has
-     been printed on for a century. The sidebar carries the black so
-     the data can have all of the white. */
-  --color-dash-bg: oklch(97.5% 0.002 265); /* the page behind the cards */
-  --color-dash-card: #ffffff;
-  --color-dash-line: oklch(92.5% 0.004 265);
-  --color-dash-ink: oklch(14% 0.012 265); /* headings, figures */
-  --color-dash-muted: oklch(48% 0.012 265); /* labels, secondary */
-  --color-dash-rail: oklch(13% 0.012 265); /* the black sidebar */
+  /* ---- Dashboard surfaces: pure white, and the brand's navy ------
+     The app tier is a white sheet holding soft white cards, with one
+     navy panel down the right-hand side for the reading that matters
+     most on that screen. Nothing here is grey: the wells, the rules
+     and the ink are all the brand's own blue at different lightness,
+     so a tinted strip reads as Poll360 and not as a dirty white.
 
-  /* ---- Elevation: structure comes from rules, not shadows ------- */
+     `dash-bg` is the WELL — the faint tint behind a code chip, an
+     empty state, a track. It is never the page. The page is
+     `dash-sheet`, and it is #fff. */
+  --color-dash-sheet: #ffffff; /* the page */
+  --color-dash-card: #ffffff;
+  --color-dash-bg: oklch(97.6% 0.008 268); /* wells and tracks, never the page */
+  --color-dash-line: oklch(93% 0.011 268);
+  --color-dash-ink: oklch(20% 0.055 268); /* headings, figures, the active tile */
+  --color-dash-muted: oklch(50% 0.028 268); /* labels, secondary */
+  --color-dash-rail: #ffffff; /* the sidebar, white now */
+  --color-dash-panel: oklch(19.5% 0.068 268); /* the navy panel */
+
+  /* ---- Elevation: a card is lifted by a soft, wide shadow ---------
+     Tinted with the navy rather than black, so on a pure white sheet
+     the lift reads as light falling on paper and not as a grey edge. */
   --shadow-e1: none;
-  --shadow-e2: 0 1px 2px oklch(11% 0.012 265 / 0.08);
-  --shadow-e3: 0 10px 30px -14px oklch(11% 0.012 265 / 0.35);
-  --shadow-e4: 0 28px 70px -28px oklch(11% 0.012 265 / 0.5);
+  --shadow-e2: 0 1px 2px oklch(20% 0.055 268 / 0.04), 0 14px 32px -18px oklch(20% 0.055 268 / 0.16);
+  --shadow-e3: 0 2px 6px oklch(20% 0.055 268 / 0.05), 0 24px 48px -20px oklch(20% 0.055 268 / 0.28);
+  --shadow-e4: 0 28px 70px -28px oklch(20% 0.055 268 / 0.45);
 
   /* ---- Motion ---------------------------------------------------- */
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
@@ -435,6 +465,17 @@
   --animate-pulse-live: pulse-live 2s var(--ease-out-quart) infinite;
   --animate-land: land 0.6s var(--ease-out-quart) both;
   --animate-alarm-swing: alarm-swing 0.9s var(--ease-out-quart) 3;
+
+  /* Verification's two heartbeats. They differ in rhythm as well as in
+     colour, so the map can be read by somebody who cannot tell the two
+     hues apart and by somebody who is not looking straight at it: slow
+     and even is "these agree", a quick double beat is "these do not". */
+  --animate-verify-breathe: verify-breathe 3.2s ease-in-out infinite;
+  --animate-verify-beat: verify-beat 1.25s ease-in-out infinite;
+  --animate-verify-ring: verify-ring 3.2s var(--ease-out-quart) infinite;
+  --animate-verify-ring-fast: verify-ring 1.25s var(--ease-out-quart) infinite;
+  --animate-verify-arrive: verify-arrive 0.5s var(--ease-out-quart) both;
+  --animate-verify-sheet: verify-sheet 0.28s var(--ease-out-quart) both;
 
   /* The assistant. Four states that have to be told apart from the
      far side of a room, so each one is a different motion rather
@@ -478,6 +519,69 @@
     }
     100% {
       box-shadow: 0 0 0 0 oklch(58.1% 0.233 20.1 / 0);
+    }
+  }
+  /* Agreement, breathing. Never down to nothing: a place that fades out
+     reads as a place that has gone, and this one is fine. */
+  @keyframes verify-breathe {
+    0%,
+    100% {
+      opacity: 0.74;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  /* Disagreement, as a double beat with a rest after it — the rhythm of
+     a monitor alarm rather than of a blinking light, because a steady
+     blink is the first thing a tired eye learns to stop seeing. */
+  @keyframes verify-beat {
+    0%,
+    30%,
+    100% {
+      opacity: 0.66;
+    }
+    10%,
+    42% {
+      opacity: 1;
+    }
+    20% {
+      opacity: 0.74;
+    }
+  }
+  /* The ring that leaves a lamp. Scaled about its own centre, so the
+     same rule serves a ring in an SVG map and a ring round a dot. */
+  @keyframes verify-ring {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.9;
+    }
+    80%,
+    100% {
+      transform: scale(3.4);
+      opacity: 0;
+    }
+  }
+  /* A new update landing at the top of the list. */
+  @keyframes verify-arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  /* The detail sheet coming in from the edge it lives on. */
+  @keyframes verify-sheet {
+    from {
+      opacity: 0;
+      transform: translateX(1.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
     }
   }
   /* The incident alarm. The bell rocks for a few seconds when a report lands,
@@ -645,13 +749,9 @@
    there the colour is the data. See lib/party-fill.js.
 ------------------------------------------------------------------- */
 .air-desk {
-  --color-dash-bg: var(--color-ink-50);
-  --color-dash-card: #ffffff;
-  --color-dash-line: var(--color-ink-200);
-  --color-dash-ink: var(--color-ink-900);
-  --color-dash-muted: var(--color-ink-500);
-
-  background: var(--color-dash-bg);
+  /* The desk reads the same surfaces as every other dashboard now — see the
+     dashboard tokens above. It used to set its own grey page and grey ink,
+     which is how one room came to look like a different product. */
   color: var(--color-dash-ink);
 }
 
@@ -668,12 +768,7 @@
    standing up.
 ------------------------------------------------------------------- */
 .air-desk section {
-  box-shadow: 0 1px 0 oklch(20% 0.02 265 / 0.04), 0 8px 20px -18px oklch(20% 0.02 265 / 0.5);
-}
-
-.air-desk section > header {
-  background: var(--color-ink-50);
-  border-color: var(--color-dash-line);
+  box-shadow: var(--shadow-e2);
 }
 
 .air-desk section > header h2 {
@@ -720,6 +815,139 @@
 }
 
 /* ------------------------------------------------------------------
+   The app tier
+   ------------------------------------------------------------------
+   Both dashboard shells carry `.dash`. The website is square, heavy
+   and set in tight capitals; a dashboard is looked at for eleven
+   hours, so inside this scope the same components soften: the
+   heaviest weight steps down, headings loosen, and figures are set
+   in the sans with tabular digits rather than in the mono, which
+   keeps a ticking total from reflowing its row without making every
+   number on the screen look like a terminal.
+
+   Done by re-pointing the theme's own variables rather than by
+   editing five hundred class names: `font-extrabold` reads
+   `--font-weight-extrabold`, so one line here moves all of them.
+------------------------------------------------------------------- */
+.dash {
+  --font-weight-extrabold: 700;
+  --font-weight-black: 800;
+  --font-weight-bold: 600;
+
+  background: var(--color-dash-sheet);
+  color: var(--color-dash-ink);
+}
+
+/* In the base and components layers, not loose: a rule outside every layer
+   outranks every utility, which is how this block came to pin every heading
+   in the app tier at one weight whatever its own classes asked for — a
+   navigation kicker marked medium was drawn as heavy as the links under it. */
+@layer base {
+  .dash :where(h1, h2, h3, h4) {
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+}
+
+@layer base {
+  /* A field being typed in says so with a soft ring in the brand's blue.
+     The forms used to answer focus by darkening a hairline one shade, which
+     on a white sheet is a change nobody sees — and "which box am I in" is
+     the question a filing form is asked most. */
+  .dash :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea) {
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+  .dash :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"]), select, textarea):focus-visible {
+    outline: none;
+    border-color: var(--color-blue-500);
+    box-shadow: 0 0 0 4px oklch(54% 0.205 268 / 0.14);
+  }
+
+  /* Anything pressable answers the press. Two percent, a tenth of a second:
+     enough to be felt under a finger, not enough to be seen as an effect. */
+  .dash :where(button, a[class*="rounded"]):active {
+    scale: 0.98;
+  }
+}
+
+@layer components {
+  .dash .figure {
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.015em;
+  }
+}
+
+/* ---- The bar settles as the page moves under it ------------------
+   At rest the top bar is the top of the same white sheet and carries
+   no rule. Once content has scrolled beneath it, it needs an edge, or
+   cards appear to be cut off by nothing. Driven by the scroll position
+   itself, so there is no listener and nothing to fall out of step;
+   where a browser cannot do that the edge is simply always there.
+------------------------------------------------------------------- */
+.dash-bar {
+  border-bottom: 1px solid var(--color-dash-line);
+}
+
+@supports (animation-timeline: scroll()) {
+  .dash-bar {
+    border-bottom-color: transparent;
+    animation: dash-bar-settle linear both;
+    animation-timeline: scroll(root);
+    animation-range: 0 3rem;
+  }
+}
+
+@keyframes dash-bar-settle {
+  to {
+    border-bottom-color: var(--color-dash-line);
+    box-shadow: 0 10px 24px -22px oklch(20% 0.055 268 / 0.55);
+  }
+}
+
+/* How far the unlit bands of a gauge are held back. */
+.dash {
+  --gauge-rest: 0.22;
+}
+
+/* ---- The navy panel ----------------------------------------------
+   One per screen, down the right-hand side, for the reading that
+   screen exists to give. Everything inside it is the ordinary
+   dashboard vocabulary — cards, meters, rings, badges — and it all
+   inverts here, once, by re-pointing the tokens those components
+   already read. The status inks step up in lightness because a
+   700-step teal that is legible on white is a smudge on navy.
+------------------------------------------------------------------- */
+.dash-panel {
+  --color-dash-card: oklch(100% 0 0 / 0.07);
+  --color-dash-bg: oklch(100% 0 0 / 0.1);
+  --color-dash-line: oklch(100% 0 0 / 0.13);
+  --color-dash-ink: #ffffff;
+  --color-dash-muted: oklch(100% 0 0 / 0.66);
+
+  --color-ok-600: var(--color-ok-400);
+  --color-ok-700: var(--color-ok-300);
+  --color-flag-600: var(--color-flag-400);
+  --color-flag-700: var(--color-flag-300);
+  --color-red-600: var(--color-red-400);
+  --color-red-700: var(--color-red-300);
+
+  --shadow-e2: none;
+  /* On navy a band at a fifth of its strength is not a band at all. */
+  --gauge-rest: 0.45;
+
+  background: var(--color-dash-panel);
+  color: #ffffff;
+}
+
+.dash-panel :focus-visible {
+  outline-color: #ffffff;
+}
+
+/* ------------------------------------------------------------------
    Base
 ------------------------------------------------------------------- */
 @layer base {
@@ -729,13 +957,13 @@
     -webkit-tap-highlight-color: transparent;
 
     /* Open. Both the rail and the sheet read this one value. */
-    --rail: 16rem;
+    --rail: 15rem;
   }
 
   html[data-rail="collapsed"] {
     /* Icons only: still visible, still one click from anywhere, and
-       11.5rem handed back to the map underneath. */
-    --rail: 4.5rem;
+       10rem handed back to the page beside it. */
+    --rail: 5rem;
   }
 
   body {
@@ -973,6 +1201,20 @@
   .animate-ai-sweep,
   .animate-ai-rise {
     animation: none !important;
+  }
+  /* Verification's heartbeats run for as long as the screen is open.
+     Held still, a place is still green or red and its lamp still
+     carries a tick or a cross; only the rings, which are nothing but
+     motion, are taken away altogether. */
+  .animate-verify-breathe,
+  .animate-verify-beat {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .animate-verify-ring,
+  .animate-verify-ring-fast {
+    animation: none !important;
+    opacity: 0 !important;
   }
   /* Was `* *::before, *::after`, which reached pseudo-elements and
      nothing else: every animation on a real element in the product

@@ -168,7 +168,7 @@ export function CoverageBar({ reported, total, className }) {
   return (
     <div className={className}>
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-[0.75rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <span className="text-[0.8125rem] font-medium text-dash-muted">
           Booths reporting
         </span>
         <span className="figure text-[0.875rem] font-bold text-dash-ink">

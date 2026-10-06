@@ -1037,7 +1037,7 @@ function Metric({ icon: Icon, label, value, foot, small, tint }) {
     <div className="rounded-dash border border-dash-line bg-dash-card px-4 py-3">
       <div className="flex items-center gap-2">
         <Icon size={14} strokeWidth={2.25} className="shrink-0 text-dash-muted" />
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           {label}
         </p>
       </div>

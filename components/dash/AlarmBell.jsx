@@ -277,7 +277,7 @@ export default function AlarmBell({ incidents = [], onOpenStream }) {
             className="fixed inset-0 z-10 cursor-default"
           />
 
-          <div className="absolute right-0 z-20 mt-2 w-[22rem] rounded-dash border border-dash-line bg-dash-card shadow-lg">
+          <div className="absolute right-0 z-20 mt-2 w-[22rem] rounded-dash border border-dash-line bg-dash-card shadow-e3">
             <div className="flex items-center gap-2 border-b border-dash-line px-4 py-3">
               <p className="text-[0.875rem] font-semibold text-dash-ink">Incident reports</p>
               {critical > 0 && (

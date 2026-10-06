@@ -36,7 +36,7 @@ export default function Wallet({ balance, pending, entries, chain }) {
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-dash-sm bg-dash-bg p-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Earned
           </p>
           <p className="figure mt-1.5 text-[1.5rem] leading-none font-bold text-dash-ink">
@@ -44,15 +44,15 @@ export default function Wallet({ balance, pending, entries, chain }) {
           </p>
         </div>
         <div className="rounded-dash-sm bg-dash-bg p-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Requested
           </p>
           <p className="figure mt-1.5 text-[1.5rem] leading-none font-bold text-dash-ink">
             {naira(pending)}
           </p>
         </div>
-        <div className="rounded-dash-sm border-2 border-dash-ink p-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <div className="rounded-dash-sm border ring-1 ring-dash-ink border-dash-ink p-4">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Available
           </p>
           <p className="figure mt-1.5 text-[1.5rem] leading-none font-bold text-dash-ink">
@@ -69,7 +69,7 @@ export default function Wallet({ balance, pending, entries, chain }) {
       </p>
 
       {state?.ok ? (
-        <p className="flex items-center gap-2 rounded-dash-sm border-2 border-ok-300 bg-ok-50 px-4 py-3 text-[0.875rem] text-dash-ink">
+        <p className="flex items-center gap-2 rounded-dash-sm border border-ok-300 bg-ok-50 px-4 py-3 text-[0.875rem] text-dash-ink">
           <Check size={17} strokeWidth={3} className="shrink-0 text-ok-600" />
           Requested. Your reference is{" "}
           <span className="figure font-bold">{state.reference}</span>, quote it if you need to ask
@@ -80,11 +80,11 @@ export default function Wallet({ balance, pending, entries, chain }) {
           <div className="min-w-40 flex-1">
             <label
               htmlFor="amount"
-              className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+              className="block text-[0.75rem] font-medium text-dash-muted"
             >
               Amount to withdraw
             </label>
-            <div className="mt-2 flex items-center rounded-dash-sm border-2 border-dash-line bg-dash-card focus-within:border-dash-ink">
+            <div className="mt-2 flex items-center rounded-dash-sm border border-dash-line bg-dash-card focus-within:border-dash-ink">
               <span className="figure pl-3 text-[1.0625rem] text-dash-muted">₦</span>
               <input
                 id="amount"
@@ -110,7 +110,7 @@ export default function Wallet({ balance, pending, entries, chain }) {
       {/* ------------------------------------------------------- statement */}
       <div>
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Statement
           </p>
           <span className="flex items-center gap-1.5 text-[0.75rem] text-dash-muted">

@@ -53,7 +53,7 @@ export default function SeatBrief({ race, raceLabel, ground, holders = [], resul
     <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <section className="rounded-dash border border-dash-line bg-dash-card">
         <header className="border-b border-dash-line px-5 py-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             {holders.length === 1 ? "The seat" : `${holders.length} seats`} · {raceLabel}
           </p>
           <h2 className="mt-1 font-display text-[1.0625rem] font-extrabold text-dash-ink">{ground}</h2>
@@ -123,7 +123,7 @@ function LastResult({ result, contest, ground, holders = [] }) {
     return (
       <section className="rounded-dash border border-dash-line bg-dash-card">
         <header className="border-b border-dash-line px-5 py-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             The last {contest} here
           </p>
         </header>
@@ -155,7 +155,7 @@ function LastResult({ result, contest, ground, holders = [] }) {
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card">
       <header className="border-b border-dash-line px-5 py-4">
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           The last {contest} here
         </p>
         {/* A winner nobody named — the 21 Adamawa chairmen, for instance — is
@@ -280,7 +280,7 @@ function Chip({ party }) {
 function Figure({ label, value, tone = "ink" }) {
   return (
     <div className="bg-dash-card px-3 py-2.5">
-      <dt className="text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <dt className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </dt>
       <dd

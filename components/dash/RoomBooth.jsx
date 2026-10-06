@@ -140,7 +140,7 @@ export default function RoomBooth({
       {/* ══════════════════════════════════════════════ the one sentence */}
       <section className="rounded-dash border border-dash-line bg-dash-card">
         <div className="px-4 pt-4">
-          <p className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             {ground ? `Booths in ${ground}` : "Booths we hold"}
           </p>
 
@@ -355,7 +355,7 @@ export default function RoomBooth({
             whichever list it was just reading. */}
         {worst.length > 0 && (
           <footer className="border-t border-dash-line">
-            <p className="px-4 pt-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+            <p className="px-4 pt-3 text-[0.75rem] font-medium text-dash-muted">
               Where it is thinnest
             </p>
             <Rows>

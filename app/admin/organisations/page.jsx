@@ -188,7 +188,7 @@ export default async function OrganisationsPage() {
 function Row({ label, children }) {
   return (
     <div>
-      <dt className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+      <dt className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </dt>
       <dd className="mt-0.5 text-dash-ink">{children}</dd>

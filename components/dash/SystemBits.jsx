@@ -100,7 +100,7 @@ export function Wired({ state }) {
 export function Field({ label, children, className }) {
   return (
     <div className={cn("border-t border-dash-line py-3 first:border-t-0 first:pt-0", className)}>
-      <dt className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+      <dt className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </dt>
       <dd className="mt-1 text-[0.875rem] wrap-break-word text-dash-ink">{children}</dd>
@@ -127,7 +127,7 @@ export function Table({ head, children, className }) {
                 key={typeof column === "string" ? column : column.label}
                 scope="col"
                 className={cn(
-                  "px-3 py-2 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase first:pl-0 last:pr-0",
+                  "px-3 py-2 text-[0.75rem] font-medium text-dash-muted first:pl-0 last:pr-0",
                   typeof column === "object" && column.numeric && "text-right"
                 )}
               >
@@ -170,7 +170,7 @@ export function Counts({ items }) {
     <dl className="mb-6 grid grid-cols-2 gap-px overflow-hidden rounded-dash border border-dash-line bg-dash-line sm:grid-cols-4">
       {items.map((item) => (
         <div key={item.label} className="bg-dash-card px-4 py-3.5">
-          <dt className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+          <dt className="text-[0.75rem] font-medium text-dash-muted">
             {item.label}
           </dt>
           <dd

@@ -92,8 +92,8 @@ export default function RaceSwitcher({ race, races = [], filed = {}, pinned = fa
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-10 cursor-default"
           />
-          <div className="absolute right-0 z-20 mt-2 w-72 rounded-dash border border-dash-line bg-dash-card p-2 shadow-lg">
-            <p className="px-3 pt-1 pb-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <div className="absolute right-0 z-20 mt-2 w-72 rounded-dash border border-dash-line bg-dash-card p-2 shadow-e3">
+            <p className="px-3 pt-1 pb-2 text-[0.75rem] font-medium text-dash-muted">
               Position on the ballot
             </p>
 

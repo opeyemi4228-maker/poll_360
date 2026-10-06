@@ -31,7 +31,7 @@ export default function PayAgentForm() {
 
   if (state?.ok) {
     return (
-      <div className="rounded-dash-sm border-2 border-ok-300 bg-ok-50 p-4">
+      <div className="rounded-dash-sm border border-ok-300 bg-ok-50 p-4">
         <p className="flex items-center gap-2 text-[0.9375rem] font-bold text-dash-ink">
           <Check size={17} strokeWidth={3} className="text-ok-600" />
           Written to the ledger for {state.name}
@@ -58,7 +58,7 @@ export default function PayAgentForm() {
       <div>
         <label
           htmlFor="contact"
-          className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+          className="block text-[0.75rem] font-medium text-dash-muted"
         >
           Agent, email or phone
         </label>
@@ -68,7 +68,7 @@ export default function PayAgentForm() {
           autoComplete="off"
           placeholder="agent@poll360.ng"
           className={[
-            "mt-2 h-12 w-full rounded-dash-sm border-2 bg-dash-card px-3 text-[0.9375rem] text-dash-ink",
+            "mt-2 h-12 w-full rounded-dash-sm border bg-dash-card px-3 text-[0.9375rem] text-dash-ink",
             "placeholder:text-dash-muted focus:outline-none",
             errors.contact ? "border-red-500" : "border-dash-line focus:border-dash-ink",
           ].join(" ")}
@@ -81,13 +81,13 @@ export default function PayAgentForm() {
       <div>
         <label
           htmlFor="amount"
-          className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+          className="block text-[0.75rem] font-medium text-dash-muted"
         >
           Amount
         </label>
         <div
           className={[
-            "mt-2 flex items-center rounded-dash-sm border-2 bg-dash-card",
+            "mt-2 flex items-center rounded-dash-sm border bg-dash-card",
             errors.amount ? "border-red-500" : "border-dash-line focus-within:border-dash-ink",
           ].join(" ")}
         >
@@ -106,7 +106,7 @@ export default function PayAgentForm() {
       </div>
 
       <fieldset>
-        <legend className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <legend className="text-[0.75rem] font-medium text-dash-muted">
           What is it
         </legend>
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -114,7 +114,7 @@ export default function PayAgentForm() {
             <label
               key={value}
               title={hint}
-              className="cursor-pointer rounded-dash-sm border-2 border-dash-line px-3 py-2.5 text-[0.875rem] text-dash-muted transition-colors has-checked:border-dash-ink has-checked:bg-dash-ink has-checked:text-white"
+              className="cursor-pointer rounded-dash-sm border border-dash-line px-3 py-2.5 text-[0.875rem] text-dash-muted transition-colors has-checked:border-dash-ink has-checked:bg-dash-ink has-checked:text-white"
             >
               <input
                 type="radio"
@@ -136,7 +136,7 @@ export default function PayAgentForm() {
       <div>
         <label
           htmlFor="note"
-          className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+          className="block text-[0.75rem] font-medium text-dash-muted"
         >
           Note <span className="text-dash-muted">optional</span>
         </label>
@@ -144,7 +144,7 @@ export default function PayAgentForm() {
           id="note"
           name="note"
           placeholder="Election day, 25 February"
-          className="mt-2 h-12 w-full rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink placeholder:text-dash-muted focus:border-dash-ink focus:outline-none"
+          className="mt-2 h-12 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink placeholder:text-dash-muted focus:border-dash-ink focus:outline-none"
         />
       </div>
 

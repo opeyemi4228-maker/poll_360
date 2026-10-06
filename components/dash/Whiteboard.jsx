@@ -382,7 +382,7 @@ function Card({ card, shapes, boundaries, rowFor, onErase }) {
       {card.kind !== "answer" && (
         <p
           className={cn(
-            "border-t px-3.5 py-2 text-[0.625rem] tracking-[0.08em] uppercase",
+            "border-t px-3.5 py-2 text-[0.75rem]",
             /* ── AN OUTSIDE SOURCE IS MARKED, NOT MENTIONED ──────────────
                Every other card on this board is computed from the data the
                screens are drawn from. This one was read off somebody else's

@@ -62,7 +62,7 @@ function Applicant({ person }) {
           </span>
         </p>
         {approveState.code && (
-          <div className="mt-3 rounded-dash-sm border-2 border-dash-ink bg-dash-bg p-4">
+          <div className="mt-3 rounded-dash-sm border ring-1 ring-dash-ink border-dash-ink bg-dash-bg p-4">
             <p className="flex items-center gap-2 text-[0.8125rem] font-bold text-dash-ink">
               <KeyRound size={15} strokeWidth={2.5} />
               Give {approveState.name.split(" ")[0]} this code. It is shown only once.
@@ -111,7 +111,7 @@ function Applicant({ person }) {
         <div className="min-w-0 flex-1">
           <label
             htmlFor={`scope-${person.id}`}
-            className="flex items-center gap-1.5 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+            className="flex items-center gap-1.5 text-[0.75rem] font-medium text-dash-muted"
           >
             <MapPin size={11} strokeWidth={2.5} />
             Polling unit
@@ -121,7 +121,7 @@ function Applicant({ person }) {
             value={scope}
             onChange={(event) => setScope(event.target.value)}
             className={cn(
-              "figure mt-1.5 h-11 w-full max-w-[14rem] rounded-dash-sm border-2 bg-dash-card px-3 text-[0.9375rem] font-bold text-dash-ink focus:outline-none",
+              "figure mt-1.5 h-11 w-full max-w-[14rem] rounded-dash-sm border bg-dash-card px-3 text-[0.9375rem] font-bold text-dash-ink focus:outline-none",
               scopeError ? "border-red-500" : "border-dash-line focus:border-dash-ink"
             )}
           />

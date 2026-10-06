@@ -465,7 +465,7 @@ export default function PublishingList({ items = [] }) {
             type="button"
             disabled={pending}
             onClick={() => press(chosen.map((item) => item.id))}
-            className="inline-flex h-10 items-center gap-2 rounded-dash-sm bg-red-600 px-5 text-[0.8125rem] font-extrabold tracking-[0.04em] uppercase hover:bg-red-500 disabled:opacity-50"
+            className="inline-flex h-10 items-center gap-2 rounded-dash-sm bg-red-600 px-5 text-[0.8125rem] font-semibold hover:bg-red-500 disabled:opacity-50"
           >
             {pending ? <Loader2 size={16} className="animate-spin" /> : <Radio size={16} strokeWidth={2.5} />}
             Go live
@@ -579,7 +579,7 @@ function Tile({ index, item, focused, onFocus, picked, onPick, step, go, refusin
           aria-pressed={picked}
           aria-label={picked ? `Untick ${item.title}` : `Tick ${item.title}`}
           className={cn(
-            "absolute top-2.5 left-2.5 flex size-8 items-center justify-center rounded-md border-2 shadow-sm transition-colors",
+            "absolute top-2.5 left-2.5 flex size-8 items-center justify-center rounded-md border shadow-e2 transition-colors",
             picked ? "border-dash-ink bg-dash-ink text-white" : "border-white bg-white/90 text-dash-muted hover:text-dash-ink"
           )}
         >
@@ -587,12 +587,12 @@ function Tile({ index, item, focused, onFocus, picked, onPick, step, go, refusin
         </button>
 
         <div className="absolute top-2.5 right-2.5 flex flex-col items-end gap-1">
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem] font-bold shadow-sm", status.tone)}>
+          <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem] font-bold shadow-e2", status.tone)}>
             {item.state === "ON_AIR" && <span className="size-1.5 animate-pulse rounded-full bg-white" />}
             {status.label}
           </span>
           {held && (
-            <span className="air-band inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.6875rem] font-bold shadow-sm" title={`Not before ${clockWAT(embargo)}`}>
+            <span className="air-band inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.6875rem] font-bold shadow-e2" title={`Not before ${clockWAT(embargo)}`}>
               <Timer size={12} strokeWidth={2.5} />
               {clockWAT(embargo)}
             </span>
@@ -707,7 +707,7 @@ function Tile({ index, item, focused, onFocus, picked, onPick, step, go, refusin
               refuse();
             }}
           >
-            <label className="text-[0.6875rem] font-bold tracking-[0.08em] text-red-700 uppercase" htmlFor={`why-${item.id}`}>
+            <label className="text-[0.75rem] font-medium text-red-700" htmlFor={`why-${item.id}`}>
               Why is it going back?
             </label>
             <textarea

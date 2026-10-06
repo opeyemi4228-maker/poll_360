@@ -208,7 +208,7 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
         <Ring value={national?.reporting ?? null} label={`Polling units\ncounted`} tone="orange" />
 
         <div className="min-w-40 flex-1">
-          <p className="flex items-baseline justify-between gap-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="flex items-baseline justify-between gap-3 text-[0.75rem] font-medium text-dash-muted">
             Published tonight
             <span className="figure text-[1.125rem] leading-none font-extrabold text-dash-ink">
               {formatNumber(live.length)}
@@ -232,7 +232,7 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
           decision is put in front of it rather than remembered. */}
       {may.draft && ready.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-dash border border-dash-line bg-dash-card px-4 py-3">
-          <span className="mr-1 text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Ready for an update</span>
+          <span className="mr-1 text-[0.75rem] font-medium text-dash-muted">Ready for an update</span>
           {ready.slice(0, 8).map((row) => (
             <button
               key={row.scope}
@@ -318,10 +318,10 @@ export default function LiveDesk({ items = [], incidents = [], timeline = null, 
               <span className="size-2.5 rounded-full bg-dash-ink" /> Published
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full border-2 border-red-500" /> Serious reports
+              <span className="size-2.5 rounded-full border border-red-500" /> Serious reports
             </li>
             <li className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full border-2 border-[var(--color-flagged)]" /> Other reports
+              <span className="size-2.5 rounded-full border border-[var(--color-flagged)]" /> Other reports
             </li>
           </ul>
           <Silence perState={perState} onSelect={setState} />
@@ -427,7 +427,7 @@ function Entry({ row, last, onWriteUp, deliveries }) {
               {row.place.name}
             </span>
           )}
-          <span className="tracking-[0.08em] uppercase">{stream.label}</span>
+          <span className="">{stream.label}</span>
         </p>
         <p className="mt-0.5 text-[0.875rem] leading-snug font-bold text-dash-ink">{row.headline}</p>
         {row.detail && <p className="mt-0.5 line-clamp-3 text-[0.8125rem] leading-snug text-dash-muted">{row.detail}</p>}
@@ -539,7 +539,7 @@ function Silence({ perState, onSelect }) {
   if (!quiet.length) return null;
   return (
     <div className="border-t border-dash-line px-4 py-3">
-      <p className="text-[0.625rem] font-bold tracking-[0.12em] text-red-700 uppercase">Serious reports, nothing published</p>
+      <p className="text-[0.75rem] font-medium text-red-700">Serious reports, nothing published</p>
       <ul className="mt-1.5 flex flex-wrap gap-1.5">
         {quiet.map(([code, cell]) => (
           <li key={code}>

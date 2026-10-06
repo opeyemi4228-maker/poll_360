@@ -1435,7 +1435,7 @@ export default function Assistant({ tab = "results", projection = null }) {
         <button
           type="button"
           onClick={beginCall}
-          className="group flex items-center gap-3 rounded-full pr-3 pl-1 transition-transform hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red"
+          className="group flex items-center gap-3 rounded-full pr-3 pl-1 transition-transform hover:scale-[1.02] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
         >
           <Orb mode={armed ? "listening" : "idle"} size={34} />
           <span className="text-left">
@@ -1468,7 +1468,7 @@ export default function Assistant({ tab = "results", projection = null }) {
             className={cn(
               "relative flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
               armed
-                ? "bg-brand-red text-white"
+                ? "bg-red-500 text-white"
                 : "border border-white/15 text-white/60 hover:border-white/40 hover:text-white"
             )}
           >

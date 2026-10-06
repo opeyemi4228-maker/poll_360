@@ -99,7 +99,7 @@ export default function RoomAlerts({ alerts, onGo }) {
           </Gauge>
 
           <div className="min-w-0">
-            <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-dash-muted uppercase">
+            <p className="text-[0.75rem] font-medium text-dash-muted">
               Above the line
             </p>
             <p className="figure text-[2.75rem] leading-none font-bold tracking-[-0.03em] text-dash-ink tabular-nums">
@@ -126,7 +126,7 @@ export default function RoomAlerts({ alerts, onGo }) {
 
         {/* ── WHERE THE NIGHT SITS AGAINST EACH LINE ─────────────────────*/}
         <section className="rounded-dash border border-dash-line bg-dash-card p-4">
-          <h3 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <h3 className="text-[0.75rem] font-medium text-dash-muted">
             Against each line
           </h3>
           <ul className="mt-3 grid gap-x-6 gap-y-2.5 sm:grid-cols-2">
@@ -212,7 +212,7 @@ export default function RoomAlerts({ alerts, onGo }) {
                 <LevelMeter rank={meta.rank} tone={meta.tone} size={4} />
                 <span
                   className={cn(
-                    "flex items-center gap-1.5 rounded-dash-sm px-2 py-1 text-[0.625rem] font-bold tracking-[0.1em] uppercase",
+                    "flex items-center gap-1.5 rounded-dash-sm px-2 py-1 text-[0.75rem] font-medium",
                     CHIP[row.level]
                   )}
                 >

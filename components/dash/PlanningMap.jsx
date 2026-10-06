@@ -1478,7 +1478,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
 
         {/* ------------------------------------------------------ the basis */}
         <section className="rounded-dash border border-dash-line bg-dash-card p-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Plan against
           </p>
 
@@ -1541,7 +1541,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
               Where to work next
             </h3>
             {!lens.real && (
-              <span className="rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase text-flag-900">
+              <span className="rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-flag-900">
                 Synthetic
               </span>
             )}
@@ -1550,7 +1550,7 @@ export default function PlanningMap({ shapes, territory = null, ground = null })
           <div className="border-b border-dash-line px-4 py-2.5">
             <label
               htmlFor="plan-lens"
-              className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+              className="text-[0.75rem] font-medium text-dash-muted"
             >
               Prioritise by
             </label>
@@ -1789,14 +1789,14 @@ function HoverCard({ detail, status, pointer }) {
       <footer className="flex items-center gap-1.5 border-t border-white/10 px-3 py-2">
         <span
           className={cn(
-            "rounded-dash-sm px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-[0.08em] uppercase",
+            "rounded-dash-sm px-1.5 py-0.5 text-[0.6875rem] font-medium",
             mark.tone
           )}
         >
           {mark.label}
         </span>
         {detail.estimate && (
-          <span className="ml-auto text-[0.5625rem] font-bold tracking-[0.08em] text-flag-300/80 uppercase">
+          <span className="ml-auto text-[0.6875rem] font-medium text-flag-300/80">
             Estimate
           </span>
         )}
@@ -1893,7 +1893,7 @@ function PartySplit({ votes, winner, tone = "card" }) {
             still say it and both lines are held on one. */}
         <p
           className={cn(
-            "text-[0.5625rem] font-semibold tracking-[0.1em] whitespace-nowrap uppercase",
+            "text-[0.6875rem] font-medium whitespace-nowrap",
             board ? "text-white/35" : "text-dash-muted"
           )}
         >
@@ -2039,7 +2039,7 @@ function PlaceDetail({ detail, status, whole, ground, basis }) {
           </p>
         </div>
         {detail?.estimate && (
-          <span className="shrink-0 rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.5625rem] font-bold text-flag-900 uppercase">
+          <span className="shrink-0 rounded-full bg-flag-100 px-1.5 py-0.5 text-[0.6875rem] font-semibold text-flag-900">
             Estimate
           </span>
         )}
@@ -2071,7 +2071,7 @@ function PlaceDetail({ detail, status, whole, ground, basis }) {
           <div className="flex items-center gap-2">
             <span
               className={cn(
-                "rounded-dash-sm px-1.5 py-0.5 text-[0.5625rem] font-bold tracking-[0.08em] uppercase",
+                "rounded-dash-sm px-1.5 py-0.5 text-[0.6875rem] font-medium",
                 status === "none" ? "bg-dash-bg text-dash-muted" : "bg-dash-ink text-white"
               )}
             >

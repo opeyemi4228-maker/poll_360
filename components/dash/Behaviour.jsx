@@ -117,7 +117,7 @@ export default function Behaviour({ shapes }) {
     <div className="space-y-3">
       {/* ─────────────────────────────────────────────────── the finding */}
       <section className="rounded-dash border border-dash-line bg-dash-card p-5">
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           Twenty-seven years of declared results
         </p>
         <h2 className="mt-2 font-display text-[1.5rem] leading-tight font-extrabold tracking-[-0.02em] text-dash-ink sm:text-[1.75rem]">
@@ -423,7 +423,7 @@ export default function Behaviour({ shapes }) {
             </colgroup>
             <thead>
               <tr>
-                <th className="sticky left-0 bg-dash-card py-1.5 pr-3 text-left text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                <th className="sticky left-0 bg-dash-card py-1.5 pr-3 text-left text-[0.75rem] font-medium text-dash-muted">
                   State
                 </th>
                 {MAPPABLE.map((item) => (
@@ -434,7 +434,7 @@ export default function Behaviour({ shapes }) {
                     {item.year}
                   </th>
                 ))}
-                <th className="py-1.5 pl-3 text-right text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                <th className="py-1.5 pl-3 text-right text-[0.75rem] font-medium text-dash-muted">
                   Changes
                 </th>
               </tr>
@@ -486,7 +486,7 @@ export default function Behaviour({ shapes }) {
 
       {/* ─────────────────────────────────────────────────────── the gaps */}
       <section className="rounded-dash border border-flag-200 bg-flag-50 px-4 py-3">
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-flag-900 uppercase">
+        <p className="text-[0.75rem] font-medium text-flag-900">
           What this record does not contain
         </p>
         <ul className="mt-2 space-y-1.5">
@@ -621,7 +621,7 @@ function Stat({ icon: Icon, label, value, foot, tone }) {
     <div className="rounded-dash border border-dash-line bg-dash-card px-4 py-3">
       <div className="flex items-center gap-2">
         {Icon && <Icon size={14} strokeWidth={2.25} className="shrink-0 text-dash-muted" />}
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           {label}
         </p>
       </div>

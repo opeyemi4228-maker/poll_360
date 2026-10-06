@@ -92,7 +92,7 @@ function Kicker({ children, className }) {
   return (
     <p
       className={cn(
-        "text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase",
+        "text-[0.8125rem] font-medium text-dash-muted",
         className
       )}
     >
@@ -179,7 +179,10 @@ export function Ring({
           y={size / 2}
           textAnchor="middle"
           dominantBaseline="central"
-          className={cn("figure font-bold", TONE_TEXT[tone] ?? TONE_TEXT.ink)}
+          /* `fill-current`, or the figure is drawn in SVG's default black
+             whatever its tone says — unreadable the moment the ring sits on
+             the navy panel, and the wrong colour everywhere else. */
+          className={cn("figure fill-current font-bold", TONE_TEXT[tone] ?? TONE_TEXT.ink)}
           style={{ fontSize: `${Math.round(size * 0.24)}px` }}
         >
           {display ?? formatShare(share * 100)}
@@ -254,7 +257,7 @@ export function Meter({ value, bands, unit, label, caption, over }) {
                      the others are held back, so the answer is the loudest
                      thing in the mark rather than one of four equal stripes. */
                   background: TONE_FILL[row.tone],
-                  opacity: band === row && !beyond ? 1 : 0.22,
+                  opacity: band === row && !beyond ? 1 : "var(--gauge-rest, 0.22)",
                 }}
               />
             );
@@ -619,9 +622,11 @@ export function Histogram({ buckets, label, caption, className, height = 56 }) {
         role="img"
         aria-label={`${label ?? "Activity"} by period, highest ${formatNumber(top)} at ${busiest?.label}.`}
       >
-        {buckets.map((row) => (
+        {buckets.map((row, index) => (
           <div
-            key={row.label}
+            /* By position, not by label. Thirty-six hours of hourly bars name
+               twelve hours of the clock twice, and the bars never reorder. */
+            key={index}
             title={`${row.label}: ${formatNumber(row.value)}`}
             className="flex-1 rounded-t-[3px] bg-dash-ink"
             style={{
@@ -668,13 +673,15 @@ export function StateGrid({ cells, label, caption, className }) {
       {label && <Kicker className="mb-2.5">{label}</Kicker>}
 
       <ul className="flex flex-wrap gap-1.5">
-        {cells.map((cell) => (
-          <li key={cell.label}>
+        {cells.map((cell, index) => (
+          /* Two cells may carry one name — the same key feeds two integrations —
+             so the name alone is not an identity. */
+          <li key={`${cell.label}-${index}`}>
             <span
               title={`${cell.label}: ${cell.state}`}
               className="flex size-6 items-center justify-center rounded-dash-sm"
               style={{
-                background: `color-mix(in oklab, ${TONE_FILL[cell.tone]} 18%, white)`,
+                background: `color-mix(in oklab, ${TONE_FILL[cell.tone]} 18%, var(--color-dash-card))`,
               }}
             >
               <span

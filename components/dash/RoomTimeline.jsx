@@ -95,7 +95,7 @@ export default function RoomTimeline({ timeline, onGo, onPlace }) {
               twenty minutes ago, because the bars that are there look the
               same either way. This is the number that separates them. */}
           <p className="flex items-baseline gap-2">
-            <span className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+            <span className="text-[0.75rem] font-medium text-dash-muted">
               Quiet for
             </span>
             <span
@@ -574,7 +574,7 @@ function PhaseDetail({ phase, slots, onPlace }) {
 
       {places.length > 0 && (
         <div className="mt-4 border-t border-dash-line pt-3">
-          <p className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Where it came from in this half-hour
           </p>
           <ul className="mt-2 flex flex-wrap gap-2">
@@ -632,7 +632,7 @@ function StateSpread({ phase, onPlace }) {
   return (
     <div className="mt-4 border-t border-dash-line pt-3">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-        <p className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           Every state
         </p>
         <label className="flex items-center gap-2">
@@ -746,7 +746,7 @@ function gapOf(minutes) {
 function Figure({ label, value, tone }) {
   return (
     <div className="bg-dash-card px-3 py-2.5">
-      <dt className="text-[0.625rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+      <dt className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </dt>
       <dd
@@ -863,7 +863,7 @@ function PhaseCard({ phase, open, onSelect }) {
       </p>
 
       {!seen && (
-        <p className="mt-1.5 text-[0.625rem] font-semibold tracking-[0.06em] text-dash-muted/70 uppercase">
+        <p className="mt-1.5 text-[0.75rem] font-medium text-dash-muted/70">
           Not seen yet
           {phase.nominal ? ` · due ${phase.nominal}` : ""}
         </p>

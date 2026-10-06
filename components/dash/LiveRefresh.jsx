@@ -252,7 +252,9 @@ export default function LiveRefresh({ seconds = 20, label = "Live" }) {
       {/* The age of the figures, which is the number somebody about to read a
           total out loud actually wants. Hidden on a phone, where the ring
           alone carries it. */}
-      <span className="figure hidden tabular-nums sm:inline">
+      {/* A fixed width, so the control does not grow from "8s" to "12s" and
+          nudge everything beside it every few seconds. */}
+      <span className="figure hidden min-w-[3rem] tabular-nums sm:inline">
         {at ? `${age}s ago` : "…"}
       </span>
 

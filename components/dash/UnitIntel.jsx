@@ -338,7 +338,7 @@ export function Card({ card, onGo }) {
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <p className="text-[0.75rem] font-medium text-dash-muted">
                 The boxes, as written
               </p>
               <div className="mt-1.5">
@@ -361,7 +361,7 @@ export function Card({ card, onGo }) {
             </div>
 
             <div>
-              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <p className="text-[0.75rem] font-medium text-dash-muted">
                 Does it agree with itself
               </p>
               {result.balances ? (
@@ -386,7 +386,7 @@ export function Card({ card, onGo }) {
 
               {result.flags.length > 0 && (
                 <>
-                  <p className="mt-4 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                  <p className="mt-4 text-[0.75rem] font-medium text-dash-muted">
                     Screening
                   </p>
                   <ul className="mt-1.5 space-y-1.5">
@@ -515,7 +515,7 @@ export function Card({ card, onGo }) {
 function Status({ result, worst }) {
   if (!result) {
     return (
-      <span className="flex items-center gap-1.5 rounded-dash-sm bg-dash-bg px-2.5 py-1.5 text-[0.75rem] font-bold tracking-[0.06em] text-dash-muted uppercase">
+      <span className="flex items-center gap-1.5 rounded-dash-sm bg-dash-bg px-2.5 py-1.5 text-[0.8125rem] font-medium text-dash-muted">
         <Clock size={13} strokeWidth={2.5} />
         Not reported
       </span>
@@ -534,7 +534,7 @@ function Status({ result, worst }) {
     <span className="flex flex-col items-end gap-1.5">
       <span
         className={cn(
-          "flex items-center gap-1.5 rounded-dash-sm px-2.5 py-1.5 text-[0.75rem] font-bold tracking-[0.06em] uppercase",
+          "flex items-center gap-1.5 rounded-dash-sm px-2.5 py-1.5 text-[0.8125rem] font-medium",
           tone
         )}
       >

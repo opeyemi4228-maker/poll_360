@@ -373,7 +373,7 @@ export default function FileResultForm({
 
   if (state?.ok) {
     return (
-      <div className="border-2 border-ok-300 bg-ok-50 p-6">
+      <div className="border border-ok-300 bg-ok-50 p-6">
         <Check size={26} strokeWidth={2.5} className="text-ok-600" />
         <h3 className="mt-4 text-fluid-xl text-dash-ink">
           {state.amended
@@ -422,7 +422,7 @@ export default function FileResultForm({
         <div>
           <label
             htmlFor="unitCode"
-            className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+            className="block text-[0.75rem] font-medium text-dash-muted"
           >
             Polling unit code
           </label>
@@ -437,7 +437,7 @@ export default function FileResultForm({
             value={unit}
             onChange={(event) => setUnit(event.target.value)}
             className={[
-              "figure mt-2 h-14 w-full rounded-dash-sm border-2 bg-dash-card px-4 text-[1.125rem] font-bold text-dash-ink",
+              "figure mt-2 h-14 w-full rounded-dash-sm border bg-dash-card px-4 text-[1.125rem] font-bold text-dash-ink",
               "focus:outline-none",
               errors.unitCode ? "border-red-500" : "border-dash-line focus:border-dash-ink",
             ].join(" ")}
@@ -626,7 +626,7 @@ export default function FileResultForm({
 
           {/* ── DOES THE SHEET ADD UP? ────────────────────────────────────── */}
           {audit.findings.length > 0 && (
-            <div className="border-2 border-flag-400 bg-flag-50 px-4 py-3.5">
+            <div className="border border-flag-400 bg-flag-50 px-4 py-3.5">
               <div className="flex items-start gap-3">
                 <TriangleAlert size={17} strokeWidth={2.5} className="mt-0.5 shrink-0 text-flag-700" />
                 <div className="min-w-0">
@@ -674,7 +674,7 @@ export default function FileResultForm({
                 plain
               />
               <div>
-                <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                <span className="text-[0.75rem] font-medium text-dash-muted">
                   What the photo shows
                 </span>
                 {seen ? (
@@ -694,7 +694,7 @@ export default function FileResultForm({
               <Text name="formSerial" label="Form S/N" hint="Top right of the sheet" value={serial} onChange={(v) => { setSerial(v); untouch("formSerial"); }} read={fromSheet.has("formSerial")} />
               <Text name="sheetDate" label="Date on the form" hint="As written" value={sheetDate} onChange={(v) => { setSheetDate(v); untouch("sheetDate"); }} read={fromSheet.has("sheetDate")} />
               <div>
-                <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                <span className="text-[0.75rem] font-medium text-dash-muted">
                   The officer struck out
                 </span>
                 {/* Three states, not a checkbox: contested, not contested, and
@@ -710,7 +710,7 @@ export default function FileResultForm({
                       onClick={() => setContested(contested === value ? "" : value)}
                       aria-pressed={contested === value}
                       className={[
-                        "flex-1 rounded-dash-sm border-2 px-2 text-[0.8125rem] font-bold transition-colors",
+                        "flex-1 rounded-dash-sm border px-2 text-[0.8125rem] font-bold transition-colors",
                         contested === value
                           ? value === "yes"
                             ? "border-red-500 bg-red-50 text-red-700"
@@ -832,14 +832,14 @@ export default function FileResultForm({
           </div>
 
           <div>
-            <label htmlFor={`note-${race}`} className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            <label htmlFor={`note-${race}`} className="block text-[0.75rem] font-medium text-dash-muted">
               Anything the checker should know <span className="text-dash-muted">optional</span>
             </label>
             <textarea
               id={`note-${race}`}
               name="note"
               rows={2}
-              className="mt-2 w-full resize-y rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 py-2 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
+              className="mt-2 w-full resize-y rounded-dash-sm border border-dash-line bg-dash-card px-3 py-2 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
             />
           </div>
 
@@ -893,7 +893,7 @@ export default function FileResultForm({
 function Heading({ icon: Icon, title, aside }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <p className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <p className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
         {Icon && <Icon size={14} strokeWidth={2.5} className="shrink-0" aria-hidden="true" />}
         {title}
       </p>
@@ -1001,7 +1001,7 @@ function Submit({ disabled, amending }) {
 function Text({ name, label, hint, value, onChange, read = false, plain = false }) {
   return (
     <div>
-      <label htmlFor={name} className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <label htmlFor={name} className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
         {label}
         {read && <FromSheet />}
       </label>
@@ -1014,7 +1014,7 @@ function Text({ name, label, hint, value, onChange, read = false, plain = false 
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className={[
-          "mt-2 h-16 w-full rounded-dash-sm border-2 px-4 text-dash-ink",
+          "mt-2 h-16 w-full rounded-dash-sm border px-4 text-dash-ink",
           plain ? "text-[1.0625rem] font-semibold" : "figure text-[1.05rem] font-bold",
           "placeholder:text-[0.8125rem] placeholder:font-normal placeholder:tracking-normal",
           "focus:outline-none",
@@ -1028,7 +1028,7 @@ function Text({ name, label, hint, value, onChange, read = false, plain = false 
 function Number({ name, label, hint, value, onChange, error, swatch, read = false }) {
   return (
     <div>
-      <label htmlFor={name} className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <label htmlFor={name} className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
         {swatch && <span aria-hidden="true" className="size-2.5 shrink-0" style={{ background: swatch }} />}
         {label}
         {read && <FromSheet />}
@@ -1043,7 +1043,7 @@ function Number({ name, label, hint, value, onChange, error, swatch, read = fals
         value={value}
         onChange={(event) => onChange(event.target.value.replace(/[^\d]/g, ""))}
         className={[
-          "figure mt-2 h-16 w-full rounded-dash-sm border-2 px-4 text-fluid-xl font-bold text-dash-ink",
+          "figure mt-2 h-16 w-full rounded-dash-sm border px-4 text-fluid-xl font-bold text-dash-ink",
           "focus:outline-none",
           error
             ? "border-red-500 bg-dash-card"

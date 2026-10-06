@@ -193,7 +193,7 @@ export function DataViz({ places, national, raceLabel }) {
 function Figure({ label, value }) {
   return (
     <div className="rounded-dash-sm bg-dash-bg px-4 py-3">
-      <p className="text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">{label}</p>
+      <p className="text-[0.75rem] font-medium text-dash-muted">{label}</p>
       <p className="figure mt-1.5 text-[1.5rem] leading-none font-bold text-dash-ink">{value}</p>
     </div>
   );
@@ -394,19 +394,19 @@ export function ResultsIntel({ places, national, rows, declaredRows, raceLabel }
             <table className="w-full min-w-[36rem] border-collapse text-[0.875rem]">
               <thead>
                 <tr className="border-b border-dash-line text-left">
-                  <th className="pb-2 pr-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                  <th className="pb-2 pr-3 text-[0.75rem] font-medium text-dash-muted">
                     State
                   </th>
-                  <th className="pb-2 pr-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                  <th className="pb-2 pr-3 text-[0.75rem] font-medium text-dash-muted">
                     Leading, ours
                   </th>
-                  <th className="pb-2 pr-3 text-right text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                  <th className="pb-2 pr-3 text-right text-[0.75rem] font-medium text-dash-muted">
                     Our share
                   </th>
-                  <th className="pb-2 pr-3 text-right text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                  <th className="pb-2 pr-3 text-right text-[0.75rem] font-medium text-dash-muted">
                     Declared
                   </th>
-                  <th className="pb-2 text-right text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                  <th className="pb-2 text-right text-[0.75rem] font-medium text-dash-muted">
                     Difference
                   </th>
                 </tr>
@@ -608,7 +608,7 @@ function Verdicts({ item, may, pending, run }) {
 
   return (
     <div className="mt-3 border-t border-dash-line pt-3">
-      <p className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+      <p className="text-[0.8125rem] font-medium text-dash-muted">
         The answer
       </p>
       <div className="mt-2 flex flex-wrap gap-2">
@@ -620,7 +620,7 @@ function Verdicts({ item, may, pending, run }) {
             title={row.why}
             onClick={() => run(() => moveItem({ id: item.id, to: "CLEARED", verdict: row.id }))}
             className={cn(
-              "inline-flex h-9 items-center gap-1.5 rounded-dash-sm border px-3 text-[0.75rem] font-bold tracking-[0.06em] uppercase transition-colors disabled:opacity-40",
+              "inline-flex h-9 items-center gap-1.5 rounded-dash-sm border px-3 text-[0.8125rem] font-medium transition-colors disabled:opacity-40",
               row.tone === "good"
                 ? "tone-ok ink-ok hover:border-[var(--color-verified)]"
                 : row.tone === "alert"

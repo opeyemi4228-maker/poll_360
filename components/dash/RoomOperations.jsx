@@ -83,7 +83,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
         <section className="rounded-dash border border-dash-line bg-dash-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h3 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <h3 className="text-[0.75rem] font-medium text-dash-muted">
                 The pipeline
               </h3>
               <p className="figure mt-1 text-[1.75rem] leading-none font-bold tracking-[-0.03em] text-dash-ink tabular-nums">
@@ -195,7 +195,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
         <div className="flex flex-col gap-3">
           <section className="rounded-dash border border-dash-line bg-dash-card p-4">
             <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <h3 className="text-[0.75rem] font-medium text-dash-muted">
                 Where the backlog is
               </h3>
               <span className="figure text-[0.8125rem] font-bold text-flag-700 tabular-nums">
@@ -279,7 +279,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
               tail. */}
           <section className="rounded-dash border border-dash-line bg-dash-card p-4">
             <div className="flex items-baseline justify-between gap-3">
-              <h3 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <h3 className="text-[0.75rem] font-medium text-dash-muted">
                 Time through the desk
               </h3>
               <span className="figure text-[0.8125rem] text-dash-muted tabular-nums">
@@ -338,7 +338,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
           down. A figure on a chart cannot be worked on; a booth code can. */}
       <section className="rounded-dash border border-dash-line bg-dash-card p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <h3 className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <h3 className="text-[0.75rem] font-medium text-dash-muted">
             Stuck, oldest first
           </h3>
           <span className="figure text-[0.8125rem] font-bold text-dash-ink tabular-nums">
@@ -358,7 +358,7 @@ export default function RoomOperations({ operations, onGo, onUnit }) {
                   {["Polling unit", "State", "Waiting on", "For", ""].map((head, index) => (
                     <th
                       key={head || index}
-                      className="pb-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase"
+                      className="pb-2 text-[0.75rem] font-medium text-dash-muted"
                     >
                       {head}
                     </th>

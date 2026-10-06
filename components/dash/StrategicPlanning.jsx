@@ -181,7 +181,7 @@ function Scenarios({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-dash border border-dash-line bg-dash-card px-4 py-3">
         <label className="flex items-center gap-2">
-          <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <span className="text-[0.75rem] font-medium text-dash-muted">
             Move by
           </span>
           <input

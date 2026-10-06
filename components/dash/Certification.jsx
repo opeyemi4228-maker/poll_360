@@ -126,7 +126,7 @@ export default function Certification({ reading, compact = false, className }) {
     <section
       className={cn("rounded-dash-sm border border-dash-line bg-dash-card p-3", className)}
     >
-      <h4 className="text-[0.625rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
+      <h4 className="text-[0.75rem] font-medium text-dash-muted">
         Certification
       </h4>
 
@@ -137,7 +137,7 @@ export default function Certification({ reading, compact = false, className }) {
       <div className="mt-2 flex items-start gap-2">
         <User size={15} strokeWidth={2.25} className="mt-0.5 shrink-0 text-dash-muted" />
         <div className="min-w-0">
-          <p className="text-[0.625rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Presiding officer
           </p>
           <p

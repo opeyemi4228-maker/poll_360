@@ -39,7 +39,7 @@ export default function DeclaredUpload() {
     <form action={formAction} className="space-y-5">
       {/* ------------------------------------------------------ a file */}
       <div>
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase text-dash-muted">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           A spreadsheet
         </p>
 
@@ -73,7 +73,7 @@ export default function DeclaredUpload() {
       <div>
         <label
           htmlFor="pasted"
-          className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase block text-dash-muted"
+          className="text-[0.75rem] font-medium block text-dash-muted"
         >
           Or paste the figures
         </label>
@@ -83,7 +83,7 @@ export default function DeclaredUpload() {
           rows={6}
           spellCheck={false}
           placeholder={EXAMPLE}
-          className="figure mt-2 w-full resize-y rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 py-2 text-[0.8125rem] text-dash-ink placeholder:text-dash-muted focus:border-dash-ink focus:outline-none"
+          className="figure mt-2 w-full resize-y rounded-dash-sm border border-dash-line bg-dash-card px-3 py-2 text-[0.8125rem] text-dash-ink placeholder:text-dash-muted focus:border-dash-ink focus:outline-none"
         />
         <p className="mt-2 text-[0.8125rem] leading-relaxed text-dash-muted">
           One row per place. The first column is the code — a polling unit, a ward, a local
@@ -105,7 +105,7 @@ export default function DeclaredUpload() {
       <div>
         <label
           htmlFor="note"
-          className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase block text-dash-muted"
+          className="text-[0.75rem] font-medium block text-dash-muted"
         >
           Where these came from <span className="text-dash-muted">optional</span>
         </label>
@@ -115,7 +115,7 @@ export default function DeclaredUpload() {
           type="text"
           autoComplete="off"
           placeholder="Read at the state collation centre, 21:40"
-          className="mt-2 h-11 w-full rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink placeholder:text-dash-muted focus:border-dash-ink focus:outline-none"
+          className="mt-2 h-11 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink placeholder:text-dash-muted focus:border-dash-ink focus:outline-none"
         />
       </div>
 

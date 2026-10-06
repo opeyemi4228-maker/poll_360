@@ -40,7 +40,7 @@ export default function IntegrityPanel({ report, compact = false }) {
 
         <span
           className={cn(
-            "ml-auto shrink-0 rounded-full px-2.5 py-1 text-[0.625rem] font-bold uppercase",
+            "ml-auto shrink-0 rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold",
             report.impossible
               ? "bg-red-50 text-red-700"
               : report.flags.length
@@ -74,7 +74,7 @@ export default function IntegrityPanel({ report, compact = false }) {
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
+                    "rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold",
                     SEVERITY[flag.severity].tone === "alert"
                       ? "bg-red-50 text-red-700"
                       : SEVERITY[flag.severity].tone === "warn"
@@ -109,7 +109,7 @@ export default function IntegrityPanel({ report, compact = false }) {
 function Cell({ label, value, tone = "ink" }) {
   return (
     <div className="bg-dash-card px-4 py-3">
-      <dt className="text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <dt className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </dt>
       <dd

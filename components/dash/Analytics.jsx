@@ -278,7 +278,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
           </div>
 
           <label className="block rounded-dash-sm bg-dash-bg p-4">
-            <span className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            <span className="text-[0.75rem] font-medium text-dash-muted">
               Turnout
             </span>
             <span className="figure mt-1 block text-[1.75rem] leading-none font-bold text-dash-ink tabular-nums">
@@ -323,7 +323,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
 
           <span
             className={cn(
-              "ml-auto shrink-0 rounded-full px-3 py-1.5 text-[0.6875rem] font-bold uppercase",
+              "ml-auto shrink-0 rounded-full px-3 py-1.5 text-[0.75rem] font-semibold",
               anyPasses ? "bg-ok-50 text-ok-800" : "bg-red-50 text-red-700"
             )}
           >
@@ -356,7 +356,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                     <th
                       key={head}
                       className={cn(
-                        "px-4 py-2.5 text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase",
+                        "px-4 py-2.5 text-[0.75rem] font-medium text-dash-muted",
                         index > 0 && index < 5 && "text-right"
                       )}
                     >
@@ -558,7 +558,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                 point.level === turnout ? "border-dash-ink bg-dash-bg" : "border-dash-line"
               )}
             >
-              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <p className="text-[0.75rem] font-medium text-dash-muted">
                 {point.label}
               </p>
               <p className="mt-1.5 flex items-center gap-1.5">
@@ -619,7 +619,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                     <th
                       key={head}
                       className={cn(
-                        "px-4 py-2.5 text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase",
+                        "px-4 py-2.5 text-[0.75rem] font-medium text-dash-muted",
                         index > 1 && "text-right"
                       )}
                     >
@@ -671,7 +671,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
           <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
             Conditions on the ground
           </h2>
-          <span className="rounded-full bg-flag-100 px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-flag-900">
+          <span className="rounded-full bg-flag-100 px-2 py-0.5 text-[0.6875rem] font-medium text-flag-900">
             Synthetic inputs
           </span>
           <p className="w-full text-[0.75rem] text-dash-muted sm:w-auto sm:flex-1">
@@ -723,7 +723,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                     setLevers((previous) => ({ ...previous, [key]: Number(event.target.value) }))
                   }
                   aria-label={`Weight on ${effect.label}`}
-                  className="mt-2 w-full accent-brand-red"
+                  className="mt-2 w-full accent-red-500"
                 />
 
                 <p className="mt-1.5 text-[0.6875rem] leading-relaxed text-dash-muted">
@@ -767,7 +767,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
           <h2 className="font-display text-[0.9375rem] font-extrabold text-dash-ink">
             State profile
           </h2>
-          <span className="rounded-full bg-flag-100 px-2 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide text-flag-900">
+          <span className="rounded-full bg-flag-100 px-2 py-0.5 text-[0.6875rem] font-medium text-flag-900">
             Synthetic
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-1">
@@ -835,7 +835,7 @@ function FederalAnalytics({ scopeStates = [], race = null, title = null }) {
                         <span
                           className={cn(
                             "figure ml-1.5 tabular-nums",
-                            model.delta > 0 ? "text-ok-700" : "text-brand-red"
+                            model.delta > 0 ? "text-ok-700" : "text-red-600"
                           )}
                           title={driver ? `Mostly ${driver.label}` : undefined}
                         >
@@ -880,7 +880,7 @@ Every factor it can take, where the data comes from, and how far it can be trust
             <li key={factor.key} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5">
               <span
                 className={cn(
-                  "shrink-0 rounded-full px-2 py-0.5 text-[0.5625rem] font-bold uppercase",
+                  "shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold",
                   factor.loaded
                     ? factor.generated
                       ? "bg-flag-100 text-flag-900"

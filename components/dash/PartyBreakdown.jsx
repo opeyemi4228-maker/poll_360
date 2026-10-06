@@ -116,7 +116,7 @@ export default function PartyBreakdown({
       <header className="border-b border-dash-line px-4 py-3.5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            <p className="text-[0.75rem] font-medium text-dash-muted">
               {level}
             </p>
             <h3 className="truncate font-display text-[1.125rem] leading-tight font-extrabold tracking-[-0.02em] text-dash-ink">
@@ -126,7 +126,7 @@ export default function PartyBreakdown({
 
           <span
             className={cn(
-              "shrink-0 rounded-full px-2.5 py-1 text-[0.625rem] font-bold uppercase",
+              "shrink-0 rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold",
               call.tone === "good"
                 ? "bg-ok-50 text-ok-800"
                 : call.tone === "warn"
@@ -270,7 +270,7 @@ export default function PartyBreakdown({
 function Cell({ label, value }) {
   return (
     <div className="bg-dash-card px-4 py-3">
-      <dt className="text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <dt className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </dt>
       <dd className="figure mt-1 text-[0.9375rem] font-bold text-dash-ink tabular-nums">{value}</dd>

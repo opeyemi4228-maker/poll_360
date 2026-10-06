@@ -253,7 +253,7 @@ export default function SampleDesign({ states = [], pulse = null, ground = null 
             <div className="overflow-x-auto">
               <table className="w-full min-w-[28rem] text-[0.8125rem]">
                 <thead>
-                  <tr className="border-b border-dash-line text-left text-[0.625rem] tracking-[0.08em] text-dash-muted uppercase">
+                  <tr className="border-b border-dash-line text-left text-[0.75rem] text-dash-muted">
                     <th className="pb-2 font-semibold">Stratum</th>
                     <th className="pb-2 text-right font-semibold">Booths</th>
                     <th className="pb-2 text-right font-semibold">Register</th>

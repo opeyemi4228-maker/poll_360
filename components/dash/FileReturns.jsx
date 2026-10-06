@@ -92,8 +92,8 @@ export default function FileReturns({
     <div className="space-y-5">
       {/* ------------------------------------------------------- the booth */}
       {unitCode ? (
-        <div className="rounded-dash border-2 border-dash-ink bg-dash-card px-5 py-5">
-          <p className="flex items-center gap-2 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+        <div className="rounded-dash border ring-1 ring-dash-ink border-dash-ink bg-dash-card px-5 py-5">
+          <p className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
             <MapPin size={13} strokeWidth={2.5} />
             Your polling unit
           </p>
@@ -107,7 +107,7 @@ export default function FileReturns({
         </div>
       ) : (
         <div className="rounded-dash border border-dash-line bg-dash-card px-5 py-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+          <p className="text-[0.75rem] font-medium text-dash-muted">
             Filing for another booth
           </p>
           <p className="mt-2 text-[0.875rem] leading-relaxed text-dash-muted">
@@ -120,7 +120,7 @@ export default function FileReturns({
 
       {/* --------------------------------------------------- the positions */}
       <div>
-        <p className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase text-dash-muted">
+        <p className="text-[0.75rem] font-medium text-dash-muted">
           Which result is this?
         </p>
 
@@ -140,7 +140,7 @@ export default function FileReturns({
                 aria-selected={active}
                 onClick={() => setRace(row.id)}
                 className={cn(
-                  "flex items-start gap-3 rounded-dash border-2 px-4 py-3.5 text-left transition-colors",
+                  "flex items-start gap-3 rounded-dash border px-4 py-3.5 text-left transition-colors",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
                   active
                     ? "border-dash-ink bg-dash-card"
@@ -226,7 +226,7 @@ export default function FileReturns({
       {canNameUnit && (
         <div className="rounded-dash border border-dash-line bg-dash-card">
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-dash-line px-5 py-3.5">
-            <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+            <p className="text-[0.75rem] font-medium text-dash-muted">
               Uploaded from this account
             </p>
             <p className="text-[0.75rem] text-dash-muted">

@@ -266,7 +266,7 @@ function Chip({ tone, children }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
+        "shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold",
         tone === "alert"
           ? "bg-red-50 text-red-700"
           : tone === "warn"

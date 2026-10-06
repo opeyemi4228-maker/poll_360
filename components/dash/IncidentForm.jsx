@@ -76,13 +76,13 @@ export default function IncidentForm() {
   return (
     <form action={formAction} className="space-y-4">
       <div>
-        <label htmlFor="kind" className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase block text-dash-muted">
+        <label htmlFor="kind" className="text-[0.75rem] font-medium block text-dash-muted">
           What happened
         </label>
         <select
           id="kind"
           name="kind"
-          className="mt-2 h-12 w-full rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
+          className="mt-2 h-12 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
         >
           {KINDS.map((kind) => (
             <option key={kind} value={kind} className="bg-dash-card">
@@ -93,12 +93,12 @@ export default function IncidentForm() {
       </div>
 
       <fieldset>
-        <legend className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase text-dash-muted">How serious</legend>
+        <legend className="text-[0.75rem] font-medium text-dash-muted">How serious</legend>
         <div className="mt-2 flex flex-wrap gap-2">
           {SEVERITIES.map(([value, label], index) => (
             <label
               key={value}
-              className="cursor-pointer border-2 border-dash-line px-3.5 py-2.5 text-[0.875rem] text-dash-muted transition-colors has-checked:border-dash-ink has-checked:bg-dash-ink has-checked:text-white"
+              className="cursor-pointer border border-dash-line px-3.5 py-2.5 text-[0.875rem] text-dash-muted transition-colors has-checked:border-dash-ink has-checked:bg-dash-ink has-checked:text-white"
             >
               <input
                 type="radio"
@@ -114,14 +114,14 @@ export default function IncidentForm() {
       </fieldset>
 
       <div>
-        <label htmlFor="detail" className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase block text-dash-muted">
+        <label htmlFor="detail" className="text-[0.75rem] font-medium block text-dash-muted">
           In your own words
         </label>
         <textarea
           id="detail"
           name="detail"
           rows={3}
-          className="mt-2 w-full resize-y rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 py-2 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
+          className="mt-2 w-full resize-y rounded-dash-sm border border-dash-line bg-dash-card px-3 py-2 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
           placeholder="What you saw, and when."
         />
         <p className="mt-2 text-[0.75rem] text-dash-muted">
@@ -133,13 +133,13 @@ export default function IncidentForm() {
       <div>
         <label
           htmlFor="photo"
-          className="block text-[0.6875rem] font-semibold tracking-[0.1em] uppercase text-dash-muted"
+          className="block text-[0.75rem] font-medium text-dash-muted"
         >
           Photograph <span className="text-dash-muted">optional</span>
         </label>
 
         {preview ? (
-          <div className="mt-2 flex items-center gap-3 rounded-dash-sm border-2 border-dash-line p-2">
+          <div className="mt-2 flex items-center gap-3 rounded-dash-sm border border-dash-line p-2">
             {/* eslint-disable-next-line @next/next/no-img-element --
                 A blob: URL from the camera. next/image cannot optimise one and
                 would only add a proxy hop for bytes that never leave the page. */}
@@ -158,7 +158,7 @@ export default function IncidentForm() {
                 fileRef.current.value = "";
               }}
               aria-label="Remove the photograph"
-              className="inline-flex size-9 items-center justify-center rounded-dash-sm border-2 border-dash-line text-dash-ink hover:border-dash-ink"
+              className="inline-flex size-9 items-center justify-center rounded-dash-sm border border-dash-line text-dash-ink hover:border-dash-ink"
             >
               <X size={15} strokeWidth={2.5} />
             </button>

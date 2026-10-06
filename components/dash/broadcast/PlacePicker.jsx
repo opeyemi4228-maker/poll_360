@@ -90,7 +90,7 @@ export default function PlacePicker({ value, onChange, filedByState = {} }) {
 
   return (
     <div>
-      <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">Where</span>
+      <span className="block text-[0.8125rem] font-medium text-dash-muted">Where</span>
       <div className="mt-1.5 flex flex-wrap gap-1" role="radiogroup" aria-label="Level">
         {LEVELS.map((row) => (
           <button

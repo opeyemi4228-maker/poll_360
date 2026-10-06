@@ -18,12 +18,10 @@ export const dynamic = "force-dynamic";
  * refresh — because it is opened on phones on bad networks, and it shows
  * only what is on air: a post taken off air leaves it.
  *
- * ── IT WEARS WHAT IT PRINTS ────────────────────────────────────────────────
- * Cream paper and navy ink, the palette lib/cards.jsx draws every card in and
- * the one the desk itself wears (`.air-desk` in app/globals.css). This page
- * was the odd one out: the cards are cream and it set them on the dashboards'
- * cool grey, so every square announced its own edges. One class puts the page
- * in the same palette as its contents, and nothing else had to move.
+ * ── IT WEARS WHAT THE DESK WEARS ───────────────────────────────────────────
+ * White paper and navy ink: the same surfaces the dashboards read, through the
+ * same class the desk itself carries (`.air-desk` in app/globals.css), so the
+ * page a card is published to and the screen it was made on are one palette.
  */
 export async function generateMetadata({ params }) {
   const { project } = await params;

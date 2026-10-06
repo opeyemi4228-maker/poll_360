@@ -123,7 +123,7 @@ export default function RoomWatch({
           </h2>
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.6875rem] font-bold tracking-[0.08em] uppercase",
+              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.75rem] font-medium",
               alerts?.level === "CRITICAL"
                 ? "bg-red-600 text-white"
                 : alerts?.level === "SERIOUS"

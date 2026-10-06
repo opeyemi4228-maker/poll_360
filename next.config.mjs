@@ -53,6 +53,14 @@ const nextConfig = {
     "/api/ask": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
     "/api/ask/rows": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
     "/api/ask/export": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*", "./public/geo/map/**/*", "./public/geo/lga/**/*"],
+    /* The picture check names the state and local government a sheet was
+       photographed in from these same boundaries (lib/place.js). Without them
+       a deployed function finds no place for any picture and says nothing. */
+    "/admin/irev": ["./public/geo/map/states.json", "./public/geo/lga/**/*"],
+    "/admin/irev/[election]": ["./public/geo/map/states.json", "./public/geo/lga/**/*"],
+    "/admin/irev/[election]/[unit]": ["./public/geo/map/states.json", "./public/geo/lga/**/*"],
+    "/admin/picture": ["./public/geo/map/states.json", "./public/geo/lga/**/*"],
+    "/api/irev/turn": ["./public/geo/map/states.json", "./public/geo/lga/**/*"],
   },
 
   /* ── A BUILD NEEDS A NAME THE BROWSER CAN SEE ─────────────────────────────

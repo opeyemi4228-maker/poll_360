@@ -392,7 +392,7 @@ export default function WallClock({ className }) {
             <span className="ml-1.5 w-[1.4em] text-[0.8125rem] text-blue-300">{ss}</span>
           </p>
           <span className="hidden flex-col justify-center border-l border-blue-800 pl-3 leading-none 2xl:flex">
-            <span className="text-[0.5625rem] font-bold tracking-[0.14em] text-blue-300 uppercase">WAT</span>
+            <span className="text-[0.6875rem] font-medium text-blue-300">WAT</span>
             <span className="mt-1 text-[0.75rem] font-medium whitespace-nowrap text-blue-100">
               {tick ? DAY_SHORT.format(new Date(tick)) : "\u00a0"}
             </span>
@@ -559,7 +559,7 @@ function Planner({ tick, onClose }) {
         </div>
 
         <div>
-          <p className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Or, from now</p>
+          <p className="text-[0.75rem] font-medium text-dash-muted">Or, from now</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {SOON.map((minutes) => (
               <button
@@ -575,7 +575,7 @@ function Planner({ tick, onClose }) {
         </div>
 
         <div>
-          <p className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">Election day</p>
+          <p className="text-[0.75rem] font-medium text-dash-muted">Election day</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {PRESETS.map((row) => (
               <button
@@ -658,7 +658,7 @@ function DueCards({ due, onAnswer }) {
               <span className="flex size-16 items-center justify-center rounded-full bg-white text-red-600">
                 <BellRing size={30} strokeWidth={2.25} className="animate-[alarm-swing_0.9s_ease-in-out_infinite]" aria-hidden="true" />
               </span>
-              <p className="mt-4 text-[0.75rem] font-bold tracking-[0.18em] uppercase">Alarm</p>
+              <p className="mt-4 text-[0.8125rem] font-medium">Alarm</p>
               <p className="figure mt-1 text-[2.5rem] leading-none font-semibold tabular-nums">
                 {SHORT.format(new Date(alarm.at))}
               </p>
@@ -697,7 +697,7 @@ function DueCards({ due, onAnswer }) {
                 <Bell size={17} strokeWidth={2.25} />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-[0.6875rem] font-bold tracking-[0.14em] text-blue-300 uppercase">
+                <p className="text-[0.75rem] font-medium text-blue-300">
                   Reminder · <span className="figure">{SHORT.format(new Date(row.at))}</span>
                 </p>
                 <p className="mt-1 text-[0.9375rem] leading-snug font-semibold">{row.label}</p>

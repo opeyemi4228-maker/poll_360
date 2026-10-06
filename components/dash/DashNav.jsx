@@ -17,6 +17,7 @@ import {
   Inbox,
   KeyRound,
   Landmark,
+  ScanSearch,
   ListChecks,
   Map,
   MapPin,
@@ -181,6 +182,9 @@ const SECTIONS = [
           { href: "/room#alerts", label: "Alerts & reports", icon: BellRing, capability: "gap:read" },
           { href: "/room#coverage", label: "States & booths", icon: MapPinned, capability: "gap:read" },
           { href: "/room#integrity", label: "Verification & sheets", icon: ShieldCheck, capability: "results:verify" },
+          /* Not a section of the room: a tool the verification desk reaches
+             for, so it sits beside the screen it serves. */
+          { href: "/admin/picture", label: "Picture analyser", icon: ScanSearch, capability: "results:verify" },
 
           /* ── THE FOUR TIERS, WHICH ARE ONE MAP AT FOUR DEPTHS ───────────
              Not four screens. The room's map is the same map whether it is
@@ -297,6 +301,7 @@ const SECTIONS = [
       { href: "/admin/users", label: "Users & roles", icon: UsersRound, capability: "system:read" },
       { href: "/admin/organisations", label: "Organisations", icon: Building2, capability: "system:read" },
       { href: "/admin/sources", label: "Data sources", icon: Database, capability: "system:read" },
+      { href: "/admin/irev", label: "INEC results (IReV)", icon: Landmark, capability: "system:read" },
       { href: "/admin/integrations", label: "Integrations", icon: Plug, capability: "system:read" },
       { href: "/admin/audit", label: "Audit logs", icon: ScrollText, capability: "system:read" },
       { href: "/admin/health", label: "System health", icon: HeartPulse, capability: "system:read" },
@@ -369,21 +374,24 @@ export default function DashNav({ role, rail = false }) {
   const kickers = sections.length > 1;
 
   return (
-    <nav aria-label="Dashboard" className="flex-1 overflow-y-auto overscroll-contain px-3 py-3">
+    <nav aria-label="Dashboard" /* The list is longer than most screens are tall and its scrollbar is
+         hidden, so the last few lines fade out instead of being cut: a hard
+         edge through half a word reads as the end, a fade reads as more. */
+      className="flex-1 overflow-y-auto overscroll-contain px-3.5 pt-2 pb-10 [mask-image:linear-gradient(to_bottom,black_calc(100%-2.75rem),transparent)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {sections.map((section, index) => (
-        <div key={section.id} className={index > 0 ? "mt-5" : undefined}>
+        <div key={section.id} className={index > 0 ? "mt-6" : undefined}>
           {kickers && (
             <>
               {/* Collapsed to icons there is no room for the word, so the
                   groups are kept apart by a rule instead. The heading stays in
                   the accessibility tree either way. */}
               {rail && index > 0 && (
-                <span aria-hidden="true" className="mx-auto mb-4 hidden h-px w-6 bg-white/15 rail-collapsed:block" />
+                <span aria-hidden="true" className="mx-auto mb-4 hidden h-px w-6 bg-dash-line rail-collapsed:block" />
               )}
               <h2
                 className={cn(
-                  "text-[0.625rem] font-bold tracking-[0.16em] text-white/40 uppercase",
-                  "px-3 pb-1.5",
+                  "text-[0.75rem] leading-none font-medium tracking-normal text-dash-muted/80",
+                  "px-3 pb-2.5",
                   rail && "rail-collapsed:sr-only"
                 )}
               >
@@ -392,7 +400,7 @@ export default function DashNav({ role, rail = false }) {
             </>
           )}
 
-          <ul className="space-y-0.5">
+          <ul className="space-y-1">
             {section.items.map((item) => {
               const page = pageOf(item.href);
               const here = pathname === page;
@@ -410,23 +418,25 @@ export default function DashNav({ role, rail = false }) {
                        sighted reader gets in its place. */
                     title={rail ? item.label : undefined}
                     className={cn(
-                      "flex items-center rounded-dash-sm text-[0.875rem] font-medium transition-colors",
-                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
-                      "gap-3 px-3 py-2.5",
-                      rail && "rail-collapsed:h-11 rail-collapsed:justify-center rail-collapsed:gap-0 rail-collapsed:px-2 rail-collapsed:py-0",
+                      "flex h-11 items-center rounded-dash-sm text-[0.875rem] font-medium transition-colors",
+                      "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+                      "gap-3 px-3",
+                      /* Icons only: a square tile, centred in the strip. */
+                      rail && "rail-collapsed:mx-auto rail-collapsed:size-11 rail-collapsed:justify-center rail-collapsed:gap-0 rail-collapsed:px-0",
                       here
-                        ? /* Standing in the room: a solid block. Unless one of
-                             its own sections is what you are reading, in which
-                             case the block belongs to the section and the room
-                             steps back to a tint — two solid highlights in one
-                             column is one too many. */
+                        ? /* Standing in the room: a solid navy tile. Unless one
+                             of its own sections is what you are reading, in
+                             which case the tile belongs to the section and the
+                             room steps back to a tint — two solid highlights in
+                             one column is one too many. Collapsed to icons the
+                             sections are not drawn, so the room keeps the tile. */
                           inSection
-                          ? "bg-white/10 text-white"
-                          : "bg-white text-dash-ink"
-                        : "text-white/65 hover:bg-white/10 hover:text-white"
+                          ? "bg-dash-bg text-dash-ink rail-collapsed:bg-dash-ink rail-collapsed:text-white"
+                          : "bg-dash-ink text-white shadow-e2"
+                        : "text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
                     )}
                   >
-                    <item.icon size={17} strokeWidth={2.25} className="shrink-0" />
+                    <item.icon size={19} strokeWidth={2} className="shrink-0" />
                     <span className={cn("truncate", rail && "rail-collapsed:sr-only")}>{item.label}</span>
                   </Link>
 
@@ -436,7 +446,7 @@ export default function DashNav({ role, rail = false }) {
                   {here && children.length > 0 && (
                     <ul
                       className={cn(
-                        "mt-0.5 mb-1 ml-5.5 space-y-px border-l border-white/15 pl-3",
+                        "mt-1 mb-2 ml-5.5 space-y-0.5 border-l border-dash-line pl-3",
                         rail && "rail-collapsed:hidden"
                       )}
                     >
@@ -465,7 +475,7 @@ export default function DashNav({ role, rail = false }) {
                         return (
                           <li key={child.href}>
                             {kicker && (
-                              <span className="mt-2.5 mb-1 block px-2.5 text-[0.5625rem] font-bold tracking-[0.16em] text-white/30 uppercase">
+                              <span className="mt-3 mb-1 block px-2.5 text-[0.6875rem] font-medium text-dash-muted">
                                 {kicker}
                               </span>
                             )}
@@ -473,14 +483,14 @@ export default function DashNav({ role, rail = false }) {
                               href={child.href}
                               aria-current={reading ? "true" : undefined}
                               className={cn(
-                                "flex items-center gap-2.5 rounded-dash-sm px-2.5 py-2 text-[0.8125rem] transition-colors",
-                                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white",
+                                "flex items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-[0.8125rem] transition-colors",
+                                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
                                 reading
-                                  ? "bg-white/12 font-semibold text-white"
-                                  : "font-medium text-white/50 hover:bg-white/8 hover:text-white"
+                                  ? "bg-dash-ink font-semibold text-white"
+                                  : "font-medium text-dash-muted hover:bg-dash-bg hover:text-dash-ink"
                               )}
                             >
-                              <child.icon size={14} strokeWidth={2.25} className="shrink-0" />
+                              <child.icon size={15} strokeWidth={2} className="shrink-0" />
                               <span className="truncate">{child.label}</span>
                             </Link>
                           </li>

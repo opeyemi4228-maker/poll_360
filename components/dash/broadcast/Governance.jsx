@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 
 const chip = (on) =>
   cn(
-    "h-8 rounded-dash-sm border px-2.5 text-[0.6875rem] font-bold tracking-[0.06em] uppercase transition-colors",
+    "h-8 rounded-dash-sm border px-2.5 text-[0.75rem] font-medium transition-colors",
     on ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line text-dash-muted hover:border-dash-ink"
   );
 
@@ -184,13 +184,13 @@ export function Team({ role, capabilities }) {
           <table className="w-full min-w-[36rem] border-collapse text-[0.875rem]">
             <thead>
               <tr className="border-b border-dash-line text-left">
-                <th className="pb-2 pr-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                <th className="pb-2 pr-3 text-[0.75rem] font-medium text-dash-muted">
                   Duty
                 </th>
-                <th className="pb-2 pr-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                <th className="pb-2 pr-3 text-[0.75rem] font-medium text-dash-muted">
                   What it does
                 </th>
-                <th className="pb-2 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                <th className="pb-2 text-[0.75rem] font-medium text-dash-muted">
                   Needs
                 </th>
               </tr>
@@ -270,10 +270,10 @@ export function Platforms({ items }) {
             <table className="w-full min-w-[34rem] border-collapse text-[0.875rem]">
               <thead>
                 <tr className="border-b border-dash-line text-left">
-                  <th className="pb-2 pr-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">Platform</th>
-                  <th className="pb-2 pr-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">Route</th>
-                  <th className="pb-2 pr-3 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">Carries</th>
-                  <th className="pb-2 text-right text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">Aimed at it</th>
+                  <th className="pb-2 pr-3 text-[0.75rem] font-medium text-dash-muted">Platform</th>
+                  <th className="pb-2 pr-3 text-[0.75rem] font-medium text-dash-muted">Route</th>
+                  <th className="pb-2 pr-3 text-[0.75rem] font-medium text-dash-muted">Carries</th>
+                  <th className="pb-2 text-right text-[0.75rem] font-medium text-dash-muted">Aimed at it</th>
                 </tr>
               </thead>
               <tbody>

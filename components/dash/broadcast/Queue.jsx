@@ -159,7 +159,7 @@ export function ItemCard({ item, compact = false, children }) {
             <Badge tone={stateTone(item.state)}>{stateLabel(item.state)}</Badge>
             <Badge>{kindLabel(item.kind)}</Badge>
             {item.state === "ON_AIR" && (
-              <span className="inline-flex items-center gap-1.5 text-[0.6875rem] font-bold tracking-[0.08em] text-red-600 uppercase">
+              <span className="inline-flex items-center gap-1.5 text-[0.75rem] font-medium text-red-600">
                 <span className="size-1.5 animate-pulse rounded-full bg-red-600" />
                 Live
               </span>
@@ -292,7 +292,7 @@ export function ItemCard({ item, compact = false, children }) {
 
       {editing && (
         <div className="mt-3 rounded-dash-sm border border-dash-line bg-dash-bg p-3">
-          <label className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+          <label className="block text-[0.8125rem] font-medium text-dash-muted">
             The words
           </label>
           <input
@@ -330,7 +330,7 @@ export function ItemCard({ item, compact = false, children }) {
 
       {refusing && (
         <div className="mt-3 rounded-dash-sm border border-dash-line bg-dash-bg p-3">
-          <label className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+          <label className="block text-[0.8125rem] font-medium text-dash-muted">
             Why it is being refused
           </label>
           <textarea
@@ -519,7 +519,7 @@ function Deliveries({ item }) {
           type="button"
           disabled={pending}
           onClick={() => run(() => resendPost({ id: item.id, platforms: retry }))}
-          className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-ink uppercase hover:border-dash-ink disabled:opacity-40"
+          className="mt-2 inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-3 text-[0.75rem] font-medium text-dash-ink hover:border-dash-ink disabled:opacity-40"
         >
           {pending ? <Loader2 size={13} className="animate-spin" /> : <RotateCw size={13} strokeWidth={2.5} />}
           Send again to {retry.map(platformLabel).join(", ")}
@@ -538,7 +538,7 @@ const moveIcon = (to) =>
 
 function moveClass(kind) {
   const base =
-    "inline-flex h-9 items-center gap-1.5 rounded-dash-sm border px-3 text-[0.75rem] font-bold tracking-[0.06em] uppercase transition-colors disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink";
+    "inline-flex h-9 items-center gap-1.5 rounded-dash-sm border px-3 text-[0.8125rem] font-medium transition-colors disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink";
   if (kind === "ON_AIR") return cn(base, "border-red-600 bg-red-600 text-white hover:bg-red-700");
   if (kind === "CLEARED") return cn(base, "border-dash-ink bg-dash-ink text-white hover:bg-black");
   if (kind === "refuse") return cn(base, "border-red-200 bg-red-50 text-red-700 hover:border-red-600");
@@ -590,7 +590,7 @@ export function Composer({ kind, title, hint, children, values, disabled, previe
       <button
         type="submit"
         disabled={pending || disabled}
-        className="mt-3 inline-flex h-10 items-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
+        className="mt-3 inline-flex h-10 items-center gap-2 rounded-dash-sm border ring-1 ring-dash-ink border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase transition-colors hover:bg-black disabled:opacity-40"
       >
         {pending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} strokeWidth={2.5} />}
         {title ?? "Save as draft"}
@@ -607,7 +607,7 @@ export function Composer({ kind, title, hint, children, values, disabled, previe
 export function Field({ label, hint, children }) {
   return (
     <label className="mt-3 block first:mt-0">
-      <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+      <span className="block text-[0.8125rem] font-medium text-dash-muted">
         {label}
       </span>
       {hint && <span className="mt-0.5 block text-[0.75rem] text-dash-muted">{hint}</span>}
@@ -648,7 +648,7 @@ export function JourneyBar({ items }) {
             className="flex-1 rounded-dash-sm border border-dash-line bg-dash-card px-3 py-2.5"
             title={step.why}
           >
-            <p className="text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+            <p className="text-[0.75rem] font-medium text-dash-muted">
               {step.label}
             </p>
             <p className="figure mt-1 text-[1.25rem] leading-none font-bold text-dash-ink">

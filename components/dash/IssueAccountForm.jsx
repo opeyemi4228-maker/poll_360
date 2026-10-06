@@ -43,7 +43,7 @@ export default function IssueAccountForm({
   if (state?.issued) {
     const { issued } = state;
     return (
-      <div className="rounded-dash border-2 border-dash-ink bg-dash-card p-5">
+      <div className="rounded-dash border ring-1 ring-dash-ink border-dash-ink bg-dash-card p-5">
         <p className="flex items-center gap-2 text-[0.9375rem] font-bold text-dash-ink">
           <Check size={17} strokeWidth={3} className="text-ok-600" />
           {issued.name} can now sign in
@@ -61,7 +61,7 @@ export default function IssueAccountForm({
         </dl>
 
         <div className="mt-4 border border-dash-line bg-dash-card p-4">
-          <p className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase text-dash-muted">Password, shown once</p>
+          <p className="text-[0.75rem] font-medium text-dash-muted">Password, shown once</p>
           <div className="mt-2 flex items-center gap-3">
             <code className="figure flex-1 wrap-break-word text-[1rem] font-bold text-dash-ink">
               {issued.password}
@@ -72,7 +72,7 @@ export default function IssueAccountForm({
                 navigator.clipboard?.writeText(issued.password);
                 setCopied(true);
               }}
-              className="inline-flex size-10 shrink-0 items-center justify-center border-2 border-dash-line text-dash-ink transition-colors hover:border-dash-ink hover:bg-dash-ink hover:text-white"
+              className="inline-flex size-10 shrink-0 items-center justify-center border border-dash-line text-dash-ink transition-colors hover:border-dash-ink hover:bg-dash-ink hover:text-white"
               aria-label="Copy the password"
             >
               {copied ? <Check size={15} strokeWidth={3} /> : <Copy size={15} strokeWidth={2.5} />}
@@ -117,7 +117,7 @@ export default function IssueAccountForm({
       </div>
 
       <div>
-        <label htmlFor="role" className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase block text-dash-muted">
+        <label htmlFor="role" className="text-[0.75rem] font-medium block text-dash-muted">
           Room
         </label>
         <select
@@ -125,7 +125,7 @@ export default function IssueAccountForm({
           name="role"
           value={role}
           onChange={(event) => setRole(event.target.value)}
-          className="mt-2 h-12 w-full rounded-dash-sm border-2 border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
+          className="mt-2 h-12 w-full rounded-dash-sm border border-dash-line bg-dash-card px-3 text-[0.9375rem] text-dash-ink focus:border-dash-ink focus:outline-none"
         >
           {ISSUABLE.map((value) => (
             <option key={value} value={value} className="bg-dash-card">
@@ -205,14 +205,14 @@ function Submit() {
 function Field({ name, label, hint, error, ...props }) {
   return (
     <div>
-      <label htmlFor={name} className="text-[0.6875rem] font-semibold tracking-[0.1em] uppercase block text-dash-muted">
+      <label htmlFor={name} className="text-[0.75rem] font-medium block text-dash-muted">
         {label} {hint && <span className="text-dash-muted">{hint}</span>}
       </label>
       <input
         id={name}
         name={name}
         className={[
-          "mt-2 h-12 w-full rounded-dash-sm border-2 bg-dash-card px-3 text-[0.9375rem] text-dash-ink",
+          "mt-2 h-12 w-full rounded-dash-sm border bg-dash-card px-3 text-[0.9375rem] text-dash-ink",
           "placeholder:text-dash-muted focus:outline-none",
           error ? "border-red-500" : "border-dash-line focus:border-dash-ink",
         ].join(" ")}

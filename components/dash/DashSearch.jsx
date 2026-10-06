@@ -212,7 +212,7 @@ export default function DashSearch({
           /* Anchored to the right so it never runs off the edge of the bar,
              and capped against the viewport so a phone gets the whole panel
              rather than the left two-thirds of it. */
-          className="absolute right-0 z-40 mt-2 w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-dash border border-dash-line bg-dash-card shadow-lg"
+          className="absolute right-0 z-40 mt-2 w-[min(21rem,calc(100vw-2rem))] overflow-hidden rounded-dash border border-dash-line bg-dash-card shadow-e3"
         >
           <div className="relative border-b border-dash-line">
             <Search

@@ -123,7 +123,7 @@ export function Finding({ flag, compact = false }) {
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            "rounded-full px-2 py-0.5 text-[0.625rem] font-bold uppercase",
+            "rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold",
             severity.tone === "alert"
               ? "bg-red-50 text-red-700"
               : severity.tone === "warn"
@@ -182,7 +182,7 @@ function Header({ tone, badge }) {
 
       <span
         className={cn(
-          "ml-auto shrink-0 rounded-full px-2.5 py-1 text-[0.625rem] font-bold uppercase",
+          "ml-auto shrink-0 rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold",
           tone === "alert"
             ? "bg-red-50 text-red-700"
             : tone === "warn"
@@ -201,7 +201,7 @@ function Header({ tone, badge }) {
 function Cell({ label, value, tone = "ink" }) {
   return (
     <div className="bg-dash-card px-4 py-3">
-      <dt className="text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+      <dt className="text-[0.75rem] font-medium text-dash-muted">
         {label}
       </dt>
       <dd

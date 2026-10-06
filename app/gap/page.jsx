@@ -141,7 +141,7 @@ export default async function GapPage() {
           and are not worth interrupting a room for, and a banner that appears
           for everything is a banner nobody reads. */}
       {report.urgent.length > 0 && (
-        <section className="rounded-dash border-2 border-red-300 bg-red-50 px-5 py-4">
+        <section className="rounded-dash border border-red-300 bg-red-50 px-5 py-4">
           <p className="flex items-center gap-2 font-display text-[0.9375rem] font-extrabold text-dash-ink">
             <AlertTriangle size={17} strokeWidth={2.5} className="shrink-0 text-red-600" />
             {formatNumber(report.urgent.length)}{" "}

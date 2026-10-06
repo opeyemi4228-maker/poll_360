@@ -267,7 +267,7 @@ const TONES = {
     note: "mt-1 text-[0.8125rem] leading-relaxed text-white/50",
     input: (error) =>
       [
-        "h-[3.25rem] w-full appearance-none border-2 bg-blue-950/60 px-4 text-[0.9375rem] text-white",
+        "h-[3.25rem] w-full appearance-none border bg-blue-950/60 px-4 text-[0.9375rem] text-white",
         "transition-colors focus:outline-none disabled:opacity-45",
         error ? "border-red-400" : "border-white/25 hover:border-white/45 focus:border-white",
       ].join(" "),

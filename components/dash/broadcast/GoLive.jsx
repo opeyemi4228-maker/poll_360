@@ -65,7 +65,7 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
                   type="button"
                   disabled={pending}
                   onClick={() => run(() => endLive({ id: running.id }))}
-                  className="inline-flex h-9 items-center gap-2 rounded-dash-sm border-2 border-red-600 px-3 text-[0.75rem] font-bold tracking-[0.06em] text-red-700 uppercase hover:bg-red-50 disabled:opacity-40"
+                  className="inline-flex h-9 items-center gap-2 rounded-dash-sm border border-red-600 px-3 text-[0.8125rem] font-medium text-red-700 hover:bg-red-50 disabled:opacity-40"
                 >
                   {pending ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} strokeWidth={3} />}
                   End the broadcast
@@ -167,7 +167,7 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
                     { onDone: () => setSaid({ tone: "good", text: "Announcement written and sent to an editor. It goes out everywhere the moment it is cleared." }) }
                   )
                 }
-                className="mt-4 inline-flex h-10 items-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase hover:bg-black disabled:opacity-40"
+                className="mt-4 inline-flex h-10 items-center gap-2 rounded-dash-sm border ring-1 ring-dash-ink border-dash-ink bg-dash-ink px-4 text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase hover:bg-black disabled:opacity-40"
               >
                 {pending ? <Loader2 size={15} className="animate-spin" /> : <Radio size={15} strokeWidth={2.5} />}
                 Announce it on every platform
@@ -182,7 +182,7 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
             ) : (
               <>
                 <label className="block">
-                  <span className="block text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">
+                  <span className="block text-[0.8125rem] font-medium text-dash-muted">
                     What the programme is called
                   </span>
                   <input
@@ -198,7 +198,7 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
                 </label>
 
                 <fieldset className="mt-4">
-                  <legend className="text-[0.75rem] font-semibold tracking-[0.08em] text-dash-muted uppercase">Where</legend>
+                  <legend className="text-[0.8125rem] font-medium text-dash-muted">Where</legend>
                   <ul className="mt-2 space-y-1.5">
                     {liveChannels.map((row) => {
                       const on = chosen.has(row.id);
@@ -260,7 +260,7 @@ export default function GoLive({ items = [], liveChannels = [], project, stageUr
             href="/room/stage"
             target="_blank"
             rel="noreferrer"
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-dash-sm border-2 border-dash-ink bg-dash-ink text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase hover:bg-black"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-dash-sm border ring-1 ring-dash-ink border-dash-ink bg-dash-ink text-[0.75rem] font-bold tracking-[0.08em] text-white uppercase hover:bg-black"
           >
             <Monitor size={15} strokeWidth={2.5} />
             Open the stage
@@ -300,7 +300,7 @@ function Secret({ label, value }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="mt-2">
-      <p className="text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">{label}</p>
+      <p className="text-[0.75rem] font-medium text-dash-muted">{label}</p>
       <div className="mt-1 flex items-stretch gap-2">
         {/* `w-0` as well as `min-w-0`: a flex item holding one long
             unbreakable string still contributes that string's width to the

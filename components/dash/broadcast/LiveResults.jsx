@@ -103,7 +103,7 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
                     : "var(--color-dash-ink)";
             return (
               <li key={stage.id} className="flex items-center gap-3">
-                <span className="w-28 shrink-0 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase">
+                <span className="w-28 shrink-0 text-[0.75rem] font-medium text-dash-muted">
                   {stage.label}
                 </span>
                 <span className="relative flex h-9 min-w-0 flex-1 items-center overflow-hidden rounded-dash-sm bg-dash-bg">
@@ -199,7 +199,7 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
                             type="button"
                             disabled={pending}
                             onClick={() => clear(place.scope, place.name, place.filed)}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-2.5 text-[0.6875rem] font-bold tracking-[0.06em] text-dash-ink uppercase transition-colors hover:border-dash-ink disabled:opacity-40"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-dash-sm border border-dash-line px-2.5 text-[0.75rem] font-medium text-dash-ink transition-colors hover:border-dash-ink disabled:opacity-40"
                           >
                             {pending && clearing === place.scope ? (
                               <Loader2 size={13} className="animate-spin" />
@@ -325,7 +325,7 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
             <button
               type="button"
               onClick={() => onGo("approvals")}
-              className="text-[0.75rem] font-bold tracking-[0.06em] text-dash-muted uppercase hover:text-dash-ink"
+              className="text-[0.8125rem] font-medium text-dash-muted hover:text-dash-ink"
             >
               Approvals
             </button>
@@ -354,7 +354,7 @@ export default function LiveResults({ pipeline, places, national, race, raceLabe
 const Th = ({ children, right = false }) => (
   <th
     className={cn(
-      "pb-2 text-[0.6875rem] font-bold tracking-[0.1em] text-dash-muted uppercase",
+      "pb-2 text-[0.75rem] font-medium text-dash-muted",
       right ? "pl-3 text-right" : "pr-3"
     )}
   >

@@ -28,6 +28,8 @@ import { raiseAlerts } from "@/lib/alerts";
 import { nightTimeline } from "@/lib/timeline";
 import { unitCards } from "@/lib/unit-card";
 import { integrityOf } from "@/lib/anomalies";
+import { inecAgainstOurs } from "@/lib/irev/verify";
+import IrevHeartbeat from "@/components/dash/IrevHeartbeat";
 import { unseal } from "@/lib/crypto";
 import { parties, others, DECLARED, states2023 } from "@/lib/election2023";
 import { STATES } from "@/lib/units";
@@ -353,6 +355,10 @@ export default async function RoomPage() {
      impossible" here and "four" there ends up on a broadcast. */
   const integrity = integrityOf(ourRows);
   const sheetFindings = sheetAudits(ourRows);
+  /* INEC's own published sheets, where an election gathered from its portal
+     has been tied to this project. Null whenever there is nothing to show,
+     and it can only ever be null or right: see lib/irev/verify.js. */
+  const inec = await inecAgainstOurs(project, ourRows, "", declaredRows);
 
   /* ── THE OTHER THREE, OFF THE SAME ROWS ─────────────────────────────────
      The pipeline, the night's clock and the warning list. All three are pure
@@ -543,207 +549,214 @@ export default async function RoomPage() {
   });
 
   return (
-    <SituationRoom
-      /* Never the first tab in the table — that is a layout decision and this
-         is a behavioural one. See LANDING in lib/room-views.js. */
-      initialView={remembered ?? LANDING}
-      user={user}
-      board={board}
-      /* ── WHOSE ROOM THIS IS ─────────────────────────────────────────────
-         Read here because lib/principal.js consults the environment, which a
-         browser cannot. It decides whose figures the command dashboard is
-         about; it never decides what those figures are — see the note at the
-         head of lib/spread.js, which runs the same arithmetic for every party
-         on the paper. */
-      principal={principal}
-      /* Everything the command dashboard draws, built above from the live
-         count and never from the replay. */
-      command={
-        commandBoard && {
-          board: commandBoard,
-          tree: commandTree,
-          spread: commandSpread,
-          standings: commandView.standings,
-          ticker: commandView.ticker,
-          byState: commandView.byState,
-          total: commandView.total,
-          margin: commandView.margin,
-          coverage: commandView.coverage,
-          unitsReported: commandView.unitsReported,
-          booths: commandView.booths,
-          isDemoProject: Boolean(project?.isDemo),
-          /* True while the feed is switched off above. The screen draws its
-             own notice from this rather than leaving a reader to wonder
-             whether a wall of zeroes is a quiet night or a broken page. */
-          awaiting: !commandLive,
-          /* ── WHERE THESE FIGURES CAME FROM ──────────────────────────
-             A board built from two sources has to say so. This is the
-             count added from Data Bank, the overlap it refused to count
-             twice, and what it dropped — see lib/hub-returns.js. The
-             screen prints it in words rather than implying one source. */
-          sources: {
-            ours: commandRows.length,
-            hub: fromHub.added,
-            duplicate: fromHub.duplicate,
-            readings: fromHub.readings,
-            impossible: fromHub.impossible,
-            byChannel: fromHub.byChannel,
-            hubAvailable: fromHub.available,
-          },
-        }
-      }
-      /* What the last presidential election was actually won on, from the
-         2023 declared record rather than typed as a literal: a benchmark
-         written by hand is a benchmark that quietly disagrees with the record
-         it came from. Drawn as a mark on our own share. */
-      benchmark={(DECLARED.apc / DECLARED.validVotes) * 100}
-      shapes={nation}
-      /* ── THE MAP HAS ITS OWN DATA PATH, AND IT ALSO HAD TO BE SCOPED ────
-         The headline figures come from `board` and the map rows come from
-         here, and fixing only the first left the country's outline correct
-         and every figure inside it wrong: the off-cycle board reported the
-         right six states and drew 2023 presidential votes on them, so Edo
-         showed LP 581,266 where the declared result is APC 291,667.
-
-         The demo keeps its own table, because the replay is built from it and
-         the two must not drift. Every other project takes its rows from the
-         board, which is already the project's own declared figures. */
-      states={project?.isDemo ? states2023 : boardStates}
-      incidents={feed}
-      /* Data Bank's own reports board, for the booths this room watches. It
-         carries no narrative by design — see lib/intake.js — so it is drawn
-         beside the incident feed and never merged into it. */
-      hubReports={hubReports}
-      booth={booth}
-      /* The whole broadcast head, in one prop — assembled above. */
-      broadcast={broadcast}
-      raceLabel={raceLabel(race)}
-      coordinators={coordinators}
-      watchSummary={watchSummary}
-      photos={photoMap}
-      unitCards={cards}
-      incidentCount={feed.length}
-      scopeStates={project?.scopeStates ?? []}
-      /* ── THE ACCOUNT'S OWN GROUND, WHICH IS NOT THE PROJECT'S ──────────
-         `scopeStates` is what the contest covers; this is what this room may
-         read of it. A project may run the governorship in six states while
-         the newsroom looking at it holds one, and the map has to be the
-         second. Handed down already resolved — its local governments named —
-         because resolving one reads from disk. */
-      territory={
-        territory && {
-          level: territory.level,
-          name: territory.name,
-          stateCode: territory.stateCode,
-          /* The state's name, not only its code. Panels that have to say
-             whose figures they are showing were printing the project's title
-             instead — "Every figure below is Adamawa State, 2023's" where they
-             meant "Adamawa's". */
-          stateName: territory.stateName,
-          stateNumber: territory.stateNumber,
-          lgas: territory.lgas,
-          /* The names as well as the codes, because the boundary files are
-             keyed by name and turning "18/03" back into "Chikun" rests on an
-             alphabetical assumption that lives in lib/lga-names.js. Making it
-             twice, once of them in a browser, is how the map and the figures
-             come to disagree about which places these are. */
-          lgaNames: lgasOf(territory).map((row) => row.name),
-          shared: territory.shared ?? null,
-        }
-      }
-      ground={ground}
-      racePinned={pinned}
-      territoryUnresolved={unresolved}
-      /* ── THE SEAT THIS ROOM IS ABOUT ──────────────────────────────────
-         Who holds this ground in this contest, and what the last election
-         for it came to. Read on the server because the seat tables reach
-         lib/lga-names.js, which reads from disk — the same reason the local
-         government names above are resolved here. A room that is narrowed
-         shows this where an unnarrowed one shows the national ruling-party
-         map: 37 states is the right answer to a question a senatorial
-         campaign is not asking. */
-      seat={{
-        race,
-        raceLabel: raceLabel(race),
-        holders: holdersOf({ race, territory }),
-        result: lastResultFor({ race, territory }),
-      }}
-      /* ── THE LAST GOVERNORSHIP IN THE STATES ON SCREEN ─────────────────
-         The analytics screen's baseline. It read lib/offcycle.js alone, which
-         holds the eight contests fought outside the general cycle — so for
-         Adamawa, whose 2023 declaration this product has transcribed in full,
-         it announced "no governorship result loaded" and rested every figure
-         on the presidential vote instead. Two modules holding the same fact
-         and only one of them consulted.
-
-         Resolved here, from lib/seats.js, which is the one place that answers
-         "the last election for this contest on this ground" — and shaped the
-         way lib/offcycle.js shapes a row, so the screen reads one kind of
-         thing however it was sourced. */
-      stateResults={Object.fromEntries(
-        (territory?.stateCode ? [territory.stateNumber] : []).flatMap((number) => {
-          const whole = resolveTerritory(`STATE:${number}`);
-          const last = whole && lastResultFor({ race: "GOVERNORSHIP", territory: whole });
-          if (!last?.votes) return [];
-          return [[
-            whole.stateCode,
-            {
-              code: whole.stateCode,
-              state: whole.name,
-              votesOn: last.votesOn,
-              winner: last.party,
-              candidate: last.candidate,
-              votes: last.votes,
-              /* The register that election was actually run on, which is not
-                 the presidential one: Adamawa's differ by 88,000. */
-              registered: last.registered ?? null,
-              source: last.source,
+    <>
+      {/* Keeps anything being gathered from INEC's portal moving while the
+          room is the page that is open. Only for an account allowed to run
+          it; the route it asks refuses everybody else regardless. */}
+      {can(user.role, "system:read") && <IrevHeartbeat />}
+      <SituationRoom
+        /* Never the first tab in the table — that is a layout decision and this
+           is a behavioural one. See LANDING in lib/room-views.js. */
+        initialView={remembered ?? LANDING}
+        user={user}
+        board={board}
+        /* ── WHOSE ROOM THIS IS ─────────────────────────────────────────────
+           Read here because lib/principal.js consults the environment, which a
+           browser cannot. It decides whose figures the command dashboard is
+           about; it never decides what those figures are — see the note at the
+           head of lib/spread.js, which runs the same arithmetic for every party
+           on the paper. */
+        principal={principal}
+        /* Everything the command dashboard draws, built above from the live
+           count and never from the replay. */
+        command={
+          commandBoard && {
+            board: commandBoard,
+            tree: commandTree,
+            spread: commandSpread,
+            standings: commandView.standings,
+            ticker: commandView.ticker,
+            byState: commandView.byState,
+            total: commandView.total,
+            margin: commandView.margin,
+            coverage: commandView.coverage,
+            unitsReported: commandView.unitsReported,
+            booths: commandView.booths,
+            isDemoProject: Boolean(project?.isDemo),
+            /* True while the feed is switched off above. The screen draws its
+               own notice from this rather than leaving a reader to wonder
+               whether a wall of zeroes is a quiet night or a broken page. */
+            awaiting: !commandLive,
+            /* ── WHERE THESE FIGURES CAME FROM ──────────────────────────
+               A board built from two sources has to say so. This is the
+               count added from Data Bank, the overlap it refused to count
+               twice, and what it dropped — see lib/hub-returns.js. The
+               screen prints it in words rather than implying one source. */
+            sources: {
+              ours: commandRows.length,
+              hub: fromHub.added,
+              duplicate: fromHub.duplicate,
+              readings: fromHub.readings,
+              impossible: fromHub.impossible,
+              byChannel: fromHub.byChannel,
+              hubAvailable: fromHub.available,
             },
-          ]];
-        })
-      )}
-      divergence={divergence}
-      pulse={pulse}
-      integrity={integrity}
-      operations={operations}
-      timeline={timeline}
-      escalations={escalations}
-      sheetFindings={sheetFindings}
-      sheetReads={readings}
-      liveTree={tree}
-      race={race}
-      races={RACES.map((row) => ({ id: row.id, label: row.label }))}
-      filedByRace={filedByRace}
-      project={project ? { title: project.title, isDemo: project.isDemo } : null}
-      /* ── WHAT THE MAP IS, IN ONE WORD, DECIDED HERE ────────────────────
-         The room draws whichever of these it is handed and must say which,
-         and only this page knows: it is the difference between "no returns
-         have arrived" and "nothing was declared", which look identical on a
-         grey map and mean entirely different things to the person watching. */
-      boardSource={
-        project?.isDemo
-          ? "replay"
-          : filed > 0
-            ? "returns"
-            : declaredRows.length > 0
-              ? "declared"
-              : "empty"
-      }
-      /* ── DATA, NOT A READY-MADE ELEMENT ────────────────────────────────
-         This used to hand the switcher across already rendered. The switcher
-         is a client component, so building it here bought nothing, and the
-         element arrived on the other side as a plain child in an array React
-         could not key, warning on every render of the room. The same mistake
-         was made once before with LiveRefresh and fixed the same way: send
-         the data and let the client component that needs it build the
-         element. */
-      projects={{
-        current: project,
-        all: allProjects,
-        canCreate: ["SUPER_ADMIN", "SITUATION_ROOM"].includes(user.role),
-        canDelete: user.role === "SUPER_ADMIN",
-      }}
-    />
+          }
+        }
+        /* What the last presidential election was actually won on, from the
+           2023 declared record rather than typed as a literal: a benchmark
+           written by hand is a benchmark that quietly disagrees with the record
+           it came from. Drawn as a mark on our own share. */
+        benchmark={(DECLARED.apc / DECLARED.validVotes) * 100}
+        shapes={nation}
+        /* ── THE MAP HAS ITS OWN DATA PATH, AND IT ALSO HAD TO BE SCOPED ────
+           The headline figures come from `board` and the map rows come from
+           here, and fixing only the first left the country's outline correct
+           and every figure inside it wrong: the off-cycle board reported the
+           right six states and drew 2023 presidential votes on them, so Edo
+           showed LP 581,266 where the declared result is APC 291,667.
+
+           The demo keeps its own table, because the replay is built from it and
+           the two must not drift. Every other project takes its rows from the
+           board, which is already the project's own declared figures. */
+        states={project?.isDemo ? states2023 : boardStates}
+        incidents={feed}
+        /* Data Bank's own reports board, for the booths this room watches. It
+           carries no narrative by design — see lib/intake.js — so it is drawn
+           beside the incident feed and never merged into it. */
+        hubReports={hubReports}
+        booth={booth}
+        /* The whole broadcast head, in one prop — assembled above. */
+        broadcast={broadcast}
+        raceLabel={raceLabel(race)}
+        coordinators={coordinators}
+        watchSummary={watchSummary}
+        photos={photoMap}
+        unitCards={cards}
+        incidentCount={feed.length}
+        scopeStates={project?.scopeStates ?? []}
+        /* ── THE ACCOUNT'S OWN GROUND, WHICH IS NOT THE PROJECT'S ──────────
+           `scopeStates` is what the contest covers; this is what this room may
+           read of it. A project may run the governorship in six states while
+           the newsroom looking at it holds one, and the map has to be the
+           second. Handed down already resolved — its local governments named —
+           because resolving one reads from disk. */
+        territory={
+          territory && {
+            level: territory.level,
+            name: territory.name,
+            stateCode: territory.stateCode,
+            /* The state's name, not only its code. Panels that have to say
+               whose figures they are showing were printing the project's title
+               instead — "Every figure below is Adamawa State, 2023's" where they
+               meant "Adamawa's". */
+            stateName: territory.stateName,
+            stateNumber: territory.stateNumber,
+            lgas: territory.lgas,
+            /* The names as well as the codes, because the boundary files are
+               keyed by name and turning "18/03" back into "Chikun" rests on an
+               alphabetical assumption that lives in lib/lga-names.js. Making it
+               twice, once of them in a browser, is how the map and the figures
+               come to disagree about which places these are. */
+            lgaNames: lgasOf(territory).map((row) => row.name),
+            shared: territory.shared ?? null,
+          }
+        }
+        ground={ground}
+        racePinned={pinned}
+        territoryUnresolved={unresolved}
+        /* ── THE SEAT THIS ROOM IS ABOUT ──────────────────────────────────
+           Who holds this ground in this contest, and what the last election
+           for it came to. Read on the server because the seat tables reach
+           lib/lga-names.js, which reads from disk — the same reason the local
+           government names above are resolved here. A room that is narrowed
+           shows this where an unnarrowed one shows the national ruling-party
+           map: 37 states is the right answer to a question a senatorial
+           campaign is not asking. */
+        seat={{
+          race,
+          raceLabel: raceLabel(race),
+          holders: holdersOf({ race, territory }),
+          result: lastResultFor({ race, territory }),
+        }}
+        /* ── THE LAST GOVERNORSHIP IN THE STATES ON SCREEN ─────────────────
+           The analytics screen's baseline. It read lib/offcycle.js alone, which
+           holds the eight contests fought outside the general cycle — so for
+           Adamawa, whose 2023 declaration this product has transcribed in full,
+           it announced "no governorship result loaded" and rested every figure
+           on the presidential vote instead. Two modules holding the same fact
+           and only one of them consulted.
+
+           Resolved here, from lib/seats.js, which is the one place that answers
+           "the last election for this contest on this ground" — and shaped the
+           way lib/offcycle.js shapes a row, so the screen reads one kind of
+           thing however it was sourced. */
+        stateResults={Object.fromEntries(
+          (territory?.stateCode ? [territory.stateNumber] : []).flatMap((number) => {
+            const whole = resolveTerritory(`STATE:${number}`);
+            const last = whole && lastResultFor({ race: "GOVERNORSHIP", territory: whole });
+            if (!last?.votes) return [];
+            return [[
+              whole.stateCode,
+              {
+                code: whole.stateCode,
+                state: whole.name,
+                votesOn: last.votesOn,
+                winner: last.party,
+                candidate: last.candidate,
+                votes: last.votes,
+                /* The register that election was actually run on, which is not
+                   the presidential one: Adamawa's differ by 88,000. */
+                registered: last.registered ?? null,
+                source: last.source,
+              },
+            ]];
+          })
+        )}
+        divergence={divergence}
+        pulse={pulse}
+        integrity={integrity}
+        operations={operations}
+        timeline={timeline}
+        escalations={escalations}
+        sheetFindings={sheetFindings}
+        inec={inec}
+        sheetReads={readings}
+        liveTree={tree}
+        race={race}
+        races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+        filedByRace={filedByRace}
+        project={project ? { title: project.title, isDemo: project.isDemo } : null}
+        /* ── WHAT THE MAP IS, IN ONE WORD, DECIDED HERE ────────────────────
+           The room draws whichever of these it is handed and must say which,
+           and only this page knows: it is the difference between "no returns
+           have arrived" and "nothing was declared", which look identical on a
+           grey map and mean entirely different things to the person watching. */
+        boardSource={
+          project?.isDemo
+            ? "replay"
+            : filed > 0
+              ? "returns"
+              : declaredRows.length > 0
+                ? "declared"
+                : "empty"
+        }
+        /* ── DATA, NOT A READY-MADE ELEMENT ────────────────────────────────
+           This used to hand the switcher across already rendered. The switcher
+           is a client component, so building it here bought nothing, and the
+           element arrived on the other side as a plain child in an array React
+           could not key, warning on every render of the room. The same mistake
+           was made once before with LiveRefresh and fixed the same way: send
+           the data and let the client component that needs it build the
+           element. */
+        projects={{
+          current: project,
+          all: allProjects,
+          canCreate: ["SUPER_ADMIN", "SITUATION_ROOM"].includes(user.role),
+          canDelete: user.role === "SUPER_ADMIN",
+        }}
+      />
+    </>
   );
 }
 

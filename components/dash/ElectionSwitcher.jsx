@@ -111,10 +111,10 @@ export default function ElectionSwitcher({
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-dash border border-dash-line bg-dash-card shadow-lg">
+        <div className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-dash border border-dash-line bg-dash-card shadow-e3">
           {!making && (
             <>
-              <p className="border-b border-dash-line px-4 py-2.5 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <p className="border-b border-dash-line px-4 py-2.5 text-[0.75rem] font-medium text-dash-muted">
                 Election projects
               </p>
 
@@ -247,7 +247,7 @@ export default function ElectionSwitcher({
                 It starts empty. Nothing in your other projects is touched or removed.
               </p>
 
-              <label htmlFor="election-title" className="mt-4 block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <label htmlFor="election-title" className="mt-4 block text-[0.75rem] font-medium text-dash-muted">
                 Title
               </label>
               <input
@@ -262,7 +262,7 @@ export default function ElectionSwitcher({
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <span>
-                  <label htmlFor="election-kind" className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                  <label htmlFor="election-kind" className="block text-[0.75rem] font-medium text-dash-muted">
                     Contest
                   </label>
                   <select
@@ -280,7 +280,7 @@ export default function ElectionSwitcher({
                   </select>
                 </span>
                 <span>
-                  <label htmlFor="election-day" className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                  <label htmlFor="election-day" className="block text-[0.75rem] font-medium text-dash-muted">
                     Polling day
                   </label>
                   <input
@@ -294,7 +294,7 @@ export default function ElectionSwitcher({
 
               {kind !== "PRESIDENTIAL" && (
                 <div className="mt-3">
-                  <label htmlFor="election-state" className="block text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+                  <label htmlFor="election-state" className="block text-[0.75rem] font-medium text-dash-muted">
                     State
                   </label>
                   <select

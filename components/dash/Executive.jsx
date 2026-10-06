@@ -880,7 +880,7 @@ export default function Executive({
             <div className="overflow-x-auto">
               <table className="w-full min-w-[52rem] text-[0.8125rem]">
                 <thead>
-                  <tr className="border-b border-dash-line text-left text-[0.625rem] tracking-[0.08em] text-dash-muted uppercase">
+                  <tr className="border-b border-dash-line text-left text-[0.75rem] text-dash-muted">
                     <th className="w-10 py-2 pl-4 font-semibold">#</th>
                     <th className="py-2 font-semibold">Place</th>
                     <th className="py-2 font-semibold">Class</th>
@@ -1008,7 +1008,7 @@ function Group({ title, note, children }) {
   return (
     <section className="rounded-dash border border-dash-line bg-dash-card p-4">
       <header className="mb-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5 border-b border-dash-line pb-2">
-        <h3 className="text-[0.6875rem] font-bold tracking-[0.16em] text-dash-ink uppercase">{title}</h3>
+        <h3 className="text-[0.75rem] font-medium text-dash-ink">{title}</h3>
         {note && <p className="text-[0.6875rem] text-dash-muted">{note}</p>}
       </header>
       <div className="grid grid-cols-2 gap-x-4 gap-y-3">{children}</div>
@@ -1019,7 +1019,7 @@ function Group({ title, note, children }) {
 function Big({ label, value, sub, tone = "ink", accent = null, bar = null }) {
   return (
     <div className="min-w-0">
-      <p className="flex items-center gap-1.5 truncate text-[0.625rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+      <p className="flex items-center gap-1.5 truncate text-[0.75rem] font-medium text-dash-muted">
         {accent && <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ background: accent }} />}
         {label}
       </p>
@@ -1044,7 +1044,7 @@ function Big({ label, value, sub, tone = "ink", accent = null, bar = null }) {
 function RailCard({ step, title, children }) {
   return (
     <div className="rounded-dash border border-dash-line bg-dash-card p-3">
-      <p className="mb-2 flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+      <p className="mb-2 flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
         <span className="figure flex size-4 items-center justify-center rounded-full bg-dash-well text-[0.625rem] text-dash-ink">
           {step}
         </span>

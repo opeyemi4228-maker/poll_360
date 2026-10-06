@@ -133,7 +133,7 @@ export const DESKS = {
 function Meter({ label, value, alert = false, live = false }) {
   return (
     <div className="flex min-w-[5.5rem] flex-1 flex-col justify-center px-3.5 py-2 sm:flex-none">
-      <dt className="flex items-center gap-1.5 text-[0.625rem] font-semibold tracking-[0.08em] whitespace-nowrap text-blue-300 uppercase">
+      <dt className="flex items-center gap-1.5 text-[0.75rem] font-medium whitespace-nowrap text-blue-300">
         {live && <span className="size-1.5 animate-pulse rounded-full bg-red-500" aria-hidden="true" />}
         {label}
       </dt>
@@ -239,10 +239,10 @@ export default function RoomBroadcast({
   return (
     <DeskProvider user={user} may={may} deliveries={deliveries} channels={channels} wire={wire} now={now}>
       {/* ── THE DESK WEARS WHAT IT PRINTS ──────────────────────────────────
-          `air-desk` redefines the dashboard's own colour tokens for
-          everything inside it — see app/globals.css. The desk is cream and
-          navy, like the cards it makes, so a producer can see at a glance
-          that they are looking at output rather than at the count. */}
+          `air-desk` marks the desk's own sheets — see app/globals.css. It
+          reads the same white-and-navy surfaces as every other dashboard
+          now; the navy band below is what says this is output and not the
+          count. */}
       <div className="air-desk flex flex-col gap-4">
         {/* ══════════════════════════════════════════════════════════════════
             THE CONSOLE: ONE HEADER, NOT A BAND AND A STRIP
@@ -272,7 +272,7 @@ export default function RoomBroadcast({
             <div className="flex min-w-0 items-center gap-3">
               <BrandMark className="size-9 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[0.625rem] font-bold tracking-[0.16em] text-blue-300 uppercase">Broadcast desk</p>
+                <p className="text-[0.75rem] font-medium text-blue-300">Broadcast desk</p>
                 <h2 className="font-display text-[1.125rem] leading-tight font-extrabold tracking-[-0.02em]" title={desk.why}>
                   {desk.label}
                 </h2>

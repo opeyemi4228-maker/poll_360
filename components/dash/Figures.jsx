@@ -121,7 +121,7 @@ export function Tile({
       )}
     >
       <span className="flex items-start justify-between gap-2">
-        <span className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
+        <span className="text-[0.75rem] font-medium text-dash-muted">
           {label}
         </span>
         {Icon && <Icon size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" />}
@@ -337,7 +337,7 @@ export function Panel({ title, figure, foot, children, className, ...props }) {
       {...props}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">
+        <h3 className="text-[0.75rem] font-medium text-dash-muted">
           {title}
         </h3>
         {figure && (
@@ -473,7 +473,7 @@ export function Gauge({
               {figure ?? formatShare(value)}
             </span>
             {label && (
-              <span className="mt-1 text-[0.625rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <span className="mt-1 text-[0.75rem] font-medium text-dash-muted">
                 {label}
               </span>
             )}

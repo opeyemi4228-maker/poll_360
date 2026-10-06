@@ -7,7 +7,7 @@ import { auditSheet } from "@/lib/results";
 import DashLayout from "@/components/dash/DashLayout";
 import ReadinessBanner from "@/components/dash/ReadinessBanner";
 import { readiness } from "@/lib/readiness";
-import { Card, StatCard, Badge, Empty } from "@/components/dash/DashCard";
+import { Card, PanelBlock, StatCard, Badge, Empty } from "@/components/dash/DashCard";
 import { Histogram, Meter, Ranked, Ring, Split, StateGrid } from "@/components/dash/SystemCharts";
 import IntegrityPanel from "@/components/dash/IntegrityPanel";
 import IssueAccountForm from "@/components/dash/IssueAccountForm";
@@ -25,7 +25,7 @@ import { ROLES } from "@/lib/roles";
 import { integrityOf } from "@/lib/anomalies";
 import { agentCounts } from "@/lib/databank-agents";
 import { ledger } from "@/lib/ledger";
-import { formatNumber, formatShare } from "@/lib/utils";
+import { formatNumber, formatShare, asWords } from "@/lib/utils";
 
 /* What a reader is, said in terms of what its readings are worth to somebody
    deciding whether to trust them. See components/dash/WhatsAppDesk.jsx, which
@@ -163,151 +163,14 @@ export default async function AdminPage() {
       screen="admin"
       title="Overview"
       lead="Every unit, every room, every key, and the two actions nobody else holds: issuing credentials, and marking a return checked."
-      actions={
+      panel={
         <>
-          {/* ── WITHOUT THIS, HALF THE COUNT WAS UNREACHABLE ────────────────
-              Every screen here reads one position at a time, and this one had
-              no way to change which. `currentRace` falls back to the project's
-              own kind, so an administrator on a project created as
-              presidential could not reach the governorship returns from this
-              page at all — they were filed, stored and counted, and the only
-              screen that could have shown them was pinned to another ballot
-              paper with no control on it.
-
-              The situation room and the WhatsApp desk have had this control
-              all along, which is what made the gap easy to miss: the position
-              was switchable everywhere somebody watches the count and nowhere
-              somebody administers it. */}
-          <RaceSwitcher
-            race={race}
-            races={RACES.map((row) => ({ id: row.id, label: row.label }))}
-            filed={byRace}
-          />
-          <LiveRefresh seconds={20} label="Live" />
-          <Button href="/room#broadcast" variant="dashOutline" size="sm">
-            Broadcast desk
-          </Button>
-        </>
-      }
-    >
-      {/* ── COORDINATORS WAITING TO BE LET IN ─────────────────────────────
-          A banner, not the queue. The queue used to live inline here and
-          vanish entirely when it was empty, which meant an administrator who
-          had never had a pending sign-up had never seen it and did not know
-          where to look when the first one arrived. It has its own page now,
-          always reachable from the rail; this is the thing that shouts when
-          somebody is actually waiting, because an approval queue nobody works
-          is an agent standing at a booth on polling morning unable to file. */}
-      {/* ── THE FIRST THING ON THE PAGE, DELIBERATELY ─────────────────────
-          Everything else on this dashboard is about running the election.
-          This is about whether the deployment is fit to be trusted with one,
-          and it is the only question here whose wrong answer is silent: an
-          account with a published password looks exactly like a real one from
-          every screen in the product. It sits above the approval queue because
-          an unlocked door outranks a queue. */}
-      <ReadinessBanner state={ready} />
-
-      {waiting > 0 && (
-        <div className="mb-6">
-          <Link
-            href="/admin/coordinators"
-            className="flex flex-wrap items-center gap-3 rounded-dash border-2 border-dash-ink bg-dash-card px-5 py-4 transition-colors hover:bg-dash-bg"
-          >
-            <UserRoundCheck size={18} strokeWidth={2.25} className="shrink-0 text-dash-ink" />
-            <span className="min-w-0">
-              <span className="block font-display text-[0.9375rem] font-extrabold text-dash-ink">
-                {waiting} coordinator{waiting === 1 ? "" : "s"} waiting to be approved
-              </span>
-              <span className="block text-[0.8125rem] text-dash-muted">
-                Signed up themselves. They can file nothing until you approve them.
-              </span>
-            </span>
-            <span className="ml-auto shrink-0 text-[0.8125rem] font-bold text-dash-ink">
-              Open the queue →
-            </span>
-          </Link>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════ the machine, not the count
-          ── WHAT USED TO BE HERE, AND WHY IT WENT ────────────────────────
-          A coverage dial, three totals, a cumulative trend, a party
-          standings chart and an incident feed. Every one of those is on the
-          situation room's command centre, computed from the same rows — and
-          the room is the surface built to carry them: it is watched all
-          night, it refreshes on a timer, it drills, and it is where somebody
-          is already looking when a figure moves.
-
-          Two screens holding one set of figures is not redundancy, it is a
-          second place for them to be wrong in. The one that had to go is the
-          one whose reader was not asking the question: an administrator opens
-          this page to find out whether the *product* is working, and was met
-          with a results board that told them nothing about it.
-
-          What replaces it is the question nobody else on this deployment can
-          answer, in the form that answers it fastest. */}
-      <div className="mb-6 grid gap-6 xl:grid-cols-[1fr_1.15fr]">
-        <Card title="Fit to run an election" subtitle="Checked on this request, not asserted">
-          <div className="flex flex-wrap items-center justify-around gap-6">
-            <Ring
-              label="Readiness"
-              value={ready.checks.length - ready.failing.length}
-              of={ready.checks.length}
-              display={`${ready.checks.length - ready.failing.length}/${ready.checks.length}`}
-              tone={ready.ready ? "good" : ready.blocking ? "alert" : "warn"}
-              caption={
-                ready.ready
-                  ? "Every check passes."
-                  : `${ready.failing.length} failing${ready.blocking ? ", one of them blocking" : ""}.`
-              }
-            />
-            <Ring
-              label="The record"
-              value={chain.ok ? 1 : 0}
-              of={1}
-              display={chain.ok ? "OK" : "×"}
-              tone={chain.ok ? "good" : "alert"}
-              caption={
-                chain.ok
-                  ? `${formatNumber(chain.entries)} payment entries, unaltered.`
-                  : `Hash chain broken at entry ${chain.at}.`
-              }
-            />
-          </div>
-
-          {/* The wiring, as a wall of dots. Seven integrations and their keys
-              would be a table nobody reads on an overview; what somebody
-              actually wants from this card is whether there is a red one. */}
-          <div className="mt-6 border-t border-dash-line pt-5">
-            <StateGrid
-              label="What this deployment is wired to"
-              cells={wiring.map((row) => ({
-                label: row.name,
-                state:
-                  row.state === "on"
-                    ? "set up"
-                    : row.state === "partial"
-                      ? "half set up — looks connected and cannot deliver"
-                      : row.essential
-                        ? "missing, and needed"
-                        : "not in use",
-                tone:
-                  row.state === "on"
-                    ? "good"
-                    : row.state === "partial"
-                      ? "warn"
-                      : row.essential
-                        ? "alert"
-                        : "neutral",
-              }))}
-            />
-            <Button href="/admin/integrations" variant="dashOutline" size="sm" className="mt-4">
-              Integrations
-            </Button>
-          </div>
-        </Card>
-
-        <Card title="Is the machine well" subtitle="Timed and counted on this request">
+          {/* ── THE NAVY PANEL: IS THE THING DOING THE COUNTING HEALTHY ────
+              The two answers only this desk asks for, kept on screen however
+              far down the returns have been scrolled. They were two cards in
+              the page, level with everything else on it; they are the reason
+              an administrator opens this screen, so they are the panel. */}
+        <PanelBlock title="Is the machine well" subtitle="Timed and counted on this request">
           {/* ── THE READING, AGAINST THE LINE THAT DECIDES WHAT IT MEANS ──
               "342 ms" told an administrator who already knew what a good
               latency was precisely what they already knew. The bands are
@@ -363,7 +226,9 @@ export default async function AdminPage() {
                   label="Keys issued, by role"
                   caption="One ink, deepening with the count — these are one kind of thing at six sizes, not six kinds of thing."
                   rows={Object.entries(byRole).map(([key, count]) => ({
-                    label: ROLES[key]?.label ?? key,
+                    /* A role this build has no label for is still a role somebody
+                       holds; it is printed as words rather than as its key. */
+                    label: ROLES[key]?.label ?? key.toLowerCase().replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()),
                     value: count.total,
                     note: count.pending ? `${count.pending} waiting` : undefined,
                   }))}
@@ -372,24 +237,172 @@ export default async function AdminPage() {
             </div>
           )}
 
-          <Button href="/admin/health" variant="dashOutline" size="sm" className="mt-5">
+          <Button href="/admin/health" variant="railGhost" size="sm" className="mt-5">
             System health
           </Button>
-        </Card>
-      </div>
+        </PanelBlock>
+        <PanelBlock title="Fit to run an election" subtitle="Checked on this request, not asserted">
+          <div className="grid grid-cols-2 gap-4">
+            <Ring
+              label="Readiness"
+              value={ready.checks.length - ready.failing.length}
+              of={ready.checks.length}
+              display={`${ready.checks.length - ready.failing.length}/${ready.checks.length}`}
+              tone={ready.ready ? "good" : ready.blocking ? "alert" : "warn"}
+              caption={
+                ready.ready
+                  ? "Every check passes."
+                  : `${ready.failing.length} failing${ready.blocking ? ", one of them blocking" : ""}.`
+              }
+            />
+            <Ring
+              label="The record"
+              value={chain.ok ? 1 : 0}
+              of={1}
+              display={chain.ok ? "OK" : "×"}
+              tone={chain.ok ? "good" : "alert"}
+              caption={
+                chain.ok
+                  ? `${formatNumber(chain.entries)} payment entries, unaltered.`
+                  : `Hash chain broken at entry ${chain.at}.`
+              }
+            />
+          </div>
 
+          {/* The wiring, as a wall of dots. Seven integrations and their keys
+              would be a table nobody reads on an overview; what somebody
+              actually wants from this card is whether there is a red one. */}
+          <div className="mt-6 border-t border-dash-line pt-5">
+            <StateGrid
+              label="What this deployment is wired to"
+              cells={wiring.map((row) => ({
+                label: row.name,
+                state:
+                  row.state === "on"
+                    ? "set up"
+                    : row.state === "partial"
+                      ? "half set up — looks connected and cannot deliver"
+                      : row.essential
+                        ? "missing, and needed"
+                        : "not in use",
+                tone:
+                  row.state === "on"
+                    ? "good"
+                    : row.state === "partial"
+                      ? "warn"
+                      : row.essential
+                        ? "alert"
+                        : "neutral",
+              }))}
+            />
+            <Button href="/admin/integrations" variant="railGhost" size="sm" className="mt-4">
+              Integrations
+            </Button>
+          </div>
+        </PanelBlock>
+
+        </>
+      }
+      actions={
+        <>
+          {/* ── WITHOUT THIS, HALF THE COUNT WAS UNREACHABLE ────────────────
+              Every screen here reads one position at a time, and this one had
+              no way to change which. `currentRace` falls back to the project's
+              own kind, so an administrator on a project created as
+              presidential could not reach the governorship returns from this
+              page at all — they were filed, stored and counted, and the only
+              screen that could have shown them was pinned to another ballot
+              paper with no control on it.
+
+              The situation room and the WhatsApp desk have had this control
+              all along, which is what made the gap easy to miss: the position
+              was switchable everywhere somebody watches the count and nowhere
+              somebody administers it. */}
+          <RaceSwitcher
+            race={race}
+            races={RACES.map((row) => ({ id: row.id, label: row.label }))}
+            filed={byRace}
+          />
+          <LiveRefresh seconds={20} label="Live" />
+          {/* No "Broadcast desk" button here any more: the rail carries
+              "Broadcast" a hand's width to the left, and a second door to
+              the same room was the thing that broke this row in two. */}
+        </>
+      }
+    >
+      {/* ── COORDINATORS WAITING TO BE LET IN ─────────────────────────────
+          A banner, not the queue. The queue used to live inline here and
+          vanish entirely when it was empty, which meant an administrator who
+          had never had a pending sign-up had never seen it and did not know
+          where to look when the first one arrived. It has its own page now,
+          always reachable from the rail; this is the thing that shouts when
+          somebody is actually waiting, because an approval queue nobody works
+          is an agent standing at a booth on polling morning unable to file. */}
+      {/* ── THE FIRST THING ON THE PAGE, DELIBERATELY ─────────────────────
+          Everything else on this dashboard is about running the election.
+          This is about whether the deployment is fit to be trusted with one,
+          and it is the only question here whose wrong answer is silent: an
+          account with a published password looks exactly like a real one from
+          every screen in the product. It sits above the approval queue because
+          an unlocked door outranks a queue. */}
+      <ReadinessBanner state={ready} />
+
+      {waiting > 0 && (
+        <div className="mb-6">
+          <Link
+            href="/admin/coordinators"
+            className="flex flex-wrap items-center gap-3.5 rounded-dash border border-dash-line bg-dash-card px-5 py-4 shadow-e2 transition-colors hover:border-dash-ink"
+          >
+            <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-dash-sm bg-blue-50 text-blue-600">
+              <UserRoundCheck size={19} strokeWidth={2} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-display text-[0.9375rem] font-extrabold text-dash-ink">
+                {waiting} coordinator{waiting === 1 ? "" : "s"} waiting to be approved
+              </span>
+              <span className="block text-[0.8125rem] text-dash-muted">
+                Signed up themselves. They can file nothing until you approve them.
+              </span>
+            </span>
+            <span className="ml-auto shrink-0 text-[0.8125rem] font-bold text-dash-ink">
+              Open the queue →
+            </span>
+          </Link>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════ the machine, not the count
+          ── WHAT USED TO BE HERE, AND WHY IT WENT ────────────────────────
+          A coverage dial, three totals, a cumulative trend, a party
+          standings chart and an incident feed. Every one of those is on the
+          situation room's command centre, computed from the same rows — and
+          the room is the surface built to carry them: it is watched all
+          night, it refreshes on a timer, it drills, and it is where somebody
+          is already looking when a figure moves.
+
+          Two screens holding one set of figures is not redundancy, it is a
+          second place for them to be wrong in. The one that had to go is the
+          one whose reader was not asking the question: an administrator opens
+          this page to find out whether the *product* is working, and was met
+          with a results board that told them nothing about it.
+
+          What replaces it is the question nobody else on this deployment can
+          answer, in the form that answers it fastest. */}
       {/* ── THE WORK THIS DESK ACTUALLY HOLDS ────────────────────────────
           Two of the three totals that used to sit at the top of this page
           survive, and they are the two that were never the room's: a return
           awaiting a check and a return thrown out are both *this desk's*
           business, and both are the reason somebody opened the page. "Votes
           counted" was the room's, and has gone back to it. */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 @2xl:grid-cols-3">
         <StatCard
           icon={Users}
           label="Awaiting a check"
           value={formatNumber(unverified)}
-          context={`${formatNumber(verified)} already verified`}
+          context={`${formatNumber(verified)} of ${formatNumber(verified + unverified)} already verified`}
+          href="/admin#returns"
+          share={verified + unverified ? verified / (verified + unverified) : undefined}
+          shareTone="good"
         />
         <StatCard
           icon={AlertTriangle}
@@ -397,6 +410,8 @@ export default async function AdminPage() {
           value={formatNumber(disputed)}
           tone={disputed ? "alert" : "default"}
           context="In the table, out of every sum"
+          href="/admin#returns"
+          share={filed.length ? disputed / filed.length : undefined}
         />
         <StatCard
           icon={Inbox}
@@ -404,11 +419,13 @@ export default async function AdminPage() {
           value={formatNumber(waiting + requestsWaiting)}
           tone={waiting + requestsWaiting ? "alert" : "default"}
           context={`${formatNumber(waiting)} agents, ${formatNumber(requestsWaiting)} access requests`}
+          /* To whichever queue actually has somebody in it. */
+          href={waiting > 0 && requestsWaiting === 0 ? "/admin/coordinators" : "/admin/requests"}
         />
       </div>
 
       {/* ---------------------------------------------------------- returns */}
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+      <div className="mt-6 grid gap-6 @5xl:grid-cols-[1.4fr_1fr]">
         <Card
           id="returns"
           title="Returns as they land"
@@ -458,7 +475,7 @@ export default async function AdminPage() {
                     {["Unit", "Votes", "Accredited", "Sheet", "Filed", "Status"].map((head, index) => (
                       <th
                         key={head}
-                        className={`px-5 py-3 text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase ${
+                        className={`px-5 py-3 text-[0.75rem] font-medium text-dash-muted ${
                           index > 0 ? "text-right" : ""
                         }`}
                       >
@@ -501,7 +518,7 @@ export default async function AdminPage() {
                                 : "neutral"
                           }
                         >
-                          {row.status}
+                          {asWords(row.status)}
                         </Badge>
                       </td>
                     </tr>
@@ -583,7 +600,7 @@ export default async function AdminPage() {
                         (head) => (
                           <th
                             key={head}
-                            className="px-4 py-2 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase"
+                            className="px-4 py-2 text-[0.75rem] font-medium text-dash-muted"
                           >
                             {head}
                           </th>
@@ -642,13 +659,13 @@ export default async function AdminPage() {
           title="Pay an agent"
           subtitle="The only door money comes through"
           action={<Banknote size={16} className="shrink-0 text-dash-muted" />}
-          className="xl:col-start-2"
+          className="@5xl:col-start-2"
         >
           <PayAgentForm />
 
           <div className="mt-6 border-t border-dash-line pt-5">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-[0.6875rem] font-semibold tracking-[0.1em] text-dash-muted uppercase">
+              <p className="text-[0.75rem] font-medium text-dash-muted">
                 Ledger
               </p>
               <span
@@ -682,7 +699,7 @@ export default async function AdminPage() {
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+      <div className="mt-6 grid gap-6 @5xl:grid-cols-[1.4fr_1fr]">
         <Card
           id="accounts"
           title="Issue an account"
@@ -697,7 +714,7 @@ export default async function AdminPage() {
       </div>
 
       {/* ------------------------------------------------------------ lower */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+      <div className="mt-6 grid gap-6 @4xl:grid-cols-2">
         {/* Placed above the queues on purpose. An administrator opening this
             page should meet what cannot be true before they meet what is
             merely waiting. */}

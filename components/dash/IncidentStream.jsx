@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Camera, Clock, Download, MapPin, ShieldAlert } from "lucide-react";
 
 import { download, stamped, toCsv } from "@/lib/csv";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber, asWords } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 /**
@@ -112,7 +112,7 @@ export default function IncidentStream({ incidents, photos = {} }) {
           </h3>
           <span className="ml-auto flex items-center gap-1.5">
             <span aria-hidden="true" className="size-1.5 animate-pulse-live rounded-full bg-red-500" />
-            <span className="figure text-[0.625rem] font-bold tracking-wider text-dash-muted uppercase">
+            <span className="figure text-[0.75rem] font-medium text-dash-muted">
               Live
             </span>
           </span>
@@ -189,11 +189,11 @@ export default function IncidentStream({ incidents, photos = {} }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={cn(
-                      "rounded-full border px-2 py-0.5 text-[0.625rem] font-bold uppercase",
+                      "rounded-full border px-2 py-0.5 text-[0.6875rem] font-semibold",
                       tone.tone
                     )}
                   >
-                    {item.severity}
+                    {asWords(item.severity)}
                   </span>
                   <span className="figure flex items-center gap-1 text-[0.6875rem] text-dash-muted">
                     <MapPin size={11} strokeWidth={2.5} />

@@ -62,7 +62,7 @@ export function Ring({ value, label, size = 76, tone = "ink", figure = null }) {
         </span>
       </div>
       {label && (
-        <span className="min-w-0 text-[0.6875rem] leading-tight font-bold tracking-[0.1em] text-dash-muted uppercase">
+        <span className="min-w-0 text-[0.75rem] leading-tight font-medium text-dash-muted">
           {label}
         </span>
       )}
@@ -131,7 +131,7 @@ export function Pip({ value, label, tone = "ink" }) {
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
       <span aria-hidden="true" className="size-2 rounded-full" style={{ background: TONES[tone] ?? TONES.ink }} />
       <span className="figure text-[0.9375rem] leading-none font-extrabold text-dash-ink">{value}</span>
-      <span className="text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">{label}</span>
+      <span className="text-[0.75rem] font-medium text-dash-muted">{label}</span>
     </span>
   );
 }

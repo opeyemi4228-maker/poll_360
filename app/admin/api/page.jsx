@@ -174,7 +174,7 @@ export default async function ApiPage() {
       </Card>
 
       {traffic.queued > 0 && (
-        <div className="mt-6 flex flex-wrap items-start gap-3 rounded-dash border-2 border-amber-300 bg-amber-50 px-5 py-4">
+        <div className="mt-6 flex flex-wrap items-start gap-3 rounded-dash border border-amber-300 bg-amber-50 px-5 py-4">
           <TriangleAlert size={18} strokeWidth={2.25} className="mt-0.5 shrink-0 text-amber-700" />
           <div className="min-w-0">
             <p className="font-display text-[0.9375rem] font-extrabold text-amber-900">

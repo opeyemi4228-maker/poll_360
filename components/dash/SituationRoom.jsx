@@ -46,6 +46,8 @@ import RoomBooth from "./RoomBooth";
 import { placeIn, under } from "@/lib/reporting-board";
 import { clockLabel } from "@/lib/pulse";
 import RoomEvidence from "./RoomEvidence";
+import { useVerifyAlarm } from "./useVerifyAlarm";
+import { alarmRows, verificationOf } from "@/lib/verification";
 import { useBrief } from "./Executive";
 /* ── THE TWO ANALYTICAL DASHBOARDS ─────────────────────────────────────────
    Seven surfaces became one dashboard with six tabs, and planning kept a door
@@ -803,6 +805,8 @@ export default function SituationRoom({
   integrity = { flags: [], impossible: 0, flagged: 0, screened: 0, clean: 0 },
   /* The returns whose own EC8A boxes disagree with each other, worst first. */
   sheetFindings = [],
+  /* INEC's published sheets held against our returns, or null. */
+  inec = null,
   /* ── THE THREE SURFACES THAT WERE MISSING, ALL ASSEMBLED ON THE SERVER ──
      The pipeline, the warning list and the night's clock. Every one of them
      is a pure function over rows this page already fetched — lib/operations.js,
@@ -1856,6 +1860,34 @@ export default function SituationRoom({
     []
   );
 
+  /* ══════════════════════════════════════════════════════════════════════
+     VERIFICATION, WORKED OUT ONCE FOR THE WHOLE ROOM
+
+     Whether our agents, INEC's sheets and the announced result agree, place
+     by place, and every finding behind the answer — see lib/verification.js.
+     It is computed here rather than on the verification screen because the
+     alarm listens to it, and the alarm has to sound whichever screen is
+     open: a finding lands while the room is on the map or on the telephone,
+     almost never while it is looking at the screen the finding belongs to.
+     The verification screen is handed the same object, so the list it shows
+     and the thing that rang cannot be two different counts.
+     ══════════════════════════════════════════════════════════════════════ */
+  const sheetFails = pulse?.sheets?.fails ?? null;
+  const verification = useMemo(
+    () => verificationOf({ account: inec, integrity, sheetFindings, divergence, sheetFails }),
+    [inec, integrity, sheetFindings, divergence, sheetFails]
+  );
+  const verifyRows = useMemo(() => alarmRows(verification.updates), [verification.updates]);
+  const verifyAlarm = useVerifyAlarm(verifyRows);
+  const verifyFresh = verifyAlarm.fresh.size;
+  const [verifyHidden, setVerifyHidden] = useState(null);
+  /* The newest thing the room has not looked at, for the line that says so
+     on every other screen. */
+  const verifyNewest = useMemo(
+    () => (verifyFresh ? (verification.updates.find((update) => verifyAlarm.fresh.has(update.id)) ?? null) : null),
+    [verifyFresh, verification.updates, verifyAlarm.fresh]
+  );
+
   /* The board's count, carried on its own pill. Only the open head's groups
      are handed to the bar; the other head's surfaces are one press away and
      are not in this row. */
@@ -1870,10 +1902,15 @@ export default function SituationRoom({
              calling that "Ruling party" would send somebody looking for a
              map of the country. */
           if (tab.value === "ruling" && territory) return { ...tab, label: "The seat" };
+          /* What the alarm rang for and nobody has opened yet, on the tab
+             that holds it. It clears as each one is read. */
+          if (tab.value === "integrity" && verifyFresh && layer !== "integrity") {
+            return { ...tab, badge: verifyFresh > 99 ? "99+" : verifyFresh };
+          }
           return tab;
         }),
       })),
-    [territory, mode]
+    [territory, mode, verifyFresh, layer]
   );
 
   /* ── WHAT EACH HEAD IS CARRYING, ON THE HEAD ITSELF ────────────────────
@@ -1945,12 +1982,16 @@ export default function SituationRoom({
                 boothHere.silent ? `, ${formatNumber(boothHere.silent)} silent` : ""
               }${boothHere.stuck ? `, ${formatNumber(boothHere.stuck)} stuck at a desk` : ""}`
             : "Nobody has been assigned a booth in this scope"
+        /* The answer, not the screen's name: a wall is read by people who
+           did not press the tab. */
         : layer === "integrity"
-          ? integrity.screened
-            ? `${formatNumber(integrity.screened)} screened, ${formatNumber(integrity.flags.length)} finding${integrity.flags.length === 1 ? "" : "s"}${
-                divergence?.ready ? `, ${formatNumber(divergence.places)} place${divergence.places === 1 ? "" : "s"} differing from the declaration` : ""
-              }`
-            : "Nothing filed yet to screen"
+          ? verification.totals.differs
+            ? `${formatNumber(verification.totals.differs)} ${verification.totals.differs === 1 ? "state does" : "states do"} not agree · ${formatNumber(verification.counts.total)} to look at`
+            : verification.totals.agrees
+              ? `${formatNumber(verification.totals.agrees)} ${verification.totals.agrees === 1 ? "state agrees" : "states agree"} · ${formatNumber(verification.counts.total)} to look at`
+              : verification.counts.total
+                ? `${formatNumber(verification.counts.total)} to look at, nothing to compare yet`
+                : "Nothing to compare yet"
         : MAP_LAYERS.has(layer)
           ? `${crumbs.at(-1).label} · ${LABEL[layer]}`
           : layer === "watch"
@@ -2076,6 +2117,7 @@ export default function SituationRoom({
         <RoomEvidence
           integrity={integrity}
           sheetFindings={sheetFindings}
+          inec={inec}
           sheetReads={sheetReads}
           pulse={pulse}
           divergence={divergence}
@@ -2084,6 +2126,9 @@ export default function SituationRoom({
              findings already carry. */
           shapes={shapes}
           ground={ground ?? territory?.name ?? null}
+          /* The country's picture and the alarm, both owned by the room. */
+          base={verification}
+          alarm={verifyAlarm}
           onGo={setLayer}
           /* Every row in the verification queue is a booth code, and a booth
              code is the one thing on that screen somebody wants to open. It
@@ -2734,6 +2779,49 @@ export default function SituationRoom({
       )}
       </>
       )}
+
+      {/* ── WHAT THE ALARM JUST RANG FOR, ON WHICHEVER SCREEN IS OPEN ───────
+          A sound says something happened and cannot say what. This is the
+          what: the newest finding nobody has opened, in one line, with the
+          door to it. It stays until it is opened or put away, because the
+          person it is for may be across the room when it arrives, and it is
+          not drawn on the verification screen, where the list already says
+          it. */}
+      {verifyNewest && layer !== "integrity" && verifyHidden !== verifyNewest.id && (
+        <div
+          role="status"
+          className="fixed right-4 bottom-4 z-50 flex w-[min(24rem,calc(100vw-2rem))] animate-verify-arrive items-start gap-3 rounded-dash border border-dash-line bg-dash-card p-4 shadow-e3"
+        >
+          <span aria-hidden="true" className="relative mt-1 flex size-3 shrink-0">
+            <span className="absolute inset-0 animate-verify-ring-fast rounded-full bg-red-500" />
+            <span className="relative size-3 rounded-full bg-red-500" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[0.75rem] font-semibold text-dash-muted">
+              Verification · {formatNumber(verifyFresh)} new
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-[0.875rem] leading-snug font-semibold text-dash-ink">
+              {verifyNewest.title}
+            </p>
+            <div className="mt-2.5 flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => setLayer("integrity")}
+                className="text-[0.8125rem] font-semibold text-dash-ink underline underline-offset-2"
+              >
+                Open verification
+              </button>
+              <button
+                type="button"
+                onClick={() => setVerifyHidden(verifyNewest.id)}
+                className="text-[0.8125rem] text-dash-muted hover:text-dash-ink"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </TopShell>
     </ClockProvider>
   );
@@ -2784,7 +2872,7 @@ function Metric({ icon: Icon, label, value, foot, spark, tone = "ink", small = f
     <div className="flex min-w-0 flex-col rounded-dash border border-dash-line bg-dash-card px-5 pt-4 pb-3.5 shadow-e2">
       <div className="flex items-center gap-2">
         <Icon size={15} strokeWidth={2.25} className="shrink-0 text-dash-muted" aria-hidden="true" />
-        <p className="truncate text-[0.6875rem] font-bold tracking-[0.12em] text-dash-muted uppercase">{label}</p>
+        <p className="truncate text-[0.75rem] font-medium text-dash-muted">{label}</p>
       </div>
       <div className="mt-3 flex h-9 items-center justify-between gap-3">
         <p

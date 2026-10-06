@@ -953,7 +953,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
             <div className="overflow-x-auto">
               <table className="w-full min-w-[46rem] text-[0.8125rem]">
                 <thead>
-                  <tr className="border-b border-dash-line text-left text-[0.625rem] tracking-[0.08em] text-dash-muted uppercase">
+                  <tr className="border-b border-dash-line text-left text-[0.75rem] text-dash-muted">
                     <th className="w-10 py-2 pl-4 font-semibold">#</th>
                     <th className="py-2 font-semibold">Place</th>
                     <th className="py-2 text-right font-semibold">Registered</th>
@@ -1208,7 +1208,7 @@ function noteFor(row, lens, year) {
 function RailCard({ step, title, active = false, children }) {
   return (
     <div className={cn("rounded-dash border bg-dash-card p-3", active ? "border-dash-ink" : "border-dash-line")}>
-      <p className="mb-2 flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+      <p className="mb-2 flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
         <span className="figure flex size-4 items-center justify-center rounded-full bg-dash-well text-[0.625rem] text-dash-ink">
           {step}
         </span>
@@ -1291,7 +1291,7 @@ function SeatCard({ race, state, seat, seatInfo }) {
 function HolderCard({ title, place, holder, party, note = null, extra = null }) {
   return (
     <div className="rounded-dash border border-dash-line bg-dash-card p-3">
-      <p className="mb-2 flex items-center gap-2 text-[0.6875rem] font-bold tracking-[0.08em] text-dash-muted uppercase">
+      <p className="mb-2 flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">
         <Landmark size={13} aria-hidden="true" />
         <span className="truncate">
           {title} · {place}
