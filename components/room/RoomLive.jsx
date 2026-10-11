@@ -217,18 +217,25 @@ export default function RoomLive({ canAcknowledge = false, title = "Situation ro
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[0.8125rem] font-semibold text-dash-ink">
-        <time className="font-mono text-[0.9375rem] tabular-nums" suppressHydrationWarning>
-          {now ? CLOCK.format(now) : "--:--:--"} WAT
-        </time>
-        <span className={cn("inline-flex items-center gap-1", online && !failed ? "text-light-green" : "text-light-red")}>
-          {online && !failed ? <Wifi size={15} aria-hidden="true" /> : <WifiOff size={15} aria-hidden="true" />}
-          {online ? (failed ? "Cannot reach Poll360" : "Online") : "Offline"}
-        </span>
-        <span className={cn("font-mono", sys[1])} title={sys[2]}>
-          {sys[0]}
-          <span className="sr-only"> {sys[2]}</span>
-        </span>
+      <div className="flex items-center gap-2 text-[0.8125rem] font-semibold text-dash-ink">
+        {/* The wall clock, with what the room most needs to know about this
+            screen beside it: is it connected, and are the systems well. */}
+        <div className="flex h-11 items-center gap-3 rounded-full bg-dash-ink pr-4 pl-5 text-white">
+          <time className="font-mono text-[1.25rem] leading-none font-bold tabular-nums" suppressHydrationWarning>
+            {now ? CLOCK.format(now) : "--:--:--"}
+          </time>
+          <span className="hidden border-l border-white/20 pl-3 text-[0.6875rem] leading-tight font-semibold sm:block">
+            <span className="block text-white/60">WAT</span>
+            <span className={cn("flex items-center gap-1", online && !failed ? "text-[#5be39a]" : "text-[#ff7b7b]")}>
+              {online && !failed ? <Wifi size={11} aria-hidden="true" /> : <WifiOff size={11} aria-hidden="true" />}
+              {online ? (failed ? "No reach" : "Online") : "Offline"}
+            </span>
+          </span>
+          <span className={cn("hidden font-mono text-[0.75rem] md:inline", techLight === "GREEN" ? "text-[#5be39a]" : techLight === "AMBER" ? "text-[#ffd21f]" : "text-[#ff7b7b]")} title={sys[2]}>
+            {sys[0]}
+            <span className="sr-only"> {sys[2]}</span>
+          </span>
+        </div>
         {stale && <span className="text-light-yellow-ink">Last updated {stamp}</span>}
 
         <div className="relative">
@@ -237,7 +244,7 @@ export default function RoomLive({ canAcknowledge = false, title = "Situation ro
             onClick={() => setOpen((value) => !value)}
             aria-expanded={open}
             aria-label={`Alarms, ${tray.length} since this screen opened`}
-            className={cn("inline-flex h-9 items-center gap-1.5 rounded-dash-sm border border-dash-line px-2.5", tray.length && "border-light-yellow bg-light-yellow-soft")}
+            className={cn("inline-flex h-11 items-center gap-1.5 rounded-full border border-dash-line px-3.5", tray.length && "border-light-yellow bg-light-yellow-soft")}
           >
             <Bell size={15} aria-hidden="true" />
             {tray.length}
@@ -272,10 +279,11 @@ export default function RoomLive({ canAcknowledge = false, title = "Situation ro
           type="button"
           onClick={toggleMute}
           aria-pressed={muted}
-          className={cn("inline-flex h-9 items-center gap-1.5 rounded-dash-sm border px-2.5", muted ? "border-light-red bg-light-red-soft text-light-red" : "border-dash-line")}
+          className={cn("inline-flex h-11 items-center gap-1.5 rounded-full border px-3.5", muted ? "border-light-red bg-light-red-soft text-light-red" : "border-dash-line")}
+          title={muted ? "Sound is off on this device" : "Sound is on"}
         >
           {muted ? <BellOff size={15} aria-hidden="true" /> : <Bell size={15} aria-hidden="true" />}
-          {muted ? "Sound off" : "Sound on"}
+          <span className={muted ? "" : "sr-only"}>{muted ? "Sound off" : "Sound on"}</span>
         </button>
       </div>
 

@@ -1,11 +1,15 @@
+import BigMap from "@/components/room/BigMap";
+import BvasBlock from "@/components/room/BvasBlock";
+import Stage, { Side, StatRow } from "@/components/room/Stage";
+import { LightBadge, LightCounts } from "@/components/room/Light";
+import { groundStats, mapFor } from "@/lib/room/page";
 import Link from "next/link";
 
 import { Badge, Card, Empty } from "@/components/dash/DashCard";
 import RoomShell from "@/components/room/RoomShell";
 import UnitPanel from "@/components/room/UnitPanel";
-import Tabs from "@/components/room/Tabs";
 import ActionForm, { Area, Submit } from "@/components/room/ActionForm";
-import { Crumbs, Handover, IncidentList, ItemList, LightMap, LightTable, RaiseTech, Roster, StatusCard, age, clock, hrefWith } from "@/components/room/Panels";
+import { Crumbs, Handover, IncidentList, ItemList, RaiseTech, Roster, age, clock, hrefWith } from "@/components/room/Panels";
 import { lightsFor, openUnit, roomPage, rosterFor } from "@/lib/room/page";
 import { field, items, notes } from "@/lib/room/store";
 import { statesOf, touches } from "@/lib/ground";
@@ -16,6 +20,8 @@ export const metadata = { title: "State observer", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const BASE = "/room/observer";
+const RANK = { RED: 3, YELLOW: 2, GREEN: 1, GREY: 0 };
+const TAB_NAME = { items: "Open items", silent: "Not reporting", situations: "Situations", verification: "Verification", timeline: "Timeline", notes: "Notes" };
 
 /**
  * The observer's view: the room's eyes on a state. Their ground and nothing
@@ -56,13 +62,16 @@ export default async function ObserverPage({ searchParams }) {
   const others = people.filter((person) => person.id !== ctx.user.id);
   const total = here.light?.total ?? 0;
   const q = { ...query, at };
+  const map = await mapFor(ctx, at, whole, at.length === 2 ? here : null);
 
   return (
-    <RoomShell ctx={ctx} title="State observer" openCount={open.filter((item) => item.light === "RED").length}>
+    <RoomShell ctx={ctx} title="State observer" openCount={open.filter((item) => item.light === "RED").length} current={tab}
+      summary={here.light ? `${here.light.name}: ${formatNumber(here.light.reported)} of ${formatNumber(here.light.total)} polling units in, ${here.light.counts.red} red, ${here.light.counts.yellow} yellow` : null}
+      tabs={[["items", "Items", open.length], ["silent", "Not reporting"], ["situations", "Situations", visible.filter((row) => row.status === "OPEN").length], ["verification", "Verification", sent.length], ["timeline", "Timeline"], ["notes", "Notes"]].map(([id, name, count]) => ({ id, name, count, href: hrefWith(BASE, { at: q.at }, { tab: id }) }))}>
       {!mine.length ? (
         <Empty>No ground has been assigned to you yet. Your zone lead or the Super Admin does that, and this screen fills as soon as they have.</Empty>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {mine.length > 1 && (
             <nav aria-label="Your states" className="flex flex-wrap gap-1">
               {mine.map((number) => (
@@ -75,33 +84,36 @@ export default async function ObserverPage({ searchParams }) {
 
           {view && <UnitPanel view={view} caps={caps} base={BASE} query={q} userId={ctx.user.id} />}
 
-          <div className="grid gap-6 xl:grid-cols-[24rem_1fr]">
-            <div className="space-y-6">
-              <StatusCard light={here.light} />
-              <Card title="Also on this state" subtitle="Other observers covering it now.">
-                <Roster people={others} describe={(person) => person.groundLabel} />
-              </Card>
-            </div>
-            <Card title="Places" subtitle="Open a place to go down a level. A polling unit opens its own panel." action={<Crumbs trail={trail.length > 1 ? trail : [{ code: "", name: "Nigeria" }, { code: state, name: whole.light?.name }]} base={BASE} query={q} />}>
-              <LightTable rows={[...here.below].sort((a, b) => ({ RED: 3, YELLOW: 2, GREEN: 1, GREY: 0 })[b.light] - ({ RED: 3, YELLOW: 2, GREEN: 1, GREY: 0 })[a.light])} base={BASE} query={q} />
-              {at.length === 2 && (
-                <details className="mt-4">
-                  <summary className="cursor-pointer text-[0.8125rem] font-semibold text-blue-700">Show the country map</summary>
-                  <div className="mx-auto mt-3 max-w-xl"><LightMap rows={[whole.light].filter(Boolean)} base={BASE} query={q} /></div>
-                </details>
-              )}
-            </Card>
-          </div>
+          <StatRow stats={groundStats(here.light, [
+            { label: "Red items open", value: String(open.filter((item) => item.light === "RED").length), note: "these go to your zone lead", tone: open.some((item) => item.light === "RED") ? "red" : "green" },
+            { label: "Yellow items open", value: String(open.filter((item) => item.light === "YELLOW").length), note: "errors and unfinished checks", tone: open.some((item) => item.light === "YELLOW") ? "yellow" : "green" },
+          ])} />
 
-          <Card padded={false}>
-            <div className="px-5 pt-4 sm:px-6">
-              <Tabs
-                base={BASE}
-                query={q}
-                current={tab}
-                tabs={[["items", "Items", open.length], ["silent", "Not reporting"], ["situations", "Situations", visible.filter((row) => row.status === "OPEN").length], ["verification", "Verification", sent.length], ["timeline", "Timeline"], ["notes", "Notes"]]}
-              />
-            </div>
+          <Stage map={<BigMap rows={map.rows} base={BASE} query={q} at={map.at} title={map.title} hint="Tap a local government" />}>
+            <Side label={`The light on ${here.light.name}`} headline={<LightBadge light={here.light.light} coverage={here.light.coveragePct} />}>
+              <LightCounts counts={here.light.counts} />
+              <BvasBlock bvas={here.light.bvas} total={here.light.total} className="mt-3 border-0 bg-dash-bg p-4" />
+              <div className="mt-3"><Crumbs trail={trail.length > 1 ? trail : [{ code: "", name: "Nigeria" }, { code: state, name: whole.light?.name }]} base={BASE} query={q} /></div>
+            </Side>
+            <Side label="Places" headline={`${here.below.length} under ${here.light.name}`} note="Worst first. A polling unit opens its own panel.">
+              <ul className="max-h-[26rem] divide-y divide-dash-line overflow-auto">
+                {[...here.below].sort((a, b) => RANK[b.light] - RANK[a.light] || b.counts.red - a.counts.red).map((row) => (
+                  <li key={row.code}>
+                    <Link href={hrefWith(BASE, q, row.level === "pu" ? { unit: row.code } : { at: row.code, unit: null })} className="flex items-center gap-2 py-2 text-[0.8125rem] hover:bg-dash-bg">
+                      <LightBadge light={row.light} short />
+                      <span className="min-w-0 flex-1 truncate font-semibold text-dash-ink">{row.name}</span>
+                      <span className="tabular-nums text-dash-muted">{row.level === "pu" ? (row.reported ? "in" : "silent") : `${formatNumber(row.reported)}/${formatNumber(row.total)}`}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Side>
+            <Side label="Also on this state" headline={others.length ? `${others.filter((person) => person.online).length} of ${others.length} online` : "Only you"}>
+              <Roster people={others} describe={(person) => person.groundLabel} />
+            </Side>
+          </Stage>
+
+          <Card padded={false} id="work" title={TAB_NAME[tab]}>
             <div className="p-5 sm:p-6">
               {tab === "items" && <ItemList items={open} caps={caps} base={BASE} query={q} userId={ctx.user.id} empty="Nothing is open on this ground." now={now} />}
 

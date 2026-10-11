@@ -1,8 +1,13 @@
+import BigMap from "@/components/room/BigMap";
+import BvasBlock from "@/components/room/BvasBlock";
+import Stage, { Side, StatRow } from "@/components/room/Stage";
+import { LightBadge, LightCounts } from "@/components/room/Light";
+import { groundStats, mapFor } from "@/lib/room/page";
 import { Card } from "@/components/dash/DashCard";
 import RoomShell from "@/components/room/RoomShell";
 import UnitPanel from "@/components/room/UnitPanel";
 import GroundForm from "@/components/room/Ground";
-import { Crumbs, Handover, IncidentList, ItemList, LightMap, LightTable, RaiseTech, StateGrid, StatusCard, ThreeRecords } from "@/components/room/Panels";
+import { Crumbs, Handover, IncidentList, ItemList, LightTable, RaiseTech, StateGrid, StatusCard, ThreeRecords } from "@/components/room/Panels";
 import { lightsFor, openUnit, roomPage, rosterFor } from "@/lib/room/page";
 import { field, items, notes } from "@/lib/room/store";
 import { threeRecords } from "@/lib/room/desk";
@@ -37,30 +42,36 @@ export default async function ZonePage({ searchParams }) {
   const mine = everyone.filter((person) => person.groundRead && zone.below.some((state) => touches(person.groundRead, state.code)));
   const observers = mine.filter((person) => person.roles.includes("STATE_OBSERVER"));
   const late = overdue.filter((item) => item.code === "Y_OVERDUE_RETURN");
+  const focus = here?.light ?? zone.light;
+  const map = await mapFor(ctx, at, zone, here);
   const lateBy = new Map();
   for (const item of late) lateBy.set(item.areaCode.slice(0, 5), (lateBy.get(item.areaCode.slice(0, 5)) ?? 0) + 1);
 
   return (
-    <RoomShell ctx={ctx} title="Zone lead" openCount={inbox.length}>
-      <div className="space-y-6">
+    <RoomShell ctx={ctx} title="Zone lead" openCount={inbox.length} current="command" summary={`${zone.below.length} states · ${zone.light.counts.red} red, ${zone.light.counts.yellow} yellow · ${observers.filter((person) => person.online).length} of ${observers.length} observers online`}
+      tabs={[["command", "Command", ""], ["states", "States", "#states"], ["records", "Three records", "#records"], ["observers", "Observers", "#observers"]].map(([id, name, hash]) => ({ id, name, href: `${BASE}${hash}` }))}>
+      <div className="space-y-3">
+        <StatRow stats={groundStats(zone.light, [
+          { label: "Escalated to you", value: String(inbox.length), note: inbox.length ? "waiting on a decision" : "nothing waiting", tone: inbox.length ? "red" : "green" },
+          { label: "Returns overdue", value: String(late.length), note: late.length ? "past the deadline, nothing filed" : "nothing is overdue", tone: late.length ? "yellow" : "green" },
+        ])} />
+
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} roster={mine} />}
 
-        <div className="grid gap-6 xl:grid-cols-[22rem_1fr_24rem]">
-          <StatusCard light={zone.light} title="Zone status" />
-          <Card title="Map" subtitle="Only the states of your zones are filled.">
-            <LightMap rows={zone.below} base={BASE} query={query} />
-          </Card>
-          <div className="space-y-6">
-            <Card title={`Escalations (${inbox.length})`} subtitle="From observers, verifiers and field operations in your zones.">
-              <ItemList items={inbox} caps={caps} base={BASE} query={query} roster={mine} userId={ctx.user.id} empty="Nothing has been escalated to you." now={now} />
-            </Card>
-            <Card title="SOS and critical reports" subtitle="Open in your zones. Unacknowledged first.">
-              <IncidentList rows={sos} caps={caps} base={BASE} query={query} empty="No SOS and no critical report is open." now={now} />
-            </Card>
-          </div>
-        </div>
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} />}>
+          <Side label={`The light on ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />}>
+            <LightCounts counts={focus.counts} />
+            <BvasBlock bvas={focus.bvas} total={focus.total} className="mt-3 border-0 bg-dash-bg p-4" />
+          </Side>
+          <Side id="escalations" label="Escalations" headline={inbox.length ? `${inbox.length} need you` : "Nothing needs you"} note="From observers, verifiers and field operations in your zones.">
+            <div className="max-h-80 overflow-auto"><ItemList items={inbox} caps={caps} base={BASE} query={query} roster={mine} userId={ctx.user.id} empty="Nothing has been escalated to you." now={now} /></div>
+          </Side>
+          <Side id="sos" label="SOS and critical reports" headline={sos.filter((row) => !row.acknowledgedAt).length ? `${sos.filter((row) => !row.acknowledgedAt).length} not acknowledged` : "Nobody waiting"}>
+            <div className="max-h-80 overflow-auto"><IncidentList rows={sos} caps={caps} base={BASE} query={query} empty="No SOS and no critical report is open." now={now} /></div>
+          </Side>
+        </Stage>
 
-        <StateGrid rows={zone.below} base={BASE} query={query} />
+        <div id="states" className="scroll-mt-24"><StateGrid rows={zone.below} base={BASE} query={query} compact /></div>
 
         {at && here && (
           <Card title={here.light.name} subtitle="The places under it, worst first where you sort them.">
@@ -72,7 +83,7 @@ export default async function ZonePage({ searchParams }) {
           </Card>
         )}
 
-        <div className="grid gap-6 xl:grid-cols-2">
+        <div id="records" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
           <Card title="Three-record gaps" subtitle="Our agents, INEC's sheets and the announcement, largest gap first.">
             <ThreeRecords account={records} base={BASE} query={query} lights={new Map((here?.below ?? zone.below).map((row) => [row.code, row.light]))} />
           </Card>
@@ -92,7 +103,7 @@ export default async function ZonePage({ searchParams }) {
           </Card>
         </div>
 
-        <Card title="Observers in your zones" subtitle="Who is on, what they hold, and where they watch. Change an observer's ground here.">
+        <Card id="observers" title="Observers in your zones" subtitle="Who is on, what they hold, and where they watch. Change an observer's ground here.">
           {observers.length ? (
             <ul className="divide-y divide-dash-line">
               {observers.map((person) => (

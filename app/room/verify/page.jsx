@@ -1,9 +1,13 @@
+import BigMap from "@/components/room/BigMap";
+import BvasBlock from "@/components/room/BvasBlock";
+import Stage, { Side, StatRow } from "@/components/room/Stage";
+import { LightCounts } from "@/components/room/Light";
+import { mapFor } from "@/lib/room/page";
 import Link from "next/link";
 
 import { Card, Empty } from "@/components/dash/DashCard";
 import RoomShell from "@/components/room/RoomShell";
 import UnitPanel from "@/components/room/UnitPanel";
-import Tabs from "@/components/room/Tabs";
 import GroundForm from "@/components/room/Ground";
 import { LightBadge } from "@/components/room/Light";
 import { Handover, ItemList, RaiseTech, hrefWith } from "@/components/room/Panels";
@@ -16,6 +20,7 @@ export const metadata = { title: "Verification", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const BASE = "/room/verify";
+const TAB_NAME = { queue: "The queue", second: "Corrections awaiting a second check", mine: "Taken by me", disputed: "Disputed and escalated", agents: "Sent by agents, not counted", team: "Verifiers" };
 
 /**
  * The verification desk: a queue, and beside each row the sheet it is about.
@@ -47,39 +52,45 @@ export default async function VerifyPage({ searchParams }) {
   const mine = queue.filter((item) => item.ownerId === ctx.user.id);
   const first = queue.filter((item) => item.code !== "Y_AWAITING_SECOND_CHECK" && item.code !== "R_DISPUTED");
   const shown = { queue: first, second, mine, disputed }[tab] ?? [];
+  const here = at ? await lightsFor(ctx, at) : null;
+  const focus = here?.light ?? states.light;
+  const map = await mapFor(ctx, at, states, at.length === 2 ? here : null);
 
   return (
-    <RoomShell ctx={ctx} title="Verification" openCount={mine.length}>
-      <div className="space-y-6">
-        <div className="grid gap-4 sm:grid-cols-4">
-          {[["Waiting in the queue", first.length], ["Corrections awaiting a second check", second.length], ["Results checked in the last hour", speed.checked], ["Items resolved in the last hour", speed.closed]].map(([label, value]) => (
-            <div key={label} className="rounded-dash border border-dash-line bg-dash-card p-4 shadow-e2">
-              <p className="font-display text-[1.75rem] leading-none font-extrabold text-dash-ink tabular-nums">{formatNumber(value)}</p>
-              <p className="mt-1.5 text-[0.8125rem] text-dash-muted">{label}</p>
-            </div>
-          ))}
-        </div>
+    <RoomShell ctx={ctx} title="Verification" openCount={first.length + second.length} current={tab}
+      summary={`${formatNumber(first.length)} in the queue, ${formatNumber(second.length)} corrections awaiting a second check, ${formatNumber(mine.length)} taken by you`}
+      tabs={[["queue", "Queue", first.length], ["second", "Second checks", second.length], ["mine", "Taken by me", mine.length], ...(lead ? [["disputed", "Disputed and escalated", disputed.length]] : []), ["agents", "From agents", waiting.length], ...(lead ? [["team", "Verifiers"]] : [])].map(([id, name, count]) => ({ id, name, count, href: hrefWith(BASE, { at: query.at }, { tab: id }) }))}>
+      <div className="space-y-3">
+        <StatRow stats={[
+          { label: "Waiting in the queue", value: formatNumber(first.length), note: at ? `in ${focus.name}` : "across your states", tone: first.length ? "yellow" : "green" },
+          { label: "Corrections awaiting a second check", value: formatNumber(second.length), note: "a different verifier must look", tone: second.length ? "yellow" : "green" },
+          { label: "Results checked, last hour", value: formatNumber(speed.checked), note: "by everybody on this ground" },
+          { label: "Items resolved, last hour", value: formatNumber(speed.closed), note: `${formatNumber(mine.length)} taken by you now` },
+        ]} />
 
-        <nav aria-label="Narrow to a state" className="flex flex-wrap items-center gap-1.5">
-          <Link href={hrefWith(BASE, query, { at: null, unit: null })} className={cn("rounded-full px-3 py-1.5 text-[0.8125rem] font-semibold", !at ? "bg-dash-ink text-white" : "bg-dash-bg text-dash-muted")}>All my states</Link>
-          {states.below.filter((row) => row.reported || row.counts.red || row.counts.yellow).map((row) => (
-            <Link key={row.code} href={hrefWith(BASE, query, { at: row.code, unit: null })} className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[0.8125rem] font-semibold", at === row.code ? "bg-dash-ink text-white" : "bg-dash-bg text-dash-ink")}>
-              {row.name} <LightBadge light={row.light} short />
-            </Link>
-          ))}
-        </nav>
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} measure={(row) => `${row.counts.yellow + row.counts.red} open`} />}>
+          <Side label={`The light on ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />}>
+            <LightCounts counts={focus.counts} />
+            <BvasBlock bvas={focus.bvas} total={focus.total} className="mt-3 border-0 bg-dash-bg p-4" />
+          </Side>
+          <Side label="Backlog by state" headline={speed.backlog.length ? `${formatNumber(speed.backlog.reduce((sum, row) => sum + row.waiting, 0))} waiting to be checked` : "Nothing waiting"} note="Tap a state on the map or here to narrow the queue.">
+            <ul className="max-h-72 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
+              <li><Link href={hrefWith(BASE, query, { at: null, unit: null })} className={cn("flex justify-between py-2 font-semibold", !at ? "text-dash-ink" : "text-blue-700")}>All my states</Link></li>
+              {speed.backlog.map((row) => (
+                <li key={row.state}>
+                  <Link href={hrefWith(BASE, query, { at: row.state, unit: null })} className="flex justify-between py-2 hover:bg-dash-bg">
+                    <span className={cn("font-semibold", at === row.state ? "text-dash-ink underline" : "text-dash-ink")}>{row.name}</span>
+                    <span className="tabular-nums text-dash-muted">{formatNumber(row.waiting)} waiting</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Side>
+        </Stage>
 
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} roster={verifiers} />}
 
-        <Card padded={false}>
-          <div className="px-5 pt-4 sm:px-6">
-            <Tabs
-              base={BASE}
-              query={{ ...query, unit: null }}
-              current={tab}
-              tabs={[["queue", "Queue", first.length], ["second", "Second checks", second.length], ["mine", "Taken by me", mine.length], ...(lead ? [["disputed", "Disputed and escalated", disputed.length]] : []), ["agents", "From agents", waiting.length], ...(lead ? [["team", "Verifiers"]] : [])]}
-            />
-          </div>
+        <Card padded={false} id="work" title={TAB_NAME[tab]}>
           <div className="p-5 sm:p-6">
             {tab === "agents" ? (
               waiting.length ? (

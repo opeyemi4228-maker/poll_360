@@ -1,3 +1,7 @@
+import BigMap from "@/components/room/BigMap";
+import Stage, { Side, StatRow } from "@/components/room/Stage";
+import { LightBadge, LightCounts } from "@/components/room/Light";
+import { mapFor } from "@/lib/room/page";
 import Link from "next/link";
 import { Gavel } from "lucide-react";
 
@@ -6,7 +10,7 @@ import RoomShell from "@/components/room/RoomShell";
 import UnitPanel from "@/components/room/UnitPanel";
 import ActionForm, { Area, Field, Submit } from "@/components/room/ActionForm";
 import { LightIcon } from "@/components/room/Light";
-import { Crumbs, Handover, LightTable, RaiseTech, StatusCard, ThreeRecords, age, clock, hrefWith } from "@/components/room/Panels";
+import { Crumbs, Handover, RaiseTech, ThreeRecords, age, clock, hrefWith } from "@/components/room/Panels";
 import { lightsFor, openUnit, roomPage } from "@/lib/room/page";
 import { items, lights, notes, packs, trail } from "@/lib/room/store";
 import { threeRecords } from "@/lib/room/desk";
@@ -41,22 +45,46 @@ export default async function LegalPage({ searchParams }) {
     notes.list({ electionId, kind: "HANDOVER", desk: "legal", take: 5 }),
     openUnit(ctx, unit),
   ]);
+  const nation = at ? await lightsFor(ctx, "") : here;
+  const map = await mapFor(ctx, at, nation, at.length === 2 ? here : null);
   const choices = [...new Map([...sent, ...marked, ...red].map((item) => [item.id, item])).values()];
 
   return (
-    <RoomShell ctx={ctx} title="Legal and evidence" openCount={sent.filter((item) => item.status === "OPEN").length}>
-      <div className="space-y-6">
+    <RoomShell ctx={ctx} title="Legal and evidence" openCount={sent.filter((item) => item.status === "OPEN").length} current="evidence"
+      summary={`${marked.length} confirmed as malpractice, ${sent.length} sent to legal, ${built.length} packs sealed`}
+      tabs={[["evidence", "Evidence", ""], ["malpractice", "Malpractice", "#malpractice"], ["pack", "Build a pack", "#pack"], ["packs", "Packs", "#packs"], ["trail", "Trail", "#trail"]].map(([id, name, hash]) => ({ id, name, href: `${BASE}${hash}` }))}>
+      <div className="space-y-3">
+        <StatRow stats={[
+          { label: "Malpractice confirmed", value: String(marked.length), note: "permanent markers on polling units", tone: marked.length ? "red" : "ink" },
+          { label: "Sent to legal", value: String(sent.length), note: `${sent.filter((item) => item.status === "OPEN").length} still open` },
+          { label: "Red items open", value: String(red.filter((item) => item.status === "OPEN").length), note: at ? `in ${here.light.name}` : "across the project", tone: red.length ? "red" : "green" },
+          { label: "Evidence packs sealed", value: String(built.length), note: built[0] ? `latest: ${built[0].title}` : "none built yet" },
+        ]} />
+
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} />}
 
-        <div className="grid gap-6 xl:grid-cols-[24rem_1fr]">
-          <StatusCard light={here.light} />
-          <Card title="Places" action={<Crumbs trail={crumbs} base={BASE} query={query} />}>
-            <LightTable rows={here.below} base={BASE} query={query} />
-          </Card>
-        </div>
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} measure={(row) => (row.malpractice ? `${row.malpractice} confirmed` : `${row.counts.red} red`)} />}>
+          <Side label={`The light on ${here.light.name}`} headline={<LightBadge light={here.light.light} coverage={here.light.coveragePct} />}>
+            <LightCounts counts={here.light.counts} />
+            <div className="mt-3"><Crumbs trail={crumbs} base={BASE} query={query} /></div>
+          </Side>
+          <Side label="Places" headline={`${here.below.length} under ${here.light.name}`} note="Open a place to narrow everything on this screen to it.">
+            <ul className="max-h-[28rem] divide-y divide-dash-line overflow-auto">
+              {[...here.below].sort((a, b) => b.malpractice - a.malpractice || b.counts.red - a.counts.red).map((row) => (
+                <li key={row.code}>
+                  <Link href={hrefWith(BASE, query, row.level === "pu" ? { unit: row.code } : { at: row.code, unit: null })} className="flex items-center gap-2 py-2 text-[0.8125rem] hover:bg-dash-bg">
+                    <LightBadge light={row.light} short />
+                    <span className="min-w-0 flex-1 truncate font-semibold text-dash-ink">{row.name}</span>
+                    <span className="tabular-nums text-dash-muted">{row.malpractice ? `${row.malpractice} confirmed` : `${row.counts.red} red`}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Side>
+        </Stage>
 
         <div className="grid gap-6 xl:grid-cols-2">
-          <Card title={`Malpractice confirmed (${marked.length})`} subtitle="A permanent marker. It stays on the polling unit after its light changes.">
+          <Card id="malpractice" title={`Malpractice confirmed (${marked.length})`} subtitle="A permanent marker. It stays on the polling unit after its light changes.">
             {marked.length ? (
               <ul className="max-h-96 divide-y divide-dash-line overflow-auto">
                 {marked.map((item) => (
@@ -79,7 +107,7 @@ export default async function LegalPage({ searchParams }) {
           </Card>
         </div>
 
-        <Card title="Build an evidence pack" subtitle="Tick what goes in. The pack is sealed when it is built and cannot be changed afterwards.">
+        <Card id="pack" title="Build an evidence pack" subtitle="Tick what goes in. The pack is sealed when it is built and cannot be changed afterwards.">
           {choices.length ? (
             <ActionForm what="pack" className="space-y-3" done={"Built and sealed. It is in the list below."}>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -109,7 +137,7 @@ export default async function LegalPage({ searchParams }) {
         </Card>
 
         <div className="grid gap-6 xl:grid-cols-2">
-          <Card title={`Evidence packs (${built.length})`} subtitle="Each carries the fingerprint of its own contents.">
+          <Card id="packs" title={`Evidence packs (${built.length})`} subtitle="Each carries the fingerprint of its own contents.">
             {built.length ? (
               <ul className="divide-y divide-dash-line">
                 {built.map((pack) => (
@@ -124,7 +152,7 @@ export default async function LegalPage({ searchParams }) {
               <Empty>No pack has been built yet.</Empty>
             )}
           </Card>
-          <Card title="Evidence trail" subtitle="Who did what to a result or an item, and when. Read only.">
+          <Card id="trail" title="Evidence trail" subtitle="Who did what to a result or an item, and when. Read only.">
             {lines.length ? (
               <ul className="max-h-96 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
                 {lines.map((line) => (

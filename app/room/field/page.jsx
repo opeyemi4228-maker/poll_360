@@ -1,10 +1,13 @@
+import BigMap from "@/components/room/BigMap";
+import Stage, { Side, StatRow } from "@/components/room/Stage";
+import { LightBadge, LightCounts } from "@/components/room/Light";
+import { mapFor } from "@/lib/room/page";
 import Link from "next/link";
 
 import { Card, Empty } from "@/components/dash/DashCard";
 import RoomShell from "@/components/room/RoomShell";
 import UnitPanel from "@/components/room/UnitPanel";
-import Tabs from "@/components/room/Tabs";
-import { Handover, IncidentList, ItemList, LightTable, RaiseTech, StatusCard, age, clock, hrefWith } from "@/components/room/Panels";
+import { Handover, IncidentList, ItemList, RaiseTech, age, clock, hrefWith } from "@/components/room/Panels";
 import { lightsFor, openUnit, roomPage } from "@/lib/room/page";
 import { assignments } from "@/lib/room/assign";
 import { field, items, notes, settings, submissions } from "@/lib/room/store";
@@ -14,6 +17,7 @@ export const metadata = { title: "Field operations", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const BASE = "/room/field";
+const TAB_NAME = { silent: "Assigned units not reporting", situations: "Situations", confirm: "Verifiers waiting on the field", checkins: "Check-ins", drafts: "Drafts left behind" };
 
 /**
  * The field desk: the people standing at polling units, and whoever in the
@@ -40,26 +44,50 @@ export default async function FieldPage({ searchParams }) {
   ]);
   const confirm = queue.filter((item) => item.code === "Y_FIELD_CONFIRM");
   const drafts = left.filter((row) => row.kind === "ORPHANED_DRAFT");
+  const urgent = reports.filter((row) => !row.acknowledgedAt && (row.sos || row.severity === "CRITICAL")).length;
+  const nation = at ? await lightsFor(ctx, "") : here;
+  const map = await mapFor(ctx, at, nation, at.length === 2 ? here : null);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(now);
   const cutoff = new Date(`${today}T${/^\d\d:\d\d$/.test(rules.checkInBy) ? rules.checkInBy : "09:00"}:00+01:00`).getTime();
   const checkedIn = (person) => person.lastSeen && new Date(person.lastSeen).getTime() >= new Date(`${today}T00:00:00+01:00`).getTime();
 
   return (
-    <RoomShell ctx={ctx} title="Field operations" openCount={reports.filter((row) => !row.acknowledgedAt && (row.sos || row.severity === "CRITICAL")).length}>
-      <div className="space-y-6">
+    <RoomShell ctx={ctx} title="Field operations" openCount={urgent} current={tab}
+      summary={`${formatNumber(silent.length)} assigned units not reporting, ${formatNumber(reports.length)} reports open, ${formatNumber(urgent)} not acknowledged`}
+      tabs={[["silent", "Not reporting", silent.length], ["situations", "Situations", reports.length], ["confirm", "Verifiers waiting", confirm.length], ["checkins", "Check-ins"], ["drafts", "Left-behind drafts", drafts.length]].map(([id, name, count]) => ({ id, name, count, href: hrefWith(BASE, { at: query.at }, { tab: id }) }))}>
+      <div className="space-y-3">
+        <StatRow stats={[
+          { label: "Assigned units not reporting", value: formatNumber(silent.length), note: silent.length ? "ring the agent" : "every assigned unit is in", tone: silent.length ? "yellow" : "green" },
+          { label: "People in trouble, not acknowledged", value: formatNumber(urgent), note: urgent ? "pick up a phone" : "nobody waiting", tone: urgent ? "red" : "green" },
+          { label: "Reports open from the field", value: formatNumber(reports.length), note: "of every kind" },
+          { label: "Verifiers waiting on the field", value: formatNumber(confirm.length), note: confirm.length ? "they asked you to confirm" : "nothing asked", tone: confirm.length ? "yellow" : "green" },
+        ]} />
+
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} />}
 
-        <div className="grid gap-6 xl:grid-cols-[24rem_1fr]">
-          <StatusCard light={here.light} />
-          <Card title="Places" subtitle="Open a place to narrow every list below to it.">
-            <LightTable rows={here.below} base={BASE} query={query} />
-          </Card>
-        </div>
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} measure={(row) => `${row.counts.grey} silent`} />}>
+          <Side label={`The light on ${here.light.name}`} headline={<LightBadge light={here.light.light} coverage={here.light.coveragePct} />}>
+            <LightCounts counts={here.light.counts} />
+          </Side>
+          <Side label="Trouble in the field" headline={urgent ? `${urgent} not acknowledged` : reports.length ? `${reports.length} open, all acknowledged` : "Nothing reported"} note="Critical and unacknowledged first.">
+            <div className="max-h-96 overflow-auto"><IncidentList rows={reports.slice(0, 12)} caps={caps} base={BASE} query={query} empty="No report from the field is open." now={now} /></div>
+          </Side>
+          <Side label="Places" headline={`${here.below.length} under ${here.light.name}`}>
+            <ul className="max-h-72 divide-y divide-dash-line overflow-auto">
+              {here.below.map((row) => (
+                <li key={row.code}>
+                  <Link href={hrefWith(BASE, query, row.level === "pu" ? { unit: row.code } : { at: row.code, unit: null })} className="flex items-center gap-2 py-2 text-[0.8125rem] hover:bg-dash-bg">
+                    <LightBadge light={row.light} short />
+                    <span className="min-w-0 flex-1 truncate font-semibold text-dash-ink">{row.name}</span>
+                    <span className="tabular-nums text-dash-muted">{row.level === "pu" ? (row.reported ? "in" : "silent") : `${formatNumber(row.counts.grey)} silent`}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Side>
+        </Stage>
 
-        <Card padded={false}>
-          <div className="px-5 pt-4 sm:px-6">
-            <Tabs base={BASE} query={query} current={tab} tabs={[["silent", "Not reporting", silent.length], ["situations", "Situations", reports.length], ["confirm", "Verifiers waiting", confirm.length], ["checkins", "Check-ins"], ["drafts", "Left-behind drafts", drafts.length]]} />
-          </div>
+        <Card padded={false} id="work" title={TAB_NAME[tab]}>
           <div className="p-5 sm:p-6">
             {tab === "silent" && (
               silent.length ? (

@@ -319,7 +319,7 @@ export function ItemList({ items, caps = {}, base, query = {}, roster = [], user
             <details className="group">
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1">
                 <LightIcon light={item.light} />
-                <span className="min-w-0 flex-1">
+                <span className="min-w-[11rem] flex-1">
                   <span className="block text-[0.875rem] font-bold text-dash-ink">{item.title}</span>
                   <span className="block truncate text-[0.8125rem] text-dash-muted">{item.place}{item.says ? ` · ${item.says}` : ""}</span>
                 </span>
