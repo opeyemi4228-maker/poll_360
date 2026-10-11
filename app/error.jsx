@@ -84,7 +84,7 @@ export default function ErrorPage({ error, reset }) {
         {/* The sentence the room is actually waiting for. */}
         <p className="mt-4 rounded-dash border border-dash-line bg-dash-card px-4 py-3 text-[0.875rem] leading-relaxed text-dash-ink">
           <strong className="font-bold">Nothing that was filed has been lost.</strong>{" "}
-          Every return, incident and payment already recorded is safe. This page could not
+          Every return and incident already recorded is safe. This page could not
           be drawn; it does not affect what is stored.
         </p>
 

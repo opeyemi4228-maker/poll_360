@@ -287,3 +287,25 @@ Data Bank's "INEC Result Datas" account. For it to work on the hosted site:
 
 Sheets are fetched from INEC's storage through `/api/irev/sheet`, so the
 site's rule of loading no image from another host is unchanged.
+
+
+## The situation room
+
+The ten room screens under `/room/…` and the video wall under `/wall/…` keep
+their own tables: assignments, open items, the light on each polling unit,
+corrections, and the room's own records. Production does not add tables on
+boot, so **apply them once before deploying the room**:
+
+```
+npm run room:sql > room.sql     # read it: additions only, safe to apply twice
+npm run room:sql -- --apply     # or apply it through the app's own runner
+```
+
+Nothing else is needed. Results already on file are brought into the lights
+by themselves, a batch a minute, the first time a room screen is open on the
+project. There is no new setting: the room uses the database, the session
+and the Data Bank connection the rest of Poll360 already has.
+
+After deploying, the Super Admin opens **Situation room console** in the
+admin menu to issue desks, place each person on their ground, import the
+party's list and set the deadlines the lights use.

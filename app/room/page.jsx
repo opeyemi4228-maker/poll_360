@@ -30,6 +30,7 @@ import { unitCards } from "@/lib/unit-card";
 import { integrityOf } from "@/lib/anomalies";
 import { inecAgainstOurs } from "@/lib/irev/verify";
 import IrevHeartbeat from "@/components/dash/IrevHeartbeat";
+import DeclaredHeartbeat from "@/components/dash/DeclaredHeartbeat";
 import { unseal } from "@/lib/crypto";
 import { parties, others, DECLARED, states2023 } from "@/lib/election2023";
 import { STATES } from "@/lib/units";
@@ -554,6 +555,7 @@ export default async function RoomPage() {
           room is the page that is open. Only for an account allowed to run
           it; the route it asks refuses everybody else regardless. */}
       {can(user.role, "system:read") && <IrevHeartbeat />}
+      {can(user.role, "gap:read") && <DeclaredHeartbeat />}
       <SituationRoom
         /* Never the first tab in the table — that is a layout decision and this
            is a behavioural one. See LANDING in lib/room-views.js. */

@@ -10,7 +10,6 @@ import { requireCapability } from "@/lib/guard";
 import { health } from "@/lib/system";
 import { readiness } from "@/lib/readiness";
 import { environmentVerdict } from "@/lib/environment";
-import { ledger } from "@/lib/ledger";
 import { formatNumber } from "@/lib/utils";
 
 export const metadata = { title: "System health", robots: { index: false } };
@@ -24,12 +23,12 @@ export const dynamic = "force-dynamic";
  * because the failure that actually happens on election night is never
  * "down". It is "slow enough that a page times out and an agent files the
  * same return three times", or "up, and nothing has arrived for forty
- * minutes", or "up, and the payment ledger no longer hashes". Those are three
+ * minutes", or "up, and not fit to hold a real election". Those are three
  * separate questions and they are asked separately here:
  *
  *   can we reach it, and how fast   — timed on this request, in milliseconds
  *   is anything still happening     — the newest row in each table
- *   is what we hold still intact    — the ledger's hash chain, walked now
+ *   is it fit to run an election    — the readiness checks, run now
  *
  * ── AND IT IS THE SAME CHECKS THE OVERVIEW SHOUTS ABOUT ────────────────────
  * The readiness checks are not duplicated here, they are the same function
@@ -40,10 +39,7 @@ export const dynamic = "force-dynamic";
 export default async function HealthPage() {
   const admin = await requireCapability("system:read", "/admin/health");
 
-  /* The chain is walked on this request rather than cached. It is a few
-     hundred hashes, and a proof of integrity that was true ten minutes ago is
-     not the thing anybody came to this page for. */
-  const [state, ready, chain] = await Promise.all([health(), readiness(), ledger.verify()]);
+  const [state, ready] = await Promise.all([health(), readiness()]);
 
   /* ── AND THE SETTINGS THAT PROTECT IT ──────────────────────────────────
      Reads the environment and nothing else, so it costs nothing and cannot
@@ -61,7 +57,7 @@ export default async function HealthPage() {
       user={admin}
       screen="admin"
       title="System health"
-      lead="Measured on this request: whether the database answers and how quickly, what has happened lately, and whether the record still proves itself."
+      lead="Measured on this request: whether the database answers and how quickly, what has happened lately, and whether this is fit to run an election."
       actions={<LiveRefresh seconds={30} label="Live" />}
     >
       {/* ── THREE QUESTIONS, THREE PICTURES ──────────────────────────────
@@ -109,7 +105,7 @@ export default async function HealthPage() {
           )}
         </Card>
 
-        <Card title="Is what we hold still intact" subtitle="Walked now, not cached">
+        <Card title="Is it fit to run an election" subtitle="Checked now, not cached">
           <div className="flex flex-wrap items-start justify-around gap-6">
             <Ring
               label="Readiness"
@@ -119,19 +115,6 @@ export default async function HealthPage() {
               tone={failing === 0 ? "good" : ready.blocking ? "alert" : "warn"}
               size={112}
               caption={failing === 0 ? "Every check passes." : "checks failing"}
-            />
-            <Ring
-              label="The record"
-              value={chain.ok ? 1 : 0}
-              of={1}
-              display={chain.ok ? "OK" : "×"}
-              tone={chain.ok ? "good" : "alert"}
-              size={112}
-              caption={
-                chain.ok
-                  ? `${formatNumber(chain.entries)} entries, unaltered`
-                  : `broken at entry ${chain.at}`
-              }
             />
           </div>
         </Card>

@@ -5,6 +5,7 @@ import DashDrawer from "./DashDrawer";
 import { currentElection, listElections } from "@/lib/election-scope";
 import { can } from "@/lib/roles";
 import IrevHeartbeat from "./IrevHeartbeat";
+import DeclaredHeartbeat from "./DeclaredHeartbeat";
 
 /**
  * The dashboard frame: a white rail, a white sheet, and one navy panel.
@@ -71,6 +72,7 @@ export default async function DashLayout({
       {/* Keeps anything being gathered from INEC's portal moving while its
           owner is on another screen. Only for an account allowed to run it. */}
       {can(user.role, "system:read") && <IrevHeartbeat />}
+      {can(user.role, "gap:read") && <DeclaredHeartbeat />}
 
       {/* ---------------------------------------------------------- sheet */}
       {/* Inset by the same `--rail` the sidebar is sized from, so the two can

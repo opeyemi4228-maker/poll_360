@@ -158,7 +158,13 @@ export default function IssueAccountForm({
           and which piece of Nigeria. Left unset it is the whole federation,
           which is right for an administrator and wrong for everybody else,
           so it is asked here rather than defaulted quietly. */}
-      {role !== "PU_AGENT" && (
+      {ROLES[role]?.room && (
+        <p className="border-t border-dash-line pt-4 text-[0.875rem] leading-relaxed text-dash-muted">
+          This is a situation room desk. After issuing it, open <b className="text-dash-ink">Situation room console → Room staff</b> to say which states, local governments or wards it covers. The Director, legal, technical and broadcast desks work the whole project and need nothing more.
+        </p>
+      )}
+
+      {role !== "PU_AGENT" && !ROLES[role]?.room && (
         <div className="border-t border-dash-line pt-4">
           <TerritoryPicker
             places={places}

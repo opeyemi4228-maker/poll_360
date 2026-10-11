@@ -13,6 +13,7 @@ import {
   bucketOf,
   carriedBy,
   concentration,
+  countedLgasOf,
   countedUnitsOf,
   electionOf,
   hasCountedUnits,
@@ -543,5 +544,42 @@ describe("size and concentration", () => {
     assert.equal(out.places, 1);
     assert.equal(out.of, 3);
     assert.ok(out.registerShare > 55 && out.registerShare < 65);
+  });
+});
+
+describe("local governments whose own figure was published", () => {
+  const KANO = JSON.parse(readFileSync("public/geo/units/19.json", "utf8"));
+  const sumOf = (model, keep = () => true) =>
+    model.slots.map((_, slot) =>
+      model.wardRows.filter((row) => keep(model.byKey.get(row.name))).reduce((sum, row) => sum + row.votes[slot], 0)
+    );
+
+  it("adds a counted local government up to what was counted there", () => {
+    const model = modelState({ book: KANO, year: 2023 });
+    const held = countedLgasOf("19", 2023, model.slots);
+    assert.ok(held.size > 0);
+    for (const [lgaKey, votes] of held) {
+      assert.deepEqual(sumOf(model, (ward) => ward.lgaKey === lgaKey), votes, lgaKey);
+    }
+  });
+
+  it("still adds the state back to what was declared, votes and register", () => {
+    const model = modelState({ book: KANO, year: 2023 });
+    const declared = electionOf(2023).rows.find((row) => row.code === "KAN");
+    assert.deepEqual(sumOf(model), model.slots.map((slot) => declared.votes[slot]));
+    assert.equal(model.wardRows.reduce((sum, row) => sum + row.registered, 0), declared.registered);
+  });
+
+  it("draws one counted local government as itself, not as a share of the state", () => {
+    const whole = modelState({ book: KANO, year: 2023 });
+    const [lgaKey, votes] = [...countedLgasOf("19", 2023, whole.slots)][0];
+    assert.deepEqual(sumOf(modelState({ book: KANO, year: 2023, only: [lgaKey] })), votes);
+  });
+
+  it("holds nothing for any other election, and marks which wards sit under a counted figure", () => {
+    assert.equal(countedLgasOf("19", 2019, ["APC", "PDP", "OTH"]), null);
+    const model = modelState({ book: KANO, year: 2023 });
+    assert.ok(model.wardRows.some((row) => row.lgaCounted) && model.wardRows.some((row) => !row.lgaCounted));
+    assert.equal(modelState({ book: KANO, year: 2019 }).countedLgas.size, 0);
   });
 });

@@ -1,14 +1,14 @@
 "use server";
 
+import { roomSaw } from "@/lib/room/hooks";
 import { revalidatePath } from "next/cache";
 
 import { users, results, accessRequests } from "@/lib/db";
-import { ledger, CREDIT_KINDS } from "@/lib/ledger";
 import { hashPassword, passphrase } from "@/lib/password";
 import { requireCapability, log } from "@/lib/guard";
 import { decideAgent } from "@/lib/databank-agents";
 import { currentElection, currentRace } from "@/lib/election-scope";
-import { ISSUABLE_ROLES } from "@/lib/roles";
+import { ISSUABLE_ROLES, ROLES } from "@/lib/roles";
 import { isRace, raceLabel } from "@/lib/races";
 import { resolveTerritory } from "@/lib/constituencies";
 import { describeTerritory, levelForRace } from "@/lib/territory";
@@ -49,7 +49,10 @@ export async function issueAccount(_previous, formData) {
      a senatorial district is a perfectly valid territory and a nonsensical
      answer to a governorship, and an account issued on that pairing would
      quietly hold a third of the state it was meant to hold. */
-  const wantsGround = role !== "PU_AGENT";
+  /* A situation room desk is not a campaign. Its ground is a list of places
+     the Super Admin hands it under Room staff, and it has no contest of its
+     own, so neither is asked for here. */
+  const wantsGround = role !== "PU_AGENT" && !ROLES[role]?.room;
   const race = wantsGround ? String(formData.get("race") ?? "").trim().toUpperCase() || null : null;
   const territoryRaw = wantsGround ? String(formData.get("territory") ?? "").trim().slice(0, 80) || null : null;
 
@@ -192,6 +195,7 @@ export async function reviewResult(_previous, formData) {
 
   await results.setStatus(id, status, admin.id);
   await log(admin, `result:${status.toLowerCase()}`, row.unitCode);
+  await roomSaw({ project, race, unitCode: row.unitCode, actor: admin, cause: `Marked ${status.toLowerCase()}` });
   revalidatePath("/admin");
 
   return { ok: true };
@@ -267,64 +271,3 @@ export async function declineCoordinator(_previous, formData) {
   return { ok: true, declined: result.fullName };
 }
 
-
-/* ---------------------------------------------------------------- payments */
-
-/**
- * Credit an agent, or settle what they have asked for.
- *
- * ── WHY THIS IS THE ONLY WAY MONEY ENTERS THE LEDGER ───────────────────────
- * Agents can ask; only this action can pay. It is gated on the same capability
- * that issues accounts, every call is written to the audit log with the actor
- * on it, and the entry itself goes into the hash chain, so "who paid this
- * agent, when, and has the figure been touched since" has one answer that
- * cannot be edited afterwards, including by whoever runs the database.
- *
- * Settling a request writes a second entry rather than modifying the first.
- * The request stays in the chain forever, which is the point: the history of a
- * payment is part of the payment.
- * ───────────────────────────────────────────────────────────────────────────
- */
-export async function payAgent(_previous, formData) {
-  const admin = await requireCapability("accounts:issue", "/admin");
-
-  const contact = String(formData.get("contact") ?? "").trim().toLowerCase();
-  const kind = String(formData.get("kind") ?? "STIPEND");
-  const naira = String(formData.get("amount") ?? "").replace(/[^\d]/g, "");
-  const note = String(formData.get("note") ?? "").trim().slice(0, 200) || null;
-
-  if (!CREDIT_KINDS.includes(kind) && kind !== "WITHDRAWAL") {
-    return { error: "That is not a kind of payment this can write." };
-  }
-  if (!contact) return { errors: { contact: "Who is being paid?" } };
-  if (!naira || Number(naira) <= 0) return { errors: { amount: "How much?" } };
-
-  const agent = contact.includes("@")
-    ? await users.findByEmail(contact)
-    : await users.findByPhone(contact.replace(/[^\d]/g, ""));
-
-  if (!agent) return { errors: { contact: "No account with that email or phone." } };
-
-  const amount = Number(naira) * 100;
-
-  /* Paying out more than an agent has earned is almost always a typo, and the
-     one case where it is not can be done as two entries deliberately. */
-  if (kind === "WITHDRAWAL" && amount > await ledger.balanceFor(agent.id)) {
-    return { error: "That is more than the agent has earned. Credit them first." };
-  }
-
-  const entry = await ledger.append({
-    userId: agent.id,
-    kind,
-    amount,
-    note,
-    actorId: admin.id,
-  });
-
-  await log(admin, "wallet:paid", entry.reference, { kind, amount, to: agent.id });
-
-  revalidatePath("/admin");
-  revalidatePath("/field");
-
-  return { ok: true, reference: entry.reference, name: agent.name };
-}

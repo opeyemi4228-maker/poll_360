@@ -333,6 +333,18 @@
   --color-agree-600: oklch(56% 0.15 153);
   --color-agree-700: oklch(45% 0.12 154);
 
+  /* The situation room's traffic lights. Four tokens, used for nothing else.
+     Never the only clue: every light is drawn with its icon and its label. */
+  --color-light-red: oklch(55% 0.21 27);
+  --color-light-red-soft: oklch(96% 0.025 27);
+  --color-light-yellow: oklch(80% 0.16 88);
+  --color-light-yellow-ink: oklch(42% 0.1 80);
+  --color-light-yellow-soft: oklch(97% 0.04 92);
+  --color-light-green: oklch(58% 0.15 153);
+  --color-light-green-soft: oklch(96.5% 0.035 155);
+  --color-light-grey: oklch(72% 0.012 268);
+  --color-light-grey-soft: oklch(97% 0.004 268);
+
   /* ---- Type -----------------------------------------------------
      Three families, one job each, no overlap:
        display/sans, Inter Tight. Tight enough at 900 to hold a
@@ -1245,4 +1257,28 @@
   .no-print {
     display: none !important;
   }
+}
+
+/* ── The video wall ────────────────────────────────────────────────────────
+   Read from across a room, on a dark screen, so the lights are brighter and
+   further apart in hue than on a desk, and the soft backgrounds are dark. */
+.wall {
+  --color-light-red: oklch(66% 0.24 27);
+  --color-light-red-soft: oklch(30% 0.1 27);
+  --color-light-yellow: oklch(88% 0.18 95);
+  --color-light-yellow-ink: oklch(88% 0.18 95);
+  --color-light-yellow-soft: oklch(32% 0.07 90);
+  --color-light-green: oklch(76% 0.2 150);
+  --color-light-green-soft: oklch(30% 0.08 152);
+  --color-light-grey: oklch(70% 0.01 268);
+  --color-light-grey-soft: oklch(26% 0.02 268);
+}
+
+@keyframes room-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+.room-pulse { animation: room-pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .room-pulse { animation: none; }
 }

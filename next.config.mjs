@@ -50,9 +50,9 @@ const nextConfig = {
      (lib/ask/ground.js), and a deployed function only carries the files it is
      told about — without this the question works locally and fails live. */
   outputFileTracingIncludes: {
-    "/api/ask": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
-    "/api/ask/rows": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*"],
-    "/api/ask/export": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*", "./public/geo/map/**/*", "./public/geo/lga/**/*"],
+    "/api/ask": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*", "./public/geo/parties/**/*", "./public/geo/constituencies.json"],
+    "/api/ask/rows": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*", "./public/geo/parties/**/*", "./public/geo/constituencies.json"],
+    "/api/ask/export": ["./public/geo/units/**/*", "./public/geo/strongholds/**/*", "./public/geo/parties/**/*", "./public/geo/constituencies.json", "./public/geo/map/**/*", "./public/geo/lga/**/*"],
     /* The picture check names the state and local government a sheet was
        photographed in from these same boundaries (lib/place.js). Without them
        a deployed function finds no place for any picture and says nothing. */

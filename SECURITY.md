@@ -209,9 +209,7 @@ address fix above, an address that could not be established is recorded as
 record as though it were established. An address anybody could have typed is
 worse than none in a tribunal: it looks like evidence.
 
-The payment ledger is hash-chained and the chain is **walked on request** by the
-health screen rather than cached, because a proof of integrity that was true ten
-minutes ago is not what anybody came to that page for.
+Poll360 holds no payment records: agent payments were removed from the product.
 
 ---
 

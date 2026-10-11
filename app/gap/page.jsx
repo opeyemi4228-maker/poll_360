@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowLeftRight, FileText, Scale, ShieldAlert } from "luc
 import RaceSwitcher from "@/components/dash/RaceSwitcher";
 import DashLayout from "@/components/dash/DashLayout";
 import { Card, StatCard } from "@/components/dash/DashCard";
+import DeclaredSource from "@/components/dash/DeclaredSource";
 import DeclaredUpload from "@/components/dash/DeclaredUpload";
 import DivergencePanel from "@/components/dash/DivergencePanel";
 import GapBoard from "@/components/dash/GapBoard";
@@ -13,7 +14,7 @@ import { viewing } from "@/lib/viewing";
 import GroundBanner from "@/components/dash/GroundBanner";
 import { lgasOf } from "@/lib/constituencies";
 import { RACES } from "@/lib/races";
-import { results } from "@/lib/db";
+import { declaredSources, results } from "@/lib/db";
 import { gapReport } from "@/lib/gap-report";
 import { formatNumber } from "@/lib/utils";
 
@@ -59,6 +60,8 @@ export default async function GapPage() {
   const report = await gapReport(project?.id, race, territory);
 
   const mayEnter = can(user.role, "declared:file");
+  /* Where this contest's declared figures are being fetched from, if anywhere. */
+  const source = mayEnter && project ? await declaredSources.forRace(project.id, race) : null;
 
   return (
     <DashLayout
@@ -187,7 +190,7 @@ export default async function GapPage() {
                 </p>
                 <p className="mt-3 text-[0.875rem] leading-relaxed text-dash-muted">
                   {mayEnter
-                    ? "As collation announces a ward, a local government or a state, enter what was announced and the comparison starts from that moment."
+                    ? "As collation announces a ward, a local government or a state, enter what was announced, or give the link to a sheet where it is being typed. The comparison starts from the first figure."
                     : "The situation room enters figures as collation announces them. The comparison starts from the first one."}
                 </p>
               </div>
@@ -197,6 +200,19 @@ export default async function GapPage() {
 
         {/* ------------------------------------------------------- the entry */}
         <div className="space-y-6">
+          {/* Two ways in, and they do not compete: the sheet keeps itself
+              current, and the upload is there for whatever the sheet does not
+              carry. Both file into the same place under the same rules. */}
+          {mayEnter && (
+            <Card
+              id="fetch"
+              title="Bring it in automatically"
+              subtitle="Read a shared sheet every two minutes"
+            >
+              <DeclaredSource source={source && { ...source, fingerprint: undefined, addedBy: undefined }} />
+            </Card>
+          )}
+
           {mayEnter && (
             <Card
               id="enter"

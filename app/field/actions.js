@@ -1,5 +1,9 @@
 "use server";
 
+import { roomSaw } from "@/lib/room/hooks";
+import { groundOf } from "@/lib/room/access";
+import { covers } from "@/lib/ground";
+import { holds, roomOnly } from "@/lib/roles";
 import { createHash } from "node:crypto";
 
 import { revalidatePath } from "next/cache";
@@ -72,8 +76,8 @@ export async function fileResult(_previous, formData) {
      for, a few lines down. Checked with the plain guard first so an account
      with neither is turned away before anything is read from the form. */
   const agent = await requireUser("/field");
-  const mayFileOwn = can(agent.role, "results:file");
-  const mayUploadAny = can(agent.role, "results:upload");
+  const mayFileOwn = holds(agent, "results:file");
+  const mayUploadAny = holds(agent, "results:upload");
 
   if (!mayFileOwn && !mayUploadAny) {
     return { error: "This account is not allowed to file returns." };
@@ -215,6 +219,12 @@ export async function fileResult(_previous, formData) {
         distance: Number(formData.get("distance")) || null,
       }
     : null;
+
+  /* A room account files only for a booth on its own ground. */
+  if (roomOnly(agent) && !covers(groundOf(agent), unitCode)) {
+    return { errors: { unitCode: "That polling unit is not on your ground." } };
+  }
+  await roomSaw({ project, race, unitCode, actor: agent, cause: "Result filed" });
 
   const { amended } = await results.file({
     /* Every box on the sheet, straight through. */

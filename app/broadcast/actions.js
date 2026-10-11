@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { requireUser, log } from "@/lib/guard";
-import { can } from "@/lib/roles";
+import { holds } from "@/lib/roles";
+import { roomActor } from "@/lib/room/access";
+import { lights, settings as roomSettings, events as roomEvents } from "@/lib/room/store";
+import { placeName } from "@/lib/room/places";
+import { tidyCode } from "@/lib/ground";
 import { broadcastDispatches, broadcastItems, contestants } from "@/lib/db";
 import { viewing } from "@/lib/viewing";
 import { socialPayload } from "@/lib/post-payload";
@@ -64,7 +68,7 @@ import { site } from "@/lib/site";
    update, and who is holding an item. A browser that could send these could
    mark any post "corrected" or unpick a retraction, so they are stripped from
    whatever arrives and carried across an edit from the stored row. */
-const SERVER_ONLY = ["corrects", "correctedBy", "hold"];
+const SERVER_ONLY = ["corrects", "correctedBy", "hold", "call"];
 const clean = (payload) =>
   payload && typeof payload === "object"
     ? Object.fromEntries(Object.entries(payload).filter(([key]) => !SERVER_ONLY.includes(key)))
@@ -78,7 +82,7 @@ async function desk(capability) {
      a server action is not a route — see app/actions/elections.js, where
      passing one silently redirected instead of doing the work. */
   const user = await requireUser();
-  if (!can(user.role, capability)) return { user: null, error: "Your account cannot do that on this desk." };
+  if (!holds(user, capability)) return { user: null, error: "Your account cannot do that on this desk." };
   return { user, error: null };
 }
 
@@ -154,7 +158,25 @@ export async function moveItem({ id, to, note = null, verdict = null }) {
         ? "broadcast:clear"
         : "broadcast:air";
 
-  if (!can(user.role, needed)) return { error: "Your account cannot do that on this desk." };
+  if (!holds(user, needed)) return { error: "Your account cannot do that on this desk." };
+
+  /* ── A RACE CALL AND A CORRECTION ARE CLEARED BY TWO PEOPLE ONLY ─────────
+     Moving a contest to "leaning" or "decided", and taking back something
+     already said, are the two posts that cannot be unsaid. The Director or
+     the Super Admin clears them, either one alone, and never their author
+     (that rule is the next check, and applies to them too). */
+  const weighty = Boolean(item.payload?.call) || Boolean(correctionOf(item));
+  if (to === "CLEARED" && weighty && !holds(user, "broadcast:call")) {
+    return { error: "A race call or a correction is cleared by the Director or the Super Admin." };
+  }
+  if ((to === "CLEARED" || to === "ON_AIR") && item.payload?.call) {
+    const floor = await underCallFloor(item.electionId, item.race, item.payload.call.at);
+    if (floor) return { error: floor };
+  }
+  /* Stopping a cleared post, or pulling one that went out. */
+  if ((to === "OFF_AIR" || (item.state === "CLEARED" && to === "REVIEW")) && !holds(user, "broadcast:hold")) {
+    return { error: "Holding or pulling a post is for the Director or the Super Admin." };
+  }
 
   /* ── THE RULE ────────────────────────────────────────────────────────────
      Applies to the super administrator too. An exception for the highest role
@@ -222,7 +244,7 @@ export async function moveItem({ id, to, note = null, verdict = null }) {
   } else if (item.kind === "SOCIAL" && to === "CLEARED" && item.payload?.sendOnClear && isEmbargoed(item, Date.now())) {
     also = `Cleared. It is embargoed until ${clockWAT(embargoOf(item))} and goes out then, from any desk that is open.`;
   } else if (item.kind === "SOCIAL" && to === "CLEARED" && item.payload?.sendOnClear) {
-    if (can(user.role, "broadcast:air")) {
+    if (holds(user, "broadcast:air")) {
       const aired = await broadcastItems.setState(item.id, "ON_AIR", { actorId: user.id, actorName: user.name, from: "CLEARED" });
       if (aired) {
         await log(user, "broadcast:on_air", item.id, { kind: item.kind, title: item.title, from: "CLEARED", automatic: true });
@@ -302,7 +324,7 @@ export async function discardDraft(id) {
   if (item.state !== "DRAFT") {
     return { error: "Only a draft can be discarded. Everything else is part of the record." };
   }
-  if (item.createdBy && item.createdBy !== user.id && !can(user.role, "broadcast:clear")) {
+  if (item.createdBy && item.createdBy !== user.id && !holds(user, "broadcast:clear")) {
     return { error: "That is somebody else's draft." };
   }
 
@@ -866,4 +888,85 @@ export async function releaseEmbargoed() {
   }
   if (released) await log(user, "broadcast:embargo_lifted", null, { released });
   return { ok: true, released };
+}
+
+
+/* ------------------------------------------------------------- race calls */
+
+const CALLS = { LEANING: "leaning", DECIDED: "decided" };
+
+/**
+ * Nothing is called under the floor. Returns the refusal in words, or null.
+ *
+ * The share is polling units reported out of INEC's list for the place, the
+ * same figure every light in the room carries, so the control on the screen
+ * and this check cannot disagree about whether a place may be called.
+ */
+async function underCallFloor(electionId, race, at) {
+  const [rules, light] = await Promise.all([roomSettings.get(electionId), lights.at({ electionId, race, code: at ?? "" })]);
+  if (light.coveragePct >= rules.callFloorPercent) return null;
+  return `${light.name} is ${light.coveragePct.toFixed(1)}% counted. Nothing is called under ${rules.callFloorPercent}%.`;
+}
+
+/**
+ * Propose a race call. It is written as a post and waits for a different
+ * person, the Director or the Super Admin, to clear it.
+ */
+export async function proposeCall(_previous, formData) {
+  const ctx = await roomActor();
+  if (!ctx?.project) return { ok: false, error: "No election project is open." };
+  if (!ctx.holds("broadcast:call")) return { ok: false, error: "A race call is proposed by the Director or the Super Admin." };
+  const at = tidyCode(formData.get("at")) ?? "";
+  const call = String(formData.get("call") ?? "");
+  const party = String(formData.get("party") ?? "").trim().toUpperCase().slice(0, 12);
+  if (!CALLS[call] || !party) return { ok: false, error: "Choose the call and the party it is for." };
+  const floor = await underCallFloor(ctx.project.id, ctx.race, at);
+  if (floor) return { ok: false, error: floor };
+
+  const name = at ? placeName(at) : "Nigeria";
+  const scope = at ? `${["", "STATE", "LGA", "WARD"][at.split("/").length]}:${at}` : "NATION";
+  const title = `Race call: ${name} ${CALLS[call]} ${party}`;
+  const id = await broadcastItems.create({
+    electionId: ctx.project.id,
+    kind: "SOCIAL",
+    state: "REVIEW",
+    race: ctx.race,
+    scope,
+    title,
+    body: String(formData.get("body") ?? "").trim() || null,
+    payload: { ...(await socialPayload({ scope, race: ctx.race })), call: { at, to: call, party, by: ctx.user.name } },
+    platforms: [],
+    verdict: null,
+    scheduledFor: null,
+    createdBy: ctx.user.id,
+    createdName: ctx.user.name,
+  });
+  await log(ctx.user, "broadcast:call-proposed", id, { title });
+  await roomEvents.emit(ctx.project.id, "broadcast.changed", "", { id });
+  revalidatePath("/room", "layout");
+  return { ok: true, id };
+}
+
+/** The room's forms for the desk: one press on one item. */
+export async function deskMove(_previous, formData) {
+  const out = await moveItem({ id: formData.get("id"), to: String(formData.get("to") ?? ""), note: formData.get("note") });
+  revalidatePath("/room", "layout");
+  return { ok: !out?.error, ...out, at: Date.now() };
+}
+
+/** Write a routine post from the stored count and send it for clearance. */
+export async function deskWrite(_previous, formData) {
+  const at = tidyCode(formData.get("at"));
+  const scope = at ? `${["", "STATE", "LGA", "WARD", "UNIT"][at.split("/").length]}:${at}` : "NATION";
+  const drafted = await draftItem({
+    kind: "SOCIAL",
+    title: formData.get("title"),
+    body: formData.get("body"),
+    scope,
+    platforms: formData.getAll("platforms").map(String),
+  });
+  if (drafted.error) return { ok: false, error: drafted.error, at: Date.now() };
+  const sent = await moveItem({ id: drafted.id, to: "REVIEW" });
+  revalidatePath("/room", "layout");
+  return sent?.error ? { ok: false, error: sent.error, at: Date.now() } : { ok: true, at: Date.now() };
 }

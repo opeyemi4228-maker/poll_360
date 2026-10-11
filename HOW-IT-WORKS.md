@@ -178,7 +178,7 @@ government its seat sits inside, named as a container and not as the seat.
 - **Passwords** — scrypt from `node:crypto`, no dependency.
 - **Encryption at rest** — AES-256-GCM. Sealed: incident narratives, agent contacts, sheet keys. Clear: vote totals, coverage, timestamps, unit codes — *a column you cannot aggregate is one you cannot draw a map from*. GCM authenticates, so a tampered row fails loudly instead of decrypting to something else.
 - **One sign-in error message** — wrong password, no such account, disabled account all answer the same, so the form cannot be used to ask whether a phone number belongs to an agent.
-- **Payment ledger** — a hash chain (`lib/ledger.js`). Every entry carries the previous entry's hash, so the ledger is tamper-*evident*: alter row 400 and every hash after it stops matching. Deliberately **not** untraceable — untraceable cash to polling agents during a Nigerian election is indistinguishable from vote-buying, and the product's credibility rests on being able to prove it isn't that. Privacy is served by pseudonymity: the screen shows a payment reference, not a name.
+- **No money** — Poll360 does not pay agents, hold balances or record payments. That was removed from the product; payments to agents are settled outside it.
 
 ---
 

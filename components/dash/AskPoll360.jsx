@@ -15,6 +15,7 @@ import {
   Sparkles,
   Target,
   TrendingUp,
+  Trophy,
 } from "lucide-react";
 
 import BrandMark from "@/components/ui/BrandMark";
@@ -47,6 +48,22 @@ import { cn } from "@/lib/utils";
    is the same desk and the same conversation behind both doors — only the
    first questions offered differ, because the two heads are opened for
    different jobs. */
+/* ── THE FIRST QUESTIONS ARE ABOUT THE ACCOUNT'S OWN GROUND ───────────────
+   An account that holds Adamawa Central is offered Adamawa Central, not
+   Kano: the first thing somebody running for a seat wants to ask is how to
+   win it. An account that holds the country is offered a seat by name, so
+   it is plain at a glance that any seat can be asked about. */
+function winStarters(ground) {
+  const own = ground && ground !== "Nigeria";
+  return {
+    group: "Win a seat",
+    icon: Trophy,
+    questions: own
+      ? [`How can I win ${ground}?`, `Who will win ${ground}?`, `Who wins in ${ground} if turnout rises by 10%?`]
+      : ["How can I win Kano Central senatorial district?", "Who will win the governorship in Lagos?", "Simulate the 2027 presidential election"],
+  };
+}
+
 const PLANNING_STARTERS = [
   {
     group: "Party strength",
@@ -67,7 +84,7 @@ const PLANNING_STARTERS = [
     icon: TrendingUp,
     questions: [
       "What if Atiku gains 5 points and Tinubu loses 3?",
-      "Strategy to win Kano",
+      "How can the APC win Kaduna Central senatorial district?",
       "Who governs each state?",
     ],
   },
@@ -166,8 +183,8 @@ export default function AskPoll360({ ground = "Nigeria", desk = "analytics" }) {
             <h2 className="font-display text-[1.375rem] leading-tight font-bold tracking-tight">Ask Poll360</h2>
             <p className="mt-0.5 max-w-2xl text-[0.8125rem] leading-relaxed text-white/70">
               {desk === "planning"
-                ? "Party strength, targets and scenarios, answered from the record — the vote and the party's own register, side by side and never added together."
-                : "Election analytics and planning, answered from the record. Every figure is worked out by Poll360 and checked before you read it — nothing is guessed."}
+                ? "How to win any seat, party strength, targets and scenarios — for any party or for you, answered from every election since 1999 and the party's own register."
+                : "Ask how to win any seat, who the record says wins it, or anything about the vote since 1999. Every figure is worked out by Poll360 and checked before you read it — nothing is guessed."}
             </p>
           </div>
           <span className="rounded-full border border-white/20 px-3 py-1 text-[0.75rem] font-semibold text-white/85">Reading: {ground}</span>
@@ -175,7 +192,7 @@ export default function AskPoll360({ ground = "Nigeria", desk = "analytics" }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-red-500" aria-hidden="true" />
       </header>
 
-      {thread.length === 0 && !busy && <Starters onAsk={ask} groups={desk === "planning" ? PLANNING_STARTERS : STARTERS} />}
+      {thread.length === 0 && !busy && <Starters onAsk={ask} groups={[winStarters(ground), ...(desk === "planning" ? PLANNING_STARTERS : STARTERS)]} />}
 
       {thread.map((turn) => (
         <AnswerCard key={turn.id} turn={turn} onAsk={ask} />
@@ -240,8 +257,8 @@ function Composer({ desk, value, onChange, onAsk, busy, inputRef, onClear }) {
           }}
           placeholder={
             desk === "planning"
-              ? "Ask about party strength, targets or a scenario — e.g. how strong is the APC in the South West?"
-              : "Ask about any state, LGA, ward or polling unit — e.g. where can Atiku get 25% in Plateau?"
+              ? "Ask how to win a seat, or about strength, targets or a scenario — e.g. how can I win Enugu East senatorial district?"
+              : "Ask about any seat, state, LGA, ward or polling unit — e.g. how can I win Kano Central senatorial district?"
           }
           className="max-h-40 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[0.9375rem] text-dash-ink outline-none placeholder:text-dash-muted/70"
         />
@@ -271,7 +288,7 @@ function Composer({ desk, value, onChange, onAsk, busy, inputRef, onClear }) {
 
 function Starters({ onAsk, groups }) {
   return (
-    <section className="grid gap-3 md:grid-cols-3">
+    <section className={cn("grid gap-3", groups.length > 3 ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3")}>
       {groups.map((group) => (
         <div key={group.group} className="rounded-dash border border-dash-line bg-dash-card p-4">
           <h3 className="flex items-center gap-2 text-[0.75rem] font-medium text-dash-muted">

@@ -301,6 +301,9 @@ const SECTIONS = [
       { href: "/admin/users", label: "Users & roles", icon: UsersRound, capability: "system:read" },
       { href: "/admin/organisations", label: "Organisations", icon: Building2, capability: "system:read" },
       { href: "/admin/sources", label: "Data sources", icon: Database, capability: "system:read" },
+      /* The room's own console: assignments, room staff and their ground,
+         the lights and what turns them, the screens on the wall. */
+      { href: "/room/admin", label: "Situation room console", icon: Users, capability: "assignments:manage" },
       { href: "/admin/irev", label: "INEC results (IReV)", icon: Landmark, capability: "system:read" },
       { href: "/admin/integrations", label: "Integrations", icon: Plug, capability: "system:read" },
       { href: "/admin/audit", label: "Audit logs", icon: ScrollText, capability: "system:read" },

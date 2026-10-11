@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { ArrowUpRight, Download, RefreshCw, Share, WifiOff, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ const DISMISSED = "poll360:install-dismissed";
 const CLEANED = "poll360:sw-cleanup-reload";
 
 export default function AppShell() {
+  const onWall = (usePathname() ?? "").startsWith("/wall");
   const [waiting, setWaiting] = useState(null);
   const [prompt, setPrompt] = useState(null);
   const [offline, setOffline] = useState(false);
@@ -188,6 +190,11 @@ export default function AppShell() {
   const offerInstall = !dismissed && (prompt || showIosHint);
 
   if (!offline && !waiting && !offerInstall) return null;
+
+  /* A screen on the wall has no keyboard and nobody to press "install", and
+     a banner across the bottom of it is a banner the whole room reads all
+     night. The wall is shown bare. */
+  if (onWall) return null;
 
   return (
     <div className="fixed inset-x-0 bottom-0 z-100 flex flex-col gap-px">

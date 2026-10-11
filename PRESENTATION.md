@@ -52,31 +52,12 @@ turned out to be a typo would discredit every true finding after it.
 
 *This is the line to lead with. A results viewer cannot do this.*
 
-### 2.2 The ledger cannot be altered, and you can prove it
+### 2.2 Poll360 handles no money
 
-Agents are paid through a hash-chained ledger. Every entry carries the hash of the one
-before it. Demonstrated live by tampering with the database directly:
-
-```sql
-UPDATE ledger SET amount = 9900000 WHERE kind='STIPEND';
-```
-```
-verify() → { ok: false, at: 1, reason: "entry altered after it was written" }
-```
-
-- No UPDATE or DELETE path to the table exists anywhere in the codebase
-- Balances are **derived on read**, never stored, so they cannot drift from the statement
-- Agents appear as opaque payment references, so a ledger can be shown in a room without
-  exposing who is being paid
-- The admin console walks the whole chain on every page load
-
-**What was deliberately refused:** untraceable payments. In a Nigerian election that is
-indistinguishable from vote-buying infrastructure, it breaks AML/KYC law, and it
-contradicts the product's own thesis. Tamper-evident and auditable is the property worth
-having, and it needs no chain, no token and no network.
-
-*Say this out loud in the room. Refusing a feature for a stated reason reads as
-judgement, not as a gap.*
+Agent payments were removed from the product. Poll360 does not pay agents, hold
+balances or record payments. A count and a payroll in one product invite the question of
+what the payments were for, so whatever an organisation pays its agents is settled
+outside it.
 
 ### 2.3 Every figure carries its coverage
 
@@ -118,7 +99,7 @@ One count, five rooms, five completely different jobs. Each is role-gated on the
 - Returns arriving as a cumulative trend, ranked party standings, live incident feed
 - **Issue an account**: password shown once, never stored in readable form
 - **Pay an agent**: the only door money comes through, capability-gated and audited
-- **Integrity screening** and the ledger chain state
+- **Integrity screening**
 - Append-only audit trail: every privileged action, attributed and timestamped
 
 ### 3.2 Polling unit coordinator (the phone)
@@ -439,7 +420,6 @@ What it answers:
 | "Security in Borno" | The figure, **plus** that it is synthetic and must not be quoted |
 | "Is this data real" | The real and generated line, drawn explicitly |
 | "How do you catch fraud" | The four integrity classes, in plain English |
-| "How does the ledger work" | Tamper evidence without the word blockchain doing any work |
 
 Behind it is a glossary covering **every metric, every screen and every piece of
 vocabulary in the product**, written the way you would explain it to somebody who walked
@@ -637,16 +617,15 @@ Run `npm run dev`. Log in at `/login`.
 | 6 | Open **Reports**, hit **Rehearse** | "Critical reports sound an alarm. This is rehearsal mode, every 20 seconds." |
 | 7 | Open **Coordinators** | "Filled dots are real GPS fixes. Hollow rings mean we know their booth and nothing else." |
 | 8 | Log in as **admin**, show integrity | "This is the one that matters. It catches what cannot be true, and it never says fraud." |
-| 9 | Tamper with the ledger in SQL, run verify | "Now watch the chain break at the exact row." |
-| 10 | Open **Analytics**, push LP up six and APC down six | "Labour now leads the country. And nobody has won, because the spread test fails in 17 states. That is the number every other tracker hides." |
-| 11 | Press **Hi Poll360 AI** and say "what is a quarter state" | "It answers out loud, from the same data on the screen. Ask it anything on this dashboard." |
-| 12 | Ask it "security in Borno" | "Notice it volunteers that the figure is generated. It will not let you quote a number we did not measure." |
-| 13 | Open **Planning**, take a state, open it, tap one local government | "A state is its local governments. Tapping inside one that is already covered takes that place back out, and the coverage falls. It cannot double count." |
-| 14 | Switch the basis from Register to Votes cast | "Same selection, costed against what people actually did rather than who could have. The ranking underneath changes with it." |
-| 13 | Send `RESULT` to the WhatsApp number from your own phone | "No app, no account, no training. The phone they already own." |
-| 14 | Photograph a result sheet and send it | "It reads every figure off the sheet and asks the agent to confirm. It never files its own guess." |
-| 15 | Attach a location in WhatsApp, then open **Coordinators** | "They are on the map, live, seconds later." |
-| 16 | Open **/whatsapp**, then **Polling units** | "Nation, state, local government, ward, booth. It built itself as the returns arrived." |
+| 9 | Open **Analytics**, push LP up six and APC down six | "Labour now leads the country. And nobody has won, because the spread test fails in 17 states. That is the number every other tracker hides." |
+| 10 | Press **Hi Poll360 AI** and say "what is a quarter state" | "It answers out loud, from the same data on the screen. Ask it anything on this dashboard." |
+| 11 | Ask it "security in Borno" | "Notice it volunteers that the figure is generated. It will not let you quote a number we did not measure." |
+| 12 | Open **Planning**, take a state, open it, tap one local government | "A state is its local governments. Tapping inside one that is already covered takes that place back out, and the coverage falls. It cannot double count." |
+| 13 | Switch the basis from Register to Votes cast | "Same selection, costed against what people actually did rather than who could have. The ranking underneath changes with it." |
+| 14 | Send `RESULT` to the WhatsApp number from your own phone | "No app, no account, no training. The phone they already own." |
+| 15 | Photograph a result sheet and send it | "It reads every figure off the sheet and asks the agent to confirm. It never files its own guess." |
+| 16 | Attach a location in WhatsApp, then open **Coordinators** | "They are on the map, live, seconds later." |
+| 17 | Open **/whatsapp**, then **Polling units** | "Nation, state, local government, ward, booth. It built itself as the returns arrived." |
 
 **Accounts** (in `.env.example`):
 
@@ -670,7 +649,7 @@ Publishing this is the cheapest credibility available. Everyone evaluating elect
 software has sat through a demo that turned out to be entirely a demo.
 
 **Built and working:** four role-gated dashboards · four-level drill-down on real
-boundaries · integrity screening · tamper-evident ledger · agent wallet · photo evidence
+boundaries · integrity screening · photo evidence
 with authenticated serving · GPS coordinator watch · live incident stream with alarm ·
 projection engine with the Section 134 spread test and run-off detection · blank planning
 map with live deployment totals and CSV export · Poll360 AI with voice in and voice out,
@@ -686,7 +665,6 @@ public marketing site with live board.
 
 | Gap | What it needs |
 |---|---|
-| Withdrawals record an instruction, they do not move money | A payment provider and KYC |
 | No census data on the clusters layer | A licensed population source. Density is derived from the register and labelled |
 | Real-time is the 2023 replay | Agents in the field. The plumbing is live |
 | Figures below state level are apportioned | Real returns, which replace them entirely |

@@ -1,11 +1,10 @@
 /**
- * Photographs for incidents, and money in the agent ledger.
+ * Photographs for incidents.
  *
  * ── WHY THESE WERE MISSING ─────────────────────────────────────────────────
- * Both features were built and neither had any data behind it, so the
- * situation feed showed reports with no evidence and the agent wallet showed
- * a balance of zero. A feature that works and shows nothing looks exactly like
- * a feature that does not work.
+ * The feature was built and had no data behind it, so the situation feed
+ * showed reports with no evidence. A feature that works and shows nothing
+ * looks exactly like a feature that does not work.
  *
  * ── WHAT THE PICTURES ARE, PLAINLY ─────────────────────────────────────────
  * They are drawn, not photographed: a form-shaped image with a header band,
@@ -19,7 +18,6 @@
  */
 
 import { incidents, media, sql, users } from "../lib/db.js";
-import { ledger } from "../lib/ledger.js";
 import { surface } from "./lib-png.mjs";
 
 const PARTY = [
@@ -131,58 +129,3 @@ if (Number(already[0].n) > 0 && !force) {
   }
   console.log(`attached ${attached} photographs to ${feed.length} reports`);
 }
-
-/* ── the ledger ───────────────────────────────────────────────────────────── */
-
-const agents = (await sql`SELECT id, name FROM users WHERE role = 'PU_AGENT' ORDER BY id LIMIT 40`);
-const existing = await sql`SELECT count(*) AS n FROM ledger`;
-
-if (Number(existing[0].n) > 0 && !force) {
-  console.log(`${existing[0].n} ledger entries already. Pass --force to add more.`);
-} else {
-  const admin = await users.findByEmail("admin@poll360.ng");
-  let entries = 0;
-
-  for (const [index, agent] of agents.entries()) {
-    /* Kobo, not naira: money is integer everywhere in this system, because a
-       balance held in floating point is a balance that is eventually wrong. */
-    await ledger.append({
-      userId: agent.id,
-      kind: "STIPEND",
-      amount: 1_500_000,
-      note: "Election day stipend",
-      actorId: admin?.id ?? null,
-    });
-    entries += 1;
-
-    if (index % 4 === 0) {
-      await ledger.append({
-        userId: agent.id,
-        kind: "BONUS",
-        amount: 250_000,
-        note: "Filed before 18:00",
-        actorId: admin?.id ?? null,
-      });
-      entries += 1;
-    }
-
-    if (index % 5 === 2) {
-      await ledger.append({
-        userId: agent.id,
-        kind: "WITHDRAWAL_REQUESTED",
-        amount: 1_000_000,
-        note: "Requested from the phone",
-      });
-      entries += 1;
-    }
-  }
-
-  console.log(`wrote ${entries} ledger entries across ${agents.length} agents`);
-}
-
-const check = await ledger.verify();
-console.log(
-  check.ok
-    ? `chain verified: ${check.entries} entries, head ${check.head.slice(0, 12)}`
-    : `CHAIN BROKEN at ${check.at}: ${check.reason}`
-);

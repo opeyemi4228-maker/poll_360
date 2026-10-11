@@ -92,7 +92,7 @@ export default function GlobalError({ error, reset }) {
             }}
           >
             <strong style={{ fontWeight: 700 }}>Nothing that was filed has been lost.</strong>{" "}
-            Every return, incident and payment already recorded is in the database and is
+            Every return and incident already recorded is in the database and is
             untouched by this. Nothing here writes or deletes anything.
           </p>
 

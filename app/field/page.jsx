@@ -1,14 +1,11 @@
-import { Wallet as WalletIcon } from "lucide-react";
-
+import { holds } from "@/lib/roles";
 import DashLayout from "@/components/dash/DashLayout";
 import { Card } from "@/components/dash/DashCard";
 import FileReturns from "@/components/dash/FileReturns";
 import IncidentForm from "@/components/dash/IncidentForm";
-import Wallet from "@/components/dash/Wallet";
 import { requireUser } from "@/lib/guard";
 import { currentElection } from "@/lib/election-scope";
 import { results } from "@/lib/db";
-import { ledger } from "@/lib/ledger";
 import { can } from "@/lib/roles";
 import { RACES } from "@/lib/races";
 
@@ -44,7 +41,7 @@ export default async function FieldPage() {
   /* Declared here rather than beside its first use in the markup: the upload
      list below is conditional on it, and a `const` read above its own
      declaration is a ReferenceError at request time, not a lint error. */
-  const canNameUnit = !user.scope && can(user.role, "results:upload");
+  const canNameUnit = !user.scope && holds(user, "results:upload");
 
   const filedRows = user.scope && project
     ? await results.forUnitAcrossRaces(user.scope, project.id)
@@ -92,20 +89,6 @@ export default async function FieldPage() {
   /* A desk or an administrator has no booth of its own and may name one. An
      agent may not, and the server enforces that regardless of what this says. */
 
-  /* Everything about the account is derived from the ledger on read: the
-     balance is a sum, never a stored figure that could drift from its own
-     statement.
-
-     Four separate questions of the same table, so they are asked together.
-     In sequence they were four round trips deep on the one page an agent
-     opens at a polling unit, on a phone, on whatever signal there is. */
-  const [balance, pending, entries, chain] = await Promise.all([
-    ledger.balanceFor(user.id),
-    ledger.pendingFor(user.id),
-    ledger.forUser(user.id, 12),
-    ledger.verify(),
-  ]);
-
   return (
     <DashLayout
       user={user}
@@ -137,15 +120,6 @@ export default async function FieldPage() {
             canNameUnit={canNameUnit}
             uploaded={uploaded}
           />
-
-          <Card
-            id="wallet"
-            title="Your account"
-            subtitle="Derived from the ledger, and provably unaltered"
-            action={<WalletIcon size={16} className="shrink-0 text-dash-muted" />}
-          >
-            <Wallet balance={balance} pending={pending} entries={entries} chain={chain} />
-          </Card>
 
           <Card id="incident" title="Report something that is not a number" subtitle="A queue, a delay, an obstruction, encrypted before it is stored">
             <IncidentForm />

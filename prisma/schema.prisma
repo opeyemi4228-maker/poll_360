@@ -303,6 +303,9 @@ model Audit {
   @@map("audit")
 }
 
+/// UNUSED. Agent payments were removed from the product; nothing reads or
+/// writes this table. It is kept so no stored row is destroyed by a deploy.
+/// What follows describes what it was.
 /// The agent payment ledger. `seq` is the chain order and must be storage-level
 /// and strictly monotonic: every entry's hash depends on the one before it, so
 /// two rows written in the same millisecond still need an unambiguous

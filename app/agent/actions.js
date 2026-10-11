@@ -1,5 +1,6 @@
 "use server";
 
+import { agentMayFile, roomSaw } from "@/lib/room/hooks";
 import { createHash } from "node:crypto";
 
 import { headers } from "next/headers";
@@ -493,6 +494,15 @@ export async function fileAgentResult(_previous, formData) {
 
   const unitCode = person.unitCode;
 
+  /* ── ASSIGNED NOW, AND FIRST ─────────────────────────────────────────────
+     Asked of storage on every filing: an agent moved off this unit a minute
+     ago cannot file for it, whatever their phone still shows. And the first
+     accepted filing is the result; a second assigned agent's figures go to
+     the verification desk beside it and never become a second result. */
+  const gate = await agentMayFile({ person, project, race, unitCode, figures: { accredited, rejected, votes } });
+  if (!gate.allow) return { error: gate.error, code: gate.code };
+  await roomSaw({ project, race, unitCode, cause: "Result filed" });
+
   const { amended } = await results.file({
     /* Every box on the sheet, straight through. */
     ...sheetBoxes,
@@ -867,4 +877,20 @@ async function checkSheet(file, typed, shown = {}) {
   }
 
   return { blocked: false, match, record: matchRecord(match), message: null, parsed };
+}
+
+
+/**
+ * An agent with several polling units says which one they are at.
+ *
+ * The unit comes from a button beside its name. It is checked against their
+ * assignments here regardless: a unit they do not hold cannot be chosen.
+ */
+export async function chooseUnit(formData) {
+  const person = await currentCoordinator();
+  if (!person?.canFile) redirect(agentPath("/login"));
+  const { assignments } = await import("@/lib/room/assign");
+  const { forgetCoordinator } = await import("@/lib/coordinator-session");
+  if (await assignments.choose(person.id, String(formData.get("unit") ?? ""))) await forgetCoordinator();
+  redirect(agentPath("/"));
 }

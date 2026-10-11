@@ -2,19 +2,22 @@
 
 import { revalidatePath } from "next/cache";
 
-import { declared } from "@/lib/db";
+import { declared, declaredSources } from "@/lib/db";
 import { requireCapability, log } from "@/lib/guard";
 import { currentElection, currentRace } from "@/lib/election-scope";
 import { isRace, raceLabel } from "@/lib/races";
 import { parseDeclared, summarise } from "@/lib/declared";
+import { addressOf, pull } from "@/lib/declared-feed";
 
 /**
  * Entering what the commission declared.
  *
- * ── WHY THIS IS TYPED IN RATHER THAN FETCHED ───────────────────────────────
- * There is no feed. INEC publishes scanned sheets to IReV and reads totals
- * aloud at collation centres, and neither is an interface a program can ask a
- * question of. So the desk uploads or pastes what was announced.
+ * ── TYPED IN, OR FETCHED FROM A SHEET SOMEBODY KEEPS ───────────────────────
+ * INEC has no feed of declared totals: it publishes scanned sheets to IReV and
+ * reads totals aloud at collation centres. So the desk uploads or pastes what
+ * was announced, or gives the address of a shared sheet where announcements
+ * are being typed, and that sheet is then read every few minutes on its own.
+ * Both come through the same reader. See lib/declared-feed.js.
  *
  * ── WHICH MAKES WHO TYPED IT PART OF THE RECORD ────────────────────────────
  * Every row carries the account that entered it. A declared figure is one half
@@ -137,4 +140,73 @@ export async function removeDeclared(_previous, formData) {
   revalidatePath("/room");
 
   return { ok: true, removed: key };
+}
+
+/**
+ * Start fetching declared figures from a sheet, and read it at once.
+ *
+ * The first reading happens here, in front of the person who pasted the link,
+ * because a link that cannot be read should say so while they are still
+ * looking at it and not two minutes later on a screen nobody is watching. An
+ * address that could not be read is still kept: a sheet that is not shared yet
+ * is the commonest first attempt, and it starts working the moment it is.
+ */
+export async function setDeclaredSource(_previous, formData) {
+  const officer = await requireCapability("declared:file", "/gap");
+
+  const project = await currentElection();
+  if (!project) return { error: "No election project is open, so there is nowhere to file these figures." };
+
+  const { address, error } = addressOf(formData.get("address"));
+  if (error) return { error };
+
+  const race = await currentRace(project);
+  await declaredSources.set({ electionId: project.id, race, address, addedBy: officer.id });
+  await log(officer, "declared:source-set", project.id, { race, host: new URL(address).hostname });
+
+  return readNow(officer, project, race);
+}
+
+/** Read the sheet now, without waiting for the next reading. */
+export async function checkDeclaredSource() {
+  const officer = await requireCapability("declared:file", "/gap");
+  const project = await currentElection();
+  if (!project) return { error: "No election project is open." };
+  return readNow(officer, project, await currentRace(project));
+}
+
+async function readNow(officer, project, race) {
+  /* Read as though for the first time, so pressing the button always says
+     what the sheet holds and not only that nothing moved. */
+  const source = await declaredSources.forRace(project.id, race);
+  if (!source) return { error: "No sheet has been given for this contest." };
+
+  const went = await pull({ ...source, fingerprint: null }, { declared, declaredSources });
+  if (went.written) {
+    await log(officer, "declared:fetched", project.id, { race, rows: went.written, rejected: went.problems?.length ?? 0 });
+  }
+
+  revalidatePath("/gap");
+  revalidatePath("/room");
+
+  return went.status === "CHANGED"
+    ? { ok: true, said: went.said, problems: went.problems }
+    : { ok: false, said: went.said };
+}
+
+/**
+ * Stop fetching. Figures already brought in stay where they are: the address
+ * is an instruction, and withdrawing it is not a correction to anything.
+ */
+export async function removeDeclaredSource() {
+  const officer = await requireCapability("declared:file", "/gap");
+  const project = await currentElection();
+  if (!project) return { error: "No election project is open." };
+
+  const race = await currentRace(project);
+  await declaredSources.remove(project.id, race);
+  await log(officer, "declared:source-removed", project.id, { race });
+
+  revalidatePath("/gap");
+  return { ok: true, stopped: true };
 }

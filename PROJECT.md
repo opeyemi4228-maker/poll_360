@@ -614,7 +614,7 @@ Postgres on Neon, reached over HTTP. Nineteen Prisma models
 | `Incident` | What went wrong, narrative sealed |
 | `Media` | Photographs; object keys sealed |
 | `Audit` | Who did what, with their address |
-| `LedgerEntry` | The agent payment ledger |
+| `LedgerEntry` | Unused. Agent payments were removed; the table is left in place and nothing reads or writes it |
 | `WaContact` · `WaMessage` · `WaSession` · `WaPosition` | The WhatsApp desk |
 | `PollingUnit` | The registry, as discovered |
 | `SheetRead` | What a reader made of a photograph, with its provenance |
@@ -679,8 +679,7 @@ from Data Bank · `databank.js` the door · `databank-agents.js` the agent list 
 **The agents' app**
 `agent-address.js` · `agents-app.js` · `agent-identity.js` · `agent-code.js` ·
 `agent-code-vault.js` · `agent-day.js` · `agent-door.js` · `agent360.js` ·
-`agent-election.js` · `coordinators.js` · `watch.js` where the coordinators are ·
-`ledger.js` the payment ledger.
+`agent-election.js` · `coordinators.js` · `watch.js` where the coordinators are.
 
 **The rooms**
 `alarm.js` the room's two alarms · `alerts.js` the warning system · `pulse.js`

@@ -1,3 +1,7 @@
+import AssignmentWatch from "@/components/agent/AssignmentWatch";
+import UnitPicker from "@/components/agent/UnitPicker";
+import { assignments } from "@/lib/room/assign";
+import { placeName } from "@/lib/room/places";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, MapPin, Megaphone, ScanLine, ShieldAlert, Siren } from "lucide-react";
 
@@ -52,6 +56,9 @@ export default async function AgentHome() {
     project ? incidents.forAgent(person.id, project.id) : [],
   ]);
 
+  /* Every unit they hold, by name. More than one, and they choose which
+     they are at; the list is drawn from their assignments, never typed. */
+  const myUnits = (await assignments.unitsOf(person.id)).map((held) => ({ ...held, name: placeName(held.code) }));
   const sentResults = RACES.filter((race) => filedRows[race.id]).length;
   const progress = updateProgress(updates);
   const urgentOpen = reports.filter((report) => report.severity === "CRITICAL" && report.status === "OPEN").length;
@@ -103,6 +110,9 @@ export default async function AgentHome() {
       {/* ── THE BOOTH, AS A FACT ────────────────────────────────────────────
           Large enough to check against the sheet in their hand, and not a
           form control: nothing on this screen can change it. */}
+      <AssignmentWatch current={person.unitCode} />
+      <UnitPicker units={myUnits} current={person.unitCode} />
+
       <section aria-label="Your polling unit" className="mt-5 rounded-dash bg-ink-950 p-5 text-white">
         <p className="tag flex items-center gap-1.5 text-white/60">
           <MapPin size={12} strokeWidth={2.5} aria-hidden="true" />

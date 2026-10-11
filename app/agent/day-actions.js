@@ -1,5 +1,6 @@
 "use server";
 
+import { roomHeard } from "@/lib/room/hooks";
 import { revalidatePath } from "next/cache";
 
 import { after } from "next/server";
@@ -240,6 +241,8 @@ export async function reportSituation(_previous, formData) {
       /* The report is what matters. */
     }
   }
+
+  await roomHeard({ project, unitCode: agent.unitCode, incidentId, sos, critical: severity === "CRITICAL", name: agent.name });
 
   if (sos && agent360Configured()) {
     await sendAgentEvent(agent.phone, { eventType: "distress", latitude, longitude, accuracy });

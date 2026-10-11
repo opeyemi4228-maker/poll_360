@@ -675,9 +675,13 @@ describe("the questions a campaign asks, read the way they are meant", () => {
     for (const question of ["Where should Atiku campaign?", "How can Atiku win 2027?", "Which states should we focus on to win?"]) {
       assert.equal(intentOf(await read(question)), "outlook", question);
     }
-    const kano = await read("Strategy to win Kano");
+    const kano = await read("Strategy for Atiku to win Kano");
     assert.equal(intentOf(kano), "outlook");
     assert.match(kano.answer.headline, /^In Kano, Atiku took 7\.7% in 2023/);
+    /* Nobody named is nobody assumed: the plan is for whoever is asking. */
+    const anybody = await read("Strategy to win Kano");
+    assert.equal(intentOf(anybody), "win");
+    assert.doesNotMatch(anybody.answer.headline, /Atiku/);
     const southWest = await read("Can Atiku win the South West?");
     assert.match(southWest.answer.headline, /^In the South West, Atiku carried 1 of 6 states/);
   });
@@ -774,5 +778,155 @@ describe("the questions a campaign asks, read the way they are meant", () => {
     const kano = await read("what about Kano?", first.plans[0]);
     assert.equal(intentOf(kano), "outlook");
     assert.deepEqual(kano.plans[0].within.states, ["KAN"]);
+  });
+});
+
+describe("winning a seat, for anybody, from that seat's own elections", () => {
+  const read = async (question, { previous = null, territory = null } = {}) => {
+    const { answer } = await import("../lib/ask/answer.js");
+    return answer({ question, previous, territory, userId: "u1", useModel: false });
+  };
+  const facts = async (reply, territory = null) => (await run(reply.plans[0], { territory })).sections[0].facts;
+  const words = (reply) => JSON.stringify(reply.answer);
+
+  it("reads a named district as that district, and nobody named as nobody", () => {
+    const { plan } = parse("How can I win Kano Central senatorial district?");
+    assert.equal(plan.intent, "win");
+    assert.equal(plan.whoNamed, false);
+    assert.equal(plan.contest, "SENATE");
+    assert.deepEqual(plan.seat, { race: "SENATE", key: "19/kano-central" });
+    assert.deepEqual(plan.within.states, ["KAN"]);
+    assert.equal(plan.within.lgas.length, 15);
+    assert.equal(parse("How can the APC win Adamawa North").plan.within.region, null, "Adamawa North is a district, not the North");
+  });
+
+  it("tells a plan from a prediction, and leaves a named candidate's national path alone", () => {
+    assert.equal(parse("Who will win Lagos West senate seat?").plan.intent, "predict");
+    assert.equal(parse("Simulate the 2027 presidential election").plan.intent, "predict");
+    assert.equal(parse("How can I become governor of Rivers").plan.contest, "GOVERNORSHIP");
+    assert.equal(parse("How do I win the Ikeja federal constituency").plan.seat.key, "24/ikeja");
+    assert.equal(parse("Chances of Atiku winning 2027").plan.intent, "outlook");
+    assert.equal(parse("Who is the governor of Kano").plan.intent, "governor");
+    assert.equal(parse("Top 20 biggest polling units in Kano Central senatorial district").plan.levels[0], "unit");
+  });
+
+  it("answers a senate seat from its senate elections and never the presidential vote", async () => {
+    const reply = await read("How can I win Kano Central senatorial district?");
+    const f = await facts(reply);
+    assert.equal(f.kind, "seat");
+    assert.equal(reply.scope.name, "Kano Central senatorial district");
+    assert.equal(f.elections, 7);
+    assert.deepEqual(f.holders.map((entry) => entry.party), ["PDP", "PDP", "ANPP", "PDP", "APC", "APC", "NNPP"]);
+    /* The 2023 senate count for the seat, not the 352,876 the NNPP took there for President. */
+    assert.equal(f.counted.year, 2023);
+    assert.equal(f.counted.leaderVotes, 456787);
+    /* The goal follows the seat's own turnout: the average of its counted
+       senate elections, times the average share its winners took. */
+    assert.deepEqual(f.turnout.elections, [{ year: 2019, cast: 821789 }, { year: 2023, cast: 680701 }]);
+    assert.equal(f.turnout.expected, 751245);
+    assert.equal(f.goal, Math.ceil((751245 * ((506271 / 821789 + 456787 / 680701) / 2) * 100) / 100));
+    assert.ok(f.goal > f.beat);
+    assert.equal(f.lgas, 15);
+    assert.match(words(reply), /Nothing here is the presidential vote/);
+    assert.doesNotMatch(words(reply), /352,876|Kwankwaso|Tinubu/);
+    /* No party's presidential vote is in any table. Turnout is shown, as turnout: how many voted, never who for. */
+    assert.ok(reply.sections.every((section) => !section.columns.some((column) => /share, 2023|led by/i.test(column.label))));
+  });
+
+  it("says which year the votes are from when the last election is held as a winner only", async () => {
+    const reply = await read("How can the APC win Adamawa North senatorial district?");
+    const f = await facts(reply);
+    assert.equal(f.latest.year, 2023);
+    assert.equal(f.latest.counted, false);
+    assert.equal(f.counted.year, 2019);
+    assert.equal(f.subject.votes, 63219);
+    assert.match(words(reply), /on record as a winner only/);
+    /* Declared for one party, held by another after the courts: both are said. */
+    assert.match(reply.answer.headline, /the courts gave the seat to Amos Yohanna \(PDP\)/);
+    assert.equal(f.subject.holds, false);
+  });
+
+  it("answers a governorship from the state's governorship elections, and runs the count again", async () => {
+    const f = await facts(await read("Who will win the governorship in Kano?"));
+    assert.equal(f.kind, "seat");
+    assert.equal(f.contest, "GOVERNORSHIP");
+    assert.equal(f.counted.leaderVotes, 1019602);
+    assert.equal(f.sim.runs, 10000);
+    assert.ok(Math.abs(f.sim.parties.reduce((sum, party) => sum + party.win, 0) - 100) < 0.001);
+    const again = await facts(await read("Who will win the governorship in Kano?"));
+    assert.deepEqual(f.sim, again.sim);
+    /* A state named with no office is the state's own election. */
+    const bare = await read("Strategy to win Kano");
+    assert.equal(bare.plans[0].contest, "GOVERNORSHIP");
+    assert.doesNotMatch(bare.answer.headline, /Atiku/);
+  });
+
+  it("counts how often seats are kept across the whole record, by how long they were held", async () => {
+    const { holdRates, recordOf } = await import("../lib/ask/seat-record.js");
+    const senate = holdRates("SENATE");
+    assert.equal(senate.by[1].n + senate.by[2].n + senate.by[3].n, senate.all.n);
+    assert.ok(senate.all.n > 600);
+    /* The ACN in 2011 and the APC in 2015 are one line: Lagos West never changed hands. */
+    assert.equal(recordOf("SENATE", "24/lagos-west").changed, 0);
+    assert.equal(recordOf("SENATE", "19/kano-central").changed, 4);
+  });
+
+  it("will not plan a seat it holds no elections for from another election", async () => {
+    const reply = await read("How do I win the Ikeja federal constituency");
+    assert.equal(reply.sections.length, 0);
+    assert.match(reply.answer.headline, /does not yet hold the results of House of Representatives elections/);
+    assert.match(reply.answer.headline, /will not plan one election from another/);
+  });
+
+  it("keeps the presidential vote for the presidency, with both tests", async () => {
+    const nation = await facts(await read("Simulate the 2027 presidential election"));
+    assert.equal(nation.kind, "win");
+    assert.equal(nation.rule, "president");
+    assert.equal(nation.sim.quota, 24);
+    assert.ok(nation.sim.undecided > 0);
+    assert.ok(nation.sim.parties.every((party) => party.win <= party.first));
+  });
+
+  it("asks a national account which seat is meant, and gives a district account its own", async () => {
+    const asked = await read("How can I win election in my senatorial constituency");
+    assert.equal(asked.sections.length, 0);
+    assert.match(asked.answer.headline, /cannot tell which senatorial district is yours/);
+    const { resolveTerritory } = await import("../lib/constituencies.js");
+    const territory = resolveTerritory("SENATORIAL:02/adamawa-central");
+    const own = await read("How can I win election in my senatorial constituency", { territory });
+    assert.equal(own.scope.name, "Adamawa Central senatorial district");
+    assert.equal((await facts(own, territory)).kind, "seat");
+    /* And it cannot be asked out of its ground. */
+    const other = await read("Who will win Kano Central?", { territory });
+    assert.match(other.scope.name, /Adamawa Central/);
+  });
+
+  it("ends a plan in the polling units to cover and the votes cast at every election", async () => {
+    const reply = await read("How can I win Kano Central senatorial district?");
+    const { sectionsOf } = await import("../lib/ask/rows.js");
+    const sections = await sectionsOf(reply.plans, null, "test:focus");
+    const units = sections.find((section) => section.level === "unit");
+    assert.equal(units.total, 5688);
+    assert.ok(units.rows.every((row, index) => index === 0 || row.registered <= units.rows[index - 1].registered), "biggest first");
+    assert.ok(units.rows.every((row) => row.state === "Kano"));
+    assert.ok(["Voters per unit in its ward", "Turnout, 2023 (est.)", "Elections with a sheet read", "Turnout across elections"].every((label) => units.columns.some((column) => column.label === label)));
+    /* No sheet read, no turnout history claimed for a unit. */
+    assert.ok(units.rows.every((row) => row.sheets === 0 && row.sheet_turnout === null && row.status_label === "No sheet read yet"));
+    const f = await facts(reply);
+    /* Every election on record on that ground: five presidential, two senate. */
+    assert.deepEqual(f.focus.turnout.elections.map((entry) => entry.name), ["1999 presidential", "2003 presidential", "2015 presidential", "2019 presidential", "2019 senate", "2023 presidential", "2023 senate"]);
+    assert.equal(f.focus.turnout.elections.at(-1).cast, 680701);
+    assert.match(words(reply), /Polling units to cover first/);
+    /* The country is not listed booth by booth. */
+    const nation = await facts(await read("How can I win the 2027 presidential election?"));
+    assert.equal(nation.focus.units, null);
+  });
+
+  it("carries the seat into the next question", async () => {
+    const first = await read("How can I win Enugu East senatorial district?");
+    const next = await read("and for the APC?", { previous: first.plans[0] });
+    assert.equal(next.plans[0].intent, "win");
+    assert.equal(next.scope.name, "Enugu East senatorial district");
+    assert.equal((await facts(next)).subject.id, "APC");
   });
 });

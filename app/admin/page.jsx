@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Banknote, Inbox, KeyRound, ScanLine, ScrollText, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
+import { AlertTriangle, Inbox, KeyRound, ScanLine, ScrollText, ShieldCheck, UserRoundCheck, Users } from "lucide-react";
 
 import SheetLedger from "@/components/dash/SheetLedger";
 import RaceSwitcher from "@/components/dash/RaceSwitcher";
@@ -11,7 +11,6 @@ import { Card, PanelBlock, StatCard, Badge, Empty } from "@/components/dash/Dash
 import { Histogram, Meter, Ranked, Ring, Split, StateGrid } from "@/components/dash/SystemCharts";
 import IntegrityPanel from "@/components/dash/IntegrityPanel";
 import IssueAccountForm from "@/components/dash/IssueAccountForm";
-import PayAgentForm from "@/components/dash/PayAgentForm";
 import LiveRefresh from "@/components/dash/LiveRefresh";
 import Button from "@/components/ui/Button";
 import { requireUser } from "@/lib/guard";
@@ -24,7 +23,6 @@ import { health, integrations } from "@/lib/system";
 import { ROLES } from "@/lib/roles";
 import { integrityOf } from "@/lib/anomalies";
 import { agentCounts } from "@/lib/databank-agents";
-import { ledger } from "@/lib/ledger";
 import { formatNumber, formatShare, asWords } from "@/lib/utils";
 
 /* What a reader is, said in terms of what its readings are worth to somebody
@@ -63,12 +61,7 @@ export default async function AdminPage() {
      Only the project has to be known first, because four of these are scoped
      to it. The rest have nothing to do with each other, and awaited one after
      another they cost the sum of seven round trips to a database that is no
-     longer on this machine. Asked together they cost the slowest one.
-
-     The chain is walked on every load. It is a few hundred hashes and it is
-     the one check worth paying for on every page view: an administrator
-     should never be looking at a ledger whose integrity has not just been
-     proved. */
+     longer on this machine. Asked together they cost the slowest one. */
   const [
     tally,
     filed,
@@ -76,8 +69,6 @@ export default async function AdminPage() {
     requests,
     requestsWaiting,
     activity,
-    chain,
-    payments,
     waiting,
     ready,
     reads,
@@ -103,8 +94,6 @@ export default async function AdminPage() {
        log is "was it busy, and when", which eight lines cannot show. The
        count is one query and the answer is a picture. */
     audit.activity(36),
-    ledger.verify(),
-    ledger.recent(6),
     /* Coordinators who have signed themselves up and are waiting to be let
        in. Asked for on every load of this page because it is the one screen
        that can act on them, and a queue nobody is shown is a queue nobody
@@ -242,7 +231,7 @@ export default async function AdminPage() {
           </Button>
         </PanelBlock>
         <PanelBlock title="Fit to run an election" subtitle="Checked on this request, not asserted">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4">
             <Ring
               label="Readiness"
               value={ready.checks.length - ready.failing.length}
@@ -253,18 +242,6 @@ export default async function AdminPage() {
                 ready.ready
                   ? "Every check passes."
                   : `${ready.failing.length} failing${ready.blocking ? ", one of them blocking" : ""}.`
-              }
-            />
-            <Ring
-              label="The record"
-              value={chain.ok ? 1 : 0}
-              of={1}
-              display={chain.ok ? "OK" : "×"}
-              tone={chain.ok ? "good" : "alert"}
-              caption={
-                chain.ok
-                  ? `${formatNumber(chain.entries)} payment entries, unaltered.`
-                  : `Hash chain broken at entry ${chain.at}.`
               }
             />
           </div>
@@ -652,50 +629,6 @@ export default async function AdminPage() {
               </div>
             </>
           )}
-        </Card>
-
-        <Card
-          id="payments"
-          title="Pay an agent"
-          subtitle="The only door money comes through"
-          action={<Banknote size={16} className="shrink-0 text-dash-muted" />}
-          className="@5xl:col-start-2"
-        >
-          <PayAgentForm />
-
-          <div className="mt-6 border-t border-dash-line pt-5">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[0.75rem] font-medium text-dash-muted">
-                Ledger
-              </p>
-              <span
-                className={`flex items-center gap-1.5 text-[0.75rem] font-semibold ${
-                  chain.ok ? "text-emerald-700" : "text-red-600"
-                }`}
-              >
-                <ShieldCheck size={14} strokeWidth={2.5} />
-                {chain.ok
-                  ? `${formatNumber(chain.entries)} entries, unaltered`
-                  : `Broken at entry ${chain.at}`}
-              </span>
-            </div>
-
-            {payments.length === 0 ? (
-              <p className="mt-3 text-[0.8125rem] text-dash-muted">Nothing paid yet.</p>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {payments.map((entry) => (
-                  <li key={entry.id} className="flex items-baseline gap-3 text-[0.8125rem]">
-                    <span className="figure w-24 shrink-0 text-dash-muted">{entry.reference}</span>
-                    <span className="truncate text-dash-ink">{entry.kind.toLowerCase().replace(/_/g, " ")}</span>
-                    <span className="figure ml-auto shrink-0 font-bold text-dash-ink">
-                      ₦{(entry.amount / 100).toLocaleString("en-NG")}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
         </Card>
       </div>
 
