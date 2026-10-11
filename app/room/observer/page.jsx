@@ -2,7 +2,7 @@ import BigMap from "@/components/room/BigMap";
 import BvasBlock from "@/components/room/BvasBlock";
 import Stage, { Side, StatRow } from "@/components/room/Stage";
 import { LightBadge, LightCounts } from "@/components/room/Light";
-import { groundStats, mapFor } from "@/lib/room/page";
+import { countLayer, groundStats, mapFor } from "@/lib/room/page";
 import Link from "next/link";
 
 import { Badge, Card, Empty } from "@/components/dash/DashCard";
@@ -48,7 +48,7 @@ export default async function ObserverPage({ searchParams }) {
     lightsFor(ctx, at),
     lightsFor(ctx, state),
     items.list({ ...narrowed, take: 300 }),
-    tab === "silent" ? field.notReporting({ electionId, race: ctx.race, ground: ctx.ground, under: at }) : [],
+    field.notReporting({ electionId, race: ctx.race, ground: ctx.ground, under: at }),
     field.incidents({ electionId, ground: at ? scope : ctx.ground, open: tab !== "situations", take: 60 }),
     rosterFor({ at: state, roles: ["STATE_OBSERVER"] }),
     tab === "timeline" ? field.timeline({ electionId, race: ctx.race, ground: at ? scope : ctx.ground }) : null,
@@ -63,6 +63,29 @@ export default async function ObserverPage({ searchParams }) {
   const total = here.light?.total ?? 0;
   const q = { ...query, at };
   const map = await mapFor(ctx, at, whole, at.length === 2 ? here : null);
+  /* What the map is asked on each dashboard. */
+  const layer = {
+    silent: countLayer({ id: "silent", name: "Not reporting", countOf: (row) => row.counts.grey, word: "silent", many: 500 }),
+    situations: countLayer({ id: "reports", name: "Reports open", codes: visible.filter((row) => row.status === "OPEN").map((row) => row.unitCode), word: "reported", many: 3 }),
+    verification: countLayer({ id: "waiting", name: "Waiting to be checked", codes: sent.map((item) => item.areaCode), word: "waiting", many: 10 }),
+  }[tab] ?? null;
+  const stats = {
+    silent: [
+      { label: "Assigned units not reporting", value: formatNumber(silent.length), note: silent.length ? "ring the agent" : "every assigned unit is in", tone: silent.length ? "yellow" : "green" },
+      { label: "Polling units with no returns", value: formatNumber(here.light.counts.grey), note: `of ${formatNumber(here.light.total)} in ${here.light.name}` },
+    ],
+    situations: [
+      { label: "Reports open", value: String(visible.filter((row) => row.status === "OPEN").length), note: "from agents on this ground", tone: visible.some((row) => row.status === "OPEN") ? "yellow" : "green" },
+      { label: "Critical, not acknowledged", value: String(visible.filter((row) => row.status === "OPEN" && !row.acknowledgedAt && (row.sos || row.severity === "CRITICAL")).length), note: "pick up a phone", tone: visible.some((row) => row.status === "OPEN" && !row.acknowledgedAt && (row.sos || row.severity === "CRITICAL")) ? "red" : "green" },
+    ],
+    verification: [
+      { label: "On the verification desk", value: formatNumber(sent.length), note: "a verifier works these" },
+      { label: "A verifier is waiting on you", value: String(asked.length), note: asked.length ? "they asked the field to confirm" : "nothing asked", tone: asked.length ? "yellow" : "green" },
+    ],
+  }[tab] ?? [
+    { label: "Red items open", value: String(open.filter((item) => item.light === "RED").length), note: "these go to your zone lead", tone: open.some((item) => item.light === "RED") ? "red" : "green" },
+    { label: "Yellow items open", value: String(open.filter((item) => item.light === "YELLOW").length), note: "errors and unfinished checks", tone: open.some((item) => item.light === "YELLOW") ? "yellow" : "green" },
+  ];
 
   return (
     <RoomShell ctx={ctx} title="State observer" openCount={open.filter((item) => item.light === "RED").length} current={tab}
@@ -84,12 +107,9 @@ export default async function ObserverPage({ searchParams }) {
 
           {view && <UnitPanel view={view} caps={caps} base={BASE} query={q} userId={ctx.user.id} />}
 
-          <StatRow stats={groundStats(here.light, [
-            { label: "Red items open", value: String(open.filter((item) => item.light === "RED").length), note: "these go to your zone lead", tone: open.some((item) => item.light === "RED") ? "red" : "green" },
-            { label: "Yellow items open", value: String(open.filter((item) => item.light === "YELLOW").length), note: "errors and unfinished checks", tone: open.some((item) => item.light === "YELLOW") ? "yellow" : "green" },
-          ])} />
+          <StatRow stats={groundStats(here.light, stats)} />
 
-          <Stage map={<BigMap rows={map.rows} base={BASE} query={q} at={map.at} title={map.title} hint="Tap a local government" />}>
+          <Stage map={<BigMap rows={map.rows} base={BASE} query={q} at={map.at} title={map.title} layers={layer ? [layer] : []} />}>
             <Side label={`The light on ${here.light.name}`} headline={<LightBadge light={here.light.light} coverage={here.light.coveragePct} />}>
               <LightCounts counts={here.light.counts} />
               <BvasBlock bvas={here.light.bvas} total={here.light.total} className="mt-3 border-0 bg-dash-bg p-4" />

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 
 import RoomShell from "@/components/room/RoomShell";
-import Overview, { overviewData } from "@/components/room/Overview";
+import Overview, { OVERVIEW_VIEWS, overviewData, overviewView } from "@/components/room/Overview";
 import Assignments from "@/components/room/admin/Assignments";
 import { BoardSection, ElsewhereSection, LightsSection, StaffSection, WallsSection } from "@/components/room/admin/Staff";
 import { StateGrid, StatusCard } from "@/components/room/Panels";
@@ -14,15 +14,17 @@ export const metadata = { title: "Super Admin console", robots: { index: false }
 export const dynamic = "force-dynamic";
 
 const BASE = "/room/admin";
-const SECTIONS = [
-  ["overview", "Overview"],
-  ["lights", "Lights"],
+/* The overview's own dashboards first, exactly as the Director has them, then
+   the things only the Super Admin does. Every one is a tab in the top bar. */
+const OWN = [
+  ["lights", "Light rules"],
   ["assignments", "Assignments"],
   ["staff", "Room staff"],
-  ["board", "Room assignment board"],
+  ["board", "Board"],
   ["walls", "Video wall"],
-  ["more", "Agents, accounts and system"],
+  ["more", "System"],
 ];
+const SECTIONS = [...OVERVIEW_VIEWS, ...OWN];
 
 /**
  * The Super Admin console: the same overview the Director works from, and
@@ -32,9 +34,15 @@ const SECTIONS = [
  */
 export default async function AdminRoomPage({ searchParams }) {
   const { ctx, query, caps, at, unit, trail, now } = await roomPage(BASE, searchParams);
-  const section = SECTIONS.some(([id]) => id === query.section) ? query.section : "overview";
-  const nav = SECTIONS.map(([id, name]) => ({ id, name, href: id === "overview" ? BASE : `${BASE}?section=${id}` }));
-  if (!ctx.project) return <RoomShell ctx={ctx} title="Super Admin console" sections={nav} current={section} />;
+  const own = OWN.some(([id]) => id === query.section) ? query.section : null;
+  const view = overviewView(query.tab);
+  const section = own ?? "overview";
+  const current = own ?? view;
+  const nav = [
+    ...OVERVIEW_VIEWS.map(([id, name]) => ({ id, name, href: id === "command" ? BASE : `${BASE}?tab=${id}` })),
+    ...OWN.map(([id, name]) => ({ id, name, href: `${BASE}?section=${id}` })),
+  ];
+  if (!ctx.project) return <RoomShell ctx={ctx} title="Super Admin console" sections={nav} current={current} />;
   const electionId = ctx.project.id;
   const states = STATES.map((state) => ({ code: state.number, name: state.name }));
   const q = { ...query, section: section === "overview" ? null : section };
@@ -43,9 +51,9 @@ export default async function AdminRoomPage({ searchParams }) {
   let open = null;
 
   if (section === "overview") {
-    const data = await overviewData({ ctx, at, unit, deskName: "admin" });
+    const data = await overviewData({ ctx, at, unit, deskName: "admin", view });
     open = data.inbox.length;
-    body = <Overview ctx={ctx} base={BASE} query={q} caps={caps} at={at} crumbs={trail} deskName="admin" data={data} />;
+    body = <Overview ctx={ctx} base={BASE} query={q} caps={caps} at={at} crumbs={trail} deskName="admin" data={data} view={view} />;
   } else if (section === "lights") {
     const [nation, rules, changes, system] = await Promise.all([lightsFor(ctx, ""), settings.get(electionId), audit.byKind(["lights:settings"], 20), tech.light()]);
     body = (
@@ -83,7 +91,7 @@ export default async function AdminRoomPage({ searchParams }) {
   }
 
   return (
-    <RoomShell ctx={ctx} title="Super Admin console" sections={nav} current={section} openCount={open}>
+    <RoomShell ctx={ctx} title="Super Admin console" sections={nav} current={current} openCount={open}>
       {body}
     </RoomShell>
   );

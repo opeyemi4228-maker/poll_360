@@ -17,6 +17,7 @@ export const metadata = { title: "Technical operations", robots: { index: false 
 export const dynamic = "force-dynamic";
 
 const BASE = "/room/tech";
+const VIEWS = [["ops", "Operations"], ["data", "Data stores"], ["pipeline", "Pipeline"], ["runtime", "Runtime"], ["wiring", "Wiring"], ["incidents", "Incidents"], ["security", "Security"]];
 const STATUS = [["OPEN", "Open"], ["WORKING", "Being worked on"], ["WATCHING", "Fixed, being watched"], ["CLOSED", "Closed"]];
 
 /**
@@ -113,6 +114,7 @@ function Table({ head, rows }) {
 
 export default async function TechPage({ searchParams }) {
   const { ctx, query, now } = await roomPage(BASE, searchParams);
+  const view = VIEWS.some(([id]) => id === query.tab) ? query.tab : "ops";
   if (!ctx.project) return <RoomShell ctx={ctx} title="Technical operations" />;
   const security = ctx.holds("security:act");
 
@@ -171,26 +173,67 @@ export default async function TechPage({ searchParams }) {
   const bad = checks.filter((check) => check.state === "bad").length;
   const warn = checks.filter((check) => check.state === "warn").length;
 
+  const tables = t.tables.value ?? [];
+  const stats = {
+    ops: [
+            { label: "Database round trip", value: `${t.ping.ms} ms`, note: t.ping.ok ? `${db.connections ?? "?"} of ${db.max_connections ?? "?"} connections · ${bytes(db.bytes)}` : "the database did not answer", tone: dbState === "ok" ? "green" : dbState === "warn" ? "yellow" : "red", icon: Database },
+            { label: "Results a minute", value: lastMinute.toFixed(1), note: `${formatNumber(Number(book.results ?? 0))} held for this contest · mean of the last 10 min`, icon: Activity },
+            { label: "Event feed", value: `#${formatNumber(Number(feed.seq ?? 0))}`, note: `${feed.last_minute ?? 0} events in the last minute · ${seen.online ?? 0} screens online`, icon: Radio },
+            { label: "Checks failing", value: String(bad + failed.length), note: `${warn} warning · ${open.length} incident${open.length === 1 ? "" : "s"} open · system light ${light.toLowerCase()}`, tone: bad + failed.length ? "red" : warn ? "yellow" : "green", icon: ServerCog },
+          ],
+    data: [
+      { label: "Database size", value: bytes(db.bytes), note: `${db.name ?? "database"} · ${String(db.version ?? "").split(" on ")[0]}`, icon: Database },
+      { label: "Largest table", value: tables[0]?.name ?? "none", note: tables[0] ? `${bytes(tables[0].bytes)} · ${formatNumber(Math.max(0, Number(tables[0].rows)))} rows` : "" },
+      { label: "Connections", value: `${db.connections ?? "?"}`, note: `of ${db.max_connections ?? "?"} allowed` },
+      { label: "Schema statements applied", value: String(schema.n ?? 0), note: `last ${since(schema.last, now)} ago` },
+    ],
+    pipeline: [
+      { label: "Results held", value: formatNumber(Number(book.results ?? 0)), note: `${formatNumber(Number(book.lit ?? 0))} have a light`, icon: Activity },
+      { label: "Open items", value: formatNumber(Number(book.open_items ?? 0)), note: `${formatNumber(Number(book.open_red ?? 0))} red`, tone: Number(book.open_red) ? "red" : "ink" },
+      { label: "Waiting for Data Bank", value: t.outbox.ok ? formatNumber(Number(outbox.waiting)) : "n/a", note: Number(outbox.waiting) ? `oldest ${since(outbox.oldest, now)}` : "nothing waiting", tone: Number(outbox.waiting) ? "yellow" : "green" },
+      { label: "Results with no light yet", value: formatNumber(unlit), note: unlit ? "the sweep lights 40 a minute" : "all lit", tone: unlit ? "yellow" : "green" },
+    ],
+    runtime: [
+      { label: "Memory in use", value: bytes(memory.rss), note: `heap ${bytes(memory.heapUsed)} of ${bytes(memory.heapTotal)}`, icon: ServerCog },
+      { label: "Server uptime", value: since(new Date(now - process.uptime() * 1000).toISOString(), now), note: `node ${process.version} · ${process.env.VERCEL_REGION ?? "local"}` },
+      { label: "Cache hit rate", value: hitRate == null ? "n/a" : `${hitRate.toFixed(1)}%`, note: cache ? `${formatNumber(cache.hits)} hits · ${formatNumber(cache.misses)} misses` : "" },
+      { label: "Sessions", value: formatNumber(Number(seen.staff ?? 0) + Number(seen.agents ?? 0)), note: `${seen.staff ?? 0} staff · ${seen.agents ?? 0} agents · ${seen.online ?? 0} screens online` },
+    ],
+    wiring: [
+      { label: "Integrations on", value: String(wired.filter((entry) => entry.state === "on").length), note: `of ${wired.length}`, tone: "green" },
+      { label: "Half set", value: String(wired.filter((entry) => entry.state === "partial").length), note: "cannot deliver anything", tone: wired.some((entry) => entry.state === "partial") ? "yellow" : "green" },
+      { label: "Essential and off", value: String(wired.filter((entry) => entry.state === "off" && entry.essential).length), note: "the product cannot run without these", tone: wired.some((entry) => entry.state === "off" && entry.essential) ? "red" : "green" },
+      { label: "Configuration findings", value: String(findings.length), note: findings.length ? "each with its fix" : "nothing misconfigured", tone: findings.length ? "yellow" : "green" },
+    ],
+    incidents: [
+      { label: "Open incidents", value: String(open.length), note: open.length ? "being worked" : "none open", tone: open.length ? "yellow" : "green" },
+      { label: "Critical", value: String(open.filter((row) => row.severity === "CRITICAL").length), note: "turns every system light red", tone: open.some((row) => row.severity === "CRITICAL") ? "red" : "green" },
+      { label: "Raised in all", value: String(incidents.length), note: "open and closed" },
+      { label: "System light", value: light === "GREEN" ? "Normal" : light === "AMBER" ? "Incident" : "Critical", note: "what every top bar shows", tone: light === "GREEN" ? "green" : light === "AMBER" ? "yellow" : "red" },
+    ],
+    security: [
+      { label: "Doors refused, last hour", value: String(refusals.refused_hour ?? 0), note: `${refusals.refused_day ?? 0} in 24 hours`, tone: Number(refusals.refused_hour) > 10 ? "red" : "green" },
+      { label: "Staff sessions", value: formatNumber(Number(seen.staff ?? 0)), note: `${seen.online ?? 0} screens online now` },
+      { label: "Agent sessions", value: formatNumber(Number(seen.agents ?? 0)), note: "on the agents' app" },
+      { label: "Blocked addresses", value: security ? String(blocked.length) : "n/a", note: security ? "staff dashboards only" : "technical security only" },
+    ],
+  };
+
   return (
     <RoomShell
       ctx={ctx}
       title="Technical operations"
       openCount={open.length + bad}
-      current="ops"
+      current={view}
       summary={`${checks.length} checks: ${bad} failing, ${warn} warning · database ${t.ping.ms}ms · build ${String(process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7)} · measured ${clock(t.at)}`}
-      tabs={[["ops", "Operations", ""], ["data", "Data stores", "#data"], ["pipeline", "Pipeline", "#pipeline"], ["runtime", "Runtime", "#runtime"], ["wiring", "Wiring", "#wiring"], ["incidents", "Incidents", "#incidents", open.length], ["security", "Security", "#security"]].map(([id, name, hash, count]) => ({ id, name, count, href: `${BASE}${hash}` }))}
+      tabs={VIEWS.map(([id, name]) => ({ id, name, count: id === "incidents" ? open.length : null, href: id === "ops" ? BASE : `${BASE}?tab=${id}` }))}
     >
       <div className="space-y-3">
-        <StatRow
-          stats={[
-            { label: "Database round trip", value: `${t.ping.ms} ms`, note: t.ping.ok ? `${db.connections ?? "?"} of ${db.max_connections ?? "?"} connections · ${bytes(db.bytes)}` : "the database did not answer", tone: dbState === "ok" ? "green" : dbState === "warn" ? "yellow" : "red", icon: Database },
-            { label: "Results a minute", value: lastMinute.toFixed(1), note: `${formatNumber(Number(book.results ?? 0))} held for this contest · mean of the last 10 min`, icon: Activity },
-            { label: "Event feed", value: `#${formatNumber(Number(feed.seq ?? 0))}`, note: `${feed.last_minute ?? 0} events in the last minute · ${seen.online ?? 0} screens online`, icon: Radio },
-            { label: "Checks failing", value: String(bad + failed.length), note: `${warn} warning · ${open.length} incident${open.length === 1 ? "" : "s"} open · system light ${light.toLowerCase()}`, tone: bad + failed.length ? "red" : warn ? "yellow" : "green", icon: ServerCog },
-          ]}
-        />
+        <StatRow stats={stats[view]} />
 
-        <Stage map={<BigMap rows={mapRows} base={BASE} query={query} title="Flow by state: time since each state last sent a result" hint="No vote figure is on this screen" still paint={(row) => (row.recent ? "GREEN" : !row.lastHeard ? "GREY" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "YELLOW" : "RED")} legend={{ GREEN: "Sending now (last 10 min)", YELLOW: "Quiet under an hour", RED: "Silent over an hour", GREY: "Never heard from" }} measure={(row) => (row.lastHeard ? `${since(row.lastHeard, now)}${row.recent ? ` · ${row.recent}/10m` : ""}` : "silent")} />}>
+        {view === "ops" && (
+          <>
+        <Stage map={<BigMap rows={mapRows} base={BASE} query={query} title="Flow by state: time since each state last sent a result" hint="No vote figure is on this screen" still only plain paint={(row) => (row.recent ? "GREEN" : !row.lastHeard ? "GREY" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "YELLOW" : "RED")} legend={{ GREEN: "Sending now (last 10 min)", YELLOW: "Quiet under an hour", RED: "Silent over an hour", GREY: "Never heard from" }} measure={(row) => (row.lastHeard ? `${since(row.lastHeard, now)}${row.recent ? ` · ${row.recent}/10m` : ""}` : "silent")} />}>
           <Side label="Service checks" headline={bad ? `${bad} failing` : warn ? `${warn} warning` : "All passing"} note={`Measured at ${clock(t.at)} for this request.`}>
             <ul className="divide-y divide-dash-line">{checks.map((check) => <Check key={check.name} {...check} />)}</ul>
           </Side>
@@ -205,6 +248,11 @@ export default async function TechPage({ searchParams }) {
           </Card>
         )}
 
+          </>
+        )}
+
+        {view === "data" && (
+          <>
         <div id="data" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
           <Card title="Tables" subtitle={`${db.name ?? "database"} · ${bytes(db.bytes)} in all. Largest first. Row counts are the planner's estimate.`}>
             <Table head={["table", "rows", "size", "share"]} rows={(t.tables.value ?? []).map((row) => [row.name, formatNumber(Math.max(0, Number(row.rows))), bytes(row.bytes), `${((Number(row.bytes) / Math.max(1, Number(db.bytes))) * 100).toFixed(1)}%`])} />
@@ -219,6 +267,11 @@ export default async function TechPage({ searchParams }) {
           </Card>
         </div>
 
+          </>
+        )}
+
+        {view === "pipeline" && (
+          <>
         <div id="pipeline" className="grid scroll-mt-24 gap-3 xl:grid-cols-3">
           <Card title="How results arrive" subtitle="By the door they came through.">
             <Table head={["source", "results"]} rows={(t.sources.value ?? []).map((row) => [row.source, formatNumber(Number(row.n))])} />
@@ -242,6 +295,11 @@ export default async function TechPage({ searchParams }) {
           </Card>
         </div>
 
+          </>
+        )}
+
+        {view === "runtime" && (
+          <>
         <div id="runtime" className="grid scroll-mt-24 gap-3 xl:grid-cols-3">
           <Card title="This server" subtitle="The machine that answered this request.">
             <Table
@@ -271,6 +329,11 @@ export default async function TechPage({ searchParams }) {
           </Card>
         </div>
 
+          </>
+        )}
+
+        {view === "wiring" && (
+          <>
         <div id="wiring" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
           <Card title="Integrations" subtitle="What this deployment is wired to. A half-set integration cannot deliver anything, so it is shown as partial, not on.">
             <ul className="divide-y divide-dash-line">
@@ -302,6 +365,11 @@ export default async function TechPage({ searchParams }) {
           </Card>
         </div>
 
+          </>
+        )}
+
+        {view === "incidents" && (
+          <>
         <Card id="incidents" title={`Technical incidents (${open.length} open)`} subtitle="Anybody in the room can raise one. A critical one turns every system light red and reaches the Director.">
           <ActionForm what="techRaise" className="mb-4 grid gap-2 sm:grid-cols-[1fr_11rem_auto] sm:items-end">
             <Field label="What is wrong, in a line" name="title" required maxLength={140} />
@@ -340,6 +408,11 @@ export default async function TechPage({ searchParams }) {
           )}
         </Card>
 
+          </>
+        )}
+
+        {view === "security" && (
+          <>
         <div id="security" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
           <Card title="Security events" subtitle="Refused doors, ended sessions, blocked addresses. Newest first.">
             {lines.length ? (
@@ -391,7 +464,10 @@ export default async function TechPage({ searchParams }) {
           )}
         </div>
 
-        <Handover desk="tech" notes={handovers} userId={ctx.user.id} />
+          </>
+        )}
+
+        {view === "ops" && <Handover desk="tech" notes={handovers} userId={ctx.user.id} />}
       </div>
     </RoomShell>
   );

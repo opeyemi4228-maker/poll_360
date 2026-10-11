@@ -1282,3 +1282,13 @@
 @media (prefers-reduced-motion: reduce) {
   .room-pulse { animation: none; }
 }
+
+/* A place on the room's map flashes once when its colour changes. */
+@keyframes room-flash {
+  0% { filter: brightness(2.4) saturate(1.4); }
+  100% { filter: none; }
+}
+.room-flash { animation: room-flash 1.6s ease-out 1; }
+@media (prefers-reduced-motion: reduce) {
+  .room-flash { animation: none; }
+}

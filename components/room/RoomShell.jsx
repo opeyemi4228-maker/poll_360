@@ -3,6 +3,7 @@ import { Activity, ChevronDown, MapPin } from "lucide-react";
 
 import BrandMark from "@/components/ui/BrandMark";
 import SignOutButton from "@/components/auth/SignOutButton";
+import LiveRefresh from "@/components/dash/LiveRefresh";
 import RoomLive, { RoomAlarms } from "./RoomLive";
 import { pickRace } from "@/app/room/actions";
 import { greetingNow } from "@/lib/room/page";
@@ -118,6 +119,11 @@ export default function RoomShell({ ctx, title, tabs = null, sections = null, cu
                 <button type="submit" className="h-8 rounded-full bg-dash-bg px-3 text-[0.75rem] font-semibold text-dash-ink hover:bg-dash-line">Show</button>
               </form>
             )}
+            {/* The same live chip the situation room carries: it refreshes
+                the whole screen on its own rhythm, says when it last did, and
+                turns when the figures have gone stale. Events from the room
+                refresh it sooner than that. */}
+            {project && <LiveRefresh seconds={12} />}
             <span className="flex h-10 items-center gap-1.5 rounded-full border border-dash-line px-4 font-semibold text-dash-ink">
               <MapPin size={14} aria-hidden="true" />
               {groundLabel}

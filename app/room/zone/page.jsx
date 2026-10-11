@@ -7,7 +7,7 @@ import { Card } from "@/components/dash/DashCard";
 import RoomShell from "@/components/room/RoomShell";
 import UnitPanel from "@/components/room/UnitPanel";
 import GroundForm from "@/components/room/Ground";
-import { Crumbs, Handover, IncidentList, ItemList, LightTable, RaiseTech, StateGrid, StatusCard, ThreeRecords } from "@/components/room/Panels";
+import { Crumbs, Handover, IncidentList, ItemList, LightTable, RaiseTech, StateGrid, StatusCard, ThreeRecords, hrefWith } from "@/components/room/Panels";
 import { lightsFor, openUnit, roomPage, rosterFor } from "@/lib/room/page";
 import { field, items, notes } from "@/lib/room/store";
 import { threeRecords } from "@/lib/room/desk";
@@ -17,6 +17,7 @@ export const metadata = { title: "Zone lead", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const BASE = "/room/zone";
+const TABS = [["command", "Command"], ["states", "States"], ["records", "Records and overdue"], ["observers", "Observers"]];
 
 /**
  * The zone lead's view: the states of their zones, the observers who watch
@@ -42,14 +43,27 @@ export default async function ZonePage({ searchParams }) {
   const mine = everyone.filter((person) => person.groundRead && zone.below.some((state) => touches(person.groundRead, state.code)));
   const observers = mine.filter((person) => person.roles.includes("STATE_OBSERVER"));
   const late = overdue.filter((item) => item.code === "Y_OVERDUE_RETURN");
+  const tab = TABS.some(([id]) => id === query.tab) ? query.tab : "command";
+  const q = { ...query, tab: tab === "command" ? null : tab };
   const focus = here?.light ?? zone.light;
+  const watchers = (code) => observers.filter((person) => touches(person.groundRead, code));
+  const watchLayer = {
+    id: "watch",
+    name: "Who is watching",
+    tone: (row) => (watchers(row.code).some((person) => person.online) ? "GREEN" : watchers(row.code).length ? "YELLOW" : "RED"),
+    label: (row) => (watchers(row.code).length ? `${watchers(row.code).filter((person) => person.online).length}/${watchers(row.code).length} on` : "nobody"),
+    says: (row) => (watchers(row.code).some((person) => person.online) ? "An observer is online" : watchers(row.code).length ? "Assigned, but nobody is online" : "No observer is assigned"),
+    show: () => true,
+    facts: (row) => [["Observers", watchers(row.code).map((person) => person.name).join(", ") || "none"]],
+    legend: { GREEN: "An observer is online", YELLOW: "Assigned, nobody online", RED: "Nobody assigned" },
+  };
   const map = await mapFor(ctx, at, zone, here);
   const lateBy = new Map();
   for (const item of late) lateBy.set(item.areaCode.slice(0, 5), (lateBy.get(item.areaCode.slice(0, 5)) ?? 0) + 1);
 
   return (
-    <RoomShell ctx={ctx} title="Zone lead" openCount={inbox.length} current="command" summary={`${zone.below.length} states · ${zone.light.counts.red} red, ${zone.light.counts.yellow} yellow · ${observers.filter((person) => person.online).length} of ${observers.length} observers online`}
-      tabs={[["command", "Command", ""], ["states", "States", "#states"], ["records", "Three records", "#records"], ["observers", "Observers", "#observers"]].map(([id, name, hash]) => ({ id, name, href: `${BASE}${hash}` }))}>
+    <RoomShell ctx={ctx} title="Zone lead" openCount={inbox.length} current={tab} summary={`${zone.below.length} states · ${zone.light.counts.red} red, ${zone.light.counts.yellow} yellow · ${observers.filter((person) => person.online).length} of ${observers.length} observers online`}
+      tabs={TABS.map(([id, name]) => ({ id, name, count: id === "command" ? inbox.length : id === "records" ? late.length : null, href: hrefWith(BASE, { at: query.at }, { tab: id === "command" ? null : id }) }))}>
       <div className="space-y-3">
         <StatRow stats={groundStats(zone.light, [
           { label: "Escalated to you", value: String(inbox.length), note: inbox.length ? "waiting on a decision" : "nothing waiting", tone: inbox.length ? "red" : "green" },
@@ -58,7 +72,7 @@ export default async function ZonePage({ searchParams }) {
 
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} roster={mine} />}
 
-        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} />}>
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={q} at={map.at} title={map.title} layers={tab === "observers" ? [watchLayer] : []} />}>
           <Side label={`The light on ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />}>
             <LightCounts counts={focus.counts} />
             <BvasBlock bvas={focus.bvas} total={focus.total} className="mt-3 border-0 bg-dash-bg p-4" />
@@ -71,65 +85,87 @@ export default async function ZonePage({ searchParams }) {
           </Side>
         </Stage>
 
-        <div id="states" className="scroll-mt-24"><StateGrid rows={zone.below} base={BASE} query={query} compact /></div>
-
-        {at && here && (
-          <Card title={here.light.name} subtitle="The places under it, worst first where you sort them.">
-            <Crumbs trail={trail} base={BASE} query={query} />
-            <div className="mt-4 grid gap-6 xl:grid-cols-[22rem_1fr]">
-              <StatusCard light={here.light} className="shadow-none" />
-              <LightTable rows={here.below} base={BASE} query={query} />
-            </div>
-          </Card>
+        {tab === "command" && (
+          <>
+            <div id="states" className="scroll-mt-24"><StateGrid rows={zone.below} base={BASE} query={q} compact /></div>
+          </>
         )}
 
-        <div id="records" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
-          <Card title="Three-record gaps" subtitle="Our agents, INEC's sheets and the announcement, largest gap first.">
-            <ThreeRecords account={records} base={BASE} query={query} lights={new Map((here?.below ?? zone.below).map((row) => [row.code, row.light]))} />
-          </Card>
-          <Card title={`Overdue returns (${late.length})`} subtitle="Polling units past the deadline with nothing filed, by local government.">
-            {late.length ? (
-              <ul className="max-h-80 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
-                {[...lateBy.entries()].sort((a, b) => b[1] - a[1]).map(([code, count]) => (
-                  <li key={code} className="flex justify-between py-2">
-                    <a href={`${BASE}?at=${encodeURIComponent(code)}`} className="font-semibold text-dash-ink hover:underline">{late.find((item) => item.areaCode.startsWith(code))?.place.split(" › ").slice(0, 2).join(" › ")}</a>
-                    <span className="tabular-nums text-dash-muted">{count} overdue</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-[0.875rem] text-dash-muted">Nothing is overdue. This fills once the Super Admin sets a deadline and it passes.</p>
+        {tab === "states" && !(at && here) && <StateGrid rows={zone.below} base={BASE} query={q} />}
+
+        {tab === "states" && (
+          <>
+            {at && here && (
+              <Card title={here.light.name} subtitle="The places under it, worst first where you sort them.">
+                <Crumbs trail={trail} base={BASE} query={query} />
+                <div className="mt-4 grid gap-6 xl:grid-cols-[22rem_1fr]">
+                  <StatusCard light={here.light} className="shadow-none" />
+                  <LightTable rows={here.below} base={BASE} query={query} />
+                </div>
+              </Card>
             )}
-          </Card>
-        </div>
+          </>
+        )}
 
-        <Card id="observers" title="Observers in your zones" subtitle="Who is on, what they hold, and where they watch. Change an observer's ground here.">
-          {observers.length ? (
-            <ul className="divide-y divide-dash-line">
-              {observers.map((person) => (
-                <li key={person.id} className="py-3">
-                  <details>
-                    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 text-[0.875rem]">
-                      <span className={person.online ? "size-2.5 rounded-full bg-light-green" : "size-2.5 rounded-full border border-light-grey"} aria-hidden="true" />
-                      <span className="font-semibold text-dash-ink">{person.name}</span>
-                      <span className="text-dash-muted">{person.online ? "online" : "away"} · {person.groundLabel} · {person.openItems} open</span>
-                    </summary>
-                    <div className="mt-3 rounded-dash-sm bg-dash-bg p-3">
-                      <GroundForm person={person} states={zone.below.map((state) => ({ code: state.code, name: state.name }))} />
-                    </div>
-                  </details>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-[0.875rem] text-dash-muted">No observer has been placed in your zones yet. The Super Admin issues their accounts.</p>
-          )}
-        </Card>
+        {tab === "records" && (
+          <>
+            <div id="records" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
+              <Card title="Three-record gaps" subtitle="Our agents, INEC's sheets and the announcement, largest gap first.">
+                <ThreeRecords account={records} base={BASE} query={query} lights={new Map((here?.below ?? zone.below).map((row) => [row.code, row.light]))} />
+              </Card>
+              <Card title={`Overdue returns (${late.length})`} subtitle="Polling units past the deadline with nothing filed, by local government.">
+                {late.length ? (
+                  <ul className="max-h-80 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
+                    {[...lateBy.entries()].sort((a, b) => b[1] - a[1]).map(([code, count]) => (
+                      <li key={code} className="flex justify-between py-2">
+                        <a href={`${BASE}?at=${encodeURIComponent(code)}`} className="font-semibold text-dash-ink hover:underline">{late.find((item) => item.areaCode.startsWith(code))?.place.split(" › ").slice(0, 2).join(" › ")}</a>
+                        <span className="tabular-nums text-dash-muted">{count} overdue</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[0.875rem] text-dash-muted">Nothing is overdue. This fills once the Super Admin sets a deadline and it passes.</p>
+                )}
+              </Card>
+            </div>
+          </>
+        )}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Handover desk="zone" notes={handovers} userId={ctx.user.id} />
-          <RaiseTech />
-        </div>
+        {tab === "observers" && (
+          <>
+            <Card id="observers" title="Observers in your zones" subtitle="Who is on, what they hold, and where they watch. Change an observer's ground here.">
+              {observers.length ? (
+                <ul className="divide-y divide-dash-line">
+                  {observers.map((person) => (
+                    <li key={person.id} className="py-3">
+                      <details>
+                        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 text-[0.875rem]">
+                          <span className={person.online ? "size-2.5 rounded-full bg-light-green" : "size-2.5 rounded-full border border-light-grey"} aria-hidden="true" />
+                          <span className="font-semibold text-dash-ink">{person.name}</span>
+                          <span className="text-dash-muted">{person.online ? "online" : "away"} · {person.groundLabel} · {person.openItems} open</span>
+                        </summary>
+                        <div className="mt-3 rounded-dash-sm bg-dash-bg p-3">
+                          <GroundForm person={person} states={zone.below.map((state) => ({ code: state.code, name: state.name }))} />
+                        </div>
+                      </details>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-[0.875rem] text-dash-muted">No observer has been placed in your zones yet. The Super Admin issues their accounts.</p>
+              )}
+            </Card>
+          </>
+        )}
+
+        {tab === "command" && (
+          <>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Handover desk="zone" notes={handovers} userId={ctx.user.id} />
+              <RaiseTech />
+            </div>
+          </>
+        )}
       </div>
     </RoomShell>
   );

@@ -1,5 +1,5 @@
 import RoomShell from "@/components/room/RoomShell";
-import Overview, { OVERVIEW_TABS, overviewData } from "@/components/room/Overview";
+import Overview, { OVERVIEW_TABS, overviewData, overviewView } from "@/components/room/Overview";
 import { roomPage } from "@/lib/room/page";
 
 export const metadata = { title: "Director's console", robots: { index: false } };
@@ -20,10 +20,11 @@ const summaryOf = (light) =>
 export default async function DirectorPage({ searchParams }) {
   const { ctx, query, caps, at, unit, trail } = await roomPage(BASE, searchParams);
   if (!ctx.project) return <RoomShell ctx={ctx} title="Director's console" />;
-  const data = await overviewData({ ctx, at, unit, deskName: "director" });
+  const view = overviewView(query.tab);
+  const data = await overviewData({ ctx, at, unit, deskName: "director", view });
   return (
-    <RoomShell ctx={ctx} title="Director's console" openCount={data.inbox.length} tabs={OVERVIEW_TABS(BASE)} current="command" summary={summaryOf(data.nation.light)}>
-      <Overview ctx={ctx} base={BASE} query={query} caps={caps} at={at} crumbs={trail} deskName="director" data={data} />
+    <RoomShell ctx={ctx} title="Director's console" openCount={data.inbox.length} tabs={OVERVIEW_TABS(BASE, at, { command: data.inbox.length, broadcast: data.desk.posts.filter((item) => item.state === "REVIEW").length })} current={view} summary={summaryOf(data.nation.light)}>
+      <Overview ctx={ctx} base={BASE} query={query} caps={caps} at={at} crumbs={trail} deskName="director" data={data} view={view} />
     </RoomShell>
   );
 }

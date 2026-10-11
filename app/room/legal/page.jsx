@@ -20,6 +20,7 @@ export const metadata = { title: "Legal and evidence", robots: { index: false } 
 export const dynamic = "force-dynamic";
 
 const BASE = "/room/legal";
+const TABS = [["evidence", "Evidence"], ["pack", "Build a pack"], ["packs", "Packs and trail"]];
 
 /**
  * The legal desk reads everything and changes nothing in the count. Its one
@@ -47,12 +48,13 @@ export default async function LegalPage({ searchParams }) {
   ]);
   const nation = at ? await lightsFor(ctx, "") : here;
   const map = await mapFor(ctx, at, nation, at.length === 2 ? here : null);
+  const tab = TABS.some(([id]) => id === query.tab) ? query.tab : "evidence";
   const choices = [...new Map([...sent, ...marked, ...red].map((item) => [item.id, item])).values()];
 
   return (
-    <RoomShell ctx={ctx} title="Legal and evidence" openCount={sent.filter((item) => item.status === "OPEN").length} current="evidence"
+    <RoomShell ctx={ctx} title="Legal and evidence" openCount={sent.filter((item) => item.status === "OPEN").length} current={tab}
       summary={`${marked.length} confirmed as malpractice, ${sent.length} sent to legal, ${built.length} packs sealed`}
-      tabs={[["evidence", "Evidence", ""], ["malpractice", "Malpractice", "#malpractice"], ["pack", "Build a pack", "#pack"], ["packs", "Packs", "#packs"], ["trail", "Trail", "#trail"]].map(([id, name, hash]) => ({ id, name, href: `${BASE}${hash}` }))}>
+      tabs={TABS.map(([id, name]) => ({ id, name, count: id === "packs" ? built.length : id === "evidence" ? marked.length : null, href: hrefWith(BASE, { at: query.at }, { tab: id === "evidence" ? null : id }) }))}>
       <div className="space-y-3">
         <StatRow stats={[
           { label: "Malpractice confirmed", value: String(marked.length), note: "permanent markers on polling units", tone: marked.length ? "red" : "ink" },
@@ -63,115 +65,131 @@ export default async function LegalPage({ searchParams }) {
 
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} />}
 
-        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} measure={(row) => (row.malpractice ? `${row.malpractice} confirmed` : `${row.counts.red} red`)} />}>
-          <Side label={`The light on ${here.light.name}`} headline={<LightBadge light={here.light.light} coverage={here.light.coveragePct} />}>
-            <LightCounts counts={here.light.counts} />
-            <div className="mt-3"><Crumbs trail={crumbs} base={BASE} query={query} /></div>
-          </Side>
-          <Side label="Places" headline={`${here.below.length} under ${here.light.name}`} note="Open a place to narrow everything on this screen to it.">
-            <ul className="max-h-[28rem] divide-y divide-dash-line overflow-auto">
-              {[...here.below].sort((a, b) => b.malpractice - a.malpractice || b.counts.red - a.counts.red).map((row) => (
-                <li key={row.code}>
-                  <Link href={hrefWith(BASE, query, row.level === "pu" ? { unit: row.code } : { at: row.code, unit: null })} className="flex items-center gap-2 py-2 text-[0.8125rem] hover:bg-dash-bg">
-                    <LightBadge light={row.light} short />
-                    <span className="min-w-0 flex-1 truncate font-semibold text-dash-ink">{row.name}</span>
-                    <span className="tabular-nums text-dash-muted">{row.malpractice ? `${row.malpractice} confirmed` : `${row.counts.red} red`}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Side>
-        </Stage>
+        {tab === "evidence" && (
+          <>
+            <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} measure={(row) => (row.malpractice ? `${row.malpractice} confirmed` : `${row.counts.red} red`)} />}>
+              <Side label={`The light on ${here.light.name}`} headline={<LightBadge light={here.light.light} coverage={here.light.coveragePct} />}>
+                <LightCounts counts={here.light.counts} />
+                <div className="mt-3"><Crumbs trail={crumbs} base={BASE} query={query} /></div>
+              </Side>
+              <Side label="Places" headline={`${here.below.length} under ${here.light.name}`} note="Open a place to narrow everything on this screen to it.">
+                <ul className="max-h-[28rem] divide-y divide-dash-line overflow-auto">
+                  {[...here.below].sort((a, b) => b.malpractice - a.malpractice || b.counts.red - a.counts.red).map((row) => (
+                    <li key={row.code}>
+                      <Link href={hrefWith(BASE, query, row.level === "pu" ? { unit: row.code } : { at: row.code, unit: null })} className="flex items-center gap-2 py-2 text-[0.8125rem] hover:bg-dash-bg">
+                        <LightBadge light={row.light} short />
+                        <span className="min-w-0 flex-1 truncate font-semibold text-dash-ink">{row.name}</span>
+                        <span className="tabular-nums text-dash-muted">{row.malpractice ? `${row.malpractice} confirmed` : `${row.counts.red} red`}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </Side>
+            </Stage>
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Card id="malpractice" title={`Malpractice confirmed (${marked.length})`} subtitle="A permanent marker. It stays on the polling unit after its light changes.">
-            {marked.length ? (
-              <ul className="max-h-96 divide-y divide-dash-line overflow-auto">
-                {marked.map((item) => (
-                  <li key={item.id} className="py-2.5 text-[0.8125rem]">
-                    <Link href={hrefWith(BASE, query, { unit: item.level === "pu" ? item.areaCode : null, at: item.level === "pu" ? query.at : item.areaCode })} className="flex items-center gap-2 font-semibold text-dash-ink hover:underline">
-                      <Gavel size={14} className="text-light-red" aria-hidden="true" /> {item.title}
-                    </Link>
-                    <p className="text-dash-muted">{item.place} · confirmed by {item.resolvedName} at {clock(item.resolvedAt)}</p>
-                    {item.resolutionNote && <p className="text-dash-ink">{item.resolutionNote}</p>}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty icon={Gavel}>Nothing has been confirmed as malpractice.</Empty>
-            )}
-          </Card>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Card id="malpractice" title={`Malpractice confirmed (${marked.length})`} subtitle="A permanent marker. It stays on the polling unit after its light changes.">
+                {marked.length ? (
+                  <ul className="max-h-96 divide-y divide-dash-line overflow-auto">
+                    {marked.map((item) => (
+                      <li key={item.id} className="py-2.5 text-[0.8125rem]">
+                        <Link href={hrefWith(BASE, query, { unit: item.level === "pu" ? item.areaCode : null, at: item.level === "pu" ? query.at : item.areaCode })} className="flex items-center gap-2 font-semibold text-dash-ink hover:underline">
+                          <Gavel size={14} className="text-light-red" aria-hidden="true" /> {item.title}
+                        </Link>
+                        <p className="text-dash-muted">{item.place} · confirmed by {item.resolvedName} at {clock(item.resolvedAt)}</p>
+                        {item.resolutionNote && <p className="text-dash-ink">{item.resolutionNote}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <Empty icon={Gavel}>Nothing has been confirmed as malpractice.</Empty>
+                )}
+              </Card>
 
-          <Card title="Three records" subtitle="Our agents, INEC's sheets and the announcement, on the polling units both sides hold.">
-            <ThreeRecords account={record} base={BASE} query={query} />
-          </Card>
-        </div>
+              <Card title="Three records" subtitle="Our agents, INEC's sheets and the announcement, on the polling units both sides hold.">
+                <ThreeRecords account={record} base={BASE} query={query} />
+              </Card>
+            </div>
+          </>
+        )}
 
-        <Card id="pack" title="Build an evidence pack" subtitle="Tick what goes in. The pack is sealed when it is built and cannot be changed afterwards.">
-          {choices.length ? (
-            <ActionForm what="pack" className="space-y-3" done={"Built and sealed. It is in the list below."}>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Field label="Title" name="title" required maxLength={140} placeholder="Kano Municipal, over-voting, 14 polling units" />
-                <Area label="Note for whoever opens it" name="note" rows={1} />
-              </div>
-              <ul className="max-h-96 divide-y divide-dash-line overflow-auto rounded-dash-sm border border-dash-line">
-                {choices.map((item) => (
-                  <li key={item.id}>
-                    <label className="flex cursor-pointer items-start gap-3 px-3 py-2 text-[0.8125rem] hover:bg-dash-bg">
-                      <input type="checkbox" name="items" value={item.id} className="mt-1" />
-                      <LightIcon light={item.light} className="mt-0.5" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block font-semibold text-dash-ink">{item.title}</span>
-                        <span className="block text-dash-muted">{item.place} · {item.says} · {item.status === "OPEN" ? `open ${age(item.openedAt, now)}` : `${asWords(item.resolution ?? "resolved")} by ${item.resolvedName ?? "Poll360"}`}</span>
-                      </span>
-                      {item.legal && <Badge tone="ink">Sent to legal</Badge>}
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <Submit>Build and seal the pack</Submit>
-            </ActionForm>
-          ) : (
-            <Empty>There is nothing to put in a pack yet. Red items, items sent to legal and confirmed malpractice appear here.</Empty>
-          )}
-        </Card>
+        {tab === "pack" && (
+          <>
+            <Card id="pack" title="Build an evidence pack" subtitle="Tick what goes in. The pack is sealed when it is built and cannot be changed afterwards.">
+              {choices.length ? (
+                <ActionForm what="pack" className="space-y-3" done={"Built and sealed. It is in the list below."}>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Field label="Title" name="title" required maxLength={140} placeholder="Kano Municipal, over-voting, 14 polling units" />
+                    <Area label="Note for whoever opens it" name="note" rows={1} />
+                  </div>
+                  <ul className="max-h-96 divide-y divide-dash-line overflow-auto rounded-dash-sm border border-dash-line">
+                    {choices.map((item) => (
+                      <li key={item.id}>
+                        <label className="flex cursor-pointer items-start gap-3 px-3 py-2 text-[0.8125rem] hover:bg-dash-bg">
+                          <input type="checkbox" name="items" value={item.id} className="mt-1" />
+                          <LightIcon light={item.light} className="mt-0.5" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block font-semibold text-dash-ink">{item.title}</span>
+                            <span className="block text-dash-muted">{item.place} · {item.says} · {item.status === "OPEN" ? `open ${age(item.openedAt, now)}` : `${asWords(item.resolution ?? "resolved")} by ${item.resolvedName ?? "Poll360"}`}</span>
+                          </span>
+                          {item.legal && <Badge tone="ink">Sent to legal</Badge>}
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <Submit>Build and seal the pack</Submit>
+                </ActionForm>
+              ) : (
+                <Empty>There is nothing to put in a pack yet. Red items, items sent to legal and confirmed malpractice appear here.</Empty>
+              )}
+            </Card>
+          </>
+        )}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Card id="packs" title={`Evidence packs (${built.length})`} subtitle="Each carries the fingerprint of its own contents.">
-            {built.length ? (
-              <ul className="divide-y divide-dash-line">
-                {built.map((pack) => (
-                  <li key={pack.id} className="py-2.5 text-[0.8125rem]">
-                    <a href={`/api/room/pack/${pack.id}`} className="font-semibold text-blue-700 hover:underline">{pack.title}</a>
-                    <p className="text-dash-muted">Sealed by {pack.builtName} at {clock(pack.at)}</p>
-                    <p className="font-mono text-[0.75rem] break-all text-dash-muted">SHA-256 {pack.hash}</p>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty>No pack has been built yet.</Empty>
-            )}
-          </Card>
-          <Card id="trail" title="Evidence trail" subtitle="Who did what to a result or an item, and when. Read only.">
-            {lines.length ? (
-              <ul className="max-h-96 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
-                {lines.map((line) => (
-                  <li key={line.id} className="py-2">
-                    <span className="font-semibold text-dash-ink">{asWords(line.action.replace(":", " "))}</span>
-                    <span className="text-dash-muted"> · {line.subject} · {line.actor ?? "Poll360"} · {clock(line.at)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <Empty>Nothing has been recorded yet.</Empty>
-            )}
-          </Card>
-        </div>
+        {tab === "packs" && (
+          <>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Card id="packs" title={`Evidence packs (${built.length})`} subtitle="Each carries the fingerprint of its own contents.">
+                {built.length ? (
+                  <ul className="divide-y divide-dash-line">
+                    {built.map((pack) => (
+                      <li key={pack.id} className="py-2.5 text-[0.8125rem]">
+                        <a href={`/api/room/pack/${pack.id}`} className="font-semibold text-blue-700 hover:underline">{pack.title}</a>
+                        <p className="text-dash-muted">Sealed by {pack.builtName} at {clock(pack.at)}</p>
+                        <p className="font-mono text-[0.75rem] break-all text-dash-muted">SHA-256 {pack.hash}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <Empty>No pack has been built yet.</Empty>
+                )}
+              </Card>
+              <Card id="trail" title="Evidence trail" subtitle="Who did what to a result or an item, and when. Read only.">
+                {lines.length ? (
+                  <ul className="max-h-96 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
+                    {lines.map((line) => (
+                      <li key={line.id} className="py-2">
+                        <span className="font-semibold text-dash-ink">{asWords(line.action.replace(":", " "))}</span>
+                        <span className="text-dash-muted"> · {line.subject} · {line.actor ?? "Poll360"} · {clock(line.at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <Empty>Nothing has been recorded yet.</Empty>
+                )}
+              </Card>
+            </div>
+          </>
+        )}
 
-        <div className="grid gap-6 xl:grid-cols-2">
-          <Handover desk="legal" notes={handovers} userId={ctx.user.id} />
-          <RaiseTech />
-        </div>
+        {tab === "evidence" && (
+          <>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Handover desk="legal" notes={handovers} userId={ctx.user.id} />
+              <RaiseTech />
+            </div>
+          </>
+        )}
       </div>
     </RoomShell>
   );

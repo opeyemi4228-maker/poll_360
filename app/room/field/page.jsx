@@ -1,7 +1,7 @@
 import BigMap from "@/components/room/BigMap";
 import Stage, { Side, StatRow } from "@/components/room/Stage";
 import { LightBadge, LightCounts } from "@/components/room/Light";
-import { mapFor } from "@/lib/room/page";
+import { countLayer, mapFor } from "@/lib/room/page";
 import Link from "next/link";
 
 import { Card, Empty } from "@/components/dash/DashCard";
@@ -47,6 +47,11 @@ export default async function FieldPage({ searchParams }) {
   const urgent = reports.filter((row) => !row.acknowledgedAt && (row.sos || row.severity === "CRITICAL")).length;
   const nation = at ? await lightsFor(ctx, "") : here;
   const map = await mapFor(ctx, at, nation, at.length === 2 ? here : null);
+  const layer = {
+    situations: countLayer({ id: "reports", name: "Reports open", codes: reports.map((row) => row.unitCode), word: "reported", many: 3 }),
+    confirm: countLayer({ id: "confirm", name: "Verifiers waiting", codes: confirm.map((item) => item.areaCode), word: "asked", many: 3 }),
+    drafts: countLayer({ id: "drafts", name: "Drafts left behind", codes: drafts.map((row) => row.unitCode), word: "left", many: 3 }),
+  }[tab] ?? countLayer({ id: "silent", name: "Assigned units not reporting", codes: silent.map((row) => row.unitCode), word: "silent", many: 20 });
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(now);
   const cutoff = new Date(`${today}T${/^\d\d:\d\d$/.test(rules.checkInBy) ? rules.checkInBy : "09:00"}:00+01:00`).getTime();
   const checkedIn = (person) => person.lastSeen && new Date(person.lastSeen).getTime() >= new Date(`${today}T00:00:00+01:00`).getTime();
@@ -65,7 +70,7 @@ export default async function FieldPage({ searchParams }) {
 
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} />}
 
-        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} measure={(row) => `${row.counts.grey} silent`} />}>
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} layers={[layer]} />}>
           <Side label={`The light on ${here.light.name}`} headline={<LightBadge light={here.light.light} coverage={here.light.coveragePct} />}>
             <LightCounts counts={here.light.counts} />
           </Side>

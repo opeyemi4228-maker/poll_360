@@ -7,7 +7,7 @@ import Count from "@/components/room/Count";
 import GoLive from "@/components/room/GoLive";
 import Stage, { Side, StatRow } from "@/components/room/Stage";
 import { LightBadge } from "@/components/room/Light";
-import { Crumbs, Handover, RaiseTech } from "@/components/room/Panels";
+import { Crumbs, Handover, RaiseTech, hrefWith } from "@/components/room/Panels";
 import { lightsFor, mapFor, roomPage } from "@/lib/room/page";
 import { notes } from "@/lib/room/store";
 import { broadcastDesk, runningCount } from "@/lib/room/desk";
@@ -44,15 +44,16 @@ export default async function BroadcastPage({ searchParams }) {
   const cleared = desk.posts.filter((item) => item.state === "CLEARED");
   const out = desk.posts.filter((item) => item.state === "ON_AIR");
   const leader = count.parties[0];
+  const tab = query.tab === "desk" ? "desk" : "count";
 
   return (
     <RoomShell
       ctx={ctx}
       title="Broadcast team"
       openCount={waiting.filter((item) => item.createdBy !== ctx.user.id).length}
-      current="count"
+      current={tab}
       summary={count.units ? `${focus.name}: ${focus.coveragePct.toFixed(1)}% counted${leader ? `, ${leader.party} in front on ${leader.share.toFixed(1)}%` : ""}. ${waiting.length} waiting for clearance.` : "No returns yet. The count starts with the first result."}
-      tabs={[["count", "The count", ""], ["desk", "The desk", "#desk"], ...(caps.draft ? [["write", "Write a post", "#write"]] : []), ...(caps.air ? [["live", "Go live", "#live"]] : [])].map(([id, name, hash]) => ({ id, name, href: `${BASE}${at ? `?at=${encodeURIComponent(at)}` : ""}${hash}` }))}
+      tabs={[["count", "The count"], ["desk", caps.draft ? "Desk and writing" : "The desk", waiting.length]].map(([id, name, count]) => ({ id, name, count, href: hrefWith(BASE, { at: query.at }, { tab: id === "count" ? null : id }) }))}
     >
       <div className="space-y-3">
         <StatRow
@@ -64,33 +65,41 @@ export default async function BroadcastPage({ searchParams }) {
           ]}
         />
 
-        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} hint="Tap a place to make its card" measure={(row) => `${row.coveragePct.toFixed(row.coveragePct < 10 ? 1 : 0)}% in`} />}>
-          <Side label={`The count · ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />} note="Every figure a post carries is built from this.">
-            <Crumbs trail={trail} base={BASE} query={query} />
-            <div className="mt-3"><Count count={count} light={focus} /></div>
-          </Side>
-          <BvasBlock bvas={focus.bvas} total={focus.total} />
-        </Stage>
+        {tab === "count" && (
+          <>
+            <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} hint="Tap a place to make its card" measure={(row) => `${row.coveragePct.toFixed(row.coveragePct < 10 ? 1 : 0)}% in`} />}>
+              <Side label={`The count · ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />} note="Every figure a post carries is built from this.">
+                <Crumbs trail={trail} base={BASE} query={query} />
+                <div className="mt-3"><Count count={count} light={focus} /></div>
+              </Side>
+              <BvasBlock bvas={focus.bvas} total={focus.total} />
+            </Stage>
+          </>
+        )}
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_23.5rem]">
-          <Card id="desk" title="The desk" subtitle="Nobody clears what they wrote. A platform counts as sent only when it has answered.">
-            <BroadcastPanel items={desk.posts} deliveries={desk.deliveries} caps={caps} userId={ctx.user.id} live={desk.live} now={now} take={20} />
-          </Card>
-          <div className="space-y-3">
-            {caps.draft && (
-              <Card id="write" title="Write a post">
-                <WritePost at={at} placeLabel={focus.name} />
+        {tab === "desk" && (
+          <>
+            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_23.5rem]">
+              <Card id="desk" title="The desk" subtitle="Nobody clears what they wrote. A platform counts as sent only when it has answered.">
+                <BroadcastPanel items={desk.posts} deliveries={desk.deliveries} caps={caps} userId={ctx.user.id} live={desk.live} now={now} take={20} />
               </Card>
-            )}
-            {caps.air && (
-              <Card id="live" title="Live broadcast" subtitle="Opens the programme on Facebook and YouTube.">
-                <GoLive projectTitle={ctx.project.title} />
-              </Card>
-            )}
-            <Handover desk="broadcast" notes={handovers} userId={ctx.user.id} />
-            <RaiseTech />
-          </div>
-        </div>
+              <div className="space-y-3">
+                {caps.draft && (
+                  <Card id="write" title="Write a post">
+                    <WritePost at={at} placeLabel={focus.name} />
+                  </Card>
+                )}
+                {caps.air && (
+                  <Card id="live" title="Live broadcast" subtitle="Opens the programme on Facebook and YouTube.">
+                    <GoLive projectTitle={ctx.project.title} />
+                  </Card>
+                )}
+                <Handover desk="broadcast" notes={handovers} userId={ctx.user.id} />
+                <RaiseTech />
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </RoomShell>
   );

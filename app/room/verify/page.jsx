@@ -2,7 +2,7 @@ import BigMap from "@/components/room/BigMap";
 import BvasBlock from "@/components/room/BvasBlock";
 import Stage, { Side, StatRow } from "@/components/room/Stage";
 import { LightCounts } from "@/components/room/Light";
-import { mapFor } from "@/lib/room/page";
+import { countLayer, mapFor } from "@/lib/room/page";
 import Link from "next/link";
 
 import { Card, Empty } from "@/components/dash/DashCard";
@@ -68,7 +68,7 @@ export default async function VerifyPage({ searchParams }) {
           { label: "Items resolved, last hour", value: formatNumber(speed.closed), note: `${formatNumber(mine.length)} taken by you now` },
         ]} />
 
-        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} measure={(row) => `${row.counts.yellow + row.counts.red} open`} />}>
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} layers={[countLayer({ id: "queue", name: TAB_NAME[tab], codes: (tab === "agents" ? waiting.map((row) => row.unitCode) : (tab === "team" ? first : shown).map((item) => item.areaCode)), word: "waiting", many: 10 })]} />}>
           <Side label={`The light on ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />}>
             <LightCounts counts={focus.counts} />
             <BvasBlock bvas={focus.bvas} total={focus.total} className="mt-3 border-0 bg-dash-bg p-4" />
