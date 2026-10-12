@@ -43,6 +43,17 @@ function lgaShapes(stateNumber) {
   return out;
 }
 
+/** A board of tiles, one per place, for the levels that have no boundaries. */
+function tilesFor(rows) {
+  const [w, h, gap] = [168, 92, 12];
+  const cols = Math.max(1, Math.ceil(Math.sqrt(rows.length * 1.9)));
+  return [...rows].sort((a, b) => a.code.localeCompare(b.code)).map((row, index) => {
+    const x = (index % cols) * (w + gap);
+    const y = Math.floor(index / cols) * (h + gap);
+    return { code: row.code, name: row.name, d: `M${x} ${y}L${x + w} ${y}L${x + w} ${y + h}L${x} ${y + h}Z`, centre: [x + w / 2, y + h / 2] };
+  });
+}
+
 function boxOf(shapes) {
   let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
   for (const shape of shapes) {
@@ -66,7 +77,7 @@ export const COMMON_LAYERS = [
     id: "light",
     name: "Lights",
     tone: (row) => row.light,
-    label: (row) => (row.reported ? pct(row.coveragePct) : "0%"),
+    label: (row) => (row.level === "pu" ? (row.reported ? "result in" : "no returns") : row.reported ? pct(row.coveragePct) : "0%"),
     says: (row) => LIGHTS[row.light].label,
     legend: { RED: LIGHTS.RED.label, YELLOW: LIGHTS.YELLOW.label, GREEN: LIGHTS.GREEN.label, GREY: LIGHTS.GREY.label },
   },
@@ -108,7 +119,10 @@ const facts = (row) => [
 
 export default function BigMap({ rows, base, query = {}, at = "", title = "Nigeria", hint = null, still = false, wall = false, layers = [], only = false, plain = false, measure = null, paint = null, legend = null }) {
   const state = at ? at.slice(0, 2) : "";
-  const inside = state ? lgaShapes(state) : null;
+  /* Below a state's local governments there are no boundaries we hold, so
+     wards and polling units are laid out as tiles and worked the same way. */
+  const tiled = at.length > 2;
+  const inside = tiled ? tilesFor(rows) : state ? lgaShapes(state) : null;
   const byCode = new Map(rows.map((row) => [row.code, row]));
   const fixed = still || wall;
 
@@ -120,7 +134,7 @@ export default function BigMap({ rows, base, query = {}, at = "", title = "Niger
       short: shape.short ?? null,
       d: shape.d,
       centre: shape.centre ?? [box.x + box.w / 2, box.y + box.h / 2],
-      href: byCode.has(shape.code) && !fixed ? hrefWith(base, query, { at: shape.code, unit: null }) : null,
+      href: byCode.has(shape.code) && !fixed ? hrefWith(base, query, shape.code.split("/").length === 4 ? { unit: shape.code } : { at: shape.code, unit: null }) : null,
     };
   });
   const box = inside ? boxOf(inside) : { x: 0, y: 0, w: nation.width, h: nation.height };
@@ -146,12 +160,13 @@ export default function BigMap({ rows, base, query = {}, at = "", title = "Niger
       box={box}
       layers={built}
       title={title}
-      hint={hint ?? (inside ? "Press a local government" : "Press a state")}
-      up={at ? { name: at.length > 2 ? title : "The whole country", href: hrefWith(base, query, { at: at.length > 2 ? at.slice(0, 2) : null, unit: null }) } : null}
+      hint={hint ?? (tiled ? (at.length > 5 ? "Press a polling unit" : "Press a ward") : inside ? "Press a local government" : "Press a state")}
+      up={at ? { name: at.length === 2 ? "The whole country" : at.length === 5 ? "The state" : "The local government", href: hrefWith(base, query, { at: at.split("/").slice(0, -1).join("/") || null, unit: null }) } : null}
+      tiles={tiled}
       still={fixed}
       inside={Boolean(inside)}
       tall={wall}
-      footnote={inside ? "Below a local government there are no boundaries to draw. The list beside the map carries on." : "Double press or pinch to zoom. Drag when zoomed."}
+      footnote={tiled ? (at.length > 5 ? "Each tile is one polling unit. Press one to open everything known about it." : "Each tile is one ward. Press one to see its polling units.") : inside ? "Press a local government to see its wards, then a ward to see its polling units." : "Double press or pinch to zoom. Drag when zoomed."}
     />
   );
 }

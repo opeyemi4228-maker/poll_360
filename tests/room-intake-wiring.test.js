@@ -30,7 +30,8 @@ import { describe, it } from "node:test";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
-const ROOM = read("../app/room/page.jsx");
+/* The room's page became a screen any desk can mount; the wiring lives there. */
+const ROOM = read("../app/room/screen.jsx");
 const SHELL = read("../components/dash/SituationRoom.jsx");
 const SITUATIONS = read("../components/dash/RoomSituations.jsx");
 const TIMELINE = read("../lib/timeline.js");

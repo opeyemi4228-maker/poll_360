@@ -6,6 +6,8 @@ import BigMap from "@/components/room/BigMap";
 import Stage, { Side, StatRow } from "@/components/room/Stage";
 import ActionForm, { Area, Choice, Field, Submit } from "@/components/room/ActionForm";
 import { Handover, age, clock } from "@/components/room/Panels";
+import TechLive from "@/components/room/TechLive";
+import { snapshotOf } from "@/lib/room/tech-checks";
 import { lightsFor, roomPage } from "@/lib/room/page";
 import { notes, staff, tech, trail } from "@/lib/room/store";
 import { checkEnvironment } from "@/lib/environment";
@@ -173,6 +175,13 @@ export default async function TechPage({ searchParams }) {
   const bad = checks.filter((check) => check.state === "bad").length;
   const warn = checks.filter((check) => check.state === "warn").length;
 
+  const snapshot = snapshotOf(t, {
+    second: system.secondDatabase ?? null,
+    hooks,
+    now,
+    autoMigrate: process.env.NODE_ENV !== "production" || process.env.POLL360_AUTO_MIGRATE === "1",
+    runtime: { rss: memory.rss, heapUsed: memory.heapUsed, heapTotal: memory.heapTotal, uptime: Math.round(process.uptime()), node: process.version, region: process.env.VERCEL_REGION ?? "local", build: String(process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7) },
+  });
   const tables = t.tables.value ?? [];
   const stats = {
     ops: [
@@ -229,16 +238,23 @@ export default async function TechPage({ searchParams }) {
       tabs={VIEWS.map(([id, name]) => ({ id, name, count: id === "incidents" ? open.length : null, href: id === "ops" ? BASE : `${BASE}?tab=${id}` }))}
     >
       <div className="space-y-3">
-        <StatRow stats={stats[view]} />
+        {view === "ops" ? <TechLive initial={snapshot} /> : <StatRow stats={stats[view]} />}
 
         {view === "ops" && (
           <>
         <Stage map={<BigMap rows={mapRows} base={BASE} query={query} title="Flow by state: time since each state last sent a result" hint="No vote figure is on this screen" still only plain paint={(row) => (row.recent ? "GREEN" : !row.lastHeard ? "GREY" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "YELLOW" : "RED")} legend={{ GREEN: "Sending now (last 10 min)", YELLOW: "Quiet under an hour", RED: "Silent over an hour", GREY: "Never heard from" }} measure={(row) => (row.lastHeard ? `${since(row.lastHeard, now)}${row.recent ? ` · ${row.recent}/10m` : ""}` : "silent")} />}>
-          <Side label="Service checks" headline={bad ? `${bad} failing` : warn ? `${warn} warning` : "All passing"} note={`Measured at ${clock(t.at)} for this request.`}>
-            <ul className="divide-y divide-dash-line">{checks.map((check) => <Check key={check.name} {...check} />)}</ul>
-          </Side>
-          <Side label="Throughput" headline={`${lastMinute.toFixed(1)} results / min`} note="Every minute of the last hour.">
-            <Throughput rows={t.perMinute.value ?? []} now={now} />
+          <Side label="Flow, by state" headline={`${mapRows.filter((row) => row.recent).length} sending now`} note="States that sent a result in the last ten minutes are at the top.">
+            <ul className="max-h-[30rem] divide-y divide-dash-line overflow-auto font-mono text-[0.75rem]">
+              {[...mapRows].sort((a, b) => new Date(b.lastHeard ?? 0) - new Date(a.lastHeard ?? 0)).map((row) => (
+                <li key={row.code} className="flex items-center justify-between gap-2 py-1.5">
+                  <span className="flex items-center gap-2 font-semibold text-dash-ink">
+                    <span className={cn("size-2 rounded-full", row.recent ? "bg-light-green room-pulse" : !row.lastHeard ? "bg-light-grey" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "bg-light-yellow" : "bg-light-red")} aria-hidden="true" />
+                    {row.name}
+                  </span>
+                  <span className="tabular-nums text-dash-muted">{row.lastHeard ? `${since(row.lastHeard, now)} ago` : "never"}{row.recent ? ` · ${row.recent}/10m` : ""}</span>
+                </li>
+              ))}
+            </ul>
           </Side>
         </Stage>
 

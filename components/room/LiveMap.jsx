@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 const INK = { RED: "#ff4d4d", YELLOW: "#ffd21f", GREEN: "#2fd67b", GREY: "#56608a" };
 const MARK = { RED: "✖", YELLOW: "▲", GREEN: "✔", GREY: "○" };
 
-export default function LiveMap({ shapes, box, layers, title, hint, up = null, still = false, inside = false, footnote = null, tall = false }) {
+export default function LiveMap({ shapes, box, layers, title, hint, up = null, still = false, inside = false, tiles = false, footnote = null, tall = false }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [going, setGoing] = useState(null);
@@ -92,7 +92,7 @@ export default function LiveMap({ shapes, box, layers, title, hint, up = null, s
     else frame.current?.requestFullscreen?.();
   };
 
-  const labelled = shapes
+  const labelled = tiles ? [] : shapes
     .filter((shape) => layer.paint[shape.code] && (layer.paint[shape.code].tone === "RED" || layer.paint[shape.code].tone === "YELLOW" || layer.paint[shape.code].show))
     .slice(0, inside ? 30 : 16);
   const tally = { RED: 0, YELLOW: 0, GREEN: 0, GREY: 0 };
@@ -226,6 +226,20 @@ export default function LiveMap({ shapes, box, layers, title, hint, up = null, s
                 <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={5 * k} fill="#11131c" fillOpacity="0.92" stroke={INK[paint.tone]} strokeWidth={1.2 * k} />
                 <text x={x} y={y - 3 * k} textAnchor="middle" fontSize={10.5 * k} fontWeight="600" fill="#ffffff" fillOpacity="0.75" style={{ textTransform: "uppercase", letterSpacing: `${0.4 * k}px` }}>{text}</text>
                 <text x={x} y={y + 12 * k} textAnchor="middle" fontSize={13 * k} fontWeight="800" fill={INK[paint.tone]}>{MARK[paint.tone]} {paint.label}</text>
+              </g>
+            );
+          })}
+          {/* A tile says its own name and figure, on every tile. */}
+          {tiles && shapes.map((shape) => {
+            const paint = layer.paint[shape.code];
+            if (!paint) return null;
+            const [x, y] = shape.centre;
+            const name = shape.name.length > 20 ? `${shape.name.slice(0, 19)}…` : shape.name;
+            return (
+              <g key={`tile-${shape.code}`} pointerEvents="none">
+                <rect x={x - 76} y={y - 30} width={152} height={60} rx={6} fill="#11131c" fillOpacity="0.9" />
+                <text x={x} y={y - 8} textAnchor="middle" fontSize={12.5} fontWeight="700" fill="#ffffff">{name}</text>
+                <text x={x} y={y + 14} textAnchor="middle" fontSize={13} fontWeight="800" fill={INK[paint.tone]}>{MARK[paint.tone]} {paint.label}</text>
               </g>
             );
           })}

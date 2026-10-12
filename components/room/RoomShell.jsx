@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ChevronDown, MapPin } from "lucide-react";
+import { Activity, ChevronDown, Map as MapIcon, MapPin } from "lucide-react";
 
 import BrandMark from "@/components/ui/BrandMark";
 import SignOutButton from "@/components/auth/SignOutButton";
@@ -7,6 +7,7 @@ import LiveRefresh from "@/components/dash/LiveRefresh";
 import RoomLive, { RoomAlarms } from "./RoomLive";
 import { pickRace } from "@/app/room/actions";
 import { greetingNow } from "@/lib/room/page";
+import { MONITOR, monitorPath } from "@/lib/room/monitor";
 import { RACES } from "@/lib/races";
 import { ROLES } from "@/lib/roles";
 import { cn, formatNumber } from "@/lib/utils";
@@ -65,6 +66,15 @@ export default function RoomShell({ ctx, title, tabs = null, sections = null, cu
               </ul>
             )}
           </details>
+
+          {/* The situation room's own dashboards, for the desks that are given
+              them: the real screen, narrowed to this desk's ground. */}
+          {face && MONITOR[face.id] && (
+            <Link href={monitorPath(face.id)} className="flex h-11 shrink-0 items-center gap-2 rounded-full border border-dash-ink px-4 text-[0.875rem] font-bold text-dash-ink hover:bg-dash-ink hover:text-white">
+              <MapIcon size={15} aria-hidden="true" />
+              Situation room
+            </Link>
+          )}
 
           {items.length > 0 && (
             <nav aria-label={`${title} sections`} className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto rounded-full bg-dash-bg p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">

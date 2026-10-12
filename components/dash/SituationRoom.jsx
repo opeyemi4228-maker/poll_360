@@ -715,6 +715,16 @@ const TICK = 220;
 
 export default function SituationRoom({
   user,
+  /* ── WHICH OF THE ROOM A DESK IS GIVEN ─────────────────────────────────
+     The room is mounted for desks that have screens of their own (see
+     app/room/screen.jsx). `heads` names the heads a desk may open and `views`
+     the Election Monitor tabs; left out, it is the whole room. A view that
+     is not allowed cannot be reached from anywhere in here: every change of
+     view goes through one setter, below, and it refuses what was not given.
+     `deskBar` is drawn beside the greeting: the way back to the desk. */
+  heads = null,
+  views = null,
+  deskBar = null,
   board,
   /* ── WHOSE ROOM THIS IS ─────────────────────────────────────────────────
      Built on the server (lib/principal.js) because it reads the environment,
@@ -872,7 +882,26 @@ export default function SituationRoom({
      landing screen when there is nothing to remember. Both arrive as one
      already-validated prop, so this component has no opinion about either and
      nothing here can disagree with what was rendered. */
-  const [layer, setLayer] = useState(initialView);
+  const allowed = useMemo(
+    () =>
+      MODES.filter((item) => !heads || heads.includes(item.id))
+        .map((item) => ({
+          ...item,
+          groups: item.groups
+            .map((group) => ({ ...group, tabs: group.tabs.filter((tab) => !views || item.id !== "monitor" || views.includes(tab.value)) }))
+            .filter((group) => group.tabs.length),
+        }))
+        .filter((item) => item.groups.length),
+    [heads, views]
+  );
+  const allowedViews = useMemo(() => new Set(allowed.flatMap((item) => item.groups.flatMap((group) => group.tabs.map((tab) => tab.value)))), [allowed]);
+  const [layer, setLayerRaw] = useState(() => (allowedViews.has(initialView) ? initialView : (allowed[0]?.groups[0].tabs[0].value ?? initialView)));
+  /* A view with a tab of its own is opened only if this desk was given the
+     tab. The room's inner screens (one booth's card, for one) have no tab and
+     belong to whichever view opened them. */
+  const setLayer = useCallback((next) => {
+    if (!MODE_OF[next] || allowedViews.has(next)) setLayerRaw(next);
+  }, [allowedViews]);
   const mode = MODE_OF[layer] ?? MODES[0].id;
 
   /* ── WHICH BOOTH THE INTELLIGENCE CARD IS SHOWING ───────────────────────
@@ -886,7 +915,7 @@ export default function SituationRoom({
   const openUnit = useCallback((unitCode) => {
     setUnit(unitCode);
     setLayer("unit");
-  }, []);
+  }, [setLayer]);
 
   /* Where each head was left. Crossing back should return somebody to the
      surface they were reading, not to the head's front door — the analyst who
@@ -1893,7 +1922,7 @@ export default function SituationRoom({
      are not in this row. */
   const tabGroups = useMemo(
     () =>
-      (MODES.find((item) => item.id === mode) ?? MODES[0]).groups.map((group) => ({
+      (allowed.find((item) => item.id === mode) ?? allowed[0] ?? MODES[0]).groups.map((group) => ({
         ...group,
         tabs: group.tabs.map((tab) => {
           /* ── A TAB NAMED FOR WHAT IS UNDER IT ────────────────────────
@@ -1910,7 +1939,7 @@ export default function SituationRoom({
           return tab;
         }),
       })),
-    [territory, mode, verifyFresh, layer]
+    [territory, mode, verifyFresh, layer, allowed]
   );
 
   /* ── WHAT EACH HEAD IS CARRYING, ON THE HEAD ITSELF ────────────────────
@@ -1922,12 +1951,12 @@ export default function SituationRoom({
      "there is content here" is a badge people learn to ignore. */
   const modes = useMemo(
     () =>
-      MODES.map((item) =>
+      allowed.map((item) =>
         item.id === "monitor" && alerts.length
           ? { ...item, badge: alerts.length > 99 ? "99+" : alerts.length }
           : item
       ),
-    [alerts.length]
+    [alerts.length, allowed]
   );
 
   return (
@@ -1943,7 +1972,7 @@ export default function SituationRoom({
       mode={mode}
       /* Crossing between heads returns to whatever was last open in the one
          being entered — see `recent` above. */
-      onMode={(id) => setLayer(recent[id] ?? FIRST_OF[id])}
+      onMode={(id) => setLayer(allowedViews.has(recent[id]) ? recent[id] : (allowed.find((item) => item.id === id)?.groups[0].tabs[0].value ?? FIRST_OF[id]))}
       active={layer}
       onTab={setLayer}
       greeting={greeting}
@@ -2011,6 +2040,7 @@ export default function SituationRoom({
                   : `${incidentCount ?? 0} report${incidentCount === 1 ? "" : "s"} from the field`
       }
       /* The wall clock, on the two heads that watch the timetable. */
+      lead={deskBar}
       clock={mode === "monitor" || mode === "broadcast" ? <WallClock /> : null}
       aside={
         /* Rendered here rather than handed in from the page: both this and

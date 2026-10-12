@@ -1,3 +1,6 @@
+import { holds, roomOnly } from "@/lib/roles";
+import { groundOf, withinProject } from "@/lib/room/access";
+import { tidyCode, touches } from "@/lib/ground";
 import { currentElection } from "@/lib/election-scope";
 import { faultsSpreadsheet, publishingFaults } from "@/lib/irev/faults";
 import { can } from "@/lib/roles";
@@ -26,13 +29,20 @@ export async function GET(request) {
      was `results:verify`, which is the power to mark a return checked and is
      the administrator's alone: the room was handed the country with its page
      and then refused every state it pressed. */
-  if (!user || !can(user.role, "gap:read")) return new Response("Not found", { status: 404 });
+  if (!user || !(holds(user, "gap:read") || holds(user, "records:read"))) return new Response("Not found", { status: 404 });
 
   const project = await currentElection();
   if (!project) return Response.json(null);
 
   const at = new URL(request.url).searchParams;
   const under = at.get("under") ?? "";
+  /* A room desk reads the comparison for its own ground and no other. Asked
+     for anywhere else, it is told the place does not exist. */
+  if (roomOnly(user)) {
+    const mine = withinProject(groundOf(user), project);
+    const asked = tidyCode(under);
+    if (mine != null && (!asked || !touches(mine, asked))) return new Response("Not found", { status: 404 });
+  }
   const kind = at.get("kind");
 
   if (at.get("download") === "1") {
@@ -51,7 +61,7 @@ export async function GET(request) {
   const account = await publishingFaults(project, under, { kind });
   /* The single-sheet screens belong to the system console. The panel only
      offers a way to them to somebody who can go through it. */
-  if (account && !account.none) account.canOpenSheets = can(user.role, "system:read");
+  if (account && !account.none) account.canOpenSheets = holds(user, "system:read");
 
   return Response.json(account, {
     headers: { "Cache-Control": "private, no-store" },

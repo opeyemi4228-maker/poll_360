@@ -44,6 +44,8 @@ export default function TopShell({
   subtitle,
   children,
   aside,
+  /* Drawn before `aside`. A desk that mounts the room puts its way home here. */
+  lead = null,
   /* ── THE WALL CLOCK'S SEAT: THE BAR, NOT THE PAGE ─────────────────────
      It sat in the greeting row, first sharing a line with four controls and
      then with a row of its own — and every rem it took there was a rem the
@@ -333,7 +335,7 @@ export default function TopShell({
           </h1>
           {subtitle && <p className="mt-0.5 text-[0.8125rem] text-dash-muted">{subtitle}</p>}
         </div>
-        {aside && <div className="flex flex-wrap items-center justify-end gap-2">{aside}</div>}
+        {(aside || lead) && <div className="flex flex-wrap items-center justify-end gap-2">{lead}{aside}</div>}
       </div>
 
       <main id="main" className="px-4 pb-3 lg:px-6 lg:pb-4">
