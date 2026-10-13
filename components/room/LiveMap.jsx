@@ -100,23 +100,28 @@ export default function LiveMap({ shapes, box, layers, title, hint, up = null, s
   const busy = pending && going;
 
   return (
-    <section ref={frame} className="group/map overflow-hidden rounded-dash bg-[#090c17] text-white" aria-label={`Map of ${title}`}>
+    <>
+    {/* `contain` tells the layout this panel has no width of its own to
+          insist on: it takes what its column gives it. Without it, a row of
+          map controls that cannot wrap set the width of the whole page on a
+          phone. */}
+      <section ref={frame} className="group/map w-full min-w-0 overflow-hidden rounded-dash bg-[#090c17] text-white [contain:inline-size]" aria-label={`Map of ${title}`}>
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/10 px-5 py-3">
-        <h2 className="flex items-center gap-2 text-[0.9375rem] font-bold">
-          <span className="relative flex size-2">
+        <h2 className="flex min-w-0 items-center gap-2 text-[0.9375rem] font-bold">
+          <span className="relative flex size-2 shrink-0">
             <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#2fd67b] opacity-60" />
             <span className="relative inline-flex size-2 rounded-full bg-[#2fd67b]" />
           </span>
           {title}
         </h2>
-        <div className="flex flex-wrap items-center gap-2 text-[0.8125rem]">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 text-[0.8125rem]">
           {up && !still && (
             <button type="button" onClick={() => open({ name: up.name, href: up.href })} className="rounded-full border border-white/15 px-3 py-1.5 font-semibold text-white/85 hover:border-white/40">
               ← {up.name}
             </button>
           )}
           {layers.length > 1 ? (
-            <div role="tablist" aria-label="What the map shows" className="flex rounded-full border border-white/15 p-0.5">
+            <div role="tablist" aria-label="What the map shows" className="flex max-w-full overflow-x-auto rounded-full border border-white/15 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {layers.map((each) => (
                 <button key={each.id} type="button" role="tab" aria-selected={each.id === layer.id} onClick={() => setLayerId(each.id)} className={cn("rounded-full px-3 py-1 font-semibold whitespace-nowrap", each.id === layer.id ? "bg-white text-[#090c17]" : "text-white/70 hover:text-white")}>
                   {each.name}
@@ -133,7 +138,10 @@ export default function LiveMap({ shapes, box, layers, title, hint, up = null, s
         <svg
           viewBox={`${seen.x} ${seen.y} ${seen.w} ${seen.h}`}
           preserveAspectRatio="xMidYMid meet"
-          className={cn("size-full touch-none select-none transition-opacity duration-200", busy && "opacity-35", zoomed ? "cursor-grab active:cursor-grabbing" : "")}
+          /* Laid over its frame, not in its flow. A drawing with a set height
+             and a shape of its own asks for the width that shape implies, and
+             on a phone that pushed the whole page wider than the screen. */
+          className={cn("absolute inset-0 size-full touch-none select-none transition-opacity duration-200", busy && "opacity-35", zoomed ? "cursor-grab active:cursor-grabbing" : "")}
           role="img"
           aria-label={`Map of ${title}, coloured by ${layer.name.toLowerCase()}`}
           onDoubleClick={(event) => zoom(0.5, pointOf(event))}
@@ -294,6 +302,7 @@ export default function LiveMap({ shapes, box, layers, title, hint, up = null, s
         {footnote && <span className="text-white/45">{footnote}</span>}
       </footer>
     </section>
+    </>
   );
 }
 

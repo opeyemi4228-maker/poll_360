@@ -1292,3 +1292,23 @@
 @media (prefers-reduced-motion: reduce) {
   .room-flash { animation: none; }
 }
+
+/* ── A situation room desk never scrolls sideways ──────────────────────────
+   Left to itself a grid cell is as wide as its longest unbroken line, and one
+   long place name in a list made a whole desk wider than a phone. Every grid
+   cell on a desk may shrink to the screen instead. `.dash > main` is the
+   desks' own frame (components/room/RoomShell.jsx); the older dashboards nest
+   their page deeper and are not touched by this. */
+.dash > main .grid > * {
+  min-width: 0;
+}
+
+/* The line across the top while a room dashboard is being fetched. */
+@keyframes room-nav {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(310%); }
+}
+.room-nav { animation: room-nav 1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .room-nav { animation: none; width: 100%; opacity: 0.6; }
+}
