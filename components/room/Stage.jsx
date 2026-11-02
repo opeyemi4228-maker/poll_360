@@ -18,7 +18,9 @@ export function StatRow({ stats }) {
               {Icon && <Icon size={15} aria-hidden="true" />}
               {stat.label}
             </p>
-            <p className={cn("mt-2 truncate font-display text-[2rem] leading-none font-bold tracking-[-0.02em] tabular-nums", TONE[stat.tone ?? "ink"])}>{stat.value}</p>
+            {/* `small` is for a figure that is a name, not a number: it keeps the
+                tile's height and fits the words. */}
+            <p className={cn("mt-2 flex h-8 items-center font-display leading-none font-bold tracking-[-0.02em] tabular-nums", stat.small ? "text-[1.25rem]" : "text-[2rem]", TONE[stat.tone ?? "ink"])} title={stat.small ? stat.value : undefined}><span className="truncate">{stat.value}</span></p>
             <p className="mt-2 truncate text-[0.8125rem] text-dash-muted">{stat.note ?? " "}</p>
           </div>
         );
@@ -30,7 +32,10 @@ export function StatRow({ stats }) {
 export default function Stage({ map, children, className }) {
   return (
     <div className={cn("grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_23.5rem]", className)}>
-      {map}
+      {/* Pinned under the bar on a wide screen, so the column beside it
+          scrolls past a map that stays where it is, instead of leaving a
+          white field where the map ran out. */}
+      <div className="min-w-0 xl:sticky xl:top-[calc(var(--room-top,5rem)+0.75rem)]">{map}</div>
       <div className="space-y-3">{children}</div>
     </div>
   );

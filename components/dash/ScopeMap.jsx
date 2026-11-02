@@ -336,7 +336,10 @@ export default function ScopeMap({
      one already placed. Anything cleverer would move labels around as the
      figures update, and a label that jumps is worse than a label slightly
      off. */
-  const calloutUnit = (frame.width ?? shapes.width) / 1000;
+  /* Sized from whichever side of the frame the screen runs out of first. A
+     tall, narrow state in a wide panel is drawn to its height, and labels
+     sized from its width alone came out too small to read. */
+  const calloutUnit = Math.max(frame.width ?? shapes.width, (frame.height ?? shapes.height) * 1.2) / 1000;
 
   const callouts = useMemo(() => {
     if (!list.length || !rows.length) return [];
@@ -716,11 +719,10 @@ export default function ScopeMap({
             y={callout.y + callout.height * 0.42}
             textAnchor="middle"
             fill="rgba(255,255,255,0.62)"
-            fontSize={7.4 * calloutUnit}
+            fontSize={8.6 * calloutUnit}
             fontWeight="600"
-            letterSpacing={0.4 * calloutUnit}
           >
-            {callout.name.toUpperCase()}
+            {callout.name}
           </text>
           <text
             x={callout.x}

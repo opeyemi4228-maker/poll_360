@@ -930,3 +930,71 @@ describe("winning a seat, for anybody, from that seat's own elections", () => {
     assert.equal((await facts(next)).subject.id, "APC");
   });
 });
+
+describe("places won more than once, arranged by place", () => {
+  const QUESTION =
+    "List of Polling Units atiku has won like 3 or 2 times... while the three ones first on top then the 2 times and their percentages, should be arranged per states, local government and wards";
+
+  it("reads the times won as a count, and the states, LGAs and wards as the order", () => {
+    const { plan } = parse(QUESTION);
+    assert.equal(plan.intent, "list");
+    assert.deepEqual(plan.levels, ["unit"]);
+    assert.equal(plan.arrange, "place");
+    assert.deepEqual(plan.filters, [
+      { field: "wins", op: ">=", value: 2 },
+      { field: "wins", op: "<=", value: 3 },
+    ]);
+  });
+
+  it("does not take a level named once as an arrangement", () => {
+    assert.equal(parse("ADC members in Kano by ward").plan.arrange, null);
+    assert.equal(parse("rank states by margin").plan.arrange, null);
+  });
+
+  it("reads 'both times' and 'twice' as every run", () => {
+    assert.deepEqual(parse("wards atiku won both times in Adamawa").plan.filters, [{ field: "wins", op: "=", value: "all" }]);
+    assert.deepEqual(parse("polling units Atiku won twice").plan.filters.map((filter) => filter.value), [2, 2]);
+  });
+
+  it("answers both times first, then once, each state by state, local government and ward", async () => {
+    const result = await run(parse(`${QUESTION} in Adamawa and Gombe`).plan);
+    assert.deepEqual(result.sections.map((section) => section.wins.count), [2, 1]);
+    assert.match(result.notes.join(" "), /“3 times” is read here as won in both 2019 and 2023/);
+    for (const section of result.sections) {
+      assert.deepEqual(section.group, { key: "stateCode", name: "state", role: false });
+      assert.deepEqual(section.nest, ["lga", "ward"]);
+      const keys = section.columns.map((column) => column.key);
+      assert.ok(keys.includes("share") && keys.includes("share_prev"));
+      /* Sorted state, then local government, then ward: each one contiguous. */
+      const seen = new Set();
+      let last = null;
+      for (const row of section.rows) {
+        const path = `${row.state}|${row.lga}|${row.ward}`;
+        if (path !== last) {
+          assert.ok(!seen.has(path), `${path} appears in two places`);
+          seen.add(path);
+          last = path;
+        }
+      }
+    }
+    const [both, once] = result.sections;
+    assert.deepEqual(result.sections.map((section) => section.tab), ["Won both times", "Won once"]);
+    /* Every heading's count travels on its rows, and matches them. */
+    const bille = both.rows.filter((row) => row.lga === both.rows[0].lga && row.ward === both.rows[0].ward);
+    assert.ok(bille.every((row) => row.in_ward === bille.length));
+    assert.ok(both.rows.every((row) => row.in_lga === both.rows.filter((other) => other.state === row.state && other.lga === row.lga).length));
+    /* An estimate never prints more voters than the register holds. */
+    assert.ok(result.sections.every((section) => section.rows.every((row) => row.turnout === null || row.turnout <= 100)));
+    assert.ok(both.rows.every((row) => row.won && row.won_prev));
+    assert.ok(once.rows.every((row) => Boolean(row.won) !== Boolean(row.won_prev)));
+    assert.ok(once.rows.every((row) => row.won_in === (row.won ? "2023" : "2019")));
+  });
+
+  it("inside one state, heads each local government and names its wards", async () => {
+    const result = await run(parse("Polling units Atiku won 3 or 2 times in FCT arranged by local government and ward").plan);
+    const [both] = result.sections;
+    assert.deepEqual(both.group, { key: "lgaKey", name: "lga", role: false });
+    assert.deepEqual(both.nest, ["ward"]);
+    assert.ok(new Set(both.rows.map((row) => row.lgaKey)).size > 1);
+  });
+});

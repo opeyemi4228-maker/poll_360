@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import {
   ChevronRight,
   Download,
@@ -13,6 +13,9 @@ import {
 } from "lucide-react";
 
 import UnitMap from "./UnitMap";
+import PersonPhoto from "./PersonPhoto";
+import PartyMark from "./PartyMark";
+import { ROOM_CHOICES } from "@/lib/principal";
 import { PARTY_FILL } from "./Charts";
 import { boundsOf } from "@/lib/bbox";
 import { download, stamped, toCsv } from "@/lib/csv";
@@ -20,13 +23,18 @@ import { STRONGHOLDS } from "@/lib/data/strongholds-index";
 import { SEATS as ADAMAWA_SEATS } from "@/lib/adamawa";
 import { ruling } from "@/lib/governors";
 import {
+  DEFAULT_SUBJECT,
   FACTORS,
+  SUBJECTS,
   TIERS,
   TIER_OF,
   TOP_UNITS,
   YEARS,
   ZONE_ORDER,
   decodePlace,
+  filesOf,
+  subjectOf,
+  tiersFor,
   decodeUnit,
   groundIn,
   readingFor,
@@ -38,7 +46,7 @@ import {
 import { cn, formatNumber, formatShare } from "@/lib/utils";
 
 /**
- * Strongholds: Atiku's ground, one zone at a time, from a state down to the
+ * Strongholds: a candidate's ground — Tinubu's, Atiku's or Obi's — one zone at a time, from a state down to the
  * polling unit.
  *
  * ══════════════════════════════════════════════════════════════════════════
@@ -69,8 +77,50 @@ import { cn, formatNumber, formatShare } from "@/lib/utils";
 
 /* ════════════════════════════════════════════════════════════ the ground */
 
-const STATES = STRONGHOLDS.states.map((state) => ({
+/* ── ONE INDEX PER CANDIDATE ──────────────────────────────────────────────
+   Atiku's ships with the page, as it always has. The others are the same
+   shape, written by the same script, and fetched the first time somebody
+   picks that candidate — about 150 KB each, which is too much to put in
+   front of every room that never asks. */
+const INDEXES = {
+  atiku: () => Promise.resolve({ STRONGHOLDS }),
+  tinubu: () => import("@/lib/data/strongholds-tinubu"),
+  obi: () => import("@/lib/data/strongholds-obi"),
+};
+
+const groundCache = new Map();
+
+/** Everything one candidate's map is drawn from, decoded once. */
+function groundOf(index, subject) {
+  const { url } = filesOf(subject.id);
+  const states = statesFrom(index, url);
+  return {
+    subject,
+    states,
+    byCode: new Map(states.map((state) => [state.code, state])),
+    threshold: index.threshold,
+    tiers: tiersFor(subject),
+  };
+}
+
+function loadGround(id) {
+  const subject = subjectOf(id);
+  if (!groundCache.has(subject.id)) {
+    const request = (INDEXES[subject.id] ?? INDEXES[DEFAULT_SUBJECT])()
+      .then((module) => groundOf(module.STRONGHOLDS, subject))
+      .catch((error) => {
+        groundCache.delete(subject.id);
+        throw error;
+      });
+    groundCache.set(subject.id, request);
+  }
+  return groundCache.get(subject.id);
+}
+
+const statesFrom = (index, url) => index.states.map((state) => ({
   ...state,
+  /* Where this candidate's wards and polling units for the state are. */
+  src: `${url}/${state.number}.json`,
   place: decodePlace(state.f),
   lgas: state.lgas.map((lga, index) => ({ ...lga, index, place: decodePlace(lga.f) })),
   /* Senate districts and House constituencies, each the local governments
@@ -83,10 +133,20 @@ const STATES = STRONGHOLDS.states.map((state) => ({
   ),
 }));
 
+/* Atiku's, decoded up front so the default opens without a wait. */
+const ATIKU = groundOf(STRONGHOLDS, subjectOf(DEFAULT_SUBJECT));
+groundCache.set(DEFAULT_SUBJECT, Promise.resolve(ATIKU));
+
+/* Whose map is open, for the cards and keys drawn deep under the screen. */
+const Whose = createContext(ATIKU);
+const useWhose = () => useContext(Whose);
+
+/* "Tinubu", or "the APC ticket he led behind Buhari" where he was not on that
+   year's paper. */
+const carrierOf = (subject, year) => (subject.runs[year]?.note ? `${subject.short}'s ticket` : subject.short);
+
 /* Who governs each state, for the seat card. Static for the life of the page. */
 const GOVERNING = ruling();
-
-const STATE_BY_CODE = new Map(STATES.map((state) => [state.code, state]));
 
 const LEVELS = [
   { id: "state", label: "States", one: "state" },
@@ -154,12 +214,19 @@ const TIER_FILL = {
 
 /* The other lenses keep clear of those three, so a colour never means one
    thing on one button and another on the next. */
-const FILL = {
+const FILL_BASE = {
   strength: TIER_FILL.PRIMARY,
   top: "oklch(70.2% 0.183 293.5)",
   won: PARTY_FILL.PDP,
   target: "var(--color-class-opportunity)",
 };
+const FILL = FILL_BASE;
+
+/* The candidate's party colour today — ADC for Atiku, NDC for Obi — so the
+   map matches the switch, the Command dashboard and the cards. */
+const wonFillOf = (subject) =>
+  PARTY_FILL[ROOM_CHOICES.find((choice) => choice.candidate === subject.name)?.party ?? subject.runs[2023].party] ??
+  FILL_BASE.won;
 
 /* Lifted clear of the board itself. The room's own silent grey sits so close
    to the board that a zone with few strongholds drew as a hole in the map. */
@@ -187,20 +254,32 @@ function fetchJson(url) {
   });
 }
 
+/* The unit tree is the same for every candidate, so it is held apart from
+   the figures and fetched once however many candidates are looked at. */
+const treeCache = new Map();
+
+function loadTree(number) {
+  if (!treeCache.has(number)) {
+    const request = fetchJson(`/geo/units/${number}.json`).catch((error) => {
+      treeCache.delete(number);
+      throw error;
+    });
+    treeCache.set(number, request);
+  }
+  return treeCache.get(number);
+}
+
 function loadBook(state) {
-  if (!bookCache.has(state.number)) {
-    const request = Promise.all([
-      fetchJson(`/geo/units/${state.number}.json`),
-      fetchJson(`/geo/strongholds/${state.number}.json`),
-    ])
+  if (!bookCache.has(state.src)) {
+    const request = Promise.all([loadTree(state.number), fetchJson(state.src)])
       .then(([tree, figures]) => buildBook(state, tree, figures))
       .catch((error) => {
-        bookCache.delete(state.number);
+        bookCache.delete(state.src);
         throw error;
       });
-    bookCache.set(state.number, request);
+    bookCache.set(state.src, request);
   }
-  return bookCache.get(state.number);
+  return bookCache.get(state.src);
 }
 
 function loadOutline(code) {
@@ -269,13 +348,141 @@ function useLoaded(wanted, load) {
 
 /* ═════════════════════════════════════════════════════════════════ screen */
 
-export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory = null, ground = null }) {
+/**
+ * The screen, for whichever candidate the room picks.
+ *
+ * ── ONE SWITCH, THE WHOLE MAP FOLLOWS IT ───────────────────────────────────
+ * Tinubu, Atiku or Obi: the levels, the wins, the shares and the list all
+ * re-read off that candidate's own runs, and the map underneath is remounted
+ * so nothing — a picked ward, a page of the list — carries over from the last
+ * candidate's ground and gets read as this one's.
+ *
+ * `subject` is where it opens: the room's own candidate when the room has one.
+ */
+export default function Strongholds({ subject: preferred = null, ...rest }) {
+  const [picked, setPicked] = useState(null);
+  const id = picked ?? subjectOf(preferred ?? DEFAULT_SUBJECT).id;
+  const [loaded, setLoaded] = useState(() => ({ [DEFAULT_SUBJECT]: ATIKU }));
+  const data = loaded[id] ?? null;
+
+  useEffect(() => {
+    if (data && !data.failed) return undefined;
+    let live = true;
+    loadGround(id)
+      .then((value) => live && setLoaded((current) => ({ ...current, [id]: value })))
+      .catch(() => live && setLoaded((current) => ({ ...current, [id]: { failed: true } })));
+    return () => {
+      live = false;
+    };
+    // Only a change of candidate asks again; a failure waits for the next pick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <WhosePicker value={id} onChange={setPicked} />
+      {data && !data.failed ? (
+        <Whose.Provider value={data}>
+          <StrongholdMap key={id} data={data} {...rest} />
+        </Whose.Provider>
+      ) : (
+        <p className="flex items-center justify-center gap-2 rounded-dash border border-dash-line bg-dash-card px-4 py-16 text-[0.875rem] text-dash-muted">
+          {data?.failed ? (
+            "This candidate's map could not be loaded. Check the connection and reload the page."
+          ) : (
+            <>
+              <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+              Loading {subjectOf(id).name}&rsquo;s ground…
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* Each candidate's party today, from the room's own list — the same parties
+   the Command switch and the cards use. The map's figures stay the 2023
+   ticket's, and the tile says so where the two differ. */
+const NOW = Object.fromEntries(ROOM_CHOICES.map((choice) => [choice.candidate, choice.party]));
+const partyNow = (subject) => NOW[subject.name] ?? subject.runs[2023].party;
+
+/* On the room's list but not mappable: the 2023 results count SDP among the
+   other fourteen candidates, so there is no SDP vote to draw. Shown, so the
+   switch carries everybody the room runs for, and said plainly. */
+const UNMAPPED = ROOM_CHOICES.filter((choice) => !SUBJECTS.some((subject) => subject.name === choice.candidate));
+
+/** Whose ground the map reads: a photograph, a name, their party's mark. */
+function WhosePicker({ value, onChange }) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Whose strongholds"
+      className={cn(
+        "grid gap-1.5 rounded-dash border border-dash-line bg-dash-card p-1.5 sm:grid-cols-2",
+        SUBJECTS.length + UNMAPPED.length > 3 ? "xl:grid-cols-4" : "xl:grid-cols-3"
+      )}
+    >
+      {SUBJECTS.map((subject) => {
+        const on = subject.id === value;
+        const party = partyNow(subject);
+        const ran = subject.runs[2023].party;
+        const colour = PARTY_FILL[party] ?? "var(--color-party-other)";
+        return (
+          <button
+            key={subject.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            onClick={() => onChange(subject.id)}
+            className={cn(
+              "flex min-w-0 items-center gap-3 rounded-dash-sm px-3 py-2 text-left transition-colors",
+              "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+              on ? "bg-dash-ink text-white" : "text-dash-ink hover:bg-dash-bg"
+            )}
+          >
+            <PersonPhoto name={subject.name} ring={colour} size={40} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-[0.875rem] font-extrabold">{subject.name}</span>
+              <span className={cn("flex items-center gap-1.5 truncate text-[0.6875rem]", on ? "text-white/70" : "text-dash-muted")}>
+                <PartyMark id={party} size={16} />
+                <span className={cn("figure font-bold", on ? "text-white" : "text-dash-ink")}>{party}</span>
+                {ran !== party ? `· ran as ${ran} in 2023` : on ? "· showing their ground" : "· show their ground"}
+              </span>
+            </span>
+          </button>
+        );
+      })}
+      {UNMAPPED.map((choice) => (
+        <div
+          key={choice.id}
+          className="flex min-w-0 items-center gap-3 rounded-dash-sm px-3 py-2 text-dash-ink"
+          title="The 2023 declared results count SDP among the other candidates, so there is no SDP vote to map yet."
+        >
+          <PersonPhoto name={choice.candidate} ring={PARTY_FILL[choice.party] ?? "var(--color-party-other)"} size={40} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[0.875rem] font-extrabold">{choice.candidate}</span>
+            <span className="flex items-center gap-1.5 truncate text-[0.6875rem] text-dash-muted">
+              <PartyMark id={choice.party} size={16} />
+              <span className="figure font-bold text-dash-ink">{choice.party}</span>· no 2023 map
+            </span>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StrongholdMap({ data, shapes, race = "PRESIDENTIAL", territory = null, ground = null }) {
+  const { subject, states: STATES, byCode: STATE_BY_CODE } = data;
+  /* Polling units won are drawn in the candidate's own party colour. */
+  const fills = useMemo(() => ({ ...FILL, won: wonFillOf(subject) }), [subject]);
   /* ── THE GROUND THIS ROOM HOLDS, AND THE SEATS IT IS FOUGHT OVER ─────────
      A room narrowed to a state, a district or a local government opens inside
      it and cannot walk out past it: every figure outside it is real and none
      of it is this campaign's. A Senate or House room gets its seats as a level
      of their own, between the state and its local governments. */
-  const fixed = useMemo(() => groundIn(STATES, territory), [territory]);
+  const fixed = useMemo(() => groundIn(STATES, territory), [STATES, territory]);
   const seatInfo = seatLevelOf(fixed?.seat?.race ?? race);
   const seatRace = seatInfo?.race ?? null;
   const levels = useMemo(() => levelsFor(seatInfo), [seatInfo]);
@@ -310,7 +517,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
 
   const zoneStates = useMemo(
     () => statesOfZone(zone).map((code) => STATE_BY_CODE.get(code)).filter(Boolean),
-    [zone]
+    [zone, STATE_BY_CODE]
   );
 
   const state = path.state ? STATE_BY_CODE.get(path.state) ?? null : null;
@@ -461,9 +668,9 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
         return { fill: SILENT, opacity: 0.45 };
       }
       const value = share(row);
-      return value > 0 ? { fill: FILL[lens], opacity: ramp(value / most) } : { fill: SILENT, opacity: 1 };
+      return value > 0 ? { fill: fills[lens], opacity: ramp(value / most) } : { fill: SILENT, opacity: 1 };
     };
-  }, [scored, lens, tiers, year]);
+  }, [scored, lens, tiers, year, fills]);
 
   /* ── THE GROUND THE RAIL COUNTS ───────────────────────────────────────── */
   const scope = useMemo(() => {
@@ -576,7 +783,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
     const metric = metricFor({ lens, tiers, year });
     download(
       stamped(
-        `strongholds-${race.toLowerCase()}-${(fixed?.name ?? zone).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${level}`
+        `strongholds-${subject.id}-${race.toLowerCase()}-${(fixed?.name ?? zone).toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${level}`
       ),
       toCsv(listRows.map((row, index) => ({ ...row, rank: index + 1 })), [
         ["Rank", (row) => row.rank],
@@ -587,7 +794,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
         ["Registered voters", (row) => row.place.registered],
         ["Polling units", (row) => row.place.booths],
         ["Strength", (row) => (row.place.tier ? TIER_OF[row.place.tier].label : "")],
-        [`PDP share ${year}`, (row) => row.place.share[year] ?? ""],
+        [`${subject.short} share ${year}`, (row) => row.place.share[year] ?? ""],
         [`Turnout 2023`, (row) => (row.place.turnout === null ? "" : Math.round(row.place.turnout * 10) / 10)],
         [metric.label, (row) => metric.csv(row)],
       ])
@@ -607,12 +814,13 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
             >
               {YEARS.map((option) => (
                 <option key={option} value={option}>
-                  {option} presidential · Atiku (PDP)
+                  {option} presidential · {subject.runs[option].label}
                 </option>
               ))}
             </select>
             <p className="mt-1.5 text-[0.6875rem] leading-snug text-dash-muted">
               Changes the wins and vote shares. Strength always reads both 2019 and 2023.
+              {subject.runs[year].note ? ` ${subject.short} was not on the ${year} ballot, so this reads ${subject.runs[year].note}.` : ""}
             </p>
             {reading && (
               <p className="mt-2 rounded-dash-sm border border-flag-300 bg-flag-50 px-2.5 py-2 text-[0.6875rem] leading-snug text-flag-900">
@@ -659,7 +867,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
 
           <RailCard step="3" title="Strength" active={lens === "strength"}>
             <div className="flex flex-col gap-1.5">
-              {TIERS.map((tier) => {
+              {data.tiers.map((tier) => {
                 const on = lens === "strength" && tiers.includes(tier.id);
                 const places = new Set(
                   scored.filter((row) => row.place.tier === tier.id).map((row) => row.group ?? row.key)
@@ -707,7 +915,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
             active={lens === "top"}
             onClick={() => setLens("top")}
             figure={scope.place ? formatNumber(scope.place.top) : "…"}
-            line={`of the ${formatNumber(TOP_UNITS)} biggest polling units are in ${scope.name}. Each has ${formatNumber(STRONGHOLDS.threshold)}+ registered voters.`}
+            line={`of the ${formatNumber(TOP_UNITS)} biggest polling units are in ${scope.name}. Each has ${formatNumber(data.threshold)}+ registered voters.`}
           />
 
           <LensButton
@@ -716,7 +924,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
             active={lens === "won"}
             onClick={() => setLens("won")}
             figure={scope.place ? `~${formatNumber(scope.place.wonBooths[year])}` : "…"}
-            line={`polling units carried by Atiku in ${year} in ${scope.name}.`}
+            line={`polling units carried by ${subject.runs[year].note ? `${subject.short}'s ticket` : subject.short} in ${year} in ${scope.name}.`}
           />
 
           <LensButton
@@ -838,7 +1046,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
                 outline={lga && outline && !outline.failed && outline.get(lga.shape) ? [outline.get(lga.shape)] : []}
                 parentLabel={lga?.name}
                 childWord={depth === 2 ? "ward" : "polling unit"}
-                tint={FILL[lens]}
+                tint={fills[lens]}
                 hovered={hovered}
                 picked={path.pick}
                 onHover={setHovered}
@@ -898,7 +1106,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
         <header className="flex flex-wrap items-center gap-3 border-b border-dash-line px-4 py-3">
           <div className="min-w-0">
             <h2 className="font-display text-[0.9375rem] font-extrabold tracking-[-0.01em] text-dash-ink">
-              {listTitle({ lens, tiers, year, level, scope, levels })}
+              {listTitle({ lens, tiers, year, level, scope, levels, who: carrierOf(subject, year) })}
             </h2>
             <p className="text-[0.75rem] text-dash-muted">
               {listScope.pending
@@ -959,7 +1167,7 @@ export default function Strongholds({ shapes, race = "PRESIDENTIAL", territory =
                     <th className="py-2 text-right font-semibold">Registered</th>
                     <th className="py-2 text-right font-semibold">Polling units</th>
                     <th className="py-2 pl-4 font-semibold">Strength</th>
-                    <th className="py-2 text-right font-semibold">PDP {year}</th>
+                    <th className="py-2 text-right font-semibold">{subject.short} {year}</th>
                     <th className="py-2 pr-4 pl-4 text-right font-semibold">{metricFor({ lens, tiers, year }).label}</th>
                   </tr>
                 </thead>
@@ -1170,7 +1378,7 @@ function leadText(lead) {
   return `${lead >= 0 ? "+" : "−"}${formatShare(Math.abs(lead))}`;
 }
 
-function listTitle({ lens, tiers, year, level, scope, levels = LEVELS }) {
+function listTitle({ lens, tiers, year, level, scope, levels = LEVELS, who = "Atiku" }) {
   const where = `in ${scope.name}`;
   const what = levels.find((entry) => entry.id === level).label;
   if (lens === "strength") {
@@ -1178,7 +1386,7 @@ function listTitle({ lens, tiers, year, level, scope, levels = LEVELS }) {
     return `${names}: ${what} ${where}`;
   }
   if (lens === "top") return `${what} holding the biggest 60,000 polling units, ${where}`;
-  if (lens === "won") return `${what} where Atiku won polling units in ${year}, ${where}`;
+  if (lens === "won") return `${what} where ${who} won polling units in ${year}, ${where}`;
   return `${what} to target, ${where}`;
 }
 
@@ -1477,6 +1685,8 @@ export function ShapeMap({ rows, paintOf, hovered, onHover, onOpen, describe = n
 }
 
 function Legend({ lens, tiers, unitLevel, year }) {
+  const { subject, tiers: worded } = useWhose();
+  const FILL = { ...FILL_BASE, won: wonFillOf(subject) };
   return (
     <div className="pointer-events-none absolute right-3 bottom-8 left-3 z-10 rounded-dash-sm bg-board/85 px-3 py-2 backdrop-blur-sm sm:right-auto sm:max-w-[15rem] xl:static xl:mt-auto xl:max-w-none xl:rounded-none xl:border-t xl:border-board-line xl:bg-transparent xl:px-0 xl:pt-4 xl:pb-0 xl:backdrop-blur-none">
       <p className="text-[0.625rem] font-bold tracking-[0.1em] text-white/55 uppercase">{LENSES[lens].label}</p>
@@ -1484,7 +1694,7 @@ function Legend({ lens, tiers, unitLevel, year }) {
         /* A wrapping row of names over the map; the full key, one level to a
            line with what it means, only where it has a column of its own. */
         <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 xl:mt-2 xl:block xl:space-y-1.5">
-          {TIERS.map((tier) => (
+          {worded.map((tier) => (
             <Swatch
               key={tier.id}
               fill={TIER_FILL[tier.id]}
@@ -1602,8 +1812,9 @@ function ScopeCard({ scope, count, word }) {
 }
 
 function HoverCard({ row, lens, year, factors, docked = false }) {
+  const { subject, tiers: worded } = useWhose();
   const place = row.place;
-  const tier = place.tier ? TIER_OF[place.tier] : null;
+  const tier = place.tier ? worded.find((entry) => entry.id === place.tier) : null;
 
   return (
     <div
@@ -1638,7 +1849,7 @@ function HoverCard({ row, lens, year, factors, docked = false }) {
           ? tier.why
           : place.won[2023] === null
             ? "No readable 2023 result sheet here."
-            : "Atiku did not carry it in 2019 or 2023."}
+            : `${subject.short} did not carry it in 2019 or 2023.`}
       </p>
 
       <dl className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-board-line pt-2.5">
@@ -1651,7 +1862,7 @@ function HoverCard({ row, lens, year, factors, docked = false }) {
         ) : (
           <Figure label="Polling units" value={formatNumber(place.booths)} />
         )}
-        <Figure label={`PDP ${year}`} value={place.share[year] === null ? "—" : formatShare(place.share[year])} />
+        <Figure label={`${subject.short} ${year}`} value={place.share[year] === null ? "—" : formatShare(place.share[year])} />
         <Figure label={`Margin ${year}`} value={leadText(place.lead[year])} />
         <Figure label="Turnout 2023" value={place.turnout === null ? "—" : formatShare(place.turnout)} />
         {place.booths > 1 ? (

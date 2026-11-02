@@ -2,6 +2,7 @@ import { Radio } from "lucide-react";
 
 import { Badge, Empty } from "@/components/dash/DashCard";
 import ActionForm, { Area, Choice, Field, Submit } from "./ActionForm";
+import CardPreview from "./CardPreview";
 import { age, clock } from "./Panels";
 import { deskMove, deskWrite, proposeCall } from "@/app/broadcast/actions";
 import { correctionOf, platformLabel, PLATFORMS, stateLabel } from "@/lib/broadcast";
@@ -22,8 +23,24 @@ function Row({ item, caps, userId, deliveries, now }) {
   const mine = item.createdBy === userId;
   const mayClear = !mine && (type === "Routine" ? caps.clear : caps.call);
   const sent = Object.values(deliveries ?? {});
+  /* The card itself beside the words: a clearer is clearing a picture that
+     goes out to every platform, and should see the picture. */
+  const card = item.kind === undefined || item.kind === "SOCIAL";
   return (
-    <li className="py-3">
+    <li className="flex gap-3 py-3">
+      {card && (
+        <a
+          href={`/api/graphic/post/${item.id}?shape=square`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={`Open the card for ${item.title}`}
+          className="block w-24 shrink-0 self-start overflow-hidden rounded-dash-sm border border-dash-line bg-dash-bg sm:w-32"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- drawn on request */}
+          <img src={`/api/graphic/post/${item.id}?shape=square`} alt="" loading="lazy" className="aspect-square w-full object-cover" />
+        </a>
+      )}
+      <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <Badge tone={type === "Routine" ? "neutral" : "alert"}>{type}</Badge>
         <span className="min-w-0 flex-1">
@@ -67,6 +84,7 @@ function Row({ item, caps, userId, deliveries, now }) {
         {item.state === "ON_AIR" && caps.hold && (
           <ActionForm action={deskMove} hidden={{ id: item.id, to: "OFF_AIR" }} confirm="Pull this post? The request is recorded for every platform."><Submit variant="dashOutline">Pull</Submit></ActionForm>
         )}
+      </div>
       </div>
     </li>
   );
@@ -135,6 +153,8 @@ export function WritePost({ at = "", placeLabel = "Nigeria" }) {
   return (
     <ActionForm action={deskWrite} hidden={{ at }} className="space-y-2" done="Sent for clearance. Somebody else has to clear it.">
       <p className="text-[0.8125rem] text-dash-muted">A result card for <b className="text-dash-ink">{placeLabel}</b>. Its figures come from the stored count as it stands when you press the button.</p>
+      {/* The same place the action will build the card for — see deskWrite. */}
+      <CardPreview scope={at ? `${["", "STATE", "LGA", "WARD", "UNIT"][at.split("/").length]}:${at}` : "NATION"} />
       <Field label="Title" name="title" required maxLength={120} />
       <Area label="What the post says" name="body" rows={3} />
       <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-[0.8125rem] font-semibold text-dash-ink">

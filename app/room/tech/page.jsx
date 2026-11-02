@@ -7,7 +7,7 @@ import Stage, { Side, StatRow } from "@/components/room/Stage";
 import ActionForm, { Area, Choice, Field, Submit } from "@/components/room/ActionForm";
 import { Handover, age, clock } from "@/components/room/Panels";
 import TechLive from "@/components/room/TechLive";
-import { snapshotOf } from "@/lib/room/tech-checks";
+import { ago, bytes, since, snapshotOf } from "@/lib/room/tech-checks";
 import { lightsFor, roomPage } from "@/lib/room/page";
 import { notes, staff, tech, trail } from "@/lib/room/store";
 import { checkEnvironment } from "@/lib/environment";
@@ -35,82 +35,108 @@ const STATUS = [["OPEN", "Open"], ["WORKING", "Being worked on"], ["WATCHING", "
  * And never a vote figure: no party totals, no sheet, no BVAS number. The
  * map is of flow, each state marked with how long ago it last sent anything.
  */
-const bytes = (value) => {
-  const n = Number(value) || 0;
-  if (n >= 1e9) return `${(n / 1e9).toFixed(2)} GB`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  if (n >= 1e3) return `${(n / 1e3).toFixed(0)} kB`;
-  return `${n} B`;
-};
-const since = (iso, now) => {
-  if (!iso) return "never";
-  const seconds = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
-  if (seconds < 90) return `${seconds}s`;
-  if (seconds < 5400) return `${Math.round(seconds / 60)}m`;
-  if (seconds < 172800) return `${Math.round(seconds / 3600)}h`;
-  return `${Math.round(seconds / 86400)}d`;
-};
 const first = (check) => (check?.ok ? (check.value?.[0] ?? {}) : {});
 
-function Check({ name, state, value, detail }) {
-  const tone = { ok: "bg-light-green", warn: "bg-light-yellow", bad: "bg-light-red", off: "bg-light-grey" }[state];
-  const word = { ok: "OK", warn: "WARN", bad: "FAIL", off: "OFF" }[state];
+/* What each table holds, in the words the room uses for it. A table this
+   list has not met is shown by its own name with the underscores taken out. */
+const HOLDS = {
+  results: "Results",
+  polling_units: "Polling units",
+  unit_lights: "Polling unit lights",
+  sheet_reads: "Result sheets read",
+  room_items: "Situation room items",
+  room_events: "Updates sent to screens",
+  dumpsite_outbox: "Deliveries to Data Bank",
+  broadcast_items: "Broadcast posts",
+  wa_messages: "WhatsApp messages",
+  incidents: "Reports from the field",
+  coordinators: "Coordinators",
+  audit: "Record of who did what",
+  sessions: "Sign-ins",
+  users: "Accounts",
+  ledger: "Old payments record, not in use",
+  schema_migrations: "Database updates",
+};
+const KEPT = { hits: "Reused", misses: "Worked out fresh", stale: "Out of date, worked out again", evictions: "Dropped to make room", size: "Kept ready now" };
+const screens = (n) => `${Number(n ?? 0)} screen${Number(n ?? 0) === 1 ? "" : "s"} open`;
+const holds = (name) => HOLDS[name] ?? asWords(name);
+
+const STATE = {
+  ok: { dot: "bg-light-green", pill: "bg-light-green-soft text-light-green", word: "Working" },
+  warn: { dot: "bg-light-yellow", pill: "bg-light-yellow-soft text-light-yellow-ink", word: "Half set" },
+  bad: { dot: "bg-light-red", pill: "bg-light-red-soft text-light-red", word: "Missing" },
+  off: { dot: "bg-light-grey", pill: "bg-dash-bg text-dash-muted", word: "Off" },
+};
+
+function Check({ name, state, detail, keys = [] }) {
+  const tone = STATE[state];
   return (
-    <li className="flex items-start gap-3 py-2 font-mono text-[0.75rem]">
-      <span className={cn("mt-1 size-2.5 shrink-0 rounded-full", tone)} aria-hidden="true" />
+    <li className="flex items-start gap-3 py-3">
+      <span className={cn("mt-1.5 size-2.5 shrink-0 rounded-full", tone.dot)} aria-hidden="true" />
       <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="font-bold text-dash-ink">{name}</span>
-          <span className={cn("shrink-0 font-bold tabular-nums", state === "bad" ? "text-light-red" : state === "warn" ? "text-light-yellow-ink" : "text-dash-ink")}>{word} {value}</span>
+        <span className="flex items-center justify-between gap-3">
+          <span className="text-[0.875rem] font-semibold text-dash-ink">{name}</span>
+          <span className={cn("inline-flex h-6 shrink-0 items-center rounded-full px-2.5 text-[0.6875rem] font-bold", tone.pill)}>{tone.word}</span>
         </span>
-        {detail && <span className="block truncate text-dash-muted">{detail}</span>}
+        {detail && <span className="mt-0.5 block text-[0.8125rem] text-dash-muted">{detail}</span>}
+        {keys.length > 0 && (
+          <span className="mt-1.5 flex flex-wrap gap-1">
+            {keys.map((key) => (
+              <span key={key.name} className={cn("rounded-full px-2 py-0.5 font-mono text-[0.6875rem]", key.set ? "bg-dash-bg text-dash-muted" : "bg-light-red-soft font-semibold text-light-red")}>
+                {key.name}{key.set ? "" : " not set"}
+              </span>
+            ))}
+          </span>
+        )}
       </span>
     </li>
   );
 }
 
-/** Results a minute for the last hour, one bar a minute. Empty minutes are drawn empty. */
-function Throughput({ rows, now }) {
-  const byMinute = new Map(rows.map((row) => [row.minute, Number(row.n)]));
-  const bars = [];
-  for (let back = 59; back >= 0; back -= 1) {
-    const key = new Date(now - back * 60_000).toISOString().slice(0, 16);
-    bars.push(byMinute.get(key) ?? 0);
-  }
-  const peak = Math.max(1, ...bars);
-  const total = bars.reduce((sum, n) => sum + n, 0);
+/** A thin bar for a share of a whole, so the eye finds the big rows first. */
+function Share({ value }) {
   return (
-    <div>
-      <svg viewBox="0 0 240 56" className="h-20 w-full" role="img" aria-label={`Results a minute over the last hour. ${total} in all, peak ${peak} in one minute.`} preserveAspectRatio="none">
-        {bars.map((n, index) => (
-          <rect key={index} x={index * 4} y={56 - (n / peak) * 52 - (n ? 2 : 0.6)} width="3" height={(n / peak) * 52 + (n ? 2 : 0.6)} fill={n ? "var(--color-dash-ink)" : "var(--color-dash-line)"} />
-        ))}
-      </svg>
-      <p className="mt-1 flex justify-between font-mono text-[0.6875rem] text-dash-muted">
-        <span>-60m</span>
-        <span>{total} results · peak {peak}/min · mean {(total / 60).toFixed(2)}/min</span>
-        <span>now</span>
-      </p>
-    </div>
+    <span className="flex items-center justify-end gap-2">
+      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-dash-bg" aria-hidden="true">
+        <span className="block h-full rounded-full bg-dash-ink" style={{ width: `${Math.min(100, Math.max(value ? 3 : 0, value))}%` }} />
+      </span>
+      <span className="w-12">{value < 0.05 ? "0%" : `${value.toFixed(1)}%`}</span>
+    </span>
   );
 }
 
-function Table({ head, rows }) {
+/** One table for the whole desk. `tall` lets a long one scroll under its own heading. */
+function Table({ head, rows, tall = false, empty = "Nothing to show yet." }) {
+  if (!rows.length) return <Empty>{empty}</Empty>;
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left font-mono text-[0.75rem] tabular-nums">
-        <thead className="text-dash-muted">
-          <tr className="border-b border-dash-line">{head.map((cell, index) => <th key={cell} scope="col" className={cn("px-2 py-1.5 font-semibold", index > 0 && "text-right")}>{cell}</th>)}</tr>
+    <div className={cn("-mx-2 overflow-x-auto", tall && "max-h-[32rem] overflow-y-auto")}>
+      <table className="w-full text-left text-[0.8125rem] tabular-nums">
+        <thead>
+          <tr>
+            {head.map((cell, index) => (
+              <th key={cell} scope="col" className={cn("sticky top-0 border-b border-dash-line bg-dash-card px-2 py-2 text-[0.75rem] font-semibold whitespace-nowrap text-dash-muted", index > 0 && "text-right")}>{cell}</th>
+            ))}
+          </tr>
         </thead>
         <tbody>
           {rows.map((row, index) => (
-            <tr key={index} className="border-b border-dash-line last:border-0">
-              {row.map((cell, column) => <td key={column} className={cn("px-2 py-1.5", column > 0 ? "text-right text-dash-ink" : "font-semibold text-dash-ink")}>{cell}</td>)}
+            <tr key={index} className="border-b border-dash-line last:border-0 hover:bg-dash-bg">
+              {row.map((cell, column) => <td key={column} className={cn("px-2 py-2.5", column > 0 ? "text-right whitespace-nowrap text-dash-ink" : "font-semibold text-dash-ink")}>{cell}</td>)}
             </tr>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+/** A state and the light it is showing, for the lists that name states. */
+function Place({ row, now }) {
+  return (
+    <span className="flex items-center gap-2">
+      <span className={cn("size-2 shrink-0 rounded-full", row.recent ? "bg-light-green room-pulse" : !row.lastHeard ? "bg-light-grey" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "bg-light-yellow" : "bg-light-red")} aria-hidden="true" />
+      {row.name}
+    </span>
   );
 }
 
@@ -160,21 +186,6 @@ export default async function TechPage({ searchParams }) {
   const dbState = !t.ping.ok ? "bad" : t.ping.ms > 1500 ? "bad" : t.ping.ms > 400 ? "warn" : "ok";
   const hitRate = cache && cache.hits + cache.misses ? (cache.hits / (cache.hits + cache.misses)) * 100 : null;
 
-  const checks = [
-    { name: "postgres.round_trip", state: dbState, value: `${t.ping.ms}ms`, detail: t.ping.ok ? `${db.name ?? "database"} · ${db.connections ?? "?"}/${db.max_connections ?? "?"} connections` : t.ping.error },
-    { name: "postgres.size", state: t.size.ok ? "ok" : "bad", value: t.size.ok ? bytes(db.bytes) : "", detail: t.size.ok ? String(db.version ?? "").split(" on ")[0] : t.size.error },
-    { name: "postgres.second", state: system.secondDatabase?.configured === false || !system.secondDatabase ? "off" : system.secondDatabase.reachable === false ? "bad" : "ok", value: system.secondDatabase?.latency != null ? `${system.secondDatabase.latency}ms` : "", detail: system.secondDatabase?.configured === false || !system.secondDatabase ? "not configured; photographs stay in the main database" : (system.secondDatabase.complaint ?? "holds photograph bytes") },
-    { name: "schema.migrations", state: t.migrations.ok ? "ok" : "bad", value: `${schema.n ?? 0}`, detail: `last applied ${since(schema.last, now)} ago · auto-migrate ${process.env.NODE_ENV !== "production" || process.env.POLL360_AUTO_MIGRATE === "1" ? "on" : "off"}` },
-    { name: "room.events", state: t.events.ok ? "ok" : "bad", value: `seq ${feed.seq ?? 0}`, detail: `${feed.last_minute ?? 0} in the last minute · last ${since(feed.last, now)} ago · ${feed.held ?? 0} held` },
-    { name: "room.sweep", state: sweptAgo == null ? "warn" : sweptAgo > 300 ? "warn" : "ok", value: sweptAgo == null ? "never" : `${sweptAgo}s ago`, detail: "deadlines, unowned red items, results with no light yet. Runs while a room screen is open" },
-    { name: "room.lights", state: unlit > 0 ? "warn" : "ok", value: `${book.lit ?? 0}/${book.results ?? 0}`, detail: unlit ? `${unlit} results have no light yet; the sweep lights 40 a minute` : "every result has a light" },
-    { name: "databank.outbox", state: !t.outbox.ok ? "off" : Number(outbox.waiting) > 500 ? "bad" : Number(outbox.waiting) > 0 ? "warn" : "ok", value: t.outbox.ok ? `${outbox.waiting} waiting` : "", detail: t.outbox.ok ? (Number(outbox.waiting) ? `oldest ${since(outbox.oldest, now)} · kept, and sent again safely` : "nothing waiting to be delivered") : "no outbox table" },
-    { name: "whatsapp.webhook", state: !hooks.checked ? "off" : hooks.queued > 20 ? "warn" : "ok", value: hooks.checked ? `${hooks.inboundDay} in/24h` : "", detail: hooks.checked ? `${hooks.queued} queued out · last in ${since(hooks.lastIn, now)} ago` : "not measured" },
-    { name: "auth.refusals", state: Number(refusals.refused_hour) > 50 ? "bad" : Number(refusals.refused_hour) > 10 ? "warn" : "ok", value: `${refusals.refused_hour ?? 0}/h`, detail: `${refusals.refused_day ?? 0} doors refused in 24h · ${refusals.lines_hour ?? 0} audit lines this hour` },
-  ];
-  const bad = checks.filter((check) => check.state === "bad").length;
-  const warn = checks.filter((check) => check.state === "warn").length;
-
   const snapshot = snapshotOf(t, {
     second: system.secondDatabase ?? null,
     hooks,
@@ -183,48 +194,43 @@ export default async function TechPage({ searchParams }) {
     runtime: { rss: memory.rss, heapUsed: memory.heapUsed, heapTotal: memory.heapTotal, uptime: Math.round(process.uptime()), node: process.version, region: process.env.VERCEL_REGION ?? "local", build: String(process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7) },
   });
   const tables = t.tables.value ?? [];
+  const { checks, failing: bad, warning: warn } = snapshot;
   const stats = {
-    ops: [
-            { label: "Database round trip", value: `${t.ping.ms} ms`, note: t.ping.ok ? `${db.connections ?? "?"} of ${db.max_connections ?? "?"} connections · ${bytes(db.bytes)}` : "the database did not answer", tone: dbState === "ok" ? "green" : dbState === "warn" ? "yellow" : "red", icon: Database },
-            { label: "Results a minute", value: lastMinute.toFixed(1), note: `${formatNumber(Number(book.results ?? 0))} held for this contest · mean of the last 10 min`, icon: Activity },
-            { label: "Event feed", value: `#${formatNumber(Number(feed.seq ?? 0))}`, note: `${feed.last_minute ?? 0} events in the last minute · ${seen.online ?? 0} screens online`, icon: Radio },
-            { label: "Checks failing", value: String(bad + failed.length), note: `${warn} warning · ${open.length} incident${open.length === 1 ? "" : "s"} open · system light ${light.toLowerCase()}`, tone: bad + failed.length ? "red" : warn ? "yellow" : "green", icon: ServerCog },
-          ],
     data: [
-      { label: "Database size", value: bytes(db.bytes), note: `${db.name ?? "database"} · ${String(db.version ?? "").split(" on ")[0]}`, icon: Database },
-      { label: "Largest table", value: tables[0]?.name ?? "none", note: tables[0] ? `${bytes(tables[0].bytes)} · ${formatNumber(Math.max(0, Number(tables[0].rows)))} rows` : "" },
-      { label: "Connections", value: `${db.connections ?? "?"}`, note: `of ${db.max_connections ?? "?"} allowed` },
-      { label: "Schema statements applied", value: String(schema.n ?? 0), note: `last ${since(schema.last, now)} ago` },
+      { label: "Database size", value: bytes(db.bytes), note: String(db.version ?? "").split(" on ")[0].replace(/ \(.*$/, ""), icon: Database },
+      { label: "Taking the most room", value: tables[0] ? holds(tables[0].name) : "Nothing yet", note: tables[0] ? `${bytes(tables[0].bytes)} · about ${formatNumber(Math.max(0, Number(tables[0].rows)))} rows` : "", small: true },
+      { label: "Connections in use", value: `${db.connections ?? "?"}`, note: `of ${formatNumber(Number(db.max_connections ?? 0))} allowed` },
+      { label: "Database updates applied", value: String(schema.n ?? 0), note: `Last one ${ago(schema.last, now)}` },
     ],
     pipeline: [
       { label: "Results held", value: formatNumber(Number(book.results ?? 0)), note: `${formatNumber(Number(book.lit ?? 0))} have a light`, icon: Activity },
       { label: "Open items", value: formatNumber(Number(book.open_items ?? 0)), note: `${formatNumber(Number(book.open_red ?? 0))} red`, tone: Number(book.open_red) ? "red" : "ink" },
-      { label: "Waiting for Data Bank", value: t.outbox.ok ? formatNumber(Number(outbox.waiting)) : "n/a", note: Number(outbox.waiting) ? `oldest ${since(outbox.oldest, now)}` : "nothing waiting", tone: Number(outbox.waiting) ? "yellow" : "green" },
-      { label: "Results with no light yet", value: formatNumber(unlit), note: unlit ? "the sweep lights 40 a minute" : "all lit", tone: unlit ? "yellow" : "green" },
+      { label: "Waiting for Data Bank", value: t.outbox.ok ? formatNumber(Number(outbox.waiting)) : "—", note: Number(outbox.waiting) ? `Oldest sent ${ago(outbox.oldest, now)}` : "Nothing waiting", tone: Number(outbox.waiting) ? "yellow" : "green" },
+      { label: "Results with no light yet", value: formatNumber(unlit), note: unlit ? "About 40 are lit every minute" : "All lit", tone: unlit ? "yellow" : "green" },
     ],
     runtime: [
-      { label: "Memory in use", value: bytes(memory.rss), note: `heap ${bytes(memory.heapUsed)} of ${bytes(memory.heapTotal)}`, icon: ServerCog },
-      { label: "Server uptime", value: since(new Date(now - process.uptime() * 1000).toISOString(), now), note: `node ${process.version} · ${process.env.VERCEL_REGION ?? "local"}` },
-      { label: "Cache hit rate", value: hitRate == null ? "n/a" : `${hitRate.toFixed(1)}%`, note: cache ? `${formatNumber(cache.hits)} hits · ${formatNumber(cache.misses)} misses` : "" },
-      { label: "Sessions", value: formatNumber(Number(seen.staff ?? 0) + Number(seen.agents ?? 0)), note: `${seen.staff ?? 0} staff · ${seen.agents ?? 0} agents · ${seen.online ?? 0} screens online` },
+      { label: "Memory in use", value: bytes(memory.rss), note: `${bytes(memory.heapUsed)} of it is working memory`, icon: ServerCog },
+      { label: "Server uptime", value: ago(new Date(now - process.uptime() * 1000).toISOString(), now).replace(" ago", ""), note: process.env.VERCEL_REGION ? `Running in ${process.env.VERCEL_REGION}` : "Running on this machine", small: true },
+      { label: "Answers reused", value: hitRate == null ? "None yet" : `${hitRate.toFixed(1)}%`, note: cache ? `${formatNumber(cache.hits)} reused · ${formatNumber(cache.misses)} worked out fresh` : "", small: hitRate == null },
+      { label: "People signed in", value: formatNumber(Number(seen.staff ?? 0) + Number(seen.agents ?? 0)), note: `${seen.staff ?? 0} staff · ${seen.agents ?? 0} agents · ${screens(seen.online)}` },
     ],
     wiring: [
-      { label: "Integrations on", value: String(wired.filter((entry) => entry.state === "on").length), note: `of ${wired.length}`, tone: "green" },
-      { label: "Half set", value: String(wired.filter((entry) => entry.state === "partial").length), note: "cannot deliver anything", tone: wired.some((entry) => entry.state === "partial") ? "yellow" : "green" },
-      { label: "Essential and off", value: String(wired.filter((entry) => entry.state === "off" && entry.essential).length), note: "the product cannot run without these", tone: wired.some((entry) => entry.state === "off" && entry.essential) ? "red" : "green" },
-      { label: "Configuration findings", value: String(findings.length), note: findings.length ? "each with its fix" : "nothing misconfigured", tone: findings.length ? "yellow" : "green" },
+      { label: "Connections working", value: String(wired.filter((entry) => entry.state === "on").length), note: `of ${wired.length}`, tone: "green" },
+      { label: "Half set", value: String(wired.filter((entry) => entry.state === "partial").length), note: "Cannot deliver anything", tone: wired.some((entry) => entry.state === "partial") ? "yellow" : "green" },
+      { label: "Needed and missing", value: String(wired.filter((entry) => entry.state === "off" && entry.essential).length), note: "Poll360 cannot run without these", tone: wired.some((entry) => entry.state === "off" && entry.essential) ? "red" : "green" },
+      { label: "Settings to put right", value: String(findings.length), note: findings.length ? "Each with its fix" : "Nothing to put right", tone: findings.length ? "yellow" : "green" },
     ],
     incidents: [
-      { label: "Open incidents", value: String(open.length), note: open.length ? "being worked" : "none open", tone: open.length ? "yellow" : "green" },
-      { label: "Critical", value: String(open.filter((row) => row.severity === "CRITICAL").length), note: "turns every system light red", tone: open.some((row) => row.severity === "CRITICAL") ? "red" : "green" },
-      { label: "Raised in all", value: String(incidents.length), note: "open and closed" },
-      { label: "System light", value: light === "GREEN" ? "Normal" : light === "AMBER" ? "Incident" : "Critical", note: "what every top bar shows", tone: light === "GREEN" ? "green" : light === "AMBER" ? "yellow" : "red" },
+      { label: "Open incidents", value: String(open.length), note: open.length ? "Being worked on" : "None open", tone: open.length ? "yellow" : "green" },
+      { label: "Critical", value: String(open.filter((row) => row.severity === "CRITICAL").length), note: "Turns every system light red", tone: open.some((row) => row.severity === "CRITICAL") ? "red" : "green" },
+      { label: "Raised in all", value: String(incidents.length), note: "Open and closed" },
+      { label: "System light", value: light === "GREEN" ? "Normal" : light === "AMBER" ? "Incident" : "Critical", note: "What every top bar shows", tone: light === "GREEN" ? "green" : light === "AMBER" ? "yellow" : "red" },
     ],
     security: [
       { label: "Doors refused, last hour", value: String(refusals.refused_hour ?? 0), note: `${refusals.refused_day ?? 0} in 24 hours`, tone: Number(refusals.refused_hour) > 10 ? "red" : "green" },
-      { label: "Staff sessions", value: formatNumber(Number(seen.staff ?? 0)), note: `${seen.online ?? 0} screens online now` },
-      { label: "Agent sessions", value: formatNumber(Number(seen.agents ?? 0)), note: "on the agents' app" },
-      { label: "Blocked addresses", value: security ? String(blocked.length) : "n/a", note: security ? "staff dashboards only" : "technical security only" },
+      { label: "Staff sessions", value: formatNumber(Number(seen.staff ?? 0)), note: `${screens(seen.online)} now` },
+      { label: "Agent sessions", value: formatNumber(Number(seen.agents ?? 0)), note: "On the agents' app" },
+      { label: "Blocked addresses", value: security ? String(blocked.length) : "—", note: security ? "Staff dashboards only" : "Shown to technical security" },
     ],
   };
 
@@ -234,7 +240,7 @@ export default async function TechPage({ searchParams }) {
       title="Technical operations"
       openCount={open.length + bad}
       current={view}
-      summary={`${checks.length} checks: ${bad} failing, ${warn} warning · database ${t.ping.ms}ms · build ${String(process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7)} · measured ${clock(t.at)}`}
+      summary={`${checks.length} checks: ${bad ? `${bad} failing` : "none failing"}${warn ? `, ${warn} need${warn === 1 ? "s" : ""} a look` : ""} · database answering in ${formatNumber(t.ping.ms)} ms · measured at ${clock(t.at)}`}
       tabs={VIEWS.map(([id, name]) => ({ id, name, count: id === "incidents" ? open.length : null, href: id === "ops" ? BASE : `${BASE}?tab=${id}` }))}
     >
       <div className="space-y-3">
@@ -242,16 +248,13 @@ export default async function TechPage({ searchParams }) {
 
         {view === "ops" && (
           <>
-        <Stage map={<BigMap rows={mapRows} base={BASE} query={query} title="Flow by state: time since each state last sent a result" hint="No vote figure is on this screen" still only plain paint={(row) => (row.recent ? "GREEN" : !row.lastHeard ? "GREY" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "YELLOW" : "RED")} legend={{ GREEN: "Sending now (last 10 min)", YELLOW: "Quiet under an hour", RED: "Silent over an hour", GREY: "Never heard from" }} measure={(row) => (row.lastHeard ? `${since(row.lastHeard, now)}${row.recent ? ` · ${row.recent}/10m` : ""}` : "silent")} />}>
-          <Side label="Flow, by state" headline={`${mapRows.filter((row) => row.recent).length} sending now`} note="States that sent a result in the last ten minutes are at the top.">
-            <ul className="max-h-[30rem] divide-y divide-dash-line overflow-auto font-mono text-[0.75rem]">
+        <Stage map={<BigMap rows={mapRows} base={BASE} query={query} title="When each state last sent a result" hint="No vote figure is on this screen" still only plain paint={(row) => (row.recent ? "GREEN" : !row.lastHeard ? "GREY" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "YELLOW" : "RED")} legend={{ GREEN: "Sending now (last 10 min)", YELLOW: "Quiet under an hour", RED: "Silent over an hour", GREY: "Never heard from" }} measure={(row) => (row.lastHeard ? `${since(row.lastHeard, now)}${row.recent ? ` · ${row.recent}/10m` : ""}` : "silent")} />}>
+          <Side label="Results coming in, by state" headline={`${mapRows.filter((row) => row.recent).length} of ${mapRows.length} sending now`} note="Most recently heard from first. Green has sent a result in the last ten minutes.">
+            <ul className="max-h-[30rem] divide-y divide-dash-line overflow-auto text-[0.8125rem]">
               {[...mapRows].sort((a, b) => new Date(b.lastHeard ?? 0) - new Date(a.lastHeard ?? 0)).map((row) => (
-                <li key={row.code} className="flex items-center justify-between gap-2 py-1.5">
-                  <span className="flex items-center gap-2 font-semibold text-dash-ink">
-                    <span className={cn("size-2 rounded-full", row.recent ? "bg-light-green room-pulse" : !row.lastHeard ? "bg-light-grey" : now - new Date(row.lastHeard).getTime() < 3_600_000 ? "bg-light-yellow" : "bg-light-red")} aria-hidden="true" />
-                    {row.name}
-                  </span>
-                  <span className="tabular-nums text-dash-muted">{row.lastHeard ? `${since(row.lastHeard, now)} ago` : "never"}{row.recent ? ` · ${row.recent}/10m` : ""}</span>
+                <li key={row.code} className="flex items-center justify-between gap-3 py-2">
+                  <span className="min-w-0 truncate font-semibold text-dash-ink"><Place row={row} now={now} /></span>
+                  <span className="shrink-0 tabular-nums text-dash-muted">{row.recent ? `${row.recent} in ten minutes` : row.lastHeard ? ago(row.lastHeard, now) : "Never"}</span>
                 </li>
               ))}
             </ul>
@@ -259,8 +262,8 @@ export default async function TechPage({ searchParams }) {
         </Stage>
 
         {failed.length > 0 && (
-          <Card title="Measurements that failed" subtitle="In the database's own words.">
-            <ul className="space-y-1 font-mono text-[0.75rem] text-light-red">{failed.map((check) => <li key={check.label}>{check.label}: {check.error}</li>)}</ul>
+          <Card title="Measurements that could not be taken" subtitle="In the database's own words, for whoever is putting it right.">
+            <ul className="space-y-1 text-[0.8125rem] text-light-red">{failed.map((check) => <li key={check.label}>{check.label}: {check.error}</li>)}</ul>
           </Card>
         )}
 
@@ -269,17 +272,20 @@ export default async function TechPage({ searchParams }) {
 
         {view === "data" && (
           <>
-        <div id="data" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
-          <Card title="Tables" subtitle={`${db.name ?? "database"} · ${bytes(db.bytes)} in all. Largest first. Row counts are the planner's estimate.`}>
-            <Table head={["table", "rows", "size", "share"]} rows={(t.tables.value ?? []).map((row) => [row.name, formatNumber(Math.max(0, Number(row.rows))), bytes(row.bytes), `${((Number(row.bytes) / Math.max(1, Number(db.bytes))) * 100).toFixed(1)}%`])} />
+        <div id="data" className="grid scroll-mt-24 items-start gap-3 xl:grid-cols-2">
+          <Card title="What the database holds" subtitle={`${bytes(db.bytes)} in all, biggest first. Row counts are close estimates, not exact.`}>
+            <Table
+              tall
+              head={["What it holds", "Rows", "Size", "Share of the database"]}
+              rows={tables.map((row) => [holds(row.name), formatNumber(Math.max(0, Number(row.rows))), bytes(row.bytes), <Share key="share" value={(Number(row.bytes) / Math.max(1, Number(db.bytes))) * 100} />])}
+            />
           </Card>
-          <Card title="Last heard, by state" subtitle="When each state last sent a result, and how many in the last ten minutes. Most stale first.">
-            <div className="max-h-96 overflow-auto">
-              <Table
-                head={["state", "results", "last 10m", "last heard", "units lit"]}
-                rows={[...mapRows].sort((a, b) => new Date(a.lastHeard ?? 0) - new Date(b.lastHeard ?? 0)).map((row) => [row.name, formatNumber(Number(heard.get(row.code)?.n ?? 0)), String(row.recent), row.lastHeard ? `${since(row.lastHeard, now)} ago` : "never", `${formatNumber(row.reported)}/${formatNumber(row.total)}`])}
-              />
-            </div>
+          <Card title="Last heard from, by state" subtitle="When each state last sent a result. The longest silent are first.">
+            <Table
+              tall
+              head={["State", "Results held", "In the last ten minutes", "Last heard", "Polling units in"]}
+              rows={[...mapRows].sort((a, b) => new Date(a.lastHeard ?? 0) - new Date(b.lastHeard ?? 0)).map((row) => [<Place key="place" row={row} now={now} />, formatNumber(Number(heard.get(row.code)?.n ?? 0)), formatNumber(row.recent), row.lastHeard ? ago(row.lastHeard, now) : "Never", `${formatNumber(row.reported)} of ${formatNumber(row.total)}`])}
+            />
           </Card>
         </div>
 
@@ -288,24 +294,24 @@ export default async function TechPage({ searchParams }) {
 
         {view === "pipeline" && (
           <>
-        <div id="pipeline" className="grid scroll-mt-24 gap-3 xl:grid-cols-3">
-          <Card title="How results arrive" subtitle="By the door they came through.">
-            <Table head={["source", "results"]} rows={(t.sources.value ?? []).map((row) => [row.source, formatNumber(Number(row.n))])} />
+        <div id="pipeline" className="grid scroll-mt-24 items-start gap-3 xl:grid-cols-3">
+          <Card title="How results arrive" subtitle="By the way each one was sent in.">
+            <Table head={["Sent in by", "Results"]} rows={(t.sources.value ?? []).map((row) => [asWords(row.source), formatNumber(Number(row.n))])} empty="No result has arrived yet." />
           </Card>
-          <Card title="Where results stand" subtitle="By state in the checking pipeline.">
-            <Table head={["status", "results"]} rows={(t.statuses.value ?? []).map((row) => [row.status, formatNumber(Number(row.n))])} />
+          <Card title="Where results stand" subtitle="How far each one has got through checking.">
+            <Table head={["Stage", "Results"]} rows={(t.statuses.value ?? []).map((row) => [asWords(row.status), formatNumber(Number(row.n))])} empty="No result has arrived yet." />
           </Card>
-          <Card title="Queues" subtitle="What is waiting, and how deep.">
+          <Card title="What is waiting" subtitle="Each queue, and how much is in it.">
             <Table
-              head={["queue", "depth"]}
+              head={["Waiting", "How many"]}
               rows={[
-                ["room_items.open", formatNumber(Number(book.open_items ?? 0))],
-                ["room_items.open.red", formatNumber(Number(book.open_red ?? 0))],
-                ["room_items.closed.1h", formatNumber(Number(book.closed_hour ?? 0))],
-                ["results.without_light", formatNumber(unlit)],
-                ["databank.outbox", t.outbox.ok ? formatNumber(Number(outbox.waiting)) : "n/a"],
-                ["whatsapp.out.queued", hooks.checked ? formatNumber(hooks.queued) : "n/a"],
-                ["room_events.held", formatNumber(Number(feed.held ?? 0))],
+                ["Room items still open", formatNumber(Number(book.open_items ?? 0))],
+                ["Of those, red", formatNumber(Number(book.open_red ?? 0))],
+                ["Room items closed in the last hour", formatNumber(Number(book.closed_hour ?? 0))],
+                ["Results with no light yet", formatNumber(unlit)],
+                ["Deliveries to Data Bank", t.outbox.ok ? formatNumber(Number(outbox.waiting)) : "Not set up"],
+                ["WhatsApp replies to send", hooks.checked ? formatNumber(hooks.queued) : "Not measured"],
+                ["Screen updates kept", formatNumber(Number(feed.held ?? 0))],
               ]}
             />
           </Card>
@@ -316,32 +322,32 @@ export default async function TechPage({ searchParams }) {
 
         {view === "runtime" && (
           <>
-        <div id="runtime" className="grid scroll-mt-24 gap-3 xl:grid-cols-3">
+        <div id="runtime" className="grid scroll-mt-24 items-start gap-3 xl:grid-cols-3">
           <Card title="This server" subtitle="The machine that answered this request.">
             <Table
-              head={["key", "value"]}
+              head={["About it", "Reading"]}
               rows={[
-                ["node", process.version],
-                ["env", process.env.NODE_ENV ?? "development"],
-                ["region", process.env.VERCEL_REGION ?? "local"],
-                ["build", String(process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 12)],
-                ["uptime", `${since(new Date(now - process.uptime() * 1000).toISOString(), now)}`],
-                ["memory.rss", bytes(memory.rss)],
-                ["memory.heap", `${bytes(memory.heapUsed)} / ${bytes(memory.heapTotal)}`],
-                ["memory.external", bytes(memory.external)],
+                ["Started", ago(new Date(now - process.uptime() * 1000).toISOString(), now)],
+                ["Where it runs", process.env.VERCEL_REGION ?? "This machine"],
+                ["Mode", process.env.NODE_ENV === "production" ? "Live" : "Development"],
+                ["Release", process.env.VERCEL_GIT_COMMIT_SHA ? String(process.env.VERCEL_GIT_COMMIT_SHA).slice(0, 12) : "Not a release"],
+                ["Node version", process.version],
+                ["Memory in use", bytes(memory.rss)],
+                ["Working memory", `${bytes(memory.heapUsed)} of ${bytes(memory.heapTotal)}`],
+                ["Memory held outside it", bytes(memory.external)],
               ]}
             />
           </Card>
-          <Card title="Board cache" subtitle="Shared answers on this server. A low hit rate means every reader is paying for the same query.">
+          <Card title="Answers kept ready" subtitle="Figures worked out once and handed to everybody asking. A low share reused means each reader is making the database do the same work again.">
             {cache ? (
-              <Table head={["key", "value"]} rows={[["hit_rate", hitRate == null ? "n/a" : `${hitRate.toFixed(1)}%`], ...Object.entries(cache).filter(([, value]) => typeof value === "number").map(([key, value]) => [key, formatNumber(value)])]} />
+              <Table head={["Measure", "Reading"]} rows={[["Share reused", hitRate == null ? "None asked for yet" : `${hitRate.toFixed(1)}%`], ...Object.entries(cache).filter(([, value]) => typeof value === "number").map(([key, value]) => [KEPT[key] ?? asWords(key.replace(/([a-z])([A-Z])/g, "$1 $2")), formatNumber(value)])]} />
             ) : (
-              <Empty>The cache could not be read.</Empty>
+              <Empty>These could not be read.</Empty>
             )}
           </Card>
-          <Card title="Sessions" subtitle="Who is connected, by kind.">
-            <Table head={["kind", "count"]} rows={[["staff.sessions", formatNumber(Number(seen.staff ?? 0))], ["agent.sessions", formatNumber(Number(seen.agents ?? 0))], ["room.screens.online", formatNumber(Number(seen.online ?? 0))], ["blocked.addresses", security ? String(blocked.length) : "n/a"]]} />
-            <p className="mt-3 font-mono text-[0.6875rem] text-dash-muted">GET /api/room/telemetry returns all of this as JSON. GET /api/health is the public liveness probe.</p>
+          <Card title="Who is connected" subtitle="People signed in, and screens open right now.">
+            <Table head={["Who", "How many"]} rows={[["Staff signed in", formatNumber(Number(seen.staff ?? 0))], ["Agents signed in", formatNumber(Number(seen.agents ?? 0))], ["Room screens open now", formatNumber(Number(seen.online ?? 0))], ["Addresses blocked", security ? String(blocked.length) : "Shown to technical security"]]} />
+            <p className="mt-3 text-[0.75rem] leading-relaxed text-dash-muted">For a monitoring tool: every reading on this desk is at <span className="font-mono text-dash-ink">/api/room/telemetry</span>, and <span className="font-mono text-dash-ink">/api/health</span> answers whether Poll360 is up.</p>
           </Card>
         </div>
 
@@ -350,33 +356,33 @@ export default async function TechPage({ searchParams }) {
 
         {view === "wiring" && (
           <>
-        <div id="wiring" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
-          <Card title="Integrations" subtitle="What this deployment is wired to. A half-set integration cannot deliver anything, so it is shown as partial, not on.">
+        <div id="wiring" className="grid scroll-mt-24 items-start gap-3 xl:grid-cols-2">
+          <Card title="What Poll360 is connected to" subtitle="Each outside service and the settings it needs. One with only some of its settings cannot deliver anything, so it is shown as half set, not working.">
             <ul className="divide-y divide-dash-line">
               {wired.map((entry) => (
                 <Check
                   key={entry.id}
-                  name={entry.id}
+                  name={entry.name}
                   state={entry.state === "on" ? "ok" : entry.state === "partial" ? "warn" : entry.essential ? "bad" : "off"}
-                  value={entry.state}
-                  detail={`${entry.name} · ${entry.keys.map((key) => `${key.name}${key.set ? "" : " (unset)"}`).join(", ")}${entry.lastSeen ? ` · last seen ${since(entry.lastSeen, now)} ago` : ""}`}
+                  detail={entry.state === "off" ? (entry.essential ? "Poll360 cannot run without this." : "Not switched on.") : entry.lastSeen ? (entry.lastSeen.at ? `${asWords(entry.lastSeen.what)}, ${ago(entry.lastSeen.at, now)}` : "Switched on, not used yet.") : null}
+                  keys={entry.keys}
                 />
               ))}
             </ul>
           </Card>
-          <Card title="Configuration findings" subtitle="What is not ready for a real election, and the fix for each.">
+          <Card title="Settings to put right" subtitle="What is not ready for a real election, and the fix for each.">
             {findings.length ? (
               <ul className="divide-y divide-dash-line">
                 {findings.map((finding, index) => (
-                  <li key={index} className="py-2 text-[0.8125rem]">
+                  <li key={index} className="py-3 text-[0.8125rem] leading-relaxed">
                     <p className="flex items-center gap-2 font-bold text-dash-ink"><Badge tone={String(finding.severity).toUpperCase().includes("SERIOUS") ? "alert" : "warn"}>{asWords(String(finding.severity))}</Badge>{finding.name}</p>
                     <p className="mt-1 text-dash-muted">{finding.says}</p>
-                    <p className="mt-1 font-mono text-[0.6875rem] break-all text-dash-ink">{finding.fix}</p>
+                    <p className="mt-2 rounded-dash-sm bg-dash-bg px-3 py-2 text-[0.8125rem] break-words text-dash-ink"><span className="font-semibold">The fix: </span>{finding.fix}</p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <Empty>Nothing is misconfigured.</Empty>
+              <Empty>Every setting is ready.</Empty>
             )}
           </Card>
         </div>
@@ -405,7 +411,7 @@ export default async function TechPage({ searchParams }) {
                     <div className="mt-2 space-y-2 rounded-dash-sm bg-dash-bg p-3 text-[0.8125rem]">
                       {row.detail && <p className="whitespace-pre-wrap text-dash-ink">{row.detail}</p>}
                       {row.updates.map((update, index) => (
-                        <p key={index} className="font-mono text-[0.75rem] text-dash-muted">{clock(update.at)} · {update.by} · {asWords(update.status)}{update.note ? ` · ${update.note}` : ""}</p>
+                        <p key={index} className="text-[0.75rem] text-dash-muted tabular-nums">{clock(update.at)} · {update.by} · {asWords(update.status)}{update.note ? ` · ${update.note}` : ""}</p>
                       ))}
                       {row.status !== "CLOSED" && (
                         <ActionForm what="techUpdate" hidden={{ id: row.id }} className="grid gap-2 sm:grid-cols-[12rem_1fr_auto] sm:items-end">
@@ -432,8 +438,8 @@ export default async function TechPage({ searchParams }) {
         <div id="security" className="grid scroll-mt-24 gap-3 xl:grid-cols-2">
           <Card title="Security events" subtitle="Refused doors, ended sessions, blocked addresses. Newest first.">
             {lines.length ? (
-              <div className="max-h-96 overflow-auto">
-                <Table head={["time", "event", "actor", "subject", "address"]} rows={lines.map((line) => [clock(line.at), line.action, line.actor ?? "unknown", String(line.subject ?? "").slice(0, 28), line.ip ?? "none"])} />
+              <div>
+                <Table tall head={["Time", "What happened", "Who", "About", "Address"]} rows={lines.map((line) => [clock(line.at), asWords(String(line.action ?? "").replace(/[:.]/g, " ")), line.actor ?? "Unknown", String(line.subject ?? "").slice(0, 28) || "—", line.ip ?? "—"])} />
               </div>
             ) : (
               <Empty>No security event has been recorded.</Empty>
@@ -464,7 +470,7 @@ export default async function TechPage({ searchParams }) {
                   <li key={row.userId} className="flex flex-wrap items-center gap-x-3 py-2">
                     <span className="min-w-0 flex-1">
                       <span className="font-semibold text-dash-ink">{row.name}</span>
-                      <span className="font-mono text-[0.75rem] text-dash-muted"> · {row.role} · {sessions.filter((each) => each.userId === row.userId).length} open · since {clock(row.since)} · {row.short}</span>
+                      <span className="text-[0.75rem] text-dash-muted"> · {asWords(row.role)} · {sessions.filter((each) => each.userId === row.userId).length} open · since {clock(row.since)} · {row.short}</span>
                     </span>
                     {row.userId !== ctx.user.id && (
                       <ActionForm what="endSessions" hidden={{ user: row.userId }} confirm={`End every session ${row.name} has open? They will have to sign in again.`}><Submit variant="dashOutline">End sessions</Submit></ActionForm>

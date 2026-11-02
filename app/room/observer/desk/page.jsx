@@ -7,6 +7,7 @@ import Link from "next/link";
 
 import { Badge, Card, Empty } from "@/components/dash/DashCard";
 import RoomShell from "@/components/room/RoomShell";
+import StatePicker from "@/components/room/StatePicker";
 import UnitPanel from "@/components/room/UnitPanel";
 import ActionForm, { Area, Submit } from "@/components/room/ActionForm";
 import { Crumbs, Handover, IncidentList, ItemList, RaiseTech, Roster, age, clock, hrefWith } from "@/components/room/Panels";
@@ -95,7 +96,15 @@ export default async function ObserverPage({ searchParams }) {
         <Empty>No ground has been assigned to you yet. Your zone lead or the Super Admin does that, and this screen fills as soon as they have.</Empty>
       ) : (
         <div className="space-y-3">
-          {mine.length > 1 && (
+          {/* More than a handful of states is one button with a list, not two
+              rows of pills pushing the figures down the screen. */}
+          {mine.length > 4 && (
+            <div className="flex items-center gap-3">
+              <span className="text-[0.8125rem] text-dash-muted">Showing</span>
+              <StatePicker align="start" base={BASE} states={mine.map((number) => ({ code: number, name: STATES.find((each) => each.number === number)?.name ?? number, current: number === state }))} />
+            </div>
+          )}
+          {mine.length > 1 && mine.length <= 4 && (
             <nav aria-label="Your states" className="flex flex-wrap gap-1">
               {mine.map((number) => (
                 <Link key={number} href={hrefWith(BASE, {}, { at: number })} className={cn("rounded-dash-sm px-3 py-2 text-[0.875rem] font-semibold", number === state ? "bg-dash-ink text-white" : "bg-dash-bg text-dash-muted hover:text-dash-ink")}>
@@ -128,8 +137,8 @@ export default async function ObserverPage({ searchParams }) {
                 ))}
               </ul>
             </Side>
-            <Side label="Also on this state" headline={others.length ? `${others.filter((person) => person.online).length} of ${others.length} online` : "Only you"}>
-              <Roster people={others} describe={(person) => person.groundLabel} />
+            <Side label="Also on this state" headline={others.length ? `${others.filter((person) => person.online).length} of ${others.length} online` : "Nobody else yet"}>
+              <Roster people={others} describe={(person) => person.groundLabel} empty="You are the only observer on this state. Your zone lead can add another." />
             </Side>
           </Stage>
 

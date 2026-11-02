@@ -388,7 +388,7 @@ export default function RoomBroadcast({
           <TickerDesk suggestions={suggestions} items={items} race={race} />
         )}
         {view === "airstudio" && section === "candidates" && (
-          <Contestants race={race} raceLabel={raceLabel} contestants={contestants} />
+          <Contestants race={race} raceLabel={raceLabel} contestants={contestants} isDemo={Boolean(project?.isDemo)} />
         )}
 
         {/* ───────────────────────────────────────────────── RECORD ───── */}

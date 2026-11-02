@@ -11,7 +11,7 @@ import { Handover, IncidentList, ItemList, RaiseTech, age, clock, hrefWith } fro
 import { lightsFor, openUnit, roomPage } from "@/lib/room/page";
 import { assignments } from "@/lib/room/assign";
 import { field, items, notes, settings, submissions } from "@/lib/room/store";
-import { asWords, formatNumber } from "@/lib/utils";
+import { asWords, cn, formatNumber } from "@/lib/utils";
 
 export const metadata = { title: "Field operations", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -51,7 +51,13 @@ export default async function FieldPage({ searchParams }) {
     situations: countLayer({ id: "reports", name: "Reports open", codes: reports.map((row) => row.unitCode), word: "reported", many: 3 }),
     confirm: countLayer({ id: "confirm", name: "Verifiers waiting", codes: confirm.map((item) => item.areaCode), word: "asked", many: 3 }),
     drafts: countLayer({ id: "drafts", name: "Drafts left behind", codes: drafts.map((row) => row.unitCode), word: "left", many: 3 }),
-  }[tab] ?? countLayer({ id: "silent", name: "Assigned units not reporting", codes: silent.map((row) => row.unitCode), word: "silent", many: 20 });
+  }[tab] ?? countLayer({ id: "silent", name: "Assigned units not reporting", codes: silent.map((row) => row.unitCode), word: "silent", many: 20, clear: "No assigned unit silent" });
+  /* The field's question about a place is how many of *our* agents there have
+     gone quiet, not how many of INEC's polling units have no return: most of
+     those have nobody of ours at them, and "4,014 silent" beside a headline
+     of 0 read as the screen contradicting itself. */
+  const silentIn = (row) => silent.filter((each) => each.unitCode === row.code || each.unitCode.startsWith(`${row.code}/`)).length;
+  const places = [...here.below].sort((a, b) => silentIn(b) - silentIn(a) || a.name.localeCompare(b.name));
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(now);
   const cutoff = new Date(`${today}T${/^\d\d:\d\d$/.test(rules.checkInBy) ? rules.checkInBy : "09:00"}:00+01:00`).getTime();
   const checkedIn = (person) => person.lastSeen && new Date(person.lastSeen).getTime() >= new Date(`${today}T00:00:00+01:00`).getTime();
@@ -75,16 +81,16 @@ export default async function FieldPage({ searchParams }) {
             <LightCounts counts={here.light.counts} />
           </Side>
           <Side label="Trouble in the field" headline={urgent ? `${urgent} not acknowledged` : reports.length ? `${reports.length} open, all acknowledged` : "Nothing reported"} note="Critical and unacknowledged first.">
-            <div className="max-h-96 overflow-auto"><IncidentList rows={reports.slice(0, 12)} caps={caps} base={BASE} query={query} empty="No report from the field is open." now={now} /></div>
+            <div className="max-h-96 overflow-auto"><IncidentList fieldDesk rows={reports.slice(0, 12)} caps={caps} base={BASE} query={query} empty="No report from the field is open." now={now} /></div>
           </Side>
-          <Side label="Places" headline={`${here.below.length} under ${here.light.name}`}>
+          <Side label={`Agents gone quiet, by place under ${here.light.name}`} headline={silent.length ? `${formatNumber(places.filter((row) => silentIn(row)).length)} places to ring` : "Nobody has gone quiet"} note="Most first. Press a place to narrow the screen to it.">
             <ul className="max-h-72 divide-y divide-dash-line overflow-auto">
-              {here.below.map((row) => (
+              {places.map((row) => (
                 <li key={row.code}>
                   <Link href={hrefWith(BASE, query, row.level === "pu" ? { unit: row.code } : { at: row.code, unit: null })} className="flex items-center gap-2 py-2 text-[0.8125rem] hover:bg-dash-bg">
                     <LightBadge light={row.light} short />
                     <span className="min-w-0 flex-1 truncate font-semibold text-dash-ink">{row.name}</span>
-                    <span className="tabular-nums text-dash-muted">{row.level === "pu" ? (row.reported ? "in" : "silent") : `${formatNumber(row.counts.grey)} silent`}</span>
+                    <span className={cn("tabular-nums", silentIn(row) ? "font-semibold text-light-yellow-ink" : "text-dash-muted")}>{row.level === "pu" ? (row.reported ? "Result in" : "No result yet") : silentIn(row) ? `${formatNumber(silentIn(row))} quiet` : "None quiet"}</span>
                   </Link>
                 </li>
               ))}
@@ -120,7 +126,7 @@ export default async function FieldPage({ searchParams }) {
                 <Empty>Every assigned polling unit here has sent its result, or no agent is assigned here yet.</Empty>
               )
             )}
-            {tab === "situations" && <IncidentList rows={reports} caps={caps} base={BASE} query={query} now={now} />}
+            {tab === "situations" && <IncidentList fieldDesk rows={reports} caps={caps} base={BASE} query={query} now={now} />}
             {tab === "confirm" && <ItemList items={confirm} caps={caps} base={BASE} query={query} userId={ctx.user.id} empty="No verifier is waiting on the field." now={now} />}
             {tab === "checkins" && (
               agents.length ? (

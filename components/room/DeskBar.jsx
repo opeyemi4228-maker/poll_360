@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import StatePicker from "./StatePicker";
 import { cn } from "@/lib/utils";
+
+const MANY = 4;
 
 /**
  * Drawn beside the greeting when a desk has the situation room open: the
@@ -15,7 +18,9 @@ export default function DeskBar({ desk, states = [], base }) {
         <ArrowLeft size={14} aria-hidden="true" />
         {desk.name}
       </Link>
-      {states.length > 1 && (
+      {/* A handful sit side by side; more than that is one button with a list. */}
+      {states.length > MANY && <StatePicker states={states} base={base} />}
+      {states.length > 1 && states.length <= MANY && (
         <nav aria-label="Your states" className="flex h-10 items-center gap-0.5 rounded-full border border-dash-line bg-dash-card p-1">
           {states.map((state) => (
             <Link key={state.code} href={`${base}?at=${state.code}`} aria-current={state.current ? "page" : undefined} className={cn("flex h-8 items-center rounded-full px-3 text-[0.8125rem] font-semibold whitespace-nowrap", state.current ? "bg-dash-ink text-white" : "text-dash-muted hover:text-dash-ink")}>

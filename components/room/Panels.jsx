@@ -19,13 +19,17 @@ import { cn, formatNumber } from "@/lib/utils";
  * ground's data once and hands slices of it to these.
  */
 
-/** "12 min", "3 h 05", for how long something has been open. */
+/** "12 min", "3 h 05", "4 days", for how long something has been open.
+    Past two days the minutes stop meaning anything: "729 h 15" is read as a
+    code, "30 days" is read. */
 export function age(iso, now = Date.now()) {
   if (!iso) return "";
   const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60000));
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} min`;
-  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}`;
+  if (minutes < 2880) return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")}`;
+  const days = Math.round(minutes / 1440);
+  return `${days} days`;
 }
 
 const TIME = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Africa/Lagos" });
@@ -79,17 +83,21 @@ function SmallTile({ row, href, unobserved }) {
         <span className="truncate text-[0.8125rem] leading-tight font-bold text-dash-ink">{row.name}</span>
         <LightIcon light={row.light} size={14} />
       </span>
-      <span className="block text-[0.6875rem] leading-tight font-semibold tabular-nums">
-        <span className="text-light-red">✖{COMPACT.format(row.counts.red)}</span>{" "}
-        <span className="text-light-yellow-ink">▲{COMPACT.format(row.counts.yellow)}</span>{" "}
-        <span className="text-light-green">✔{COMPACT.format(row.counts.green)}</span>{" "}
-        <span className="text-dash-muted">○{COMPACT.format(row.counts.grey)}</span>
+      {/* In words, not ✖1 ▲6 ✔6 ○5.1K: four symbols and a compact number
+          were a code the reader had to learn before the tile said anything.
+          Units with no return are the "reported" line underneath. */}
+      <span className="block truncate text-[0.6875rem] leading-tight font-semibold tabular-nums">
+        <span className="text-light-red">{COMPACT.format(row.counts.red)} red</span>
+        <span className="text-dash-muted"> · </span>
+        <span className="text-light-yellow-ink">{COMPACT.format(row.counts.yellow)} yellow</span>
+        <span className="text-dash-muted"> · </span>
+        <span className="text-light-green">{COMPACT.format(row.counts.green)} cleared</span>
       </span>
       <span className="block truncate text-[0.6875rem] leading-tight text-dash-muted tabular-nums">
         {row.reported ? `${row.coveragePct.toFixed(1)}% reported` : "No returns yet"}
       </span>
       <span className="block truncate text-[0.6875rem] leading-tight text-dash-muted tabular-nums">
-        {unobserved ? <b className="text-light-yellow-ink">▲ No observer{row.bvas.accredited != null ? " · " : ""}</b> : null}
+        {unobserved ? <b className="text-light-yellow-ink">No observer{row.bvas.accredited != null ? " · " : ""}</b> : null}
         {row.bvas.accredited != null ? `BVAS ${COMPACT.format(row.bvas.accredited)}` : unobserved ? "" : "\u00a0"}
       </span>
     </Link>
@@ -303,114 +311,171 @@ const RESOLVE_FOR = {
 /**
  * Open items, red first then oldest. `caps` says which controls to offer
  * this reader; the server decides again when one is pressed.
+ *
+ * ── A QUEUE, NOT A WALL OF THE SAME SENTENCE ───────────────────────────────
+ * A count in full swing opens hundreds of items of the same few kinds, and a
+ * list that printed "Waiting to be checked by a second person" on every row
+ * ran to eleven thousand pixels of one sentence. So past a handful they are
+ * gathered by kind: the kind is said once, with how many there are, and each
+ * row under it is the place. The first few of each kind are open; the rest
+ * are one press away, oldest first, never hidden without a count.
  */
+const FLAT_UP_TO = 6;
+const FIRST_SHOWN = 8;
+
+function ItemRow({ item, grouped = false, caps, base, query, roster, userId, now }) {
+  const kind = ITEMS[item.code];
+  const byPerson = kind?.closes === "person";
+  const mayResolve = byPerson && (item.light === "RED" ? caps.red : caps.yellow || (kind.field && caps.field)) && item.raisedBy !== userId && item.filedBy !== userId && (!kind.top || caps.closeDispute);
+  const heldByOther = item.locked && item.ownerId && item.ownerId !== userId;
+  const options = (RESOLVE_FOR[item.light] ?? []).filter((key) => (key !== "DISPUTED" || (caps.dispute && item.level === "pu" && item.code !== "R_DISPUTED")));
+  return (
+    <li className="py-3">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1">
+          <LightIcon light={item.light} />
+          {grouped ? (
+            <span className="min-w-[11rem] flex-1">
+              <span className="block truncate text-[0.875rem] font-semibold text-dash-ink">{item.place}</span>
+              {item.says && <span className="block truncate text-[0.8125rem] text-dash-muted">{item.says}</span>}
+            </span>
+          ) : (
+            <span className="min-w-[11rem] flex-1">
+              <span className="block text-[0.875rem] font-bold text-dash-ink">{item.title}</span>
+              <span className="block truncate text-[0.8125rem] text-dash-muted">{item.place}{item.says ? ` · ${item.says}` : ""}</span>
+            </span>
+          )}
+          {item.priority === "HIGH" && <Badge tone="alert">High priority</Badge>}
+          {item.escalatedTo && <Badge tone="ink">To {item.escalatedTo.replace("_", " ").toLowerCase()}</Badge>}
+          {item.ownerName && (
+            <Badge tone={heldByOther ? "warn" : "neutral"}>
+              {item.locked && <Lock size={11} aria-hidden="true" />} {item.ownerName}
+            </Badge>
+          )}
+          <span className="text-[0.75rem] font-semibold text-dash-muted tabular-nums" title={`Opened ${clock(item.openedAt)}`}>{age(item.openedAt, now)}</span>
+        </summary>
+
+        <div className="mt-3 space-y-3 rounded-dash-sm bg-dash-bg p-3">
+          {item.escalationNote && <p className="text-[0.8125rem] text-dash-ink"><b>{item.escalatedName ?? "Escalated"}:</b> {item.escalationNote}</p>}
+          {item.returnedNote && <p className="text-[0.8125rem] text-dash-ink"><b>Sent back:</b> {item.returnedNote}</p>}
+          {!byPerson && <p className="text-[0.8125rem] text-dash-muted">This closes by itself when the thing it is waiting for happens.</p>}
+          {heldByOther && <p className="text-[0.8125rem] font-semibold text-light-yellow-ink">{item.ownerName} has this open now.</p>}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {item.level === "pu" && base && (
+              <Link href={hrefWith(base, query, { unit: item.areaCode })} className="inline-flex h-10 items-center rounded-dash-sm border border-dash-line bg-dash-card px-4 text-[0.8125rem] font-semibold text-dash-ink hover:border-dash-ink">
+                Open the polling unit
+              </Link>
+            )}
+            {item.ownerId === userId ? (
+              <ActionForm what="release" hidden={{ id: item.id }}><Submit variant="dashOutline">Let it go</Submit></ActionForm>
+            ) : (
+              !heldByOther && <ActionForm what="take" hidden={{ id: item.id }}><Submit variant="dashOutline">Take it</Submit></ActionForm>
+            )}
+            {caps.lead && <ActionForm what="legal" hidden={{ id: item.id }}><Submit variant="dashOutline"><Scale size={14} aria-hidden="true" /> {item.legal ? "With legal" : "Send to legal"}</Submit></ActionForm>}
+          </div>
+
+          {mayResolve && (
+            <ActionForm what="resolve" hidden={{ id: item.id }} className="grid gap-2 sm:grid-cols-[14rem_1fr_auto] sm:items-end">
+              <Choice label="Resolve as" name="resolution" options={options.map((key) => [key, RESOLUTIONS[key].label])} />
+              <Area label="Note" name="note" rows={1} placeholder="What you found" />
+              <Submit>Resolve</Submit>
+            </ActionForm>
+          )}
+
+          {(caps.escalate || caps.lead) && (
+            <ActionForm what="escalate" hidden={{ id: item.id }} className="grid gap-2 sm:grid-cols-[10rem_8rem_1fr_auto] sm:items-end">
+              <Choice label="Escalate to" name="to" options={[["ZONE_LEAD", "Zone lead"], ["LEAD_VERIFIER", "Lead verifier"], ["DIRECTOR", "Director"]]} />
+              <Choice label="Priority" name="priority" options={[["NORMAL", "Normal"], ["HIGH", "High"]]} />
+              <Area label="What you need" name="note" rows={1} required />
+              <Submit variant="dashOutline">Escalate</Submit>
+            </ActionForm>
+          )}
+
+          {caps.lead && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {roster.length > 0 && (
+                <ActionForm what="assignItem" hidden={{ id: item.id }} className="flex items-end gap-2">
+                  <Choice label="Assign to" name="owner" className="flex-1" options={roster.map((person) => [person.id, `${person.name}${person.online ? "" : " (away)"}`])} />
+                  <Submit variant="dashOutline">Assign</Submit>
+                </ActionForm>
+              )}
+              {item.escalatedTo && (
+                <ActionForm what="giveBack" hidden={{ id: item.id }} className="flex items-end gap-2">
+                  <Area label="Send back with a note" name="note" rows={1} className="flex-1" required />
+                  <Submit variant="dashOutline">Return</Submit>
+                </ActionForm>
+              )}
+            </div>
+          )}
+        </div>
+      </details>
+    </li>
+  );
+}
+
 export function ItemList({ items, caps = {}, base, query = {}, roster = [], userId = null, empty = "Nothing open here.", now }) {
   if (!items.length) return <Empty>{empty}</Empty>;
+  const row = (item, grouped) => <ItemRow key={item.id} item={item} grouped={grouped} caps={caps} base={base} query={query} roster={roster} userId={userId} now={now} />;
+  if (items.length <= FLAT_UP_TO) return <ul className="divide-y divide-dash-line">{items.map((item) => row(item, false))}</ul>;
+
+  const groups = [];
+  const byKind = new Map();
+  for (const item of items) {
+    const key = `${item.light}:${item.title}`;
+    if (!byKind.has(key)) {
+      byKind.set(key, { key, light: item.light, title: item.title, items: [] });
+      groups.push(byKind.get(key));
+    }
+    byKind.get(key).items.push(item);
+  }
+
   return (
-    <ul className="divide-y divide-dash-line">
-      {items.map((item) => {
-        const kind = ITEMS[item.code];
-        const byPerson = kind?.closes === "person";
-        const mayResolve = byPerson && (item.light === "RED" ? caps.red : caps.yellow || (kind.field && caps.field)) && item.raisedBy !== userId && item.filedBy !== userId && (!kind.top || caps.closeDispute);
-        const heldByOther = item.locked && item.ownerId && item.ownerId !== userId;
-        const options = (RESOLVE_FOR[item.light] ?? []).filter((key) => (key !== "DISPUTED" || (caps.dispute && item.level === "pu" && item.code !== "R_DISPUTED")));
+    <div className="space-y-4">
+      {groups.map((group) => {
+        const first = group.items.slice(0, FIRST_SHOWN);
+        const rest = group.items.slice(FIRST_SHOWN);
         return (
-          <li key={item.id} className="py-3">
-            <details className="group">
-              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1">
-                <LightIcon light={item.light} />
-                <span className="min-w-[11rem] flex-1">
-                  <span className="block text-[0.875rem] font-bold text-dash-ink">{item.title}</span>
-                  <span className="block truncate text-[0.8125rem] text-dash-muted">{item.place}{item.says ? ` · ${item.says}` : ""}</span>
-                </span>
-                {item.priority === "HIGH" && <Badge tone="alert">High priority</Badge>}
-                {item.escalatedTo && <Badge tone="ink">To {item.escalatedTo.replace("_", " ").toLowerCase()}</Badge>}
-                {item.ownerName && (
-                  <Badge tone={heldByOther ? "warn" : "neutral"}>
-                    {item.locked && <Lock size={11} aria-hidden="true" />} {item.ownerName}
-                  </Badge>
-                )}
-                <span className="text-[0.75rem] font-semibold text-dash-muted tabular-nums" title={`Opened ${clock(item.openedAt)}`}>{age(item.openedAt, now)}</span>
-              </summary>
-
-              <div className="mt-3 space-y-3 rounded-dash-sm bg-dash-bg p-3">
-                {item.escalationNote && <p className="text-[0.8125rem] text-dash-ink"><b>{item.escalatedName ?? "Escalated"}:</b> {item.escalationNote}</p>}
-                {item.returnedNote && <p className="text-[0.8125rem] text-dash-ink"><b>Sent back:</b> {item.returnedNote}</p>}
-                {!byPerson && <p className="text-[0.8125rem] text-dash-muted">This closes by itself when the thing it is waiting for happens.</p>}
-                {heldByOther && <p className="text-[0.8125rem] font-semibold text-light-yellow-ink">{item.ownerName} has this open now.</p>}
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {item.level === "pu" && base && (
-                    <Link href={hrefWith(base, query, { unit: item.areaCode })} className="inline-flex h-10 items-center rounded-dash-sm border border-dash-line bg-dash-card px-4 text-[0.8125rem] font-semibold text-dash-ink hover:border-dash-ink">
-                      Open the polling unit
-                    </Link>
-                  )}
-                  {item.ownerId === userId ? (
-                    <ActionForm what="release" hidden={{ id: item.id }}><Submit variant="dashOutline">Let it go</Submit></ActionForm>
-                  ) : (
-                    !heldByOther && <ActionForm what="take" hidden={{ id: item.id }}><Submit variant="dashOutline">Take it</Submit></ActionForm>
-                  )}
-                  {caps.lead && <ActionForm what="legal" hidden={{ id: item.id }}><Submit variant="dashOutline"><Scale size={14} aria-hidden="true" /> {item.legal ? "With legal" : "Send to legal"}</Submit></ActionForm>}
-                </div>
-
-                {mayResolve && (
-                  <ActionForm what="resolve" hidden={{ id: item.id }} className="grid gap-2 sm:grid-cols-[14rem_1fr_auto] sm:items-end">
-                    <Choice label="Resolve as" name="resolution" options={options.map((key) => [key, RESOLUTIONS[key].label])} />
-                    <Area label="Note" name="note" rows={1} placeholder="What you found" />
-                    <Submit>Resolve</Submit>
-                  </ActionForm>
-                )}
-
-                {(caps.escalate || caps.lead) && (
-                  <ActionForm what="escalate" hidden={{ id: item.id }} className="grid gap-2 sm:grid-cols-[10rem_8rem_1fr_auto] sm:items-end">
-                    <Choice label="Escalate to" name="to" options={[["ZONE_LEAD", "Zone lead"], ["LEAD_VERIFIER", "Lead verifier"], ["DIRECTOR", "Director"]]} />
-                    <Choice label="Priority" name="priority" options={[["NORMAL", "Normal"], ["HIGH", "High"]]} />
-                    <Area label="What you need" name="note" rows={1} required />
-                    <Submit variant="dashOutline">Escalate</Submit>
-                  </ActionForm>
-                )}
-
-                {caps.lead && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {roster.length > 0 && (
-                      <ActionForm what="assignItem" hidden={{ id: item.id }} className="flex items-end gap-2">
-                        <Choice label="Assign to" name="owner" className="flex-1" options={roster.map((person) => [person.id, `${person.name}${person.online ? "" : " (away)"}`])} />
-                        <Submit variant="dashOutline">Assign</Submit>
-                      </ActionForm>
-                    )}
-                    {item.escalatedTo && (
-                      <ActionForm what="giveBack" hidden={{ id: item.id }} className="flex items-end gap-2">
-                        <Area label="Send back with a note" name="note" rows={1} className="flex-1" required />
-                        <Submit variant="dashOutline">Return</Submit>
-                      </ActionForm>
-                    )}
-                  </div>
-                )}
-              </div>
-            </details>
-          </li>
+          <section key={group.key} aria-label={`${group.title}, ${group.items.length}`}>
+            <h3 className={cn("flex items-center gap-2 rounded-dash-sm px-3 py-2 text-[0.875rem] font-bold text-dash-ink", TONE[group.light]?.soft ?? "bg-dash-bg")}>
+              <LightIcon light={group.light} />
+              <span className="min-w-0 flex-1">{group.title}</span>
+              <span className="rounded-full bg-dash-card px-2 py-0.5 text-[0.75rem] tabular-nums">{formatNumber(group.items.length)}</span>
+            </h3>
+            <ul className="divide-y divide-dash-line px-1">{first.map((item) => row(item, true))}</ul>
+            {rest.length > 0 && (
+              <details className="group/more">
+                <summary className="mx-1 flex h-10 cursor-pointer list-none items-center justify-center rounded-dash-sm border border-dash-line text-[0.8125rem] font-semibold text-dash-ink hover:border-dash-ink group-open/more:hidden">
+                  Show the other {formatNumber(rest.length)}
+                </summary>
+                <ul className="divide-y divide-dash-line border-t border-dash-line px-1">{rest.map((item) => row(item, true))}</ul>
+              </details>
+            )}
+          </section>
         );
       })}
-    </ul>
+    </div>
   );
 }
 
 /* --------------------------------------------------------------- the field */
 
 /** Reports from the field. Unacknowledged trouble is at the top and says so. */
-export function IncidentList({ rows, caps = {}, base, query = {}, empty = "No reports from the field.", now }) {
+/* `fieldDesk` is set on field operations' own screen, where "Give to field
+   ops" would be a button that hands the report to the person pressing it. */
+export function IncidentList({ rows, caps = {}, base, query = {}, empty = "No reports from the field.", now, fieldDesk = false }) {
   if (!rows.length) return <Empty>{empty}</Empty>;
   return (
     <ul className="divide-y divide-dash-line">
       {rows.map((row) => {
         const critical = row.sos || row.severity === "CRITICAL";
         return (
-          <li key={row.id} className="flex flex-wrap items-start gap-x-3 gap-y-2 py-3">
+          <li key={row.id} className="flex flex-wrap items-start gap-x-3 gap-y-2.5 py-3.5">
             {critical ? <Phone size={16} className="mt-0.5 text-light-red" aria-hidden="true" /> : <LightIcon light="YELLOW" className="mt-0.5" />}
             <div className="min-w-0 flex-1">
               <p className="text-[0.875rem] font-bold text-dash-ink">
                 {row.sos ? "SOS · " : ""}{row.kind}
-                <span className="ml-2 text-[0.75rem] font-semibold text-dash-muted">{clock(row.createdAt)} · {age(row.createdAt, now)} ago</span>
+                <span className="ml-2 text-[0.75rem] font-semibold whitespace-nowrap text-dash-muted">{clock(row.createdAt)} · {age(row.createdAt, now)} ago</span>
               </p>
               <p className="text-[0.8125rem] text-dash-muted">
                 {base ? <Link href={hrefWith(base, query, { unit: row.unitCode })} className="hover:underline">{row.place}</Link> : row.place}
@@ -431,9 +496,9 @@ export function IncidentList({ rows, caps = {}, base, query = {}, empty = "No re
               </p>
             </div>
             {caps.act && row.status === "OPEN" && (
-              <div className="flex flex-wrap gap-2">
+              <div className="flex basis-full flex-wrap gap-2 pl-7">
                 {!row.acknowledgedAt && <ActionForm what="acknowledge" hidden={{ id: row.id }}><Submit>Acknowledge</Submit></ActionForm>}
-                {!row.assignedTo && <ActionForm what="assignIncident" hidden={{ id: row.id, name: "Field operations" }}><Submit variant="dashOutline">Give to field ops</Submit></ActionForm>}
+                {!row.assignedTo && !fieldDesk && <ActionForm what="assignIncident" hidden={{ id: row.id, name: "Field operations" }}><Submit variant="dashOutline">Give to field ops</Submit></ActionForm>}
                 <ActionForm what="resolveIncident" hidden={{ id: row.id }} confirm="Mark this report as dealt with?"><Submit variant="dashOutline">Dealt with</Submit></ActionForm>
               </div>
             )}
@@ -537,8 +602,8 @@ export function ThreeRecords({ account, base, query = {}, lights = new Map() }) 
 /* ------------------------------------------------------------------ people */
 
 /** Who is on, what they cover, and how much they have open. */
-export function Roster({ people, describe, className }) {
-  if (!people.length) return <Empty icon={UserRound}>Nobody is assigned here yet.</Empty>;
+export function Roster({ people, describe, className, empty = "Nobody is assigned here yet." }) {
+  if (!people.length) return <Empty icon={UserRound}>{empty}</Empty>;
   return (
     <ul className={cn("divide-y divide-dash-line", className)}>
       {people.map((person) => (
@@ -586,7 +651,7 @@ export function Handover({ desk, notes, userId }) {
 /** Anybody in the room may say that something technical is broken. */
 export function RaiseTech() {
   return (
-    <details className="rounded-dash border border-dash-line bg-dash-card p-4">
+    <details className="self-start rounded-dash border border-dash-line bg-dash-card p-4 shadow-e2">
       <summary className="cursor-pointer text-[0.875rem] font-bold text-dash-ink">Something technical is not working</summary>
       <ActionForm what="techRaise" className="mt-3 space-y-2" done="Sent to the technical team.">
         <Area label="What is wrong, in a line" name="title" rows={1} required />

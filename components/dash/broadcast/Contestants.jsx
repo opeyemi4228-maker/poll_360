@@ -8,6 +8,8 @@ import PartyMark from "@/components/dash/PartyMark";
 import { Said, useAction, useDesk } from "./Queue";
 import { removeContestant, saveContestant } from "@/app/broadcast/actions";
 import { countedParties } from "@/lib/races";
+import { portraitFor } from "@/lib/principal";
+import { standingFor } from "@/lib/standing";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,12 +25,17 @@ import { cn } from "@/lib/utils";
  * browser before they are sent, so a phone photograph of a campaign poster
  * becomes a few dozen kilobytes rather than several megabytes.
  */
-export default function Contestants({ race, raceLabel, contestants = [] }) {
+export default function Contestants({ race, raceLabel, contestants = [], isDemo = false }) {
   const { may } = useDesk();
   const byParty = Object.fromEntries(contestants.map((row) => [row.party, row]));
+  /* The photographs the room already holds, which the cards use wherever
+     nothing has been entered here — see lib/faces.js. Shown so this screen
+     tells the truth about what the cards will carry. */
+  const onFile = standingFor({ race, isDemo });
   const ballot = countedParties(race);
   /* The parties with a candidate first, then the rest in ballot order. */
-  const ordered = [...ballot].sort((a, b) => Number(Boolean(byParty[b.id])) - Number(Boolean(byParty[a.id])));
+  const known = (id) => Boolean(byParty[id] || onFile[id]);
+  const ordered = [...ballot].sort((a, b) => Number(known(b.id)) - Number(known(a.id)));
 
   return (
     <Card
@@ -37,19 +44,31 @@ export default function Contestants({ race, raceLabel, contestants = [] }) {
     >
       <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
         {ordered.map((party) => (
-          <Row key={party.id} party={party} race={race} saved={byParty[party.id] ?? null} editable={may.draft} />
+          <Row
+            key={party.id}
+            party={party}
+            race={race}
+            saved={byParty[party.id] ?? null}
+            onFile={onFile[party.id] ?? null}
+            editable={may.draft}
+          />
         ))}
       </ul>
     </Card>
   );
 }
 
-function Row({ party, race, saved, editable }) {
+function Row({ party, race, saved, onFile = null, editable }) {
   const { pending, said, run, setSaid } = useAction();
   const [name, setName] = useState(saved?.name ?? "");
   const [mate, setMate] = useState(saved?.runningMate ?? "");
   const [photo, setPhoto] = useState(undefined);
-  const shown = photo === undefined ? saved?.photo ?? null : photo;
+  /* A face on file stands in until somebody enters one here, and only for
+     the person it is of: a different name entered here gets no borrowed face. */
+  const fileFace = onFile && (!saved?.name || saved.name === onFile) ? portraitFor(onFile) : null;
+  const [fileMissing, setFileMissing] = useState(false);
+  const shown = photo === undefined ? saved?.photo ?? (fileMissing ? null : fileFace) : photo;
+  const fromFile = photo === undefined && !saved?.photo && Boolean(shown);
   const dirty = name !== (saved?.name ?? "") || mate !== (saved?.runningMate ?? "") || photo !== undefined;
 
   const choose = async (file) => {
@@ -73,7 +92,12 @@ function Row({ party, race, saved, editable }) {
         >
           {shown ? (
             // eslint-disable-next-line @next/next/no-img-element -- a data address from this browser or the store
-            <img src={shown} alt={`${name || party.name}`} className="size-full object-cover object-top" />
+            <img
+              src={shown}
+              alt={`${name || onFile || party.name}`}
+              className="size-full object-cover object-top"
+              onError={() => fromFile && setFileMissing(true)}
+            />
           ) : (
             <UserRound size={30} className="text-dash-muted" />
           )}
@@ -97,12 +121,20 @@ function Row({ party, race, saved, editable }) {
             <PartyMark id={party.id} size={22} />
             <span className="text-[0.875rem] font-bold text-dash-ink">{party.id}</span>
             <span className="truncate text-[0.75rem] text-dash-muted">{party.name}</span>
+            {fromFile && (
+              <span
+                className="ml-auto shrink-0 rounded-full bg-ok-50 px-2 py-0.5 text-[0.625rem] font-bold text-ok-700"
+                title="The cards already use this photograph. Choose another to replace it."
+              >
+                On file
+              </span>
+            )}
           </p>
           <input
             value={name}
             disabled={!editable}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Candidate's name"
+            placeholder={onFile ?? "Candidate's name"}
             maxLength={80}
             className="mt-2 h-9 w-full rounded-dash-sm border border-dash-line bg-dash-card px-2.5 text-[0.8125rem] font-semibold text-dash-ink"
           />

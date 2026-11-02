@@ -3,9 +3,10 @@
 The result cards and the standings draw a party's own mark here — see
 `components/dash/PartyMark.jsx`.
 
-Four files ship with the product: `apc.png`, `pdp.png`, `lp.png` and
-`adc.png` — the three parties that carried a state in 2023, plus the one whose
-membership register this product holds. Every other party in
+Six files ship with the product: `apc.png`, `pdp.png`, `lp.png`, `adc.png`,
+`sdp.png` and `ndc.png` — the three parties that carried a state in 2023, the
+one whose membership register this product holds, and the SDP and NDC, added
+with their presidential candidates on the room's candidate switch. Every other party in
 `lib/party-register.js` is drawn as a block of its own colour with its code on
 it, and that is a finished state rather than a placeholder.
 

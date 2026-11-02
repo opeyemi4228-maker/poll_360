@@ -111,7 +111,7 @@ export default function TopShell({
           as anyway.
           ─────────────────────────────────────────────────────────────────── */}
       <header ref={bar} className="sticky top-0 z-40 border-b border-dash-line bg-dash-sheet">
-        <div className="flex h-18 items-center gap-3 px-4 lg:px-6">
+        <div className="flex h-18 items-center gap-2 px-3 sm:gap-3 sm:px-4 lg:px-6">
           <Link
             href="/"
             className="flex h-11 shrink-0 items-center gap-2.5 rounded-full transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink"
@@ -335,7 +335,9 @@ export default function TopShell({
           </h1>
           {subtitle && <p className="mt-0.5 text-[0.8125rem] text-dash-muted">{subtitle}</p>}
         </div>
-        {(aside || lead) && <div className="flex flex-wrap items-center justify-end gap-2">{lead}{aside}</div>}
+        {/* From the left on a phone, where a right-hand ragged edge under a
+            left-hand greeting reads as a mistake. */}
+        {(aside || lead) && <div className="flex flex-wrap items-center gap-2 sm:justify-end">{lead}{aside}</div>}
       </div>
 
       <main id="main" className="px-4 pb-3 lg:px-6 lg:pb-4">

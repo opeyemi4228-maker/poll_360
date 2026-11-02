@@ -2,6 +2,8 @@ import { ImageResponse } from "next/og";
 
 import { raceLabel } from "@/lib/races";
 import { contestants } from "@/lib/db";
+import { elections } from "@/lib/elections";
+import { withFacesOnFile } from "@/lib/faces";
 import { renderCard } from "@/lib/cards";
 import { register } from "@/lib/site";
 
@@ -314,9 +316,13 @@ export function countGraphic({ project, race, tally, standings, shape }) {
  * The figures are not looked up; they are the ones frozen into the post.
  */
 export async function postImageBytes(item, shape = null) {
-  const people = {};
+  let people = {};
   if (item?.electionId && item?.race) {
     for (const row of await contestants.all(item.electionId, item.race).catch(() => [])) people[row.party] = row;
+    /* Faces the room already holds fill whatever the desk has not entered —
+       see lib/faces.js. A replay of 2023 gets the 2023 candidates. */
+    const project = await elections.get(item.electionId).catch(() => null);
+    people = withFacesOnFile(people, { race: item.race, isDemo: Boolean(project?.isDemo) });
   }
 
   /* ── DRAWN ONCE, SERVED MANY TIMES ─────────────────────────────────────

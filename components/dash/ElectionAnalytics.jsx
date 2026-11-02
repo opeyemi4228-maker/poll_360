@@ -11,6 +11,7 @@ import Strongholds from "./Strongholds";
 import PartyStrength from "./PartyStrength";
 import RulingParty from "./RulingParty";
 import SeatBrief from "./SeatBrief";
+import HeadToHead from "./HeadToHead";
 import { PARTY_FILL } from "./Charts";
 import { Panel, Readout, Split } from "./Figures";
 import { TIMELINE, partyRecord } from "@/lib/record";
@@ -34,7 +35,8 @@ import { cn, formatShare } from "@/lib/utils";
  *
  *    Overview     where we stand, in twelve figures
  *    Candidates   the parties, their runs, and who holds what now
- *    Strongholds  Atiku's ground, zone by zone, down to the polling unit
+ *    Strongholds  Tinubu's, Atiku's or Obi's ground, zone by zone, down to
+ *                 the polling unit
  *
  *  Planning is deliberately NOT here. "Where should we focus" is a different
  *  job with a different reader and a different output — a plan somebody is
@@ -109,6 +111,9 @@ export default function ElectionAnalytics({
   /* Who holds this ground in this contest, and the last result for it. Built
      on the server — see `seat` in app/room/page.jsx. */
   seat = null,
+  /* Whose ground Strongholds opens on: the candidate the room is run for,
+     from the switch on the Command dashboard. */
+  subject = null,
   onOpen,
   onGo,
   pathOf,
@@ -152,7 +157,7 @@ export default function ElectionAnalytics({
       )}
 
       {tab === "strongholds" && (
-        <Strongholds shapes={shapes} race={race} territory={territory} ground={ground} />
+        <Strongholds subject={subject} shapes={shapes} race={race} territory={territory} ground={ground} />
       )}
 
       {tab === "ask" && <AskPoll360 ground={ground ?? territory?.name ?? "Nigeria"} />}
@@ -207,6 +212,8 @@ function Candidates({ shapes, territory, ground, governing, race = "PRESIDENTIAL
       ) : !presidential ? (
         <SeatsPanel race={race} territory={territory} ground={ground} hasSeat={hasSeat} />
       ) : (
+      <>
+      <HeadToHead />
       <div className="grid gap-3 lg:grid-cols-2">
         <Panel
           title="Presidential share, most recent"
@@ -240,6 +247,7 @@ function Candidates({ shapes, territory, ground, governing, race = "PRESIDENTIAL
 
         <GovernorshipsPanel seatsOnly={seatsOnly} />
       </div>
+      </>
       )}
 
       {/* The two big party surfaces, kept whole, behind a switch: one is a

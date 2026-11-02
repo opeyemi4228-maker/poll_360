@@ -44,11 +44,11 @@ export default function GroundBanner({ territory, ground, unresolved = false, lg
   if (!territory || territory.level === "NATION") return null;
 
   return (
-    <p className="mb-5 flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-dash border border-dash-line bg-dash-bg px-4 py-3 text-[0.875rem] text-dash-muted">
+    <p className="mb-3 flex flex-wrap items-baseline gap-x-2.5 gap-y-1 rounded-dash border border-dash-line bg-dash-bg px-4 py-3 text-[0.875rem] text-dash-muted">
       <MapPinned size={15} strokeWidth={2.5} className="shrink-0 self-center text-dash-muted" />
       <span className="font-semibold text-dash-ink">{ground}</span>
       <span>
-        · every figure on this screen is this ground and nothing outside it
+        Every figure on this screen is this ground and nothing outside it
         {lgaNames.length > 0 && `, across ${lgaNames.length} local government${lgaNames.length === 1 ? "" : "s"}`}
       </span>
       {territory.shared && (

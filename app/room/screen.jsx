@@ -39,7 +39,7 @@ import { buildBoard } from "@/lib/replay";
 import { liveBoard, liveTree } from "@/lib/live-board";
 import nation from "@/public/geo/map/nation.json";
 import { register } from "@/lib/site";
-import { principalOf } from "@/lib/principal";
+import { PRINCIPAL_COOKIE, principalOf } from "@/lib/principal";
 import { spreadFor, statesFromView } from "@/lib/spread";
 import { snapshot } from "@/lib/replay";
 import { formatNumber, formatShare } from "@/lib/utils";
@@ -83,11 +83,6 @@ export default async function RoomScreen({ view, heads = null, views = null, des
      right for somebody else. See lib/viewing.js. */
   const { user, project, race, territory, ground, pinned, unresolved } = view;
 
-  const allProjects = await listElections();
-
-  const filedByRace = project ? await results.countByRace(project.id, territory) : {};
-  const filed = filedByRace[race] ?? 0;
-
   /* ── ONE WAIT, NOT THREE ────────────────────────────────────────────────
      The database is across a network now, and these three ask it different
      questions that have nothing to do with each other. Awaited in sequence
@@ -96,9 +91,15 @@ export default async function RoomScreen({ view, heads = null, views = null, des
      in half a second and a page in two, and on a cold one it was the
      difference between twelve seconds and sixty.
 
+     The project list and the per-contest counts used to be asked first, on
+     their own, which put two round trips in front of this one wait on every
+     refresh of the wall. Neither depends on anything here, so they join it.
+
      Only the photographs have to wait, because they are fetched by the ids
      of the incidents above and cannot be asked for until those are known. */
   const [
+    allProjects,
+    filedByRace,
     rawFeed,
     coordinators,
     divergence,
@@ -113,6 +114,8 @@ export default async function RoomScreen({ view, heads = null, views = null, des
     deskDispatches,
     deskContestants,
   ] = await Promise.all([
+    listElections(),
+    project ? results.countByRace(project.id, territory) : {},
     incidents.recent(40, project?.id, territory),
     watch.coordinators(project?.id, race, territory),
     /* The same function /gap builds its whole screen from. Two assemblers
@@ -174,6 +177,8 @@ export default async function RoomScreen({ view, heads = null, views = null, des
     project ? contestants.all(project.id, race).catch(() => []) : [],
   ]);
 
+  const filed = filedByRace[race] ?? 0;
+
   /* ── THREE THINGS A MAP CAN BE, AND THEY ARE NOT INTERCHANGEABLE ─────────
      The 2023 project is a replay: a finished election played back on a timer,
      marked as a demonstration on its own row in the switcher.
@@ -191,10 +196,14 @@ export default async function RoomScreen({ view, heads = null, views = null, des
      make the product agree with itself by construction.
 
      What each one is showing is carried on the board itself rather than worked
-     out again by the screen, so the room can say so out loud. */
-  const board =
+     out again by the screen, so the room can say so out loud.
+
+     Started here and awaited in the second wait below, with nothing awaited
+     in between, so it runs alongside the hub, the tree and INEC's sheets
+     rather than ahead of them. */
+  const boardWait =
     project && !project.isDemo && filed > 0
-      ? await liveBoard({ electionId: project.id, race, territory })
+      ? liveBoard({ electionId: project.id, race, territory })
       : buildBoard(project, declaredRows);
 
   /* ══════════════════════════════════════════════════════════════════════
@@ -273,7 +282,9 @@ export default async function RoomScreen({ view, heads = null, views = null, des
      Read only for a live command board. Asking the hub on a demonstration
      project would be a query whose answer must be discarded.
      ══════════════════════════════════════════════════════════════════════ */
-  const commandRows = commandLive ? await results.counted(project.id, race, territory) : [];
+  /* The very query `ourRows` already ran, with the very same arguments —
+     asking it a second time cost a round trip on every refresh. */
+  const commandRows = commandLive ? ourRows : [];
 
   /* The booths this room may read, which is what scopes every hub query on
      this page. Built once, here, because the command board needs it before the
@@ -281,11 +292,39 @@ export default async function RoomScreen({ view, heads = null, views = null, des
      same three lists on a page that re-renders every twenty seconds. */
   const watchedCodes = boothsWatched({ coordinators, rows: ourRows, updates: dayUpdates });
 
-  const hubFigures = commandLive ? await figuresFor(watchedCodes, { race }) : null;
+  /* ── THE SECOND WAIT ────────────────────────────────────────────────────
+     Everything below that needs only what the first wait returned. These
+     used to be awaited one after another, six round trips in a row on every
+     refresh of the wall; together they cost the slowest one.
+
+     The drill-down reads `tree` instead of apportioning a state's total
+     across places nobody has reported from. Only ever built for a live
+     count: there is nothing underneath a declared state figure to show.
+
+     INEC's own published sheets, where an election gathered from its portal
+     has been tied to this project. Null whenever there is nothing to show,
+     and it can only ever be null or right: see lib/irev/verify.js. A desk
+     that holds one state is shown INEC's sheets for that state.
+
+     The photographs are asked for by the incidents' ids, which the first
+     wait returned. */
+  const [board, hubFigures, tree, inec, photoPairs, hubReports] = await Promise.all([
+    boardWait,
+    commandLive ? figuresFor(watchedCodes, { race }) : null,
+    project && !project.isDemo && filed > 0
+      ? liveTree({ electionId: project.id, race, territory })
+      : null,
+    inecAgainstOurs(project, ourRows, inecUnder, declaredRows),
+    media.forIncidents(rawFeed.map((item) => item.id)),
+    situationsFor(watchedCodes),
+  ]);
   const fromHub = hubReturns({ ours: commandRows, hub: hubFigures, race });
 
-  const commandBoard = project
-    ? await liveBoard({
+  /* Command's board and its drill-down are built from the same rows, and
+     neither waits for the other. */
+  const [commandBoard, commandTree] = await Promise.all([
+    project
+      ? liveBoard({
         /* No election id means no rows — see lib/live-board.js. The states,
            the ballot and the shape of the board are all still there. */
         electionId: commandLive ? project.id : null,
@@ -293,11 +332,34 @@ export default async function RoomScreen({ view, heads = null, views = null, des
         territory,
         extra: fromHub.rows,
       })
-    : null;
+      : null,
+    /* ── AND COMMAND'S OWN, FROM THE SAME SOURCE AS ITS BOARD ───────────────
+       Command drills too, and without a tree of its own it fell back to the
+       one above — which on a demonstration project is no tree at all, so the
+       room divided the 2023 replay's declared totals down through every local
+       government, ward and booth and drew them under Command. A clean slate
+       at the country and last election's figures one click in. Built from
+       exactly what `commandBoard` is built from, so the two cannot tell
+       different stories: while the feed is off, both are empty. */
+    project
+      ? liveTree({
+        electionId: commandLive ? project.id : null,
+        race,
+        territory,
+        /* The same rows the board counted. A drill-down built without them
+           would show a state total on the map and a smaller sum underneath
+           it, and the first person to add the wards up by hand would stop
+           believing both. */
+        extra: fromHub.rows,
+      })
+      : null,
+  ]);
 
   const commandView = commandBoard ? snapshot(commandBoard, commandBoard.events.length) : null;
 
-  const principal = principalOf(project);
+  /* Whose room this is: the candidate picked on the Command dashboard, else
+     the deployment's own. See ROOM_CHOICES in lib/principal.js. */
+  const principal = principalOf(project, (await cookies()).get(PRINCIPAL_COOKIE)?.value ?? null);
 
   /* Where our party stands against section 134 — see lib/spread.js. Computed
      on the server off the same rows the dashboard draws, so the tiles and the
@@ -313,35 +375,6 @@ export default async function RoomScreen({ view, heads = null, views = null, des
           partyId: principal.party,
         })
       : null;
-
-  /* The drill-down reads this instead of apportioning a state's total across
-     places nobody has reported from. Only ever built for a live count: there
-     is nothing underneath a declared state figure to show. */
-  const tree =
-    project && !project.isDemo && filed > 0
-      ? await liveTree({ electionId: project.id, race, territory })
-      : null;
-
-  /* ── AND COMMAND'S OWN, FROM THE SAME SOURCE AS ITS BOARD ─────────────────
-     Command drills too, and without a tree of its own it fell back to the one
-     above — which on a demonstration project is no tree at all, so the room
-     divided the 2023 replay's declared totals down through every local
-     government, ward and booth and drew them under Command. A clean slate at
-     the country and last election's figures one click in. Built from exactly
-     what `commandBoard` is built from, so the two cannot tell different
-     stories: while the feed is off, both are empty. */
-  const commandTree = project
-    ? await liveTree({
-        electionId: commandLive ? project.id : null,
-        race,
-        territory,
-        /* The same rows the board counted. A drill-down built without them
-           would show a state total on the map and a smaller sum underneath
-           it, and the first person to add the wards up by hand would stop
-           believing both. */
-        extra: fromHub.rows,
-      })
-    : null;
 
   const feed = rawFeed.map((item) => ({
     ...item,
@@ -368,11 +401,6 @@ export default async function RoomScreen({ view, heads = null, views = null, des
      impossible" here and "four" there ends up on a broadcast. */
   const integrity = integrityOf(ourRows);
   const sheetFindings = sheetAudits(ourRows);
-  /* INEC's own published sheets, where an election gathered from its portal
-     has been tied to this project. Null whenever there is nothing to show,
-     and it can only ever be null or right: see lib/irev/verify.js. */
-  /* A desk that holds one state is shown INEC's sheets for that state. */
-  const inec = await inecAgainstOurs(project, ourRows, inecUnder, declaredRows);
 
   /* ── THE OTHER THREE, OFF THE SAME ROWS ─────────────────────────────────
      The pipeline, the night's clock and the warning list. All three are pure
@@ -432,7 +460,7 @@ export default async function RoomScreen({ view, heads = null, views = null, des
     booths: row.booths,
     turnout: row.registered ? (row.declaredTotal / row.registered) * 100 : 0,
   }));
-  const photoMap = Object.fromEntries(await media.forIncidents(feed.map((item) => item.id)));
+  const photoMap = Object.fromEntries(photoPairs);
 
   /* ══════════════════════════════════════════════════════════════════════
      WHAT DATA BANK HAS HEARD THAT THIS PRODUCT HAS NOT
@@ -455,8 +483,10 @@ export default async function RoomScreen({ view, heads = null, views = null, des
      ── AND IT COSTS NOTHING WHEN THE HUB IS NOT THERE ────────────────────
      `situationsFor` never throws and returns `available: false` when Data
      Bank's schema has not been published into this deployment. The screen says
-     so in words rather than going blank. */
-  const hubReports = await situationsFor(watchedCodes);
+     so in words rather than going blank.
+
+     `hubReports` is asked for in the second wait above, beside the hub's
+     figures, rather than here on its own. */
 
   /* ── ONE BOOTH, EVERYTHING WE HOLD, INDEXED ONCE ────────────────────────
      Built here rather than fetched when somebody clicks a booth: clicking is

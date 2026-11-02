@@ -1,6 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
+
+import { PRINCIPAL_COOKIE, ROOM_CHOICES } from "@/lib/principal";
 
 import { roomActor } from "@/lib/room/access";
 import * as act from "@/lib/room/act";
@@ -103,6 +106,27 @@ export async function findPerson(text) {
   const ctx = await roomActor();
   if (!ctx?.holds("assignments:manage")) return [];
   return assignments.search(text);
+}
+
+/**
+ * Whose room the Command dashboard is drawn for — Tinubu, Atiku or Obi.
+ *
+ * A view, remembered per browser for a year: it changes whose figures are
+ * drawn first and never what any figure is. See ROOM_CHOICES.
+ */
+export async function choosePrincipal(id) {
+  const ctx = await roomActor();
+  if (!ctx) return { ok: false };
+  if (!ROOM_CHOICES.some((entry) => entry.id === id)) return { ok: false };
+  (await cookies()).set(PRINCIPAL_COOKIE, id, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    sameSite: "lax",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+  });
+  revalidatePath("/room", "layout");
+  return { ok: true };
 }
 
 /** Which of the project's contests this screen is showing. */

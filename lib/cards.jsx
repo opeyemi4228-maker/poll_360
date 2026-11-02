@@ -530,7 +530,11 @@ function Faces({ S, payload, contestants }) {
           style={{
             display: "flex",
             position: "relative",
-            ...(S.wide ? { height: S.u * 150, flexShrink: 0 } : { flex: 1, minHeight: 0 }),
+            /* The face takes whatever the column has left, on every shape. A
+               fixed height on the wide card cut every candidate off at the
+               forehead and left a band of empty colour under the figures. */
+            flex: 1,
+            minHeight: 0,
             alignItems: "flex-end",
             justifyContent: "center",
             background: "rgba(0,0,0,0.12)",

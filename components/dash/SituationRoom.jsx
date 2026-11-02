@@ -2187,6 +2187,8 @@ export default function SituationRoom({
              tab inside follows the same count the race switcher chose. */
           race={race}
           seat={seat}
+          /* Strongholds opens on whoever the room is run for. */
+          subject={principal?.choice ?? null}
           /* The Overview draws on this room's own map: the same outlines,
              the same trail, and the same walk one level down, so the brief
              drills exactly where the results map does. */
@@ -2424,7 +2426,7 @@ export default function SituationRoom({
                 ever drawn in. */}
             {bands && (
               <div className="pointer-events-none absolute bottom-3 left-3 z-10 rounded-dash-sm bg-board/85 px-3 py-2.5 backdrop-blur-sm">
-                <p className="text-[0.625rem] font-bold tracking-[0.1em] text-white/55 uppercase">
+                <p className="text-[0.6875rem] font-semibold text-white/60 first-letter:uppercase">
                   {LABEL[layer] ?? "Scale"}
                 </p>
                 <div className="mt-1.5 flex items-end gap-[2px]">
@@ -2619,13 +2621,19 @@ export default function SituationRoom({
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 border-t border-board-line px-4 py-2.5">
             <Readout label="Scope" value={crumbs.at(-1).label} />
             <Readout label="Showing" value={LABEL[layer]} />
-            <Readout label="In" value={formatShare(view.coverage)} />
-            <Readout
-              label="Silent"
-              value={`${view.byState.filter((row) => !row.reported).length}`}
-              tone={view.byState.some((row) => !row.reported) ? "warn" : "ok"}
-            />
-            <Readout label="Units" value={formatNumber(view.unitsReported)} />
+            {/* The whole board's figures, so only where the whole board is
+                what the map is drawing. */}
+            {level === "nation" && (
+              <>
+                <Readout label="Counted" value={formatShare(view.coverage)} />
+                <Readout
+                  label="Silent states"
+                  value={`${view.byState.filter((row) => !row.reported).length}`}
+                  tone={view.byState.some((row) => !row.reported) ? "warn" : "ok"}
+                />
+                <Readout label="Units in" value={formatNumber(view.unitsReported)} />
+              </>
+            )}
             {/* ── WHERE, IN DEGREES ────────────────────────────────────────
                 A room that is directing people to places needs the coordinate
                 of the place it is pointing at, and it needs to know whether
@@ -2640,7 +2648,7 @@ export default function SituationRoom({
                 <Readout label="Accredited" value={formatNumber(scope.accredited)} />
                 {scope.counted != null && (
                   <Readout
-                    label="Counted"
+                    label="Ballots counted"
                     value={formatShare(scope.counted)}
                     /* Ballots counted well short of voters accredited is the
                        shape of a problem, not of a slow night. */
@@ -2657,8 +2665,8 @@ export default function SituationRoom({
                   cursor < board.events.length ? "animate-pulse-live bg-red-500" : "bg-white/40"
                 )}
               />
-              <span className="figure text-[0.6875rem] text-white/55 tabular-nums">
-                {cursor < board.events.length ? "COLLATING" : "COMPLETE"}
+              <span className="text-[0.75rem] font-semibold text-white/60">
+                {cursor < board.events.length ? "Collating" : "Complete"}
               </span>
             </span>
           </div>
@@ -3007,7 +3015,9 @@ function metricsFor({
            room at 94% that has heard nothing for fifty minutes is in a
            different situation from one at 94% still filling. */
         label: "Since the last return",
-        value: quietFor == null ? "—" : clockLabel(quietFor),
+        /* In words: this is the largest type on the strip, and "53d" at
+           that size reads as a code. */
+        value: quietFor == null ? "—" : quietFor < 90 ? `${Math.round(quietFor)} min` : quietFor < 2880 ? `${Math.round(quietFor / 60)} hours` : `${Math.round(quietFor / 1440)} days`,
         foot: quietFor == null ? "Nothing filed yet" : quietFor > 45 ? "The count has stalled" : "Still arriving",
         tone: quietFor != null && quietFor > 45 ? "warn" : undefined,
       },
@@ -3115,6 +3125,21 @@ function metricsFor({
       { icon: TrendingUp, label: "Densest", value: dense?.name ?? "n/a", foot: dense ? `${formatNumber(dense.density)} per unit` : "", small: true },
       { icon: TrendingDown, label: "Most spread", value: sparse?.name ?? "n/a", foot: sparse ? `${formatNumber(sparse.density)} per unit` : "", small: true },
       { icon: MapPin, label: "Commercial centres", value: inScope ? formatNumber(inScope) : "n/a", foot: inScope ? "Principal markets nationwide" : "Shown at national level" },
+    ];
+  }
+
+  /* ── BELOW THE COUNTRY, THE STRIP IS THE PLACE ON THE MAP ────────────────
+     `view` and `spread` are the whole board's. Inside a state they printed
+     the country's booths under one state's name, and counted states at a
+     quarter where there is one state. These four are added up from the rows
+     on screen, so they are this ground and nothing outside it. */
+  if (level !== "nation") {
+    const top = most("total");
+    return [
+      { icon: Vote, label: "Votes counted", value: formatNumber(scope.votes), foot: place },
+      { icon: Percent, label: "Turnout", value: scope.registered ? formatShare(scope.turnout) : "—", foot: scope.registered ? `of ${formatNumber(scope.registered)} registered` : "No register for this place" },
+      { icon: Gauge, label: "Polling units", value: formatNumber(scope.booths), foot: `across ${formatNumber(rows.length)} ${unitWord(level)}` },
+      { icon: TrendingUp, label: "Most votes from", value: top?.total ? top.name : "—", foot: top?.total ? `${formatNumber(top.total)} votes` : "Nothing counted here yet", small: true },
     ];
   }
 
@@ -3365,8 +3390,8 @@ function MapToggle({ on, onClick, children }) {
 
 function Readout({ label, value, tone = "ink" }) {
   return (
-    <span className="flex items-baseline gap-2">
-      <span className="text-[0.5625rem] font-semibold tracking-[0.14em] text-white/35 uppercase">
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-[0.75rem] text-white/45">
         {label}
       </span>
       <span

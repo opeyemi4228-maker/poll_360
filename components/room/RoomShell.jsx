@@ -4,6 +4,7 @@ import { Activity, ChevronDown, Map as MapIcon, MapPin } from "lucide-react";
 import BrandMark from "@/components/ui/BrandMark";
 import SignOutButton from "@/components/auth/SignOutButton";
 import LiveRefresh from "@/components/dash/LiveRefresh";
+import BarHeight from "./BarHeight";
 import RoomLive, { RoomAlarms } from "./RoomLive";
 import { pickRace } from "@/app/room/actions";
 import { greetingNow } from "@/lib/room/page";
@@ -36,7 +37,8 @@ export default function RoomShell({ ctx, title, tabs = null, sections = null, cu
 
   return (
     <div className="dash min-h-screen bg-dash-sheet">
-      <header className="sticky top-0 z-30 border-b border-dash-line bg-dash-sheet">
+      <header id="room-bar" className="sticky top-0 z-30 border-b border-dash-line bg-dash-sheet">
+        <BarHeight id="room-bar" />
         <RoomAlarms canAcknowledge={ctx.holds("field:act")} more={face ? `${face.route}?tab=situations` : null} />
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 lg:px-6">
           <span className="flex shrink-0 items-center gap-2">
@@ -70,14 +72,20 @@ export default function RoomShell({ ctx, title, tabs = null, sections = null, cu
           {/* The situation room's own dashboards, for the desks that are given
               them: the real screen, narrowed to this desk's ground. */}
           {face && MONITOR[face.id] && (
-            <Link href={monitorPath(face.id)} className="flex h-11 shrink-0 items-center gap-2 rounded-full border border-dash-ink px-4 text-[0.875rem] font-bold text-dash-ink hover:bg-dash-ink hover:text-white">
+            <Link href={monitorPath(face.id)} className="flex h-11 shrink-0 items-center gap-2 rounded-full border border-dash-ink px-3.5 text-[0.875rem] font-bold text-dash-ink hover:bg-dash-ink hover:text-white sm:px-4">
               <MapIcon size={15} aria-hidden="true" />
-              Situation room
+              <span className="max-sm:sr-only">Situation room</span>
             </Link>
           )}
 
+          {/* ── THE TABS GET A ROW OF THEIR OWN BELOW A WIDE SCREEN ─────────
+              Squeezed between the desk's name and the clock they were cut off
+              mid-word on a laptop ("Verif"), and a tab nobody can read is a
+              screen nobody opens. Below 2xl they drop under the bar, as wide
+              as they need and no wider; the empty span is the line break. */}
+          {items.length > 0 && <span aria-hidden="true" className="order-last hidden h-0 basis-full max-2xl:block" />}
           {items.length > 0 && (
-            <nav aria-label={`${title} sections`} className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto rounded-full bg-dash-bg p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <nav aria-label={`${title} sections`} className="flex max-w-full min-w-0 items-center gap-0.5 overflow-x-auto rounded-full bg-dash-bg p-1 max-2xl:order-last 2xl:flex-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {items.map((item) => (
                 <Link
                   key={item.id}
@@ -92,7 +100,7 @@ export default function RoomShell({ ctx, title, tabs = null, sections = null, cu
             </nav>
           )}
 
-          <div className={cn("flex items-center gap-2", items.length ? "" : "ml-auto")}>
+          <div className={cn("flex items-center gap-2", items.length ? "max-2xl:ml-auto" : "ml-auto")}>
             <RoomLive canAcknowledge={ctx.holds("field:act")} title={title} openCount={openCount} />
             <span className="flex h-11 items-center gap-2 rounded-full border border-dash-line pr-1 pl-1.5">
               <span className="flex size-8 items-center justify-center rounded-full bg-blue-50 font-display text-[0.75rem] font-bold text-blue-700" aria-hidden="true">

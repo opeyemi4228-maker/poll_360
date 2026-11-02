@@ -123,7 +123,7 @@ export default function LiveMap({ shapes, box, layers, title, hint, up = null, s
           {layers.length > 1 ? (
             <div role="tablist" aria-label="What the map shows" className="flex max-w-full overflow-x-auto rounded-full border border-white/15 p-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {layers.map((each) => (
-                <button key={each.id} type="button" role="tab" aria-selected={each.id === layer.id} onClick={() => setLayerId(each.id)} className={cn("rounded-full px-3 py-1 font-semibold whitespace-nowrap", each.id === layer.id ? "bg-white text-[#090c17]" : "text-white/70 hover:text-white")}>
+                <button key={each.id} type="button" role="tab" aria-selected={each.id === layer.id} onClick={() => setLayerId(each.id)} className={cn("shrink-0 rounded-full px-3 py-1 font-semibold whitespace-nowrap", each.id === layer.id ? "bg-white text-[#090c17]" : "text-white/70 hover:text-white")}>
                   {each.name}
                 </button>
               ))}
@@ -232,7 +232,7 @@ export default function LiveMap({ shapes, box, layers, title, hint, up = null, s
             return (
               <g key={`label-${shape.code}`} pointerEvents="none">
                 <rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={5 * k} fill="#11131c" fillOpacity="0.92" stroke={INK[paint.tone]} strokeWidth={1.2 * k} />
-                <text x={x} y={y - 3 * k} textAnchor="middle" fontSize={10.5 * k} fontWeight="600" fill="#ffffff" fillOpacity="0.75" style={{ textTransform: "uppercase", letterSpacing: `${0.4 * k}px` }}>{text}</text>
+                <text x={x} y={y - 3 * k} textAnchor="middle" fontSize={10.5 * k} fontWeight="600" fill="#ffffff" fillOpacity="0.8">{text}</text>
                 <text x={x} y={y + 12 * k} textAnchor="middle" fontSize={13 * k} fontWeight="800" fill={INK[paint.tone]}>{MARK[paint.tone]} {paint.label}</text>
               </g>
             );

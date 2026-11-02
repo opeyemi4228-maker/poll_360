@@ -68,26 +68,6 @@ export default async function VerifyPage({ searchParams }) {
           { label: "Items resolved, last hour", value: formatNumber(speed.closed), note: `${formatNumber(mine.length)} taken by you now` },
         ]} />
 
-        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} layers={[countLayer({ id: "queue", name: TAB_NAME[tab], codes: (tab === "agents" ? waiting.map((row) => row.unitCode) : (tab === "team" ? first : shown).map((item) => item.areaCode)), word: "waiting", many: 10 })]} />}>
-          <Side label={`The light on ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />}>
-            <LightCounts counts={focus.counts} />
-            <BvasBlock bvas={focus.bvas} total={focus.total} className="mt-3 border-0 bg-dash-bg p-4" />
-          </Side>
-          <Side label="Backlog by state" headline={speed.backlog.length ? `${formatNumber(speed.backlog.reduce((sum, row) => sum + row.waiting, 0))} waiting to be checked` : "Nothing waiting"} note="Tap a state on the map or here to narrow the queue.">
-            <ul className="max-h-72 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
-              <li><Link href={hrefWith(BASE, query, { at: null, unit: null })} className={cn("flex justify-between py-2 font-semibold", !at ? "text-dash-ink" : "text-blue-700")}>All my states</Link></li>
-              {speed.backlog.map((row) => (
-                <li key={row.state}>
-                  <Link href={hrefWith(BASE, query, { at: row.state, unit: null })} className="flex justify-between py-2 hover:bg-dash-bg">
-                    <span className={cn("font-semibold", at === row.state ? "text-dash-ink underline" : "text-dash-ink")}>{row.name}</span>
-                    <span className="tabular-nums text-dash-muted">{formatNumber(row.waiting)} waiting</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </Side>
-        </Stage>
-
         {view && <UnitPanel view={view} caps={caps} base={BASE} query={query} userId={ctx.user.id} roster={verifiers} />}
 
         <Card padded={false} id="work" title={TAB_NAME[tab]}>
@@ -140,6 +120,31 @@ export default async function VerifyPage({ searchParams }) {
             )}
           </div>
         </Card>
+
+        {/* ── THE QUEUE FIRST ──────────────────────────────────────────────
+            Checking results is this desk's whole job, so the work is the
+            first thing under the figures and the map is below it, for
+            finding where the backlog is. It used to be the other way round,
+            and the queue began a screen and a half down. */}
+        <Stage map={<BigMap rows={map.rows} base={BASE} query={query} at={map.at} title={map.title} layers={[countLayer({ id: "queue", name: TAB_NAME[tab], codes: (tab === "agents" ? waiting.map((row) => row.unitCode) : (tab === "team" ? first : shown).map((item) => item.areaCode)), word: "waiting", many: 10 })]} />}>
+          <Side label={`The light on ${focus.name}`} headline={<LightBadge light={focus.light} coverage={focus.coveragePct} />}>
+            <LightCounts counts={focus.counts} />
+            <BvasBlock bvas={focus.bvas} total={focus.total} className="mt-3 border-0 bg-dash-bg p-4" />
+          </Side>
+          <Side label="Backlog by state" headline={speed.backlog.length ? `${formatNumber(speed.backlog.reduce((sum, row) => sum + row.waiting, 0))} waiting to be checked` : "Nothing waiting"} note="Tap a state on the map or here to narrow the queue.">
+            <ul className="max-h-72 divide-y divide-dash-line overflow-auto text-[0.8125rem]">
+              <li><Link href={hrefWith(BASE, query, { at: null, unit: null })} className={cn("flex justify-between py-2 font-semibold", !at ? "text-dash-ink" : "text-blue-700")}>All my states</Link></li>
+              {speed.backlog.map((row) => (
+                <li key={row.state}>
+                  <Link href={hrefWith(BASE, query, { at: row.state, unit: null })} className="flex justify-between py-2 hover:bg-dash-bg">
+                    <span className={cn("font-semibold", at === row.state ? "text-dash-ink underline" : "text-dash-ink")}>{row.name}</span>
+                    <span className="tabular-nums text-dash-muted">{formatNumber(row.waiting)} waiting</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Side>
+        </Stage>
 
         <div className="grid gap-6 xl:grid-cols-2">
           <Handover desk="verify" notes={handovers} userId={ctx.user.id} />

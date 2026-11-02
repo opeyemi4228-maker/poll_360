@@ -377,7 +377,7 @@ export default function WallClock({ className }) {
           second, sit exactly where they should at any size. */}
       <div className="flex h-11 items-stretch overflow-hidden rounded-full bg-blue-950 text-white shadow-e2">
         <div
-          className="flex items-center gap-3 pr-3 pl-4"
+          className="flex items-center gap-3 pr-2 pl-3 sm:pr-3 sm:pl-4"
           role="timer"
           aria-label={tick ? `${hh}:${mm} West Africa Time` : "Clock"}
           title={tick ? `${DATE.format(new Date(tick))} · West Africa Time` : undefined}
@@ -389,7 +389,7 @@ export default function WallClock({ className }) {
               <span className={cn("size-[0.22rem] rounded-full bg-red-500", tick && "animate-[pulse_1s_steps(2,end)_infinite]")} />
             </span>
             <span className="text-[1.375rem] tracking-[-0.03em]">{mm}</span>
-            <span className="ml-1.5 w-[1.4em] text-[0.8125rem] text-blue-300">{ss}</span>
+            <span className="ml-1.5 hidden w-[1.4em] text-[0.8125rem] text-blue-300 min-[26rem]:inline">{ss}</span>
           </p>
           <span className="hidden flex-col justify-center border-l border-blue-800 pl-3 leading-none 2xl:flex">
             <span className="text-[0.6875rem] font-medium text-blue-300">WAT</span>

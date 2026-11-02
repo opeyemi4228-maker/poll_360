@@ -20,7 +20,7 @@ export default function BvasBlock({ bvas, total = null, unit = null, wall = fals
   const over = has && bvas.headroom < 0;
   return (
     <section className={cn("rounded-dash border border-dash-line bg-dash-card p-5", className)} aria-label="BVAS accredited">
-      <p className="text-[0.75rem] font-bold tracking-[0.08em] text-dash-muted">BVAS ACCREDITED</p>
+      <p className="text-[0.8125rem] font-semibold text-dash-muted">Accredited on BVAS</p>
       <p className={cn("mt-1 font-display leading-none font-extrabold tracking-[-0.03em] text-dash-ink tabular-nums", wall ? "text-[clamp(72px,7vw,128px)]" : "text-[2.5rem]")}>
         {has ? formatNumber(bvas.accredited) : "No figure yet"}
       </p>
@@ -34,7 +34,7 @@ export default function BvasBlock({ bvas, total = null, unit = null, wall = fals
 
       {total != null && bvas && (
         <div className="mt-3">
-          <div className="h-1.5 overflow-hidden rounded-full bg-dash-bg">
+          <div className="h-1.5 overflow-hidden rounded-full bg-dash-line">
             <div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, bvas.coveragePct ?? 0)}%` }} />
           </div>
           <p className={cn("mt-1.5 text-dash-muted tabular-nums", wall ? "text-[1.125rem]" : "text-[0.75rem]")}>
@@ -54,10 +54,10 @@ export default function BvasBlock({ bvas, total = null, unit = null, wall = fals
             <dd className="font-bold text-dash-ink">{formatNumber(bvas.rejected)}</dd>
           </div>
           <div>
-            <dt className="text-dash-muted">{over ? "Over-voted" : "Headroom"}</dt>
+            <dt className="text-dash-muted">{over ? "Over-voted" : "Not used"}</dt>
             <dd className={cn("inline-flex items-center gap-1 font-bold", over ? "text-light-red" : "text-dash-ink")}>
               {over && <XCircle size={14} strokeWidth={2.4} aria-hidden="true" />}
-              {over ? `OVER-VOTED BY ${formatNumber(-bvas.headroom)}` : formatNumber(bvas.headroom)}
+              {over ? `By ${formatNumber(-bvas.headroom)}` : formatNumber(bvas.headroom)}
             </dd>
           </div>
         </dl>

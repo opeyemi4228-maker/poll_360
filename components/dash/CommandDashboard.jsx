@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { Target } from "lucide-react";
+import { useOptimistic, useTransition } from "react";
+import { Loader2, Target } from "lucide-react";
 
 import { PARTY_FILL } from "./Charts";
 import PartyMark from "./PartyMark";
+import PersonPhoto from "./PersonPhoto";
+import { choosePrincipal } from "@/app/room/actions";
 import { partyById, partyLogo } from "@/lib/party-register";
 import { STATES_REQUIRED } from "@/lib/spread";
 import { partyFill } from "@/lib/party-pattern";
@@ -186,7 +188,7 @@ export function CommandBrief({
           screen somebody will one day read as the leader's. */}
       <section className="rounded-dash border border-dash-line bg-dash-card p-5">
         <div className="flex items-center gap-4">
-          <Portrait principal={principal} />
+          <PersonPhoto name={principal.candidate} ring={principal.token} size={72} />
           <div className="min-w-0">
             <p className="text-[0.75rem] font-medium text-dash-muted">
               {principal.room}
@@ -213,6 +215,8 @@ export function CommandBrief({
             </p>
           </div>
         </div>
+
+        <WhoseRoom principal={principal} />
 
         {/* ── THE ONE FIGURE THAT DECIDES IT, UNDER THE NAME ────────────
             The share and the states are already on the strip at the top of
@@ -733,50 +737,75 @@ function Condition({ label, value, foot, met = false, pending = false, neutral =
   );
 }
 
-/* ══════════════════════════════════════════════════════════════ the portrait
+/* ═══════════════════════════════════════════════════════ whose room this is
  *
- * ── A PICTURE IF THERE IS ONE, INITIALS IF THERE IS NOT ────────────────────
- * This product ships with no photographs of anybody, deliberately: a picture
- * of a real person is somebody's copyright and somebody's likeness, and
- * neither belongs in a repository by default. The room looks for a file at the
- * path lib/principal.js names and draws a monogram when there is not one.
+ * ── ONE PRESS, AND THE WHOLE DASHBOARD IS SOMEBODY ELSE'S ──────────────────
+ * Tinubu, Atiku or Obi. The press is remembered on the server (a cookie set
+ * by `choosePrincipal`) and the room is redrawn for that candidate's party:
+ * our share, the spread test, the order of the parties. The count itself does
+ * not change — see the note at the head of lib/principal.js.
  *
- * The monogram is not an apology. A room showing initials is finished; a room
- * showing a broken image icon is not, and the difference is that this path is
- * allowed to stay empty forever. `onError` is why this is a client component —
- * there is no server-side way to know whether a file 404s.
+ * The button lights at once, before the server has answered, because a press
+ * that does nothing for a second on a wall display gets pressed again.
  */
-function Portrait({ principal }) {
-  const [failed, setFailed] = useState(false);
-  const ring = { boxShadow: `inset 0 0 0 2px ${principal.token}` };
+function WhoseRoom({ principal }) {
+  const choices = principal.choices ?? [];
+  const [pending, startTransition] = useTransition();
+  const [shown, setShown] = useOptimistic(principal.choice);
 
-  if (failed || !principal.portrait) {
-    return (
-      <span
-        style={ring}
-        className="flex size-14 shrink-0 items-center justify-center rounded-full bg-dash-bg"
-        aria-hidden="true"
-      >
-        <span className="figure text-base font-bold text-dash-ink">{principal.initials}</span>
-      </span>
-    );
-  }
+  if (choices.length < 2) return null;
+
+  const pick = (id) => {
+    if (id === shown) return;
+    startTransition(async () => {
+      setShown(id);
+      await choosePrincipal(id);
+    });
+  };
 
   return (
-    /* eslint-disable-next-line @next/next/no-img-element --
-       Deliberately not next/image. That component runs the file through the
-       optimiser, and this file is expected to be missing — the whole design
-       above is that a room with no portrait is a finished room. A missing
-       source is a clean 404 and an `onError` here; through the optimiser it is
-       a 500 from a route nobody is looking at, and the monogram never draws. */
-    <img
-      src={principal.portrait}
-      alt={principal.candidate}
-      width={56}
-      height={56}
-      style={ring}
-      onError={() => setFailed(true)}
-      className="size-14 shrink-0 rounded-full object-cover"
-    />
+    <div className="mt-4 border-t border-dash-line pt-3">
+      <p className="mb-2 flex items-center gap-1.5 text-[0.75rem] font-medium text-dash-muted">
+        Run this room for
+        {pending && <Loader2 size={12} className="animate-spin" aria-label="Switching" />}
+      </p>
+      <div
+        role="radiogroup"
+        aria-label="Run this room for"
+        /* Two to a row from four up: four across the narrow column cut every
+           surname to three letters. */
+        className={cn("grid gap-1.5", choices.length > 3 ? "grid-cols-2" : "grid-cols-3")}
+      >
+        {choices.map((choice) => {
+          const on = choice.id === shown;
+          return (
+            <button
+              key={choice.id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              disabled={pending}
+              onClick={() => pick(choice.id)}
+              title={`${choice.candidate} · ${choice.partyName}`}
+              className={cn(
+                "flex min-w-0 flex-col items-center gap-1.5 rounded-dash-sm border px-1.5 py-2 text-center transition-colors",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dash-ink",
+                "disabled:cursor-wait",
+                on ? "border-dash-ink bg-dash-ink text-white" : "border-dash-line text-dash-ink hover:border-dash-ink"
+              )}
+            >
+              <PersonPhoto name={choice.candidate} ring={choice.token} size={36} />
+              <span className="w-full truncate text-[0.75rem] leading-tight font-bold">
+                {choice.candidate.split(" ").at(-1)}
+              </span>
+              <span className={cn("figure flex items-center gap-1 text-[0.625rem] font-bold", on ? "text-white/80" : "text-dash-muted")}>
+                <PartyMark id={choice.party} size={16} title={false} />
+                {choice.party}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

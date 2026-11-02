@@ -464,7 +464,7 @@ function AnswerCard({ turn, onAsk }) {
                     active === index ? "border-red-500 text-dash-ink" : "border-transparent text-dash-muted hover:text-dash-ink"
                   )}
                 >
-                  {LEVEL_WORDS[entry.level]?.title ?? entry.level}
+                  {entry.tab ?? LEVEL_WORDS[entry.level]?.title ?? entry.level}
                   <span className="figure ml-1.5 text-[0.75rem] font-semibold text-dash-muted tabular-nums">{fmtInt(entry.total)}</span>
                 </button>
               ))}
@@ -713,10 +713,15 @@ function Table({ section, turn, index }) {
   const sort = applied.sort;
 
   /* A table arranged by state (or local government) is headed at each one —
-     while it is read in that arrangement. A search or a sort re-orders the
-     rows, and the headings would then mislead, so they step aside. */
+     while it is read in that arrangement. A search keeps the arrangement (it
+     only leaves rows out), so the headings stay, without the counts that
+     describe the whole list. A sort re-orders the rows, and headings would
+     then mislead, so they step aside. */
   const groups = section.groups ?? null;
   const banded = Boolean(groups?.length) && !applied.query && !applied.sort;
+  const searched = Boolean(groups?.length) && Boolean(applied.query) && !applied.sort;
+  const arrangedView = banded || searched;
+  const bandName = (row) => (section.group?.name === "state" ? row.state : `${row.lga} local government`);
   const groupFor = (at) => {
     let low = 0;
     let high = groups.length - 1;
@@ -733,6 +738,43 @@ function Table({ section, turn, index }) {
     return top ? { group, continued: true } : null;
   };
   const current = banded ? groupFor(page * PAGE) : null;
+
+  /* ── THE LEVELS INSIDE A BAND ────────────────────────────────────────────
+     A list arranged state by state carries its local governments and wards
+     as headings too: "Federal Capital Territory", then "Bwari", then each
+     ward, with its polling units under it. The columns those headings already
+     name step aside while they are shown. */
+  const nest = arrangedView ? section.nest ?? [] : [];
+  const headed = new Set(arrangedView ? [section.group?.name, ...(section.group?.name === "lga" ? ["state"] : []), ...nest] : []);
+  const columns = headed.size ? section.columns.filter((column) => !headed.has(column.key)) : section.columns;
+  const pathOf = (row, depth) => nest.slice(0, depth + 1).map((key) => row[key]).join("\u0000");
+  const partAt = (at) => {
+    const parts = groupFor(at)?.parts;
+    if (!parts?.length) return null;
+    for (let low = parts.length - 1; low >= 0; low -= 1) if (parts[low].first <= at) return parts[low];
+    return null;
+  };
+  const headingsAt = (row, rowIndex, at, banding) => {
+    if (!nest.length) return [];
+    const before = rowIndex > 0 ? view.rows[rowIndex - 1] : null;
+    const out = [];
+    nest.forEach((key, depth) => {
+      const fresh = !before || banding || pathOf(row, depth) !== pathOf(before, depth);
+      if (!fresh) return;
+      const part = depth === 0 && banded ? partAt(at) : null;
+      const counted = key === "lga" ? row.in_lga : key === "ward" ? row.in_ward : null;
+      out.push({
+        key,
+        depth,
+        name: key === "lga" ? `${row.lga} local government` : key === "ward" ? (/\bward\b/i.test(row.ward ?? "") ? row.ward : `${row.ward} ward`) : String(row[key] ?? ""),
+        /* The whole list's count; a search shows only some of them. */
+        count: searched ? null : part?.count ?? counted ?? null,
+        continued: part ? part.first < at : false,
+      });
+    });
+    return out;
+  };
+  const currentPart = banded && nest.length ? partAt(page * PAGE) : null;
 
   return (
     <div>
@@ -761,6 +803,27 @@ function Table({ section, turn, index }) {
               </select>
             </label>
           )}
+          {current?.parts?.length > 1 && (
+            <label className="flex h-9 items-center gap-2 rounded-dash-sm border border-dash-line px-2.5 text-[0.8125rem] text-dash-muted focus-within:border-blue-300">
+              <span className="sr-only">Go to a {nest[0] === "ward" ? "ward" : "local government"} in {current.name}</span>
+              <select
+                value={currentPart ? String(currentPart.first) : ""}
+                onChange={(event) => {
+                  const first = Number(event.target.value);
+                  setQuery("");
+                  clearTimeout(timer.current);
+                  load(Math.floor(first / PAGE), { query: "", sort: null });
+                }}
+                className="max-w-[14rem] bg-transparent font-semibold text-dash-ink outline-none"
+              >
+                {current.parts.map((part) => (
+                  <option key={part.first} value={String(part.first)}>
+                    {part.value} ({fmtInt(part.count)})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <label className="flex h-9 items-center gap-2 rounded-dash-sm border border-dash-line px-2.5 text-dash-muted focus-within:border-blue-300">
             {loading ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <Search size={14} aria-hidden="true" />}
             <span className="sr-only">Find in this table</span>
@@ -784,7 +847,7 @@ function Table({ section, turn, index }) {
         <table className="w-full min-w-[44rem] border-collapse text-[0.8125rem]">
           <thead className="sticky top-0 z-[1] bg-blue-900 text-white">
             <tr>
-              {section.columns.map((column) => {
+              {columns.map((column) => {
                 const sorted = sort?.key === column.key;
                 return (
                   <th
@@ -822,13 +885,21 @@ function Table({ section, turn, index }) {
           </thead>
           <tbody>
             {view.rows.map((row, rowIndex) => {
-              const opens = banded ? bandAt(page * PAGE + rowIndex, rowIndex === 0) : null;
+              const at = page * PAGE + rowIndex;
+              const before = rowIndex > 0 ? view.rows[rowIndex - 1] : null;
+              const opens = banded
+                ? bandAt(at, rowIndex === 0)
+                : searched && (!before || before[section.group.key] !== row[section.group.key])
+                  ? { group: { name: bandName(row), count: null }, continued: false }
+                  : null;
+              const headings = arrangedView ? headingsAt(row, rowIndex, at, Boolean(opens)) : [];
               return (
                 <Fragment key={`${row.key ?? row.name}-${rowIndex}`}>
                   {opens && (
                     <tr className="border-b border-dash-line bg-blue-50">
-                      <td colSpan={section.columns.length} className="border-l-[3px] border-l-navy-900 px-3 py-1.5">
-                        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <td colSpan={columns.length} className="border-l-[3px] border-l-navy-900 px-3 py-1.5">
+                        {/* Held in view while a wide table scrolls sideways on a phone. */}
+                        <span className="sticky left-3 flex max-w-[calc(100vw-4rem)] flex-wrap items-center gap-x-3 gap-y-1">
                           <span className="font-bold text-navy-900">
                             {opens.group.name}
                             {opens.continued ? ", continued" : ""}
@@ -843,16 +914,41 @@ function Table({ section, turn, index }) {
                               {opens.group.role}
                             </span>
                           )}
-                          <span className="ml-auto text-[0.75rem] text-dash-muted">
-                            {fmtInt(opens.group.count)} {opens.group.count === 1 ? LEVEL_WORDS[section.level]?.one : LEVEL_WORDS[section.level]?.many}{" "}
-                            · rows {fmtInt(opens.group.first + 1)}–{fmtInt(opens.group.first + opens.group.count)}
-                          </span>
+                          {opens.group.count !== null && (
+                            <span className="ml-auto text-[0.75rem] text-dash-muted">
+                              {fmtInt(opens.group.count)} {opens.group.count === 1 ? LEVEL_WORDS[section.level]?.one : LEVEL_WORDS[section.level]?.many}{" "}
+                              · rows {fmtInt(opens.group.first + 1)}–{fmtInt(opens.group.first + opens.group.count)}
+                            </span>
+                          )}
                         </span>
                       </td>
                     </tr>
                   )}
+                  {headings.map((heading) => (
+                    <tr key={heading.key} className="border-b border-dash-line bg-white">
+                      <td
+                        colSpan={columns.length}
+                        className={cn(
+                          "py-1.5 pr-3",
+                          heading.depth === 0 ? "pl-6 font-semibold text-dash-ink" : "pl-10 text-[0.75rem] font-semibold text-dash-muted"
+                        )}
+                      >
+                        <span className="sticky left-6 flex max-w-[calc(100vw-5rem)] flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>
+                            {heading.name}
+                            {heading.continued ? ", continued" : ""}
+                          </span>
+                          {heading.count !== null && (
+                            <span className="ml-auto text-[0.75rem] font-normal text-dash-muted">
+                              {fmtInt(heading.count)} {heading.count === 1 ? LEVEL_WORDS[section.level]?.one : LEVEL_WORDS[section.level]?.many}
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                   <tr className={cn("border-b border-dash-line hover:bg-blue-50/60", rowIndex % 2 ? "bg-ink-50/70" : "bg-white")}>
-                    {section.columns.map((column) => (
+                    {columns.map((column) => (
                       <td
                         key={column.key}
                         className={cn(
@@ -872,7 +968,7 @@ function Table({ section, turn, index }) {
             })}
             {!view.rows.length && !loading && (
               <tr>
-                <td colSpan={section.columns.length} className="px-4 py-8 text-center text-dash-muted">
+                <td colSpan={columns.length} className="px-4 py-8 text-center text-dash-muted">
                   {applied.query ? `Nothing among all ${fmtInt(section.total)} matches “${applied.query}”.` : "Nothing to list here."}
                 </td>
               </tr>
