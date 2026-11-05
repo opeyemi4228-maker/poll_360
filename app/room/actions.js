@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 
-import { PRINCIPAL_COOKIE, ROOM_CHOICES } from "@/lib/principal";
+import { PRINCIPAL_COOKIE, ROOM_CHOICES, ROOM_LOCKED_TO } from "@/lib/principal";
 
 import { roomActor } from "@/lib/room/access";
 import * as act from "@/lib/room/act";
@@ -118,6 +118,8 @@ export async function choosePrincipal(id) {
   const ctx = await roomActor();
   if (!ctx) return { ok: false };
   if (!ROOM_CHOICES.some((entry) => entry.id === id)) return { ok: false };
+  /* Held on one candidate until further notice — see ROOM_LOCKED_TO. */
+  if (ROOM_LOCKED_TO && id !== ROOM_LOCKED_TO) return { ok: false };
   (await cookies()).set(PRINCIPAL_COOKIE, id, {
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
